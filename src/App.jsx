@@ -2008,7 +2008,7 @@ function BOMManager({ user }) {
                             {sorted.length > 0 ? (
                               <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:14 }}>
                                 {sorted.map(([key, data]) => {
-                                  const isBest = key === best;
+                                  const isBest = key === filteredBest;
                                   const ctry = getCountry(data);
                                   const displayPrice = p100(data);
                                   const origin = data.countryOfOrigin || "";
