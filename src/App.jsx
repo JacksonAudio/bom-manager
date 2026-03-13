@@ -1970,19 +1970,21 @@ function BOMManager({ user }) {
                           onMouseOver={e=>{if(!isOpen)e.currentTarget.style.background="rgba(0,0,0,0.02)"}}
                           onMouseOut={e=>{if(!isOpen)e.currentTarget.style.background="transparent"}}>
                           <div style={{ flex:1 }}>
-                            <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f",display:"flex",alignItems:"center",gap:6 }}>
+                            <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f" }}>
                               {part.mpn || part.reference}
-                              <span style={{ marginLeft:"auto",fontSize:11,color:"#86868b",fontWeight:400 }}>buy</span>
-                              <input type="number" min="1" value={bq}
-                                onClick={(e)=>e.stopPropagation()}
-                                onChange={(e)=>{e.stopPropagation();setBuyQtys(q=>({...q,[part.id]:parseInt(e.target.value)||1}));}}
-                                style={{ width:72,padding:"2px 4px",border:"none",borderBottom:"1px solid transparent",fontSize:15,textAlign:"left",fontFamily:"inherit",fontWeight:600,color:"#1d1d1f",background:"transparent",outline:"none",transition:"border-color 0.15s" }}
-                                onFocus={(e)=>{e.target.style.borderBottom="1px solid #0071e3";e.target.select();}}
-                                onBlur={(e)=>{e.target.style.borderBottom="1px solid transparent";}} />
                             </div>
                             <div style={{ fontSize:12,color:"#86868b",marginTop:1,minHeight:18 }}>
                               {[part.description, part.value].filter(Boolean).join(" — ") || "\u00A0"}
                             </div>
+                          </div>
+                          <div style={{ display:"flex",alignItems:"center",gap:6,minWidth:160,justifyContent:"center" }}>
+                            <span style={{ fontSize:11,color:"#86868b",fontWeight:400,whiteSpace:"nowrap" }}>quote quantity</span>
+                            <input type="text" inputMode="numeric" value={bq}
+                              onClick={(e)=>e.stopPropagation()}
+                              onChange={(e)=>{e.stopPropagation();const v=e.target.value.replace(/[^0-9]/g,"");setBuyQtys(q=>({...q,[part.id]:parseInt(v)||1}));}}
+                              style={{ width:72,padding:"2px 4px",border:"none",borderBottom:"1px solid transparent",fontSize:15,textAlign:"center",fontFamily:"inherit",fontWeight:600,color:"#1d1d1f",background:"transparent",outline:"none",transition:"border-color 0.15s" }}
+                              onFocus={(e)=>{e.target.style.borderBottom="1px solid #0071e3";e.target.select();}}
+                              onBlur={(e)=>{e.target.style.borderBottom="1px solid transparent";}} />
                           </div>
                           <div style={{ textAlign:"right",minWidth:100 }}>
                             {effectiveStatus === "done" && bestDisplayPrice ? (
