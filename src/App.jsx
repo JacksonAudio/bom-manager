@@ -1580,7 +1580,7 @@ function BOMManager({ user }) {
                       {/* ── 🚩 order flag column */}
                       <th style={{ padding:"7px 4px",width:28,textAlign:"center",color:"#aeaeb2",
                         fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:10,fontWeight:700 }}>🚩</th>
-                      {["Reference","Value","MPN","Qty","Desc","Product","Supplier","Unit $","Ext $","Stock","Reorder","Search",""].map((h,i)=>(
+                      {["Reference","Value","MPN","Qty","Desc","Product","Supplier","Unit $","Ext $","Stock","Reorder",""].map((h,i)=>(
                         <th key={i} style={{ textAlign:"left",padding:"7px 8px",color:"#aeaeb2",
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:10,fontWeight:700,
                           letterSpacing:"0.07em",whiteSpace:"nowrap" }}>{h}</th>
@@ -1675,16 +1675,6 @@ function BOMManager({ user }) {
                             <input type="number" placeholder="0" value={part.reorderQty}
                               onChange={(e)=>updatePart(part.id,"reorderQty",e.target.value)}
                               style={{ width:52,padding:"3px 5px",borderRadius:4 }} min="0" />
-                          </td>
-                          <td style={{ padding:"7px 8px" }}>
-                            {part.mpn ? (
-                              <div style={{ display:"flex",gap:3,flexWrap:"wrap" }}>
-                                {SUPPLIERS.map((s)=>(
-                                  <a key={s.id} href={s.searchUrl(part.mpn)} target="_blank" rel="noopener noreferrer"
-                                    className="supplier-pill" style={{ background:s.color,color:"#fff" }}>{s.logo}</a>
-                                ))}
-                              </div>
-                            ) : <span style={{ color:"#aeaeb2",fontSize:11 }}>No MPN</span>}
                           </td>
                           <td style={{ padding:"7px 4px" }}>
                             <button onClick={()=>deletePart(part.id)}
@@ -2130,7 +2120,7 @@ function BOMManager({ user }) {
                           <th>Reference</th><th>MPN</th><th>Description</th><th>Mfr</th>
                           <th style={{ textAlign:"center" }}>Need</th><th style={{ textAlign:"center" }}>Stock</th>
                           <th style={{ textAlign:"right" }}>Unit $</th><th style={{ textAlign:"right" }}>Ext $</th>
-                          <th>Search</th><th>Remove</th>
+                          <th>Remove</th>
                         </tr></thead>
                         <tbody>
                           {lines.map((part) => {
@@ -2155,16 +2145,6 @@ function BOMManager({ user }) {
                                   {part.unitCost ? <span style={{ color:"#34c759",fontWeight:700 }}>${ext.toFixed(2)}</span> : <span style={{ color:"#aeaeb2" }}>—</span>}
                                 </td>
                                 <td>
-                                  {part.mpn ? (
-                                    <div style={{ display:"flex",gap:3 }}>
-                                      {SUPPLIERS.map((s)=>(
-                                        <a key={s.id} href={s.searchUrl(part.mpn)} target="_blank" rel="noopener noreferrer"
-                                          className="supplier-pill" style={{ background:s.color,color:"#fff",padding:"2px 7px" }}>{s.logo}</a>
-                                      ))}
-                                    </div>
-                                  ) : "—"}
-                                </td>
-                                <td>
                                   <button style={{ background:"none",border:"1px solid rgba(255,59,48,0.2)",color:"#ff3b30",
                                     borderRadius:5,padding:"4px 8px",fontSize:11,cursor:"pointer",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}
                                     onClick={()=>{ updatePart(part.id,"flaggedForOrder",false); updatePart(part.id,"orderQty",""); }}>✕</button>
@@ -2177,7 +2157,7 @@ function BOMManager({ user }) {
                             <td style={{ textAlign:"center",color:"#0071e3",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{totalUnits}</td>
                             <td colSpan={2} />
                             <td style={{ textAlign:"right",color:poTotal>0?"#34c759":"#aeaeb2",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:14 }}>{poTotal>0?`$${poTotal.toFixed(2)}`:"—"}</td>
-                            <td colSpan={2} />
+                            <td />
                           </tr>
                         </tbody>
                       </table>
