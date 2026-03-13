@@ -189,7 +189,7 @@ async function fetchNexarToken(clientId, clientSecret) {
 function buildNexarQuery(mpn) {
   // Escape any quotes in the MPN just in case
   const safe = mpn.replace(/"/g, '\\"');
-  return `{ supSearchMpn(q: "${safe}", limit: 3, country: "US", currency: "USD") { hits results { part { mpn manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
+  return `{ supSearchMpn(q: "${safe}", limit: 3, country: "US", currency: "USD") { hits results { part { mpn countryOfOrigin manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
 }
 
 async function fetchNexarPricing(mpn, quantity, token) {
@@ -211,8 +211,13 @@ async function fetchNexarPricing(mpn, quantity, token) {
   // Parse response — supSearchMpn returns data.supSearchMpn.results[].part
   const pricing = {};
   const results = data?.data?.supSearchMpn?.results || [];
+  let detectedOrigin = null;
 
   for (const result of results) {
+    // Capture country of origin from part data (for tariff calculation)
+    if (result?.part?.countryOfOrigin && !detectedOrigin) {
+      detectedOrigin = result.part.countryOfOrigin.toUpperCase();
+    }
     for (const seller of (result?.part?.sellers || [])) {
       const distName = seller?.company?.name || "";
       const sellerCountry = (seller?.country || "").toUpperCase();
@@ -244,6 +249,8 @@ async function fetchNexarPricing(mpn, quantity, token) {
       }
     }
   }
+  // Attach countryOfOrigin to the pricing object so callers can access it
+  if (detectedOrigin) pricing._countryOfOrigin = detectedOrigin;
   return pricing;
 }
 
@@ -282,7 +289,7 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
     if (quantity >= pb.qty) unitPrice = pb.price;
   }
 
-  return {
+  const result = {
     supplierId: "mouser",
     displayName: "Mouser Electronics",
     unitPrice,
@@ -291,6 +298,10 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
     url: part.ProductDetailUrl || "",
     priceBreaks: breaks,
   };
+  // Mouser API may return CountryOfOrigin — capture it for tariff calculation
+  if (part.CountryOfOrigin) result.countryOfOrigin = part.CountryOfOrigin.toUpperCase();
+  if (part.ROHSStatus) result.rohsStatus = part.ROHSStatus;
+  return result;
 }
 
 // ─────────────────────────────────────────────
@@ -455,6 +466,24 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
       const ad = await fetchArrowPricing(mpn, quantity, apiKeys.arrow_login, apiKeys.arrow_api_key);
       if (ad) pricing.arrow = ad;
     } catch (e) { console.warn("Arrow direct failed:", e.message); }
+  }
+
+  // Propagate countryOfOrigin across all entries for this part
+  // Sources: Nexar _countryOfOrigin, Mouser countryOfOrigin, or manufacturer-based lookup
+  let origin = pricing._countryOfOrigin || null;
+  if (!origin) {
+    // Check if any direct API returned it
+    for (const data of Object.values(pricing)) {
+      if (data?.countryOfOrigin) { origin = data.countryOfOrigin; break; }
+    }
+  }
+  if (origin) {
+    for (const [key, data] of Object.entries(pricing)) {
+      if (key !== "_countryOfOrigin" && data && typeof data === "object") {
+        data.countryOfOrigin = origin;
+      }
+    }
+    delete pricing._countryOfOrigin; // clean up internal field
   }
 
   return pricing;
@@ -1226,25 +1255,28 @@ function BOMManager({ user }) {
     });
     const shipping = shippingBreakdown.reduce((s, sb) => s + sb.cost, 0);
 
-    // Tariff calculation per supplier
+    // Tariff calculation — based on part's COUNTRY OF ORIGIN, not distributor country
+    // A part made in China gets tariffed regardless of whether you buy it from Mouser (US) or LCSC (CN)
     const tariffs = (() => { try { return JSON.parse(apiKeys.tariffs_json || "{}"); } catch { return {}; } })();
     const tariffFallback = { ...DEFAULT_TARIFFS, ...tariffs };
-    // Group line costs by supplier, find country, apply tariff %
-    const supplierLineCosts = {};
+    const tariffBreakdown = [];
+    let tariffTotal = 0;
     for (const a of assignments) {
-      if (a.supplierId && a.lineCost) {
-        supplierLineCosts[a.supplierId] = (supplierLineCosts[a.supplierId] || 0) + a.lineCost;
+      if (!a.supplierId || !a.lineCost) continue;
+      // Get country of origin from the part's pricing data
+      const part = prodParts.find(p => p.id === a.partId);
+      const pricingData = part?.pricing?.[a.supplierId];
+      const origin = pricingData?.countryOfOrigin || "";
+      const rate = getTariffRate(origin, tariffFallback);
+      if (rate > 0) {
+        const cost = a.lineCost * (rate / 100);
+        tariffTotal += cost;
+        tariffBreakdown.push({
+          partId: a.partId, mpn: a.mpn, supplierId: a.supplierId,
+          origin, rate, goodsValue: a.lineCost, cost,
+        });
       }
     }
-    const tariffBreakdown = [...suppliersUsed].map(sid => {
-      const country = getSupplierCountry(sid);
-      const rate = getTariffRate(country, tariffFallback);
-      const goodsValue = supplierLineCosts[sid] || 0;
-      const cost = goodsValue * (rate / 100);
-      const sup = SUPPLIERS.find(x => x.id === sid);
-      return { supplierId: sid, name: sup?.name || sid, country, rate, goodsValue, cost };
-    }).filter(t => t.rate > 0);
-    const tariffTotal = tariffBreakdown.reduce((s, t) => s + t.cost, 0);
 
     const total = partsCost + shipping + tariffTotal;
     return { partsCost, shipping, shippingBreakdown, tariffTotal, tariffBreakdown, total, perUnit: total / prodQty, suppliers: [...suppliersUsed], assignments };
@@ -1797,15 +1829,32 @@ function BOMManager({ user }) {
                                         if (data.priceBreaks?.length) {
                                           for (const pb of data.priceBreaks) { if (100 >= pb.qty) displayPrice = pb.price; }
                                         }
-                                        return <div style={{ fontSize:28,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",lineHeight:1.1,
-                                          color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(displayPrice)}</div>;
+                                        // Calculate landed price including tariff based on country of origin
+                                        const origin = data.countryOfOrigin || "";
+                                        let userTariffs;
+                                        try { userTariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { userTariffs = { ...DEFAULT_TARIFFS }; }
+                                        const tariffRate = getTariffRate(origin, userTariffs);
+                                        const landedPrice = tariffRate > 0 ? displayPrice * (1 + tariffRate / 100) : 0;
+                                        return (
+                                          <>
+                                            <div style={{ fontSize:28,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",lineHeight:1.1,
+                                              color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(displayPrice)}</div>
+                                            {landedPrice > 0 && (
+                                              <div style={{ fontSize:12,color:"#ef4444",fontWeight:700,marginTop:2 }}>
+                                                Landed: ${fmtPrice(landedPrice)} <span style={{ fontWeight:400,fontSize:10 }}>({origin} +{tariffRate}%)</span>
+                                              </div>
+                                            )}
+                                          </>
+                                        );
                                       })()}
                                       {(() => {
                                         const ctry = data.country || DIST_COUNTRY[data.displayName] || DIST_COUNTRY[key] || "";
+                                        const origin = data.countryOfOrigin || "";
                                         return (
                                           <div style={{ fontSize:12,color:"#64748b",marginTop:4 }}>
                                             {ctry && <span style={{ color: ctry==="US"?"#34d399":"#f59e0b",fontWeight:600 }}>{ctry}</span>}
-                                            {ctry && " · "}Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}
+                                            {origin && origin !== ctry && <span style={{ color:"#94a3b8",fontSize:10 }}> · Made in {origin}</span>}
+                                            {(ctry || origin) && " · "}Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}
                                           </div>
                                         );
                                       })()}
@@ -2077,10 +2126,25 @@ function BOMManager({ user }) {
                         )}
                       </div>
                     </div>
-                    <button className="btn-ghost" style={{ fontSize:11 }}
-                      onClick={()=>{ setSelProject(prod.id); setActiveView("bom"); }}>
-                      View in Parts Library →
-                    </button>
+                    <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+                      <button className="btn-ghost" style={{ fontSize:11 }}
+                        disabled={!prodParts.some(p => p.mpn) || prodParts.some(p => p.pricingStatus === "loading")}
+                        onClick={async () => {
+                          const toFetch = prodParts.filter(p => p.mpn);
+                          for (const p of toFetch) {
+                            await fetchPartPricing(p.id);
+                            await new Promise(r => setTimeout(r, 300));
+                          }
+                        }}>
+                        {prodParts.some(p => p.pricingStatus === "loading")
+                          ? <><span className="spinner" /> Refreshing…</>
+                          : `↻ Refresh Prices (${prodParts.filter(p=>p.mpn).length})`}
+                      </button>
+                      <button className="btn-ghost" style={{ fontSize:11 }}
+                        onClick={()=>{ setSelProject(prod.id); setActiveView("bom"); }}>
+                        View in Parts Library →
+                      </button>
+                    </div>
                   </div>
 
                   {/* ── Quick-add part form */}
@@ -2316,11 +2380,11 @@ function BOMManager({ user }) {
                                     <div key={sb.supplierId}>{sb.name}: ${sb.cost.toFixed(2)} shipping</div>
                                   ))}
                                 </div>
-                                {/* Tariff detail */}
+                                {/* Tariff detail — by part origin country */}
                                 {cheapBase.tariffBreakdown?.length > 0 && (
                                   <div style={{ fontSize:10,color:"#b45454",marginTop:4 }}>
-                                    {cheapBase.tariffBreakdown.map(t => (
-                                      <div key={t.supplierId}>{t.name} ({t.country}): {t.rate}% = ${t.cost.toFixed(2)}</div>
+                                    {cheapBase.tariffBreakdown.map((t,i) => (
+                                      <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on ${t.goodsValue.toFixed(2)} = ${t.cost.toFixed(2)}</div>
                                     ))}
                                   </div>
                                 )}
@@ -2353,11 +2417,11 @@ function BOMManager({ user }) {
                                     <div key={sb.supplierId}>{sb.name}: ${sb.cost.toFixed(2)} shipping</div>
                                   ))}
                                 </div>
-                                {/* Tariff detail */}
+                                {/* Tariff detail — by part origin country */}
                                 {smartBase.tariffBreakdown?.length > 0 && (
                                   <div style={{ fontSize:10,color:"#b45454",marginTop:4 }}>
-                                    {smartBase.tariffBreakdown.map(t => (
-                                      <div key={t.supplierId}>{t.name} ({t.country}): {t.rate}% = ${t.cost.toFixed(2)}</div>
+                                    {smartBase.tariffBreakdown.map((t,i) => (
+                                      <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on ${t.goodsValue.toFixed(2)} = ${t.cost.toFixed(2)}</div>
                                     ))}
                                   </div>
                                 )}
