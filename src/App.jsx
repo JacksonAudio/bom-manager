@@ -3814,37 +3814,6 @@ function BOMManager({ user }) {
                   </div>
                 )}
 
-                {/* ── Product demand overview */}
-                {shopifyDemand.products?.length > 0 && (
-                  <div className="card" style={{ marginBottom:16 }}>
-                    <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>PRODUCT DEMAND</div>
-                    <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
-                      {shopifyDemand.products.map(sp => {
-                        const mapped = products.find(p =>
-                          p.shopifyProductId === sp.shopifyProductId ||
-                          sp.title.toLowerCase().includes(p.name.toLowerCase()) ||
-                          p.name.toLowerCase().includes(sp.title.toLowerCase())
-                        );
-                        return (
-                          <div key={sp.shopifyProductId} style={{
-                            background:mapped ? (mapped.color+"11") : "#f5f5f7",
-                            border:`1px solid ${mapped ? mapped.color+"44" : "#e5e5ea"}`,
-                            borderRadius:8,padding:"10px 14px",minWidth:140
-                          }}>
-                            <div style={{ fontSize:13,fontWeight:700,color:"#1d1d1f",marginBottom:2 }}>{sp.title}</div>
-                            <div style={{ fontSize:22,fontWeight:800,color:mapped ? mapped.color : "#0071e3",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                              {sp.totalUnfulfilled.toLocaleString()}
-                            </div>
-                            <div style={{ fontSize:10,color:"#86868b" }}>units to fulfill</div>
-                            {sp.storeName && <div style={{ fontSize:9,color:"#5856d6",fontWeight:600,marginTop:2 }}>{sp.storeName}</div>}
-                            {!mapped && <div style={{ fontSize:10,color:"#ff9500",fontWeight:600,marginTop:2 }}>Not mapped</div>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
                 {/* ── Parts demand table */}
                 {partsDemand.length > 0 && (
                   <div className="card" style={{ marginBottom:16 }}>
@@ -3934,10 +3903,13 @@ function BOMManager({ user }) {
                 {shopifyDemand.orders?.length > 0 && (() => {
                   // Calculate daily sell rate per product from order history
                   const now = new Date();
+                  const skipWords = ["shipping","gift card","tip","gratuity","donation","insurance","handling","gift wrap"];
+                  const isProduct = (title) => !skipWords.some(w => title.toLowerCase().includes(w));
                   const productSales = {}; // { title: { total, dates[], storeName } }
                   for (const order of shopifyDemand.orders) {
                     const d = new Date(order.createdAt);
                     for (const li of order.lineItems) {
+                      if (!isProduct(li.title)) continue;
                       if (!productSales[li.title]) productSales[li.title] = { total: 0, oldest: d, newest: d, storeName: order.storeName || "" };
                       productSales[li.title].total += li.quantity;
                       if (d < productSales[li.title].oldest) productSales[li.title].oldest = d;
@@ -3964,27 +3936,6 @@ function BOMManager({ user }) {
 
                   return (
                     <>
-                    {/* Build Plan — what to build now */}
-                    {shopifyDemand.products?.length > 0 && (
-                      <div className="card" style={{ marginBottom:16 }}>
-                        <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>BUILD PLAN — UNITS TO BUILD NOW</div>
-                        <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
-                          {shopifyDemand.products.filter(sp => sp.totalUnfulfilled > 0).sort((a,b) => b.totalUnfulfilled - a.totalUnfulfilled).map(sp => (
-                            <div key={sp.shopifyProductId} style={{
-                              background:"#f0f7ff",border:"1px solid #0071e344",borderRadius:10,padding:"14px 18px",minWidth:160,textAlign:"center"
-                            }}>
-                              <div style={{ fontSize:12,fontWeight:600,color:"#1d1d1f",marginBottom:4 }}>{sp.title}</div>
-                              <div style={{ fontSize:32,fontWeight:800,color:"#0071e3",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",lineHeight:1 }}>
-                                {sp.totalUnfulfilled.toLocaleString()}
-                              </div>
-                              <div style={{ fontSize:10,color:"#86868b",marginTop:2 }}>units to build</div>
-                              {sp.storeName && <div style={{ fontSize:9,color:"#5856d6",fontWeight:600,marginTop:3 }}>{sp.storeName}</div>}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
                     {/* Sales Forecast */}
                     {forecasts.length > 0 && (
                       <div className="card">
