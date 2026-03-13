@@ -1,7 +1,6 @@
 // Vercel Serverless Function — Shopify Orders Proxy
 // Fetches unfulfilled orders from a single Shopify store
-// Browser can't call Shopify directly (CORS), so this acts as proxy
-// Accepts ?domain=xxx&token=xxx query params (one store at a time, frontend loops)
+// Uses Client Credentials grant (Dev Dashboard apps) — tokens expire every 24h
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -10,12 +9,28 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
-    const domain = req.query.domain;
-    const token = req.query.token;
+    const { domain, client_id, client_secret } = req.query;
 
-    if (!domain || !token) {
-      return res.status(400).json({ error: "Missing domain or token query params" });
+    if (!domain || !client_id || !client_secret) {
+      return res.status(400).json({ error: "Missing domain, client_id, or client_secret" });
     }
+
+    // Exchange client credentials for access token
+    const tokenRes = await fetch(`https://${domain}/admin/oauth/access_token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `grant_type=client_credentials&client_id=${encodeURIComponent(client_id)}&client_secret=${encodeURIComponent(client_secret)}`,
+    });
+
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text().catch(() => "");
+      return res.status(tokenRes.status).json({
+        error: `Token exchange failed: ${tokenRes.status}`,
+        detail: errText.slice(0, 500),
+      });
+    }
+
+    const { access_token } = await tokenRes.json();
 
     // Fetch unfulfilled orders (paginate up to 250 per page)
     const allOrders = [];
@@ -24,7 +39,7 @@ export default async function handler(req, res) {
     while (url) {
       const shopRes = await fetch(url, {
         headers: {
-          "X-Shopify-Access-Token": token,
+          "X-Shopify-Access-Token": access_token,
           "Content-Type": "application/json",
         },
       });
@@ -40,7 +55,6 @@ export default async function handler(req, res) {
       const data = await shopRes.json();
       allOrders.push(...(data.orders || []));
 
-      // Check for next page via Link header
       const linkHeader = shopRes.headers.get("Link") || "";
       const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
       url = nextMatch ? nextMatch[1] : null;

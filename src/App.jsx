@@ -1805,9 +1805,10 @@ function BOMManager({ user }) {
       const errors = [];
 
       for (const store of stores) {
-        if (!store.domain || !store.token) { errors.push(`${store.name || "?"}: missing domain or token`); continue; }
+        if (!store.domain || !store.clientId || !store.clientSecret) { errors.push(`${store.name || "?"}: missing domain, client ID, or secret`); continue; }
+        const q = `domain=${encodeURIComponent(store.domain)}&client_id=${encodeURIComponent(store.clientId)}&client_secret=${encodeURIComponent(store.clientSecret)}`;
         // Fetch orders
-        const oRes = await fetch(`/api/shopify-orders?domain=${encodeURIComponent(store.domain)}&token=${encodeURIComponent(store.token)}`);
+        const oRes = await fetch(`/api/shopify-orders?${q}`);
         if (!oRes.ok) { const e = await oRes.json().catch(() => ({})); errors.push(`${store.name}: ${e.error || oRes.status}`); continue; }
         const oData = await oRes.json();
         // Tag orders & products with store name
@@ -1816,7 +1817,7 @@ function BOMManager({ user }) {
         allOrders.push(...(oData.orders || []));
         allProducts.push(...(oData.products || []));
         // Fetch product list for mapping
-        const pRes = await fetch(`/api/shopify-products?domain=${encodeURIComponent(store.domain)}&token=${encodeURIComponent(store.token)}`);
+        const pRes = await fetch(`/api/shopify-products?${q}`);
         if (pRes.ok) {
           const pData = await pRes.json();
           const tagged = (pData.products || []).map(p => ({ ...p, storeName: store.name }));
@@ -4056,7 +4057,7 @@ function BOMManager({ user }) {
               </div>
               <div style={{ padding:"16px 20px" }}>
                 <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
-                  Connect one or more Shopify stores. Each needs a Custom App with <strong>read_orders</strong> and <strong>read_products</strong> scopes.
+                  Connect one or more Shopify stores. Create an app in the Dev Dashboard with <strong>read_orders</strong> and <strong>read_products</strong> scopes, then copy the Client ID and Secret from Settings.
                 </div>
                 {(() => {
                   const stores = getShopifyStores();
@@ -4073,27 +4074,33 @@ function BOMManager({ user }) {
                             </button>
                           </div>
                           <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
-                            <div className="key-label" style={{ minWidth:80 }}>Name</div>
+                            <div className="key-label" style={{ minWidth:90 }}>Name</div>
                             <input type="text" placeholder="Jackson Audio" value={store.name || ""}
                               onChange={(e) => { const u = [...stores]; u[idx] = { ...u[idx], name: e.target.value }; updateStores(u); }}
                               style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
                           </div>
                           <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
-                            <div className="key-label" style={{ minWidth:80 }}>Domain</div>
+                            <div className="key-label" style={{ minWidth:90 }}>Domain</div>
                             <input type="text" placeholder="your-store.myshopify.com" value={store.domain || ""}
                               onChange={(e) => { const u = [...stores]; u[idx] = { ...u[idx], domain: e.target.value }; updateStores(u); }}
                               style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
                           </div>
                           <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
-                            <div className="key-label" style={{ minWidth:80 }}>Token</div>
-                            <input type="password" placeholder="shpat_xxxxxxxxxxxxxxxxxxxxxxxx" value={store.token || ""}
-                              onChange={(e) => { const u = [...stores]; u[idx] = { ...u[idx], token: e.target.value }; updateStores(u); }}
+                            <div className="key-label" style={{ minWidth:90 }}>Client ID</div>
+                            <input type="text" placeholder="From Dev Dashboard → Settings" value={store.clientId || ""}
+                              onChange={(e) => { const u = [...stores]; u[idx] = { ...u[idx], clientId: e.target.value }; updateStores(u); }}
+                              style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
+                          </div>
+                          <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
+                            <div className="key-label" style={{ minWidth:90 }}>Secret</div>
+                            <input type="password" placeholder="From Dev Dashboard → Settings" value={store.clientSecret || ""}
+                              onChange={(e) => { const u = [...stores]; u[idx] = { ...u[idx], clientSecret: e.target.value }; updateStores(u); }}
                               style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
                           </div>
                         </div>
                       ))}
                       <button className="btn-ghost" style={{ fontSize:12,marginTop:4 }}
-                        onClick={() => updateStores([...stores, { name: "", domain: "", token: "" }])}>
+                        onClick={() => updateStores([...stores, { name: "", domain: "", clientId: "", clientSecret: "" }])}>
                         + Add Shopify Store
                       </button>
                     </>
