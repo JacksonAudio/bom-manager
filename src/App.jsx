@@ -870,6 +870,7 @@ function BOMManager({ user }) {
   const fileRef = useRef();
   const qtyTimers = useRef({}); // debounce timers for qty→price refresh
   const simTimer = useRef(null); // debounce timer for sim auto-run
+  const recentLocalWrites = useRef(new Set()); // part IDs written locally — skip realtime for these
 
   // Settings per-section save button helper
   const sectionSaveBtn = (sectionId, label) => (
@@ -1038,19 +1039,28 @@ function BOMManager({ user }) {
       } else if (eventType === "UPDATE") {
         setParts((prev) => prev.map((p) => {
           if (p.id !== newRow.id) return p;
+          // Skip realtime updates for parts we just wrote locally — avoids race conditions
+          if (recentLocalWrites.current.has(newRow.id)) return p;
           const updated = dbPartToUI(newRow);
-          // Preserve local custom suppliers that may not be in the realtime payload yet
+          // Realtime payloads can truncate large JSON columns like pricing.
+          // Preserve local pricing if the realtime payload is missing it,
+          // and always preserve local custom suppliers.
           if (p.pricing) {
-            const localCustom = {};
-            for (const [k, v] of Object.entries(p.pricing)) {
-              if (v.isCustom) localCustom[k] = v;
+            if (!updated.pricing || Object.keys(updated.pricing).length === 0) {
+              // Realtime payload truncated pricing — keep local copy entirely
+              updated.pricing = p.pricing;
+              updated.pricingStatus = p.pricingStatus;
+              updated.bestSupplier = p.bestSupplier;
+              updated.preferredSupplier = p.preferredSupplier;
+            } else {
+              // Merge local custom suppliers into realtime data
+              for (const [k, v] of Object.entries(p.pricing)) {
+                if (v.isCustom) updated.pricing[k] = v;
+              }
             }
-            if (Object.keys(localCustom).length > 0) {
-              updated.pricing = { ...(updated.pricing || {}), ...localCustom };
-              // Preserve exclusive supplier preference
-              const exclusiveKey = Object.keys(localCustom).find(k => localCustom[k].exclusive);
-              if (exclusiveKey) updated.preferredSupplier = exclusiveKey;
-            }
+            // Always preserve exclusive supplier preference
+            const exclusiveKey = Object.entries(updated.pricing || {}).find(([, v]) => v.isCustom && v.exclusive);
+            if (exclusiveKey) updated.preferredSupplier = exclusiveKey[0];
           }
           return updated;
         }));
@@ -1162,6 +1172,8 @@ function BOMManager({ user }) {
       } : p));
 
       // Persist to DB (so team sees cached pricing on next load)
+      recentLocalWrites.current.add(partId);
+      setTimeout(() => recentLocalWrites.current.delete(partId), 3000);
       await dbUpdatePart(partId, {
         pricing,
         pricing_status: "done",
@@ -1336,24 +1348,35 @@ function BOMManager({ user }) {
       isCustom: true,
       exclusive: !!exclusive,
     };
-    let newPricing;
     const newPref = exclusive ? key : undefined;
-    setParts((prev) => prev.map((p) => {
-      if (p.id !== partId) return p;
-      const pricing = { ...(p.pricing || {}) };
-      // If editing and name changed, remove old key
-      if (editKey && editKey !== key) delete pricing[editKey];
-      pricing[key] = entry;
-      newPricing = pricing;
-      const best = bestPriceSupplier(pricing);
-      return { ...p, pricing, bestSupplier: best, pricingStatus: "done", ...(newPref ? { preferredSupplier: newPref } : {}) };
-    }));
-    // Persist to DB using the pricing we just built
-    const dbFields = { pricing: newPricing, pricing_status: "done", best_supplier: bestPriceSupplier(newPricing) };
-    if (newPref) dbFields.preferred_supplier = newPref;
-    try {
-      await dbUpdatePart(partId, dbFields, user.id);
-    } catch (e) { console.error("saveCustomSupplier failed:", e); }
+    // Build the new pricing object directly from current state
+    let newPricing;
+    setParts((prev) => {
+      const updated = prev.map((p) => {
+        if (p.id !== partId) return p;
+        const pricing = { ...(p.pricing || {}) };
+        if (editKey && editKey !== key) delete pricing[editKey];
+        pricing[key] = entry;
+        newPricing = pricing;
+        const best = bestPriceSupplier(pricing);
+        return { ...p, pricing, bestSupplier: best, pricingStatus: "done", ...(newPref ? { preferredSupplier: newPref } : {}) };
+      });
+      return updated;
+    });
+    // Mark this part as locally written so realtime doesn't clobber it
+    recentLocalWrites.current.add(partId);
+    setTimeout(() => recentLocalWrites.current.delete(partId), 3000);
+    // Persist to DB — newPricing is set synchronously by the updater above
+    if (newPricing) {
+      const dbFields = { pricing: newPricing, pricing_status: "done", best_supplier: bestPriceSupplier(newPricing) };
+      if (newPref) dbFields.preferred_supplier = newPref;
+      try {
+        await dbUpdatePart(partId, dbFields, user.id);
+        console.log("[saveCustomSupplier] DB write OK, key:", key, "exclusive:", !!exclusive, "pricing keys:", Object.keys(newPricing));
+      } catch (e) { console.error("[saveCustomSupplier] DB write FAILED:", e); }
+    } else {
+      console.error("[saveCustomSupplier] newPricing was not set — part not found?");
+    }
     setCustomSupplierForm(null);
   };
 
