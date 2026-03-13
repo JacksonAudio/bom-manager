@@ -2034,7 +2034,7 @@ function BOMManager({ user }) {
                                       </div>
                                       <div style={{ fontSize:18,fontWeight:700,letterSpacing:"-0.3px",
                                         color:isBest?"#248a3d":"#1d1d1f" }}>{"$"}{fmtPrice(displayPrice)}</div>
-                                      <div style={{ fontSize:10,color:"#aeaeb2",marginTop:4 }}>Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}</div>
+                                      <div style={{ fontSize:10,marginTop:4 }}><span style={{ color: data.stock < bq ? "#ff3b30" : "#aeaeb2", fontWeight: data.stock < bq ? 600 : 400 }}>Stock: {data.stock.toLocaleString()}</span><span style={{ color:"#aeaeb2" }}> · MOQ: {data.moq}</span></div>
                                       {/* Compliance & lifecycle badges */}
                                       <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginTop:4 }}>
                                         {data.rohsStatus && (
