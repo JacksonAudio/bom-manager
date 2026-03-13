@@ -2426,7 +2426,7 @@ function BOMManager({ user }) {
                                     : <span style={{ color:"#aeaeb2" }}>—</span>}
                                 </td>
                                 <td style={{ padding:"7px 6px" }}>
-                                  <button onClick={()=>updatePart(part.id,"projectId",null)}
+                                  <button onClick={()=>{if(window.confirm(`Remove "${part.mpn||part.reference}" from this product?\n\nThis will NOT delete the part — it stays in your library.`))updatePart(part.id,"projectId",null);}}
                                     title="Remove from product (keeps in library)"
                                     style={{ background:"none",border:"none",cursor:"pointer",
                                       color:"#aeaeb2",fontSize:13,padding:"2px 6px",
