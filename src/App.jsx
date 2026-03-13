@@ -49,6 +49,7 @@ const DEFAULT_TARIFFS = {
   "IT": 20,    // Italy (EU)
   "PL": 20,    // Poland (EU)
   "UK": 10,    // United Kingdom
+  "GB": 10,    // United Kingdom (ISO)
   "JP": 24,    // Japan
   "KR": 25,    // South Korea
   "IN": 26,    // India
@@ -103,9 +104,11 @@ const fmtDollar = (v) => parseFloat(v).toLocaleString("en-US", { minimumFraction
 const getSupplierCountry = (supplierId) => DIST_COUNTRY[supplierId] || "";
 
 // Get tariff % for a country code given current tariff settings
+const COUNTRY_ALIAS = { "GB":"UK", "UK":"UK" }; // normalize country codes
 const getTariffRate = (countryCode, tariffs) => {
   if (!countryCode || countryCode === "US") return 0;
-  return tariffs[countryCode.toUpperCase()] || 0;
+  const code = COUNTRY_ALIAS[countryCode.toUpperCase()] || countryCode.toUpperCase();
+  return tariffs[code] || 0;
 };
 
 // ─────────────────────────────────────────────
@@ -2948,7 +2951,7 @@ function BOMManager({ user }) {
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                         <thead>
                           <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
-                            {["Part Number","Quantity","Description","Value","Manufacturer","Source","Unit Price","Extended",""].map((h,hi,arr)=>(
+                            {["Part Number","Quantity","Description","Value","Vendor","Source","Unit Price","Extended",""].map((h,hi,arr)=>(
                               <th key={hi} style={{ padding:"12px 14px",textAlign:hi>=6&&hi<=7?"right":hi===5?"center":"left",
                                 fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                                 fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
@@ -2961,15 +2964,18 @@ function BOMManager({ user }) {
                             // Calculate unit price from best supplier's price breaks at this qty
                             const dynResult = (() => {
                               const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
-                              if (!pr) return { price: parseFloat(part.unitCost) || 0, source: null };
+                              if (!pr) return { price: parseFloat(part.unitCost) || 0, source: null, supplierId: null, supplierName: null, suppliers: [] };
                               const isUS = (sid, d) => { const c = d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[sid] || ""; return !c || c === "US"; };
                               let entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
                               if (simUsOnly) entries = entries.filter(([sid, d]) => isUS(sid, d));
-                              if (!entries.length) return { price: parseFloat(part.unitCost) || 0, source: null };
+                              if (!entries.length) return { price: parseFloat(part.unitCost) || 0, source: null, supplierId: null, supplierName: null, suppliers: [] };
                               const priceAt = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
                               entries.sort((a,b) => (priceAt(a[1])||Infinity) - (priceAt(b[1])||Infinity));
-                              const [sid, data] = entries[0];
-                              return { price: priceAt(data), source: isUS(sid, data) ? "USA" : "INTL" };
+                              const suppliers = entries.map(([sid, d]) => ({ id: sid, name: d.displayName || sid, price: priceAt(d) }));
+                              // If user forced a vendor via preferredSupplier, use it if available
+                              const forced = part.preferredSupplier && entries.find(([sid]) => sid === part.preferredSupplier);
+                              const [sid, data] = forced || entries[0];
+                              return { price: priceAt(data), source: isUS(sid, data) ? "USA" : "INTL", supplierId: sid, supplierName: data.displayName || sid, suppliers };
                             })();
                             const dynPrice = dynResult.price;
                             const dynSource = dynResult.source;
@@ -3007,10 +3013,17 @@ function BOMManager({ user }) {
                                     style={cellInput} placeholder="" />
                                 </td>
                                 <td style={{ padding:"6px 8px" }}>
-                                  <input type="text" value={part.manufacturer||""}
-                                    onChange={(e)=>updatePart(part.id,"manufacturer",e.target.value)}
-                                    onFocus={cFocusIn} onBlur={cFocusOut}
-                                    style={{ ...cellInput,color:"#6e6e73" }} placeholder="" />
+                                  {dynResult.suppliers.length > 0 ? (
+                                    <select value={dynResult.supplierId || ""}
+                                      onChange={(e) => updatePart(part.id, "preferredSupplier", e.target.value || "mouser")}
+                                      style={{ ...cellInput, color:"#1d1d1f", cursor:"pointer", fontSize:12 }}>
+                                      {dynResult.suppliers.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name} (${fmtPrice(s.price)})</option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <span style={{ padding:"6px 10px",fontSize:12,color:"#c7c7cc" }}>—</span>
+                                  )}
                                 </td>
                                 <td style={{ padding:"12px 14px",textAlign:"center",width:60 }}>
                                   {dynSource
