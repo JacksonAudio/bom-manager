@@ -925,6 +925,8 @@ function BOMManager({ user }) {
   const [countryFilter, setCountryFilter] = useState("us"); // "us" or "rest"
   const [buyQtys, setBuyQtys] = useState({}); // { [partId]: number } — qty to price at per part
   const [simUsOnly, setSimUsOnly] = useState(false); // simulation: US suppliers only
+  const [shopifyDemand, setShopifyDemand] = useState(null); // { products, orders, syncedAt, loading, error }
+  const [shopifyProducts, setShopifyProducts] = useState([]); // Shopify product list for mapping
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
   const [mouserCartStatus, setMouserCartStatus] = useState(null); // { loading, error, cartUrl, cartKey, items }
   // Local order tracker — persists to localStorage
@@ -1323,6 +1325,7 @@ function BOMManager({ user }) {
       name:  row.name,
       color: row.color,
       createdBy: row.created_by,
+      shopifyProductId: row.shopify_product_id || null,
     };
   }
 
@@ -1784,6 +1787,49 @@ function BOMManager({ user }) {
     return mP && (!q || p.reference.toLowerCase().includes(q) || p.value.toLowerCase().includes(q) || p.mpn.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
   });
 
+  // ── SHOPIFY INTEGRATION ──
+  const syncShopifyOrders = async () => {
+    setShopifyDemand(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const res = await fetch("/api/shopify-orders");
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
+      const data = await res.json();
+      setShopifyDemand({ ...data, loading: false, error: null });
+      // Also fetch Shopify product list for mapping
+      const pRes = await fetch("/api/shopify-products");
+      if (pRes.ok) { const pData = await pRes.json(); setShopifyProducts(pData.products || []); }
+    } catch (e) {
+      console.error("[Shopify] sync failed:", e);
+      setShopifyDemand(prev => ({ ...prev, loading: false, error: e.message }));
+    }
+  };
+
+  // Compute parts demand from Shopify orders + product mappings
+  const computePartsDemand = () => {
+    if (!shopifyDemand?.products) return [];
+    const demand = {}; // { partId: { part, needed, products: [] } }
+    for (const sp of shopifyDemand.products) {
+      // Find BOM product linked to this Shopify product (by shopifyProductId or name match)
+      const bomProduct = products.find(p =>
+        p.shopifyProductId === sp.shopifyProductId ||
+        sp.title.toLowerCase().includes(p.name.toLowerCase()) ||
+        p.name.toLowerCase().includes(sp.title.toLowerCase())
+      );
+      if (!bomProduct) continue;
+      const productParts = parts.filter(p => p.projectId === bomProduct.id);
+      for (const part of productParts) {
+        if (!demand[part.id]) demand[part.id] = { part, needed: 0, products: [] };
+        demand[part.id].needed += (parseInt(part.quantity) || 1) * sp.totalUnfulfilled;
+        demand[part.id].products.push({ name: bomProduct.name, color: bomProduct.color, qty: sp.totalUnfulfilled, perUnit: parseInt(part.quantity) || 1 });
+      }
+    }
+    return Object.values(demand).sort((a, b) => {
+      const aDeficit = a.needed - (parseInt(a.part.stockQty) || 0);
+      const bDeficit = b.needed - (parseInt(b.part.stockQty) || 0);
+      return bDeficit - aDeficit; // most urgent first
+    });
+  };
+
   const lowStockParts = parts.filter((p) => { const s=parseInt(p.stockQty)||0, r=parseInt(p.reorderQty); return !isNaN(r) && r > 0 && s <= r; });
   const unassignedCount = parts.filter((p) => !p.projectId).length;
   const purchaseOrders = buildPurchaseOrders(parts);
@@ -1880,6 +1926,7 @@ function BOMManager({ user }) {
           { id:"pricing",   icon:"💰", label:`Pricing ${pricedCount>0?`(${pricedCount}/${parts.length})`:""}` },
           { id:"purchasing",icon:"🛒", label:`Purchasing${poPartCount>0?` (${poPartCount})`:""}` },
           { id:"orders",    icon:"📋", label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}` },
+          { id:"demand",    icon:"📊", label:`Demand${shopifyDemand?.totalOrders?` (${shopifyDemand.totalOrders})`:""}` },
           { id:"projects",  icon:"📦", label:"Products" },
           { id:"alerts",    icon:"⚠",  label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}` },
           { id:"settings",  icon:"⚙",  label:"Settings" },
@@ -2992,7 +3039,28 @@ function BOMManager({ user }) {
                         )}
                       </div>
                     </div>
-                    <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+                    <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
+                      {/* Shopify product mapping */}
+                      {shopifyProducts.length > 0 && (
+                        <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                          <span style={{ fontSize:10,color:"#86868b" }}>Shopify:</span>
+                          <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:"#1d1d1f",minWidth:120 }}
+                            value={prod.shopifyProductId || ""}
+                            onChange={async (e) => {
+                              const val = e.target.value || null;
+                              setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, shopifyProductId: val } : p));
+                              try {
+                                await supabase.from("products").update({ shopify_product_id: val }).eq("id", prod.id);
+                              } catch (err) { console.error("Shopify mapping save failed:", err); }
+                            }}>
+                            <option value="">— Not linked —</option>
+                            {shopifyProducts.map(sp => (
+                              <option key={sp.id} value={sp.id}>{sp.title}</option>
+                            ))}
+                          </select>
+                          {prod.shopifyProductId && <span style={{ fontSize:10,color:"#34c759" }}>✓</span>}
+                        </div>
+                      )}
                       <button className="btn-ghost" style={{ fontSize:11 }}
                         disabled={!prodParts.some(p => p.mpn) || prodParts.some(p => p.pricingStatus === "loading")}
                         onClick={async () => {
@@ -3514,6 +3582,250 @@ function BOMManager({ user }) {
         {/* ══════════════════════════════════════
             ALERTS
         ══════════════════════════════════════ */}
+        {/* ══════════════════════════════════════
+            DEMAND (Shopify Orders)
+        ══════════════════════════════════════ */}
+        {activeView === "demand" && (() => {
+          const partsDemand = computePartsDemand();
+          const unmapped = shopifyDemand?.products?.filter(sp => {
+            return !products.find(p =>
+              p.shopifyProductId === sp.shopifyProductId ||
+              sp.title.toLowerCase().includes(p.name.toLowerCase()) ||
+              p.name.toLowerCase().includes(sp.title.toLowerCase())
+            );
+          }) || [];
+          return (
+          <div style={{ maxWidth:1100 }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12 }}>
+              <div>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Order Demand</h2>
+                <p style={{ color:"#86868b",fontSize:13 }}>Unfulfilled Shopify orders → parts you need to build.</p>
+              </div>
+              <div style={{ display:"flex",gap:10,alignItems:"center" }}>
+                {shopifyDemand?.syncedAt && (
+                  <span style={{ fontSize:11,color:"#86868b" }}>
+                    Synced {new Date(shopifyDemand.syncedAt).toLocaleString()}
+                  </span>
+                )}
+                <button className="btn-primary" onClick={syncShopifyOrders}
+                  disabled={shopifyDemand?.loading}>
+                  {shopifyDemand?.loading ? <><span className="spinner" /> Syncing…</> : "⟳ Sync Shopify Orders"}
+                </button>
+              </div>
+            </div>
+
+            {shopifyDemand?.error && (
+              <div style={{ background:"#fff2f0",border:"1px solid #ff3b30",borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:12,color:"#ff3b30" }}>
+                {shopifyDemand.error.includes("credentials") ? (
+                  <>Shopify not configured. <button className="btn-ghost" style={{ fontSize:11,marginLeft:8 }}
+                    onClick={() => setActiveView("settings")}>Go to Settings →</button></>
+                ) : shopifyDemand.error}
+              </div>
+            )}
+
+            {!shopifyDemand && !shopifyDemand?.loading && (
+              <div className="card" style={{ textAlign:"center",padding:60 }}>
+                <div style={{ fontSize:40,marginBottom:12 }}>🛒</div>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:15,marginBottom:8 }}>Connect Shopify to see order demand</div>
+                <p style={{ color:"#86868b",fontSize:13,marginBottom:16 }}>Add your Shopify store domain and admin token in Settings, then sync.</p>
+                <button className="btn-primary" onClick={() => setActiveView("settings")}>⚙ Go to Settings</button>
+              </div>
+            )}
+
+            {shopifyDemand && !shopifyDemand.error && (
+              <>
+                {/* ── Summary cards */}
+                <div style={{ display:"flex",gap:12,marginBottom:20,flexWrap:"wrap" }}>
+                  {[
+                    { label:"Open Orders", value:shopifyDemand.totalOrders || 0, color:"#0071e3" },
+                    { label:"Products in Demand", value:shopifyDemand.products?.length || 0, color:"#5856d6" },
+                    { label:"Parts Needed", value:partsDemand.length, color:"#ff9500" },
+                    { label:"Parts Short", value:partsDemand.filter(d => d.needed > (parseInt(d.part.stockQty) || 0)).length, color:"#ff3b30" },
+                  ].map(c => (
+                    <div key={c.label} className="card" style={{ flex:"1 1 140px",textAlign:"center",padding:"16px 12px" }}>
+                      <div style={{ fontSize:28,fontWeight:800,color:c.color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                        {c.value.toLocaleString()}
+                      </div>
+                      <div style={{ fontSize:10,color:"#86868b",letterSpacing:"0.08em",marginTop:2 }}>{c.label.toUpperCase()}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── Unmapped Shopify products warning */}
+                {unmapped.length > 0 && (
+                  <div style={{ background:"#fff8e6",border:"1px solid #ff9500",borderRadius:8,padding:"12px 16px",marginBottom:16 }}>
+                    <div style={{ fontSize:12,fontWeight:700,color:"#ff9500",marginBottom:4 }}>
+                      {unmapped.length} Shopify product{unmapped.length !== 1 ? "s" : ""} not mapped to BOM products
+                    </div>
+                    <div style={{ fontSize:11,color:"#86868b" }}>
+                      {unmapped.map(u => u.title).join(", ")}
+                    </div>
+                    <button className="btn-ghost" style={{ fontSize:11,marginTop:6 }}
+                      onClick={() => setActiveView("projects")}>Map Products →</button>
+                  </div>
+                )}
+
+                {/* ── Product demand overview */}
+                {shopifyDemand.products?.length > 0 && (
+                  <div className="card" style={{ marginBottom:16 }}>
+                    <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>PRODUCT DEMAND</div>
+                    <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
+                      {shopifyDemand.products.map(sp => {
+                        const mapped = products.find(p =>
+                          p.shopifyProductId === sp.shopifyProductId ||
+                          sp.title.toLowerCase().includes(p.name.toLowerCase()) ||
+                          p.name.toLowerCase().includes(sp.title.toLowerCase())
+                        );
+                        return (
+                          <div key={sp.shopifyProductId} style={{
+                            background:mapped ? (mapped.color+"11") : "#f5f5f7",
+                            border:`1px solid ${mapped ? mapped.color+"44" : "#e5e5ea"}`,
+                            borderRadius:8,padding:"10px 14px",minWidth:140
+                          }}>
+                            <div style={{ fontSize:13,fontWeight:700,color:"#1d1d1f",marginBottom:2 }}>{sp.title}</div>
+                            <div style={{ fontSize:22,fontWeight:800,color:mapped ? mapped.color : "#0071e3",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                              {sp.totalUnfulfilled.toLocaleString()}
+                            </div>
+                            <div style={{ fontSize:10,color:"#86868b" }}>units to fulfill</div>
+                            {!mapped && <div style={{ fontSize:10,color:"#ff9500",fontWeight:600,marginTop:4 }}>Not mapped</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Parts demand table */}
+                {partsDemand.length > 0 && (
+                  <div className="card" style={{ marginBottom:16 }}>
+                    <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>PARTS DEMAND BREAKDOWN</div>
+                    <div style={{ overflowX:"auto" }}>
+                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                        <thead>
+                          <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>PART</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>MPN</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>NEEDED</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>IN STOCK</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>DEFICIT</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>FOR PRODUCTS</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>ACTION</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {partsDemand.map(d => {
+                            const stock = parseInt(d.part.stockQty) || 0;
+                            const deficit = d.needed - stock;
+                            return (
+                              <tr key={d.part.id} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                                <td style={{ padding:"10px 10px" }}>
+                                  <div style={{ fontWeight:700,color:"#0071e3" }}>{d.part.reference}</div>
+                                  <div style={{ fontSize:11,color:"#86868b" }}>{d.part.value}</div>
+                                </td>
+                                <td style={{ padding:"10px 10px",fontSize:11,color:"#3a3f51" }}>{d.part.mpn || "—"}</td>
+                                <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                  {d.needed.toLocaleString()}
+                                </td>
+                                <td style={{ padding:"10px 10px",textAlign:"right",color:stock >= d.needed ? "#34c759" : "#86868b" }}>
+                                  {stock.toLocaleString()}
+                                </td>
+                                <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,
+                                  color: deficit > 0 ? "#ff3b30" : "#34c759",
+                                  fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                  {deficit > 0 ? `-${deficit.toLocaleString()}` : "✓"}
+                                </td>
+                                <td style={{ padding:"10px 10px" }}>
+                                  <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
+                                    {d.products.map((pr,i) => (
+                                      <span key={i} className="badge" style={{ background:pr.color+"22",color:pr.color,fontSize:10 }}>
+                                        {pr.name} ×{pr.qty} ({pr.perUnit}/unit)
+                                      </span>
+                                    ))}
+                                  </div>
+                                </td>
+                                <td style={{ padding:"10px 10px" }}>
+                                  {deficit > 0 && (
+                                    <button className="btn-ghost" style={{ fontSize:10 }}
+                                      onClick={() => {
+                                        setParts(prev => prev.map(p =>
+                                          p.id === d.part.id ? { ...p, flaggedForOrder: true, orderQty: String(deficit) } : p
+                                        ));
+                                      }}>
+                                      🚩 Flag ({deficit.toLocaleString()})
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {partsDemand.some(d => d.needed > (parseInt(d.part.stockQty) || 0)) && (
+                      <div style={{ marginTop:12,display:"flex",gap:10 }}>
+                        <button className="btn-primary" onClick={() => {
+                          setParts(prev => prev.map(p => {
+                            const d = partsDemand.find(x => x.part.id === p.id);
+                            if (!d) return p;
+                            const deficit = d.needed - (parseInt(p.stockQty) || 0);
+                            if (deficit <= 0) return p;
+                            return { ...p, flaggedForOrder: true, orderQty: String(deficit) };
+                          }));
+                          setActiveView("purchasing");
+                        }}>
+                          🚩 Flag All Short Parts & Go to Purchasing
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Recent orders */}
+                {shopifyDemand.orders?.length > 0 && (
+                  <div className="card">
+                    <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>
+                      RECENT ORDERS ({shopifyDemand.orders.length})
+                    </div>
+                    <div style={{ maxHeight:400,overflowY:"auto" }}>
+                      {shopifyDemand.orders.slice(0, 50).map(order => (
+                        <div key={order.id} style={{ borderBottom:"1px solid #f0f0f2",padding:"10px 0",display:"flex",gap:16,alignItems:"flex-start",flexWrap:"wrap" }}>
+                          <div style={{ minWidth:100 }}>
+                            <div style={{ fontWeight:700,fontSize:13,color:"#0071e3" }}>{order.name}</div>
+                            <div style={{ fontSize:10,color:"#86868b" }}>{new Date(order.createdAt).toLocaleDateString()}</div>
+                          </div>
+                          <div style={{ display:"flex",gap:6,flexWrap:"wrap",flex:1 }}>
+                            {order.lineItems.map((li, i) => (
+                              <span key={i} style={{
+                                fontSize:11,background:li.unfulfilled > 0 ? "#fff2f0" : "#f0faf0",
+                                border:`1px solid ${li.unfulfilled > 0 ? "#ff3b3033" : "#34c75933"}`,
+                                borderRadius:4,padding:"3px 8px"
+                              }}>
+                                {li.title} ×{li.quantity}
+                                {li.unfulfilled > 0 && li.unfulfilled < li.quantity && (
+                                  <span style={{ color:"#ff9500",fontWeight:600 }}> ({li.unfulfilled} left)</span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                          <div style={{ fontSize:10,color:"#86868b",minWidth:80,textAlign:"right" }}>
+                            <span className="badge" style={{
+                              background: order.fulfillmentStatus === "unfulfilled" ? "#ff3b3022" : "#ff950022",
+                              color: order.fulfillmentStatus === "unfulfilled" ? "#ff3b30" : "#ff9500"
+                            }}>
+                              {order.fulfillmentStatus}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          );
+        })()}
+
         {activeView === "alerts" && (
           <div style={{ maxWidth:860 }}>
             <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:6 }}>Low Stock Alerts</h2>
@@ -3692,6 +4004,37 @@ function BOMManager({ user }) {
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
                 {sectionSaveBtn("arrow", "Arrow Keys")}
+              </div>
+            </div>
+
+            {/* ── Shopify Integration */}
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#96bf48",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  Shopify Integration
+                </div>
+                {apiKeys.shopify_store_domain && apiKeys.shopify_admin_token && (
+                  <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>Configured</span>
+                )}
+              </div>
+              <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  Connect your Shopify store to pull unfulfilled orders and calculate parts demand.
+                  Requires a Custom App with <strong>read_orders</strong> and <strong>read_products</strong> scopes.
+                </div>
+                <div className="key-input-row">
+                  <div><div className="key-label">Store Domain</div><div className="key-hint">e.g. your-store.myshopify.com</div></div>
+                  <input type="text" placeholder="your-store.myshopify.com" value={apiKeys.shopify_store_domain}
+                    onChange={(e)=>setApiKeys((k)=>({...k,shopify_store_domain:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+                </div>
+                <div className="key-input-row">
+                  <div><div className="key-label">Admin API Token</div><div className="key-hint">From your Custom App</div></div>
+                  <input type="password" placeholder="shpat_xxxxxxxxxxxxxxxxxxxxxxxx" value={apiKeys.shopify_admin_token}
+                    onChange={(e)=>setApiKeys((k)=>({...k,shopify_admin_token:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+                </div>
+                {sectionSaveBtn("shopify", "Shopify Keys")}
               </div>
             </div>
 
