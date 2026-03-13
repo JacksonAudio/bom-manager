@@ -1115,9 +1115,10 @@ function BOMManager({ user }) {
 
   // ── Fetch pricing for a single part — results saved back to DB
   const fetchPartPricing = async (partId) => {
-    // Read latest part state to avoid stale closures
-    let part;
-    setParts(prev => { part = prev.find(p => p.id === partId); return prev; });
+    // Read latest part state using Promise to handle React 18 batching
+    const part = await new Promise(resolve => {
+      setParts(prev => { resolve(prev.find(p => p.id === partId) || null); return prev; });
+    });
     if (!part) return;
 
     // Preserve custom suppliers through refresh
@@ -1148,15 +1149,18 @@ function BOMManager({ user }) {
     try {
       const apiPricing = await fetchAllPricing(part.mpn, part.quantity, apiKeys, nexarToken, dkToken);
       // Merge custom suppliers back in — re-read latest state to catch any custom suppliers added during fetch
-      let latestCustom = { ...customEntries };
-      setParts(prev => {
-        const latest = prev.find(p => p.id === partId);
-        if (latest?.pricing) {
-          for (const [k, v] of Object.entries(latest.pricing)) {
-            if (v.isCustom) latestCustom[k] = v;
+      const latestCustom = await new Promise(resolve => {
+        setParts(prev => {
+          const merged = { ...customEntries };
+          const latest = prev.find(p => p.id === partId);
+          if (latest?.pricing) {
+            for (const [k, v] of Object.entries(latest.pricing)) {
+              if (v.isCustom) merged[k] = v;
+            }
           }
-        }
-        return prev;
+          resolve(merged);
+          return prev;
+        });
       });
       const pricing = { ...apiPricing, ...latestCustom };
       // If an exclusive custom supplier exists, always prefer it
@@ -1350,24 +1354,27 @@ function BOMManager({ user }) {
       exclusive: !!exclusive,
     };
     const newPref = exclusive ? key : undefined;
-    // Build the new pricing object directly from current state
-    let newPricing;
-    setParts((prev) => {
-      const updated = prev.map((p) => {
-        if (p.id !== partId) return p;
-        const pricing = { ...(p.pricing || {}) };
-        if (editKey && editKey !== key) delete pricing[editKey];
-        pricing[key] = entry;
-        newPricing = pricing;
-        const best = bestPriceSupplier(pricing);
-        return { ...p, pricing, bestSupplier: best, pricingStatus: "done", ...(newPref ? { preferredSupplier: newPref } : {}) };
+    // Build pricing using Promise to guarantee we get the result from React 18's batched updater
+    const newPricing = await new Promise(resolve => {
+      setParts((prev) => {
+        let built = null;
+        const updated = prev.map((p) => {
+          if (p.id !== partId) return p;
+          const pricing = { ...(p.pricing || {}) };
+          if (editKey && editKey !== key) delete pricing[editKey];
+          pricing[key] = entry;
+          built = pricing;
+          const best = bestPriceSupplier(pricing);
+          return { ...p, pricing, bestSupplier: best, pricingStatus: "done", ...(newPref ? { preferredSupplier: newPref } : {}) };
+        });
+        resolve(built);
+        return updated;
       });
-      return updated;
     });
     // Mark this part as locally written so realtime doesn't clobber it
     recentLocalWrites.current.add(partId);
-    setTimeout(() => recentLocalWrites.current.delete(partId), 3000);
-    // Persist to DB — newPricing is set synchronously by the updater above
+    setTimeout(() => recentLocalWrites.current.delete(partId), 5000);
+    // Persist to DB
     if (newPricing) {
       const dbFields = { pricing: newPricing, pricing_status: "done", best_supplier: bestPriceSupplier(newPricing) };
       if (newPref) dbFields.preferred_supplier = newPref;
@@ -1377,39 +1384,25 @@ function BOMManager({ user }) {
       } catch (e) { console.error("[saveCustomSupplier] DB write FAILED:", e); }
 
       // Safety net: verify DB has the custom supplier after a delay
-      // (guards against concurrent fetchPartPricing overwriting)
       const verifyAndRepair = async (attempt) => {
         try {
-          // Read latest local state
-          let currentPricing;
-          setParts(prev => { currentPricing = prev.find(p => p.id === partId)?.pricing; return prev; });
-          if (!currentPricing || !currentPricing[key]) {
-            console.warn(`[saveCustomSupplier] verify #${attempt}: custom supplier missing from local state!`);
-            return;
-          }
-          // Read from DB to check
           const { data } = await supabase.from("parts").select("pricing").eq("id", partId).single();
           if (!data?.pricing?.[key]) {
-            console.warn(`[saveCustomSupplier] verify #${attempt}: custom supplier missing from DB — rewriting`);
-            const repaired = { ...(data?.pricing || {}), ...currentPricing };
-            // Keep only custom entries from local + everything from DB
-            for (const [k, v] of Object.entries(currentPricing)) {
-              if (v.isCustom) repaired[k] = v;
-            }
-            await dbUpdatePart(partId, { pricing: repaired, pricing_status: "done" }, user.id);
+            console.warn(`[saveCustomSupplier] verify #${attempt}: missing from DB — rewriting`);
+            const repaired = { ...(data?.pricing || {}), [key]: entry };
+            await dbUpdatePart(partId, { pricing: repaired, pricing_status: "done", ...(newPref ? { preferred_supplier: newPref } : {}) }, user.id);
             recentLocalWrites.current.add(partId);
-            setTimeout(() => recentLocalWrites.current.delete(partId), 3000);
+            setTimeout(() => recentLocalWrites.current.delete(partId), 5000);
             console.log(`[saveCustomSupplier] verify #${attempt}: DB repaired`);
           } else {
             console.log(`[saveCustomSupplier] verify #${attempt}: DB OK`);
           }
         } catch (e) { console.error(`[saveCustomSupplier] verify #${attempt} error:`, e); }
       };
-      // Check twice — once after 2s (catch fast overwrites), once after 5s (catch slow API fetches)
       setTimeout(() => verifyAndRepair(1), 2000);
       setTimeout(() => verifyAndRepair(2), 5000);
     } else {
-      console.error("[saveCustomSupplier] newPricing was not set — part not found?");
+      console.error("[saveCustomSupplier] part not found for id:", partId);
     }
     setCustomSupplierForm(null);
   };
@@ -1677,9 +1670,10 @@ function BOMManager({ user }) {
     const useUsOnly = usOnlyOverride !== undefined ? usOnlyOverride : simUsOnly;
     const prodParts = parts.filter((p) => p.projectId === productId);
     if (!prodParts.length) return;
-    // Read qty from latest state to avoid stale closure
-    let baseQty;
-    setBomSim(prev => { baseQty = parseInt(prev[productId]?.qty) || 100; return prev; });
+    // Read qty from latest state using Promise to handle React 18 batching
+    const baseQty = await new Promise(resolve => {
+      setBomSim(prev => { resolve(parseInt(prev[productId]?.qty) || 100); return prev; });
+    });
     setBomSim(prev => ({ ...prev, [productId]: { ...prev[productId], loading: true } }));
 
     // Fetch fresh pricing for any parts that don't have it
