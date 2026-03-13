@@ -190,16 +190,17 @@ export async function saveApiKey(keyName, keyValue, userId) {
 }
 
 // Save all api keys at once (used by settings save button)
+// Uses upsert so new key rows are created if they don't exist yet
 export async function saveAllApiKeys(keysObj, userId) {
-  const updates = Object.entries(keysObj).map(([key_name, key_value]) =>
-    supabase
-      .from('api_keys')
-      .update({ key_value, updated_by: userId })
-      .eq('key_name', key_name)
-  )
-  // Run in parallel
-  const results = await Promise.all(updates)
-  for (const { error } of results) check(error, 'saveAllApiKeys')
+  const rows = Object.entries(keysObj).map(([key_name, key_value]) => ({
+    key_name,
+    key_value: key_value ?? "",
+    updated_by: userId,
+  }))
+  const { error } = await supabase
+    .from('api_keys')
+    .upsert(rows, { onConflict: 'key_name' })
+  check(error, 'saveAllApiKeys')
 }
 
 // ─────────────────────────────────────────────

@@ -36,6 +36,7 @@ const DEFAULT_KEYS = {
   notify_email:        "",   // Email to receive low-stock alerts
   supplier_emails:     "",   // JSON: { "mouser": "orders@mouser.com", ... }
   tariffs_json:        "",   // JSON: { "CN": 145, "TW": 32, ... } — % tariff by country code
+  shipping_json:       "",   // JSON: { "mouser": 7.99, "digikey": 6.99, ... } — per-supplier shipping
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -966,6 +967,14 @@ function BOMManager({ user }) {
         const mergedKeys = { ...DEFAULT_KEYS, ...keys };
         setApiKeys(mergedKeys);
 
+        // Restore shipping costs from DB
+        if (mergedKeys.shipping_json) {
+          try {
+            const shipObj = JSON.parse(mergedKeys.shipping_json);
+            SUPPLIERS.forEach(s => { if (shipObj[s.id] !== undefined) s.shipping = shipObj[s.id]; });
+          } catch {}
+        }
+
         // Auto-connect APIs silently on page load if keys exist in DB
         // Avoids user having to press "Save & Connect" every session
         if (mergedKeys.nexar_client_id && mergedKeys.nexar_client_secret) {
@@ -1037,9 +1046,17 @@ function BOMManager({ user }) {
 
     if (keys.nexar_client_id && keys.nexar_client_secret) {
       try {
+        console.log("[Auth] Connecting Nexar with client ID:", keys.nexar_client_id.slice(0, 8) + "...");
         nToken = await fetchNexarToken(keys.nexar_client_id, keys.nexar_client_secret);
-        setNexarToken(nToken); msgs.push("✓ Nexar/Octopart connected");
-      } catch (e) { msgs.push("✗ Nexar: " + e.message); }
+        setNexarToken(nToken);
+        console.log("[Auth] Nexar token obtained, length:", nToken?.length);
+        msgs.push("✓ Nexar/Octopart connected");
+      } catch (e) {
+        console.error("[Auth] Nexar failed:", e);
+        msgs.push("✗ Nexar: " + e.message);
+      }
+    } else {
+      console.log("[Auth] No Nexar keys found — client_id:", !!keys.nexar_client_id, "secret:", !!keys.nexar_client_secret);
     }
 
     if (keys.digikey_client_id && keys.digikey_client_secret) {
@@ -3369,7 +3386,14 @@ function BOMManager({ user }) {
                       <span style={{ fontSize:12,color:"#3a3f51",fontWeight:600,minWidth:70 }}>{s.name}</span>
                       <span style={{ fontSize:11,color:"#aeaeb2" }}>$</span>
                       <input type="number" step="0.01" min="0" value={s.shipping}
-                        onChange={(e) => { const v = parseFloat(e.target.value)||0; SUPPLIERS.find(x=>x.id===s.id).shipping = v; }}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value)||0;
+                          SUPPLIERS.find(x=>x.id===s.id).shipping = v;
+                          // Also persist to apiKeys so it saves to DB
+                          const shipObj = {};
+                          SUPPLIERS.forEach(sup => { shipObj[sup.id] = sup.shipping; });
+                          setApiKeys(k => ({ ...k, shipping_json: JSON.stringify(shipObj) }));
+                        }}
                         style={{ width:60,padding:"4px 6px",borderRadius:4,fontSize:12 }} />
                     </div>
                   ))}
@@ -3377,6 +3401,7 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:11,color:"#aeaeb2",marginTop:8 }}>
                   Default for unlisted distributors: {"$"}{DEFAULT_SHIPPING.toFixed(2)}
                 </div>
+                {sectionSaveBtn("shipping", "Shipping Costs")}
               </div>
             </div>
 
@@ -3427,6 +3452,7 @@ function BOMManager({ user }) {
                 </button>
                 <span style={{ fontSize:10,color:"#aeaeb2" }}>Rates saved with your API keys</span>
               </div>
+              {sectionSaveBtn("tariffs", "Tariff Rates")}
               </div>
             </div>
 
