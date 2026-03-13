@@ -2011,7 +2011,7 @@ function BOMManager({ user }) {
                                   const isBest = idx === 0;
                                   const ctry = getCountry(data);
                                   const displayPrice = p100(data);
-                                  const origin = data.countryOfOrigin || "";
+                                  const origin = ctry || data.countryOfOrigin || "";
                                   const tariffRate = getTariffRate(origin, userTariffs);
                                   const landedPrice = tariffRate > 0 ? displayPrice * (1 + tariffRate / 100) : 0;
                                   return (
