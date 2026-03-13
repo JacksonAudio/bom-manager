@@ -1841,7 +1841,7 @@ function BOMManager({ user }) {
                                               color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(displayPrice)}</div>
                                             {landedPrice > 0 && (
                                               <div style={{ fontSize:12,color:"#ef4444",fontWeight:700,marginTop:2 }}>
-                                                Landed: ${fmtPrice(landedPrice)} <span style={{ fontWeight:400,fontSize:10 }}>({origin} +{tariffRate}%)</span>
+                                                Landed: {"$"}{fmtPrice(landedPrice)} <span style={{ fontWeight:400,fontSize:10 }}>({origin} +{tariffRate}%)</span>
                                               </div>
                                             )}
                                           </>
@@ -2364,20 +2364,20 @@ function BOMManager({ user }) {
                                   ${fmtPrice(cheapBase.perUnit)}<span style={{ fontSize:12,color:"#64748b",fontWeight:400 }}> / unit</span>
                                 </div>
                                 <div style={{ fontSize:11,color:"#64748b",marginTop:4 }}>
-                                  Parts: ${cheapBase.partsCost.toFixed(2)}
+                                  Parts: {"$"}{cheapBase.partsCost.toFixed(2)}
                                 </div>
                                 <div style={{ fontSize:11,color:"#64748b" }}>
-                                  Shipping: ${cheapBase.shipping.toFixed(2)} ({cheapBase.suppliers.length} vendor{cheapBase.suppliers.length!==1?"s":""})
+                                  Shipping: {"$"}{cheapBase.shipping.toFixed(2)} ({cheapBase.suppliers.length} vendor{cheapBase.suppliers.length!==1?"s":""})
                                 </div>
                                 {cheapBase.tariffTotal > 0 && (
                                   <div style={{ fontSize:11,color:"#ef4444" }}>
-                                    Tariffs: ${cheapBase.tariffTotal.toFixed(2)}
+                                    Tariffs: {"$"}{cheapBase.tariffTotal.toFixed(2)}
                                   </div>
                                 )}
                                 {/* Per-vendor shipping */}
                                 <div style={{ fontSize:10,color:"#475569",marginTop:6 }}>
                                   {cheapBase.shippingBreakdown.map(sb => (
-                                    <div key={sb.supplierId}>{sb.name}: ${sb.cost.toFixed(2)} shipping</div>
+                                    <div key={sb.supplierId}>{sb.name}: {"$"}{sb.cost.toFixed(2)} shipping</div>
                                   ))}
                                 </div>
                                 {/* Tariff detail — by part origin country */}
@@ -2401,20 +2401,20 @@ function BOMManager({ user }) {
                                   ${fmtPrice(smartBase.perUnit)}<span style={{ fontSize:12,color:"#64748b",fontWeight:400 }}> / unit</span>
                                 </div>
                                 <div style={{ fontSize:11,color:"#64748b",marginTop:4 }}>
-                                  Parts: ${smartBase.partsCost.toFixed(2)}
+                                  Parts: {"$"}{smartBase.partsCost.toFixed(2)}
                                 </div>
                                 <div style={{ fontSize:11,color:"#64748b" }}>
-                                  Shipping: ${smartBase.shipping.toFixed(2)} ({smartBase.suppliers.length} vendor{smartBase.suppliers.length!==1?"s":""})
+                                  Shipping: {"$"}{smartBase.shipping.toFixed(2)} ({smartBase.suppliers.length} vendor{smartBase.suppliers.length!==1?"s":""})
                                 </div>
                                 {smartBase.tariffTotal > 0 && (
                                   <div style={{ fontSize:11,color:"#ef4444" }}>
-                                    Tariffs: ${smartBase.tariffTotal.toFixed(2)}
+                                    Tariffs: {"$"}{smartBase.tariffTotal.toFixed(2)}
                                   </div>
                                 )}
                                 {/* Per-vendor shipping */}
                                 <div style={{ fontSize:10,color:"#475569",marginTop:6 }}>
                                   {smartBase.shippingBreakdown.map(sb => (
-                                    <div key={sb.supplierId}>{sb.name}: ${sb.cost.toFixed(2)} shipping</div>
+                                    <div key={sb.supplierId}>{sb.name}: {"$"}{sb.cost.toFixed(2)} shipping</div>
                                   ))}
                                 </div>
                                 {/* Tariff detail — by part origin country */}
@@ -2427,7 +2427,7 @@ function BOMManager({ user }) {
                                 )}
                                 {smartSavings > 0 && (
                                   <div style={{ fontSize:12,color:"#34d399",fontWeight:700,marginTop:6 }}>
-                                    Saves ${smartSavings.toFixed(2)} total vs cheapest-per-part
+                                    Saves {"$"}{smartSavings.toFixed(2)} total vs cheapest-per-part
                                   </div>
                                 )}
                             </div>
@@ -2460,12 +2460,12 @@ function BOMManager({ user }) {
                                         color:isBest?"#34d399":isBase?"#f1f5f9":"#94a3b8" }}>
                                         {r.qty}{isBest?" ★":""}{isBase?" (base)":""}
                                       </td>
-                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#94a3b8" }}>${s.partsCost.toFixed(2)}</td>
-                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#94a3b8" }}>${s.shipping.toFixed(2)}</td>
+                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#94a3b8" }}>{"$"}{s.partsCost.toFixed(2)}</td>
+                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#94a3b8" }}>{"$"}{s.shipping.toFixed(2)}</td>
                                       <td style={{ padding:"5px 10px",textAlign:"right",color:s.tariffTotal>0?"#ef4444":"#475569" }}>
                                         {s.tariffTotal > 0 ? `$${s.tariffTotal.toFixed(2)}` : "—"}
                                       </td>
-                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#e2e8f0",fontWeight:600 }}>${s.total.toFixed(2)}</td>
+                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#e2e8f0",fontWeight:600 }}>{"$"}{s.total.toFixed(2)}</td>
                                       <td style={{ padding:"5px 10px",textAlign:"right",fontFamily:"'Space Grotesk',sans-serif",
                                         fontWeight:700,color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(s.perUnit)}</td>
                                       <td style={{ padding:"5px 10px",textAlign:"right",color:"#94a3b8",fontSize:11 }}>
