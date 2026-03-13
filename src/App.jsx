@@ -1518,11 +1518,13 @@ function BOMManager({ user }) {
                                         );
                                       })()}
                                       {/* Price breaks — fixed tiers: 100, 250, 500, 1000 */}
-                                      {data.priceBreaks?.length > 1 && (
+                                      {(() => {
+                                        const breaks = data.priceBreaks?.length ? data.priceBreaks : [{ qty: 1, price: data.unitPrice }];
+                                        return (
                                         <div style={{ marginTop:6,borderTop:"1px solid #1e2130",paddingTop:6 }}>
                                           {[100,250,500,1000].map((tier) => {
                                             let price = null;
-                                            for (const pb of data.priceBreaks) { if (tier >= pb.qty) price = pb.price; }
+                                            for (const pb of breaks) { if (tier >= pb.qty) price = pb.price; }
                                             if (price == null) return null;
                                             return (
                                               <div key={tier} className="price-break-row" style={{ fontSize:12 }}>
@@ -1532,7 +1534,8 @@ function BOMManager({ user }) {
                                             );
                                           })}
                                         </div>
-                                      )}
+                                        );
+                                      })()}
                                       {data.url && (
                                         <a href={data.url} target="_blank" rel="noopener noreferrer"
                                           style={{ display:"block",marginTop:6,fontSize:11,color:"#3b82f6",textDecoration:"none" }}>
