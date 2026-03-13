@@ -901,6 +901,7 @@ function BOMManager({ user }) {
   const [activeView,  setActiveView]  = useState("bom");
   const [selProject,  setSelProject]  = useState("all");
   const [search,      setSearch]      = useState("");
+  const [pricingSearch, setPricingSearch] = useState("");
   const [pasteText,   setPasteText]   = useState("");
   const [newProjName, setNewProjName] = useState("");
   const [importError, setImportError] = useState("");
@@ -2181,7 +2182,13 @@ function BOMManager({ user }) {
             <div style={{ marginBottom:28 }}>
               <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",marginBottom:4 }}>Live Pricing</h2>
               <p style={{ fontSize:14,color:"#86868b" }}>Real-time pricing across all distributors. Click any part to expand.</p>
-              <div style={{ display:"flex",gap:10,marginTop:14,flexWrap:"wrap" }}>
+              <div style={{ display:"flex",gap:10,marginTop:14,flexWrap:"wrap",alignItems:"center" }}>
+                <div style={{ position:"relative",flex:"1 1 260px",maxWidth:400 }}>
+                  <input type="text" placeholder="Search parts…" value={pricingSearch}
+                    onChange={(e) => setPricingSearch(e.target.value)}
+                    style={{ width:"100%",padding:"8px 14px 8px 34px",borderRadius:980,fontSize:13,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none" }} />
+                  <span style={{ position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:"#aeaeb2",pointerEvents:"none" }}>🔍</span>
+                </div>
                 {!hasAnyKey && (
                   <button onClick={()=>setActiveView("settings")}
                     style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #ff9500",color:"#ff9500",background:"none" }}>
@@ -2217,7 +2224,10 @@ function BOMManager({ user }) {
               <>
                 {/* Part list */}
                 <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden" }}>
-                  {parts.map((part, partIdx) => {
+                  {(() => {
+                    const pq = pricingSearch.toLowerCase().trim();
+                    return parts.filter(p => !pq || p.reference.toLowerCase().includes(pq) || p.value.toLowerCase().includes(pq) || p.mpn.toLowerCase().includes(pq) || p.description.toLowerCase().includes(pq) || (p.manufacturer||"").toLowerCase().includes(pq));
+                  })().map((part, partIdx) => {
                     const pricingObj = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
                     const hasPricing = pricingObj && Object.keys(pricingObj).length > 0;
                     const best = part.bestSupplier || (hasPricing ? bestPriceSupplier(pricingObj) : null);
