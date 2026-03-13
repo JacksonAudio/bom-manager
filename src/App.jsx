@@ -633,6 +633,7 @@ function BOMManager({ user }) {
   // selectedParts — set of part IDs checked in the Parts Library for bulk delete
   const [selectedParts, setSelectedParts] = useState(new Set());
   const [expandedPricingParts, setExpandedPricingParts] = useState(new Set());
+  const [usOnly, setUsOnly] = useState(true);
   const fileRef = useRef();
 
   // ─────────────────────────────────────────────
@@ -1336,6 +1337,10 @@ function BOMManager({ user }) {
                   onClick={fetchAllPartsPricing}>
                   {fetchingAll ? <><span className="spinner" /> Fetching…</> : "⚡ Fetch All Prices"}
                 </button>
+                <button className={usOnly ? "btn-primary" : "btn-ghost"} style={{ fontSize:12 }}
+                  onClick={() => setUsOnly(v => !v)}>
+                  {usOnly ? "US Only" : "All Countries"}
+                </button>
               </div>
             </div>
 
@@ -1422,9 +1427,14 @@ function BOMManager({ user }) {
 
                         {/* Per-supplier prices — USA first, then by price, top 5 by default */}
                         {hasPricing && (() => {
+                          const NON_US_NAMES = new Set(["farnell","element14","schukat","tti europe","maritex","bravo electro","jrh electronics","trc electronics"]);
                           const US_IDS = new Set(["mouser","digikey","arrow","allied","newark"]);
                           const isUS = (d) => d.country === "US" || US_IDS.has(d.supplierId);
-                          const sorted = Object.entries(pricingObj).sort((a, b) => {
+                          const isNonUS = (d) => NON_US_NAMES.has(d.displayName.toLowerCase()) || (d.country && d.country !== "US" && !US_IDS.has(d.supplierId));
+                          const filtered = usOnly
+                            ? Object.entries(pricingObj).filter(([, d]) => !isNonUS(d))
+                            : Object.entries(pricingObj);
+                          const sorted = filtered.sort((a, b) => {
                             const aUS = isUS(a[1]) ? 0 : 1;
                             const bUS = isUS(b[1]) ? 0 : 1;
                             if (aUS !== bUS) return aUS - bUS;
