@@ -2007,8 +2007,8 @@ function BOMManager({ user }) {
                             {/* Supplier cards */}
                             {sorted.length > 0 ? (
                               <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:14 }}>
-                                {sorted.map(([key, data]) => {
-                                  const isBest = key === filteredBest;
+                                {sorted.map(([key, data], idx) => {
+                                  const isBest = idx === 0;
                                   const ctry = getCountry(data);
                                   const displayPrice = p100(data);
                                   const origin = data.countryOfOrigin || "";
