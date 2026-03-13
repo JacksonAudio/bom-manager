@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pricing View — Clean List (Light)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #f5f5f7;
+    color: #1d1d1f;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 40px 20px 80px;
+  }
+
+  .container { max-width: 900px; margin: 0 auto; }
+
+  /* Header */
+  .page-header { margin-bottom: 32px; }
+  .page-header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #1d1d1f; }
+  .page-header p { font-size: 14px; color: #86868b; margin-top: 4px; }
+  .header-actions { display: flex; gap: 10px; margin-top: 14px; }
+  .btn { padding: 8px 18px; border-radius: 980px; font-size: 13px; font-weight: 500; cursor: pointer;
+    font-family: inherit; border: none; transition: all 0.2s; }
+  .btn-fill { background: #0071e3; color: #fff; }
+  .btn-fill:hover { background: #0077ED; }
+  .btn-outline { background: none; border: 1px solid #d2d2d7; color: #1d1d1f; }
+  .btn-outline:hover { background: rgba(0,0,0,0.04); }
+  .btn-outline.active { background: #1d1d1f; color: #fff; border-color: #1d1d1f; }
+
+  /* Best price badges */
+  .best-row { display: flex; gap: 12px; margin-bottom: 28px; }
+  .best-card {
+    flex: 1; background: #fff; border-radius: 16px; padding: 18px 22px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .best-label { font-size: 11px; font-weight: 600; letter-spacing: 0.5px; color: #86868b; text-transform: uppercase; }
+  .best-price { font-size: 30px; font-weight: 700; letter-spacing: -1px; margin-top: 4px; }
+  .best-price.usa { color: #34c759; }
+  .best-price.intl { color: #ff9500; }
+  .best-detail { font-size: 12px; color: #86868b; margin-top: 4px; }
+  .best-landed { font-size: 11px; color: #ff3b30; margin-top: 2px; }
+
+  /* Part list */
+  .part-list { background: #fff; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden; }
+
+  .part { border-bottom: 1px solid #f0f0f2; }
+  .part:last-child { border-bottom: none; }
+
+  .part-header {
+    display: flex; align-items: center; padding: 14px 22px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .part-header:hover { background: rgba(0,0,0,0.02); }
+  .part-header.expanded { background: rgba(0,0,0,0.02); }
+
+  .part-info { flex: 1; }
+  .part-mpn {
+    font-size: 15px; font-weight: 600; color: #1d1d1f;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .part-mpn .chevron {
+    display: inline-block; font-size: 11px; color: #86868b;
+    transition: transform 0.2s; font-weight: 400;
+  }
+  .part-header.expanded .part-mpn .chevron { transform: rotate(90deg); }
+  .part-desc { font-size: 12px; color: #86868b; margin-top: 1px; }
+
+  .part-best { text-align: right; min-width: 100px; }
+  .part-price { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; color: #1d1d1f; }
+  .part-supplier { font-size: 11px; color: #86868b; margin-top: 1px; }
+  .part-landed-small { font-size: 10px; color: #ff3b30; margin-top: 1px; }
+
+  /* Expanded panel */
+  .part-expanded {
+    display: none; padding: 0 22px 18px;
+    animation: fadeIn 0.2s ease;
+  }
+  .part-expanded.show { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+  .suppliers { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .supplier-card {
+    background: #f5f5f7; border-radius: 12px; padding: 12px 16px;
+    min-width: 150px; flex: 1; max-width: 200px;
+    transition: all 0.15s; cursor: default;
+    border: 1.5px solid transparent;
+  }
+  .supplier-card:hover { background: #ededf0; }
+  .supplier-card.best { background: rgba(0,113,227,0.06); border-color: rgba(0,113,227,0.2); }
+
+  .sup-top { display: flex; justify-content: space-between; align-items: center; }
+  .sup-name { font-size: 12px; font-weight: 500; color: #86868b; }
+  .sup-country { font-size: 10px; color: #aeaeb2; font-weight: 500; }
+  .sup-price { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; margin-top: 4px; color: #1d1d1f; }
+  .supplier-card.best .sup-price { color: #0071e3; }
+  .sup-meta { font-size: 10px; color: #aeaeb2; margin-top: 4px; }
+  .sup-landed { font-size: 10px; color: #ff3b30; margin-top: 3px; font-weight: 500; }
+
+  .sup-breaks { margin-top: 8px; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 6px; }
+  .sup-break {
+    display: flex; justify-content: space-between;
+    font-size: 11px; padding: 2px 0;
+  }
+  .sup-break-qty { color: #aeaeb2; }
+  .sup-break-price { color: #1d1d1f; font-weight: 500; }
+  .supplier-card.best .sup-break-price { color: #0071e3; }
+
+  /* Click-to-visit link */
+  .sup-link {
+    display: block; margin-top: 8px; font-size: 11px;
+    color: #0071e3; text-decoration: none; font-weight: 500;
+  }
+  .sup-link:hover { text-decoration: underline; }
+
+  /* Inline edit panel */
+  .edit-panel {
+    margin-top: 12px; padding: 14px 16px; background: #f5f5f7;
+    border-radius: 12px; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+  }
+  .edit-field label { display: block; font-size: 10px; color: #86868b; font-weight: 500; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .edit-field input {
+    padding: 7px 10px; border: 1px solid #d2d2d7; border-radius: 8px;
+    font-size: 13px; font-family: inherit; background: #fff; color: #1d1d1f;
+    outline: none; transition: border-color 0.15s;
+  }
+  .edit-field input:focus { border-color: #0071e3; }
+  .edit-field input[type="number"] { width: 70px; }
+  .edit-field input[type="text"] { width: 160px; }
+
+  /* Status badge */
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+  .status-dot.done { background: #34c759; }
+  .status-dot.loading { background: #ff9500; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <div class="page-header">
+    <h1>Live Pricing</h1>
+    <p>Real-time pricing across all distributors. Click any part to expand.</p>
+    <div class="header-actions">
+      <button class="btn btn-fill">Fetch All Prices</button>
+      <button class="btn btn-outline" id="toggleUS" onclick="this.classList.toggle('active'); this.textContent = this.classList.contains('active') ? 'US Only' : 'All Countries';">All Countries</button>
+    </div>
+  </div>
+
+  <!-- Best price badges -->
+  <div class="best-row">
+    <div class="best-card">
+      <div class="best-label">Best USA</div>
+      <div class="best-price usa">$3.42</div>
+      <div class="best-detail">Mouser · 2,847 in stock</div>
+    </div>
+    <div class="best-card" id="intlCard">
+      <div class="best-label">Best International</div>
+      <div class="best-price intl">$2.10</div>
+      <div class="best-detail">LCSC (CN) · 25,000 in stock</div>
+      <div class="best-landed">Landed: $5.15 (+145% tariff)</div>
+    </div>
+  </div>
+
+  <!-- Part list -->
+  <div class="part-list">
+
+    <!-- Part 1 — collapsed -->
+    <div class="part">
+      <div class="part-header" onclick="togglePart(this)">
+        <div class="part-info">
+          <div class="part-mpn">
+            LM4562NA/NOPB <span class="chevron">›</span>
+          </div>
+          <div class="part-desc">Dual Op-Amp · qty 4</div>
+        </div>
+        <div class="part-best">
+          <div class="part-price">$3.42</div>
+          <div class="part-supplier"><span class="status-dot done"></span>Mouser</div>
+        </div>
+      </div>
+      <div class="part-expanded">
+        <div class="suppliers">
+          <div class="supplier-card best">
+            <div class="sup-top"><span class="sup-name">Mouser</span><span class="sup-country">US</span></div>
+            <div class="sup-price">$3.42</div>
+            <div class="sup-meta">Stock: 2,847 · MOQ: 1</div>
+            <div class="sup-breaks">
+              <div class="sup-break"><span class="sup-break-qty">1+</span><span class="sup-break-price">$4.89</span></div>
+              <div class="sup-break"><span class="sup-break-qty">10+</span><span class="sup-break-price">$4.10</span></div>
+              <div class="sup-break"><span class="sup-break-qty">25+</span><span class="sup-break-price">$3.82</span></div>
+              <div class="sup-break"><span class="sup-break-qty">100+</span><span class="sup-break-price">$3.42</span></div>
+            </div>
+            <a class="sup-link" href="#">View on Mouser →</a>
+          </div>
+          <div class="supplier-card">
+            <div class="sup-top"><span class="sup-name">Digi-Key</span><span class="sup-country">US</span></div>
+            <div class="sup-price">$3.48</div>
+            <div class="sup-meta">Stock: 14,200 · MOQ: 1</div>
+            <div class="sup-breaks">
+              <div class="sup-break"><span class="sup-break-qty">1+</span><span class="sup-break-price">$5.24</span></div>
+              <div class="sup-break"><span class="sup-break-qty">10+</span><span class="sup-break-price">$4.68</span></div>
+              <div class="sup-break"><span class="sup-break-qty">100+</span><span class="sup-break-price">$3.48</span></div>
+            </div>
+            <a class="sup-link" href="#">View on Digi-Key →</a>
+          </div>
+          <div class="supplier-card">
+            <div class="sup-top"><span class="sup-name">Arrow</span><span class="sup-country">US</span></div>
+            <div class="sup-price">$3.55</div>
+            <div class="sup-meta">Stock: 1,200 · MOQ: 1</div>
+            <a class="sup-link" href="#">View on Arrow →</a>
+          </div>
+          <div class="supplier-card">
+            <div class="sup-top"><span class="sup-name">LCSC</span><span class="sup-country">CN</span></div>
+            <div class="sup-price">$2.10</div>
+            <div class="sup-meta">Stock: 25,000 · MOQ: 5</div>
+            <div class="sup-landed">Landed: $5.15 (CN +145%)</div>
+            <div class="sup-breaks">
+              <div class="sup-break"><span class="sup-break-qty">5+</span><span class="sup-break-price">$2.50</span></div>
+              <div class="sup-break"><span class="sup-break-qty">50+</span><span class="sup-break-price">$2.10</span></div>
+              <div class="sup-break"><span class="sup-break-qty">100+</span><span class="sup-break-price">$1.85</span></div>
+            </div>
+            <a class="sup-link" href="#">View on LCSC →</a>
+          </div>
+          <div class="supplier-card">
+            <div class="sup-top"><span class="sup-name">Allied</span><span class="sup-country">US</span></div>
+            <div class="sup-price">$3.80</div>
+            <div class="sup-meta">Stock: 450 · MOQ: 1</div>
+            <a class="sup-link" href="#">View on Allied →</a>
+          </div>
+        </div>
+
+        <!-- Inline edit -->
+        <div class="edit-panel">
+          <div class="edit-field">
+            <label>Reference</label>
+            <input type="text" value="U3" />
+          </div>
+          <div class="edit-field">
+            <label>MPN</label>
+            <input type="text" value="LM4562NA/NOPB" />
+          </div>
+          <div class="edit-field">
+            <label>Qty</label>
+            <input type="number" value="4" />
+          </div>
+          <div class="edit-field">
+            <label>Description</label>
+            <input type="text" value="Dual Op-Amp" />
+          </div>
+          <button class="btn btn-outline" style="font-size:12px; padding:7px 14px; color:#ff3b30; border-color:#ff3b30;">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Part 2 — collapsed -->
+    <div class="part">
+      <div class="part-header" onclick="togglePart(this)">
+        <div class="part-info">
+          <div class="part-mpn">
+            OPA1612AIDR <span class="chevron">›</span>
+          </div>
+          <div class="part-desc">Audio Op-Amp, SOIC-8 · qty 2</div>
+        </div>
+        <div class="part-best">
+          <div class="part-price">$4.18</div>
+          <div class="part-supplier"><span class="status-dot done"></span>Digi-Key</div>
+        </div>
+      </div>
+      <div class="part-expanded">
+        <div class="suppliers">
+          <div class="supplier-card best">
+            <div class="sup-top"><span class="sup-name">Digi-Key</span><span class="sup-country">US</span></div>
+            <div class="sup-price">$4.18</div>
+            <div class="sup-meta">Stock: 14,200 · MOQ: 1</div>
+            <div class="sup-breaks">
+              <div class="sup-break"><span class="sup-break-qty">1+</span><span class="sup-break-price">$5.24</span></div>
+              <div class="sup-break"><span class="sup-break-qty">10+</span><span class="sup-break-price">$4.68</span></div>
+              <div class="sup-break"><span class="sup-break-qty">100+</span><span class="sup-break-price">$4.18</span></div>
+              <div class="sup-break"><span class="sup-break-qty">500+</span><span class="sup-break-price">$3.92</span></div>
+            </div>
+            <a class="sup-link" href="#">View on Digi-Key →</a>
+          </div>
+          <div class="supplier-card">
+            <div class="sup-top"><span class="sup-name">Mouser</span><span class="sup-country">US</span></div>
+            <div class="sup-price">$4.22</div>
+            <div class="sup-meta">Stock: 8,300 · MOQ: 1</div>
+            <div class="sup-breaks">
+              <div class="sup-break"><span class="sup-break-qty">1+</span><span class="sup-break-price">$5.30</span></div>
+              <div class="sup-break"><span class="sup-break-qty">10+</span><span class="sup-break-price">$4.72</span></div>
+              <div class="sup-break"><span class="sup-break-qty">100+</span><span class="sup-break-price">$4.22</span></div>
+            </div>
+            <a class="sup-link" href="#">View on Mouser →</a>
+          </div>
+          <div class="supplier-card">
+            <div class="sup-top"><span class="sup-name">Arrow</span><span class="sup-country">US</span></div>
+            <div class="sup-price">$4.35</div>
+            <div class="sup-meta">Stock: 1,200 · MOQ: 1</div>
+            <a class="sup-link" href="#">View on Arrow →</a>
+          </div>
+        </div>
+        <div class="edit-panel">
+          <div class="edit-field">
+            <label>Reference</label>
+            <input type="text" value="U5" />
+          </div>
+          <div class="edit-field">
+            <label>MPN</label>
+            <input type="text" value="OPA1612AIDR" />
+          </div>
+          <div class="edit-field">
+            <label>Qty</label>
+            <input type="number" value="2" />
+          </div>
+          <div class="edit-field">
+            <label>Description</label>
+            <input type="text" value="Audio Op-Amp, SOIC-8" />
+          </div>
+          <button class="btn btn-outline" style="font-size:12px; padding:7px 14px; color:#ff3b30; border-color:#ff3b30;">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Part 3 — collapsed -->
+    <div class="part">
+      <div class="part-header" onclick="togglePart(this)">
+        <div class="part-info">
+          <div class="part-mpn">
+            LOP-300-24 <span class="chevron">›</span>
+          </div>
+          <div class="part-desc">24V Power Supply · qty 1</div>
+        </div>
+        <div class="part-best">
+          <div class="part-price">$37.50</div>
+          <div class="part-supplier"><span class="status-dot done"></span>Mouser</div>
+        </div>
+      </div>
+      <div class="part-expanded">
+        <div class="suppliers">
+          <div class="supplier-card best">
+            <div class="sup-top"><span class="sup-name">Mouser</span><span class="sup-country">US</span></div>
+            <div class="sup-price">$37.50</div>
+            <div class="sup-meta">Stock: 2,847 · MOQ: 1</div>
+            <div class="sup-breaks">
+              <div class="sup-break"><span class="sup-break-qty">1+</span><span class="sup-break-price">$42.39</span></div>
+              <div class="sup-break"><span class="sup-break-qty">5+</span><span class="sup-break-price">$40.10</span></div>
+              <div class="sup-break"><span class="sup-break-qty">10+</span><span class="sup-break-price">$38.80</span></div>
+              <div class="sup-break"><span class="sup-break-qty">25+</span><span class="sup-break-price">$37.50</span></div>
+            </div>
+            <a class="sup-link" href="#">View on Mouser →</a>
+          </div>
+          <div class="supplier-card best">
+            <div class="sup-top"><span class="sup-name">Jameco</span><span class="sup-country">US</span></div>
+            <div class="sup-price">$37.50</div>
+            <div class="sup-meta">Stock: 5,120 · MOQ: 1</div>
+            <a class="sup-link" href="#">View on Jameco →</a>
+          </div>
+          <div class="supplier-card">
+            <div class="sup-top"><span class="sup-name">Digi-Key</span><span class="sup-country">US</span></div>
+            <div class="sup-price">$38.20</div>
+            <div class="sup-meta">Stock: 900 · MOQ: 1</div>
+            <a class="sup-link" href="#">View on Digi-Key →</a>
+          </div>
+        </div>
+        <div class="edit-panel">
+          <div class="edit-field">
+            <label>Reference</label>
+            <input type="text" value="PS1" />
+          </div>
+          <div class="edit-field">
+            <label>MPN</label>
+            <input type="text" value="LOP-300-24" />
+          </div>
+          <div class="edit-field">
+            <label>Qty</label>
+            <input type="number" value="1" />
+          </div>
+          <div class="edit-field">
+            <label>Description</label>
+            <input type="text" value="24V Power Supply" />
+          </div>
+          <button class="btn btn-outline" style="font-size:12px; padding:7px 14px; color:#ff3b30; border-color:#ff3b30;">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Part 4 — collapsed, with tariff indicator -->
+    <div class="part">
+      <div class="part-header" onclick="togglePart(this)">
+        <div class="part-info">
+          <div class="part-mpn">
+            RC0402FR-0710KL <span class="chevron">›</span>
+          </div>
+          <div class="part-desc">10k 0402 Resistor · qty 12</div>
+        </div>
+        <div class="part-best">
+          <div class="part-price">$0.0098</div>
+          <div class="part-supplier"><span class="status-dot done"></span>Mouser</div>
+        </div>
+      </div>
+      <div class="part-expanded">
+        <div class="suppliers">
+          <div class="supplier-card best">
+            <div class="sup-top"><span class="sup-name">Mouser</span><span class="sup-country">US</span></div>
+            <div class="sup-price">$0.0098</div>
+            <div class="sup-meta">Stock: 180,000 · MOQ: 10</div>
+            <div class="sup-breaks">
+              <div class="sup-break"><span class="sup-break-qty">10+</span><span class="sup-break-price">$0.0120</span></div>
+              <div class="sup-break"><span class="sup-break-qty">100+</span><span class="sup-break-price">$0.0098</span></div>
+              <div class="sup-break"><span class="sup-break-qty">1000+</span><span class="sup-break-price">$0.0065</span></div>
+            </div>
+            <a class="sup-link" href="#">View on Mouser →</a>
+          </div>
+          <div class="supplier-card">
+            <div class="sup-top"><span class="sup-name">LCSC</span><span class="sup-country">CN</span></div>
+            <div class="sup-price">$0.0042</div>
+            <div class="sup-meta">Stock: 500,000 · MOQ: 100</div>
+            <div class="sup-landed">Landed: $0.0103 (CN +145%)</div>
+            <div class="sup-breaks">
+              <div class="sup-break"><span class="sup-break-qty">100+</span><span class="sup-break-price">$0.0042</span></div>
+              <div class="sup-break"><span class="sup-break-qty">1000+</span><span class="sup-break-price">$0.0028</span></div>
+            </div>
+            <a class="sup-link" href="#">View on LCSC →</a>
+          </div>
+          <div class="supplier-card">
+            <div class="sup-top"><span class="sup-name">Digi-Key</span><span class="sup-country">US</span></div>
+            <div class="sup-price">$0.0100</div>
+            <div class="sup-meta">Stock: 95,000 · MOQ: 1</div>
+            <a class="sup-link" href="#">View on Digi-Key →</a>
+          </div>
+        </div>
+        <div class="edit-panel">
+          <div class="edit-field">
+            <label>Reference</label>
+            <input type="text" value="R1-R12" />
+          </div>
+          <div class="edit-field">
+            <label>MPN</label>
+            <input type="text" value="RC0402FR-0710KL" />
+          </div>
+          <div class="edit-field">
+            <label>Qty</label>
+            <input type="number" value="12" />
+          </div>
+          <div class="edit-field">
+            <label>Value</label>
+            <input type="text" value="10k" style="width:80px" />
+          </div>
+          <button class="btn btn-outline" style="font-size:12px; padding:7px 14px; color:#ff3b30; border-color:#ff3b30;">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Part 5 — no pricing yet -->
+    <div class="part">
+      <div class="part-header" onclick="togglePart(this)">
+        <div class="part-info">
+          <div class="part-mpn">
+            ALPS-RK09L <span class="chevron">›</span>
+          </div>
+          <div class="part-desc">10k Linear Pot · qty 3</div>
+        </div>
+        <div class="part-best">
+          <button class="btn btn-outline" style="font-size:11px; padding:5px 12px;" onclick="event.stopPropagation();">Fetch Price</button>
+        </div>
+      </div>
+      <div class="part-expanded">
+        <div style="padding: 20px; text-align: center; color: #aeaeb2; font-size: 13px;">
+          No pricing data yet. Click "Fetch Price" to get live quotes.
+        </div>
+        <div class="edit-panel">
+          <div class="edit-field">
+            <label>Reference</label>
+            <input type="text" value="VR1-VR3" />
+          </div>
+          <div class="edit-field">
+            <label>MPN</label>
+            <input type="text" value="ALPS-RK09L" />
+          </div>
+          <div class="edit-field">
+            <label>Qty</label>
+            <input type="number" value="3" />
+          </div>
+          <div class="edit-field">
+            <label>Description</label>
+            <input type="text" value="10k Linear Pot" />
+          </div>
+          <button class="btn btn-outline" style="font-size:12px; padding:7px 14px; color:#ff3b30; border-color:#ff3b30;">Delete</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function togglePart(header) {
+  const expanded = header.nextElementSibling;
+  const isOpen = expanded.classList.contains('show');
+
+  // Close all
+  document.querySelectorAll('.part-expanded').forEach(e => e.classList.remove('show'));
+  document.querySelectorAll('.part-header').forEach(h => h.classList.remove('expanded'));
+
+  // Toggle clicked
+  if (!isOpen) {
+    expanded.classList.add('show');
+    header.classList.add('expanded');
+  }
+}
+</script>
+</body>
+</html>

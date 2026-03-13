@@ -1290,7 +1290,7 @@ function BOMManager({ user }) {
   };
 
   // Save a custom supplier to a part's pricing object
-  const saveCustomSupplier = async (partId, { name, url, country, stock, breaks, editKey }) => {
+  const saveCustomSupplier = async (partId, { name, url, country, stock, breaks, editKey, exclusive }) => {
     const key = "custom_" + name.toLowerCase().replace(/[^a-z0-9]/g, "_");
     const unitPrice = breaks.length > 0 ? breaks[0].price : 0;
     const entry = {
@@ -1303,23 +1303,25 @@ function BOMManager({ user }) {
       url: url || "",
       priceBreaks: breaks.filter(b => b.qty > 0 && b.price > 0),
       isCustom: true,
+      exclusive: !!exclusive,
     };
+    let newPricing;
+    const newPref = exclusive ? key : undefined;
     setParts((prev) => prev.map((p) => {
       if (p.id !== partId) return p;
       const pricing = { ...(p.pricing || {}) };
       // If editing and name changed, remove old key
       if (editKey && editKey !== key) delete pricing[editKey];
       pricing[key] = entry;
+      newPricing = pricing;
       const best = bestPriceSupplier(pricing);
-      return { ...p, pricing, bestSupplier: best, pricingStatus: "done" };
+      return { ...p, pricing, bestSupplier: best, pricingStatus: "done", ...(newPref ? { preferredSupplier: newPref } : {}) };
     }));
-    // Persist to DB
-    const part = parts.find(p => p.id === partId);
-    const newPricing = { ...(part?.pricing || {}) };
-    if (editKey && editKey !== key) delete newPricing[editKey];
-    newPricing[key] = entry;
+    // Persist to DB using the pricing we just built
+    const dbFields = { pricing: newPricing, pricing_status: "done", best_supplier: bestPriceSupplier(newPricing) };
+    if (newPref) dbFields.preferred_supplier = newPref;
     try {
-      await dbUpdatePart(partId, { pricing: newPricing, pricing_status: "done", best_supplier: bestPriceSupplier(newPricing) }, user.id);
+      await dbUpdatePart(partId, dbFields, user.id);
     } catch (e) { console.error("saveCustomSupplier failed:", e); }
     setCustomSupplierForm(null);
   };
@@ -1450,6 +1452,17 @@ function BOMManager({ user }) {
   function cheapestForPart(part, needed, usOnly) {
     const pricing = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
     if (!pricing) return { price: parseFloat(part.unitCost) || 0, supplier: null };
+    // If an exclusive custom supplier is set, always use it
+    const exclusiveEntry = Object.entries(pricing).find(([, d]) => d.isCustom && d.exclusive);
+    if (exclusiveEntry) {
+      const [sid, data] = exclusiveEntry;
+      let price = data.unitPrice;
+      if (data.priceBreaks?.length) {
+        price = data.priceBreaks[0]?.price || data.unitPrice;
+        for (const pb of data.priceBreaks) { if (needed >= pb.qty) price = pb.price; }
+      }
+      return { price: parseFloat(price) || parseFloat(part.unitCost) || 0, supplier: sid };
+    }
     let best = { price: Infinity, supplier: null };
     for (const [sid, data] of Object.entries(pricing)) {
       if (data.stock <= 0) continue;
@@ -2119,7 +2132,7 @@ function BOMManager({ user }) {
                                       )}
                                       {data.isCustom && (
                                         <div style={{ display:"flex",gap:10,marginTop:6 }}>
-                                          <button onClick={(e)=>{e.stopPropagation();setCustomSupplierForm({ partId:part.id, editKey:key, name:data.displayName, url:data.url||"", country:data.country||"US", stock:String(data.stock||""), breaks:data.priceBreaks?.length ? data.priceBreaks.map(b=>({qty:b.qty,price:b.price})) : [{qty:1,price:""}] });}}
+                                          <button onClick={(e)=>{e.stopPropagation();setCustomSupplierForm({ partId:part.id, editKey:key, name:data.displayName, url:data.url||"", country:data.country||"US", stock:String(data.stock||""), breaks:data.priceBreaks?.length ? data.priceBreaks.map(b=>({qty:b.qty,price:b.price})) : [{qty:1,price:""}], exclusive:!!data.exclusive });}}
                                             style={{ fontSize:10,color:"#0071e3",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit",fontWeight:500 }}>
                                             Edit
                                           </button>
@@ -2141,7 +2154,7 @@ function BOMManager({ user }) {
 
                             {/* Add Custom Supplier + Refresh */}
                             <div style={{ display:"flex",gap:8,marginBottom:14,flexWrap:"wrap" }}>
-                              <button onClick={(e)=>{e.stopPropagation();setCustomSupplierForm({ partId:part.id, name:"", url:"", country:"US", stock:"", breaks:[{qty:1,price:""}] });}}
+                              <button onClick={(e)=>{e.stopPropagation();setCustomSupplierForm({ partId:part.id, name:"", url:"", country:"US", stock:"", breaks:[{qty:1,price:""}], exclusive:false });}}
                                 style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
                                   border:"1px solid #0071e3",background:"none",color:"#0071e3" }}>
                                 + Custom Supplier
@@ -2211,6 +2224,13 @@ function BOMManager({ user }) {
                                   style={{ fontSize:11,color:"#0071e3",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit",fontWeight:500,marginBottom:12 }}>
                                   + Add price break
                                 </button>
+
+                                <label style={{ display:"flex",alignItems:"center",gap:8,marginTop:8,marginBottom:10,cursor:"pointer",userSelect:"none" }}>
+                                  <input type="checkbox" checked={customSupplierForm.exclusive || false}
+                                    onChange={e=>setCustomSupplierForm(f=>({...f,exclusive:e.target.checked}))}
+                                    style={{ width:16,height:16,accentColor:"#5856d6",cursor:"pointer" }} />
+                                  <span style={{ fontSize:12,fontWeight:600,color:"#5856d6",letterSpacing:"0.3px" }}>ONLY THIS SUPPLIER</span>
+                                </label>
 
                                 <div style={{ display:"flex",gap:8,marginTop:4 }}>
                                   <button onClick={()=>{
@@ -2966,6 +2986,13 @@ function BOMManager({ user }) {
                               const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
                               if (!pr) return { price: parseFloat(part.unitCost) || 0, source: null, supplierId: null, supplierName: null, suppliers: [] };
                               const isUS = (sid, d) => { const c = d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[sid] || ""; return !c || c === "US"; };
+                              // If an exclusive custom supplier exists, lock to it
+                              const exclusiveEntry = Object.entries(pr).find(([, d]) => d.isCustom && d.exclusive);
+                              if (exclusiveEntry) {
+                                const [sid, data] = exclusiveEntry;
+                                const priceAt = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
+                                return { price: priceAt(data), source: isUS(sid, data) ? "USA" : "INTL", supplierId: sid, supplierName: data.displayName || sid, suppliers: [{ id: sid, name: data.displayName || sid, price: priceAt(data) }] };
+                              }
                               let entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
                               if (simUsOnly) entries = entries.filter(([sid, d]) => isUS(sid, d));
                               if (!entries.length) return { price: parseFloat(part.unitCost) || 0, source: null, supplierId: null, supplierName: null, suppliers: [] };
@@ -3013,17 +3040,25 @@ function BOMManager({ user }) {
                                     style={cellInput} placeholder="" />
                                 </td>
                                 <td style={{ padding:"6px 8px" }}>
-                                  {dynResult.suppliers.length > 0 ? (
-                                    <select value={dynResult.supplierId || ""}
-                                      onChange={(e) => updatePart(part.id, "preferredSupplier", e.target.value || "mouser")}
-                                      style={{ ...cellInput, color:"#1d1d1f", cursor:"pointer", fontSize:12 }}>
-                                      {dynResult.suppliers.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name} (${fmtPrice(s.price)})</option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <span style={{ padding:"6px 10px",fontSize:12,color:"#c7c7cc" }}>—</span>
-                                  )}
+                                  {(() => {
+                                    const hasCustom = dynResult.suppliers.some(s => s.id.startsWith("custom_"));
+                                    const customSup = hasCustom ? dynResult.suppliers.find(s => s.id.startsWith("custom_")) : null;
+                                    if (customSup) {
+                                      return <span style={{ padding:"6px 10px",fontSize:12,fontWeight:600,color:"#5856d6" }}>{customSup.name}</span>;
+                                    }
+                                    if (dynResult.suppliers.length > 0) {
+                                      return (
+                                        <select value={dynResult.supplierId || ""}
+                                          onChange={(e) => updatePart(part.id, "preferredSupplier", e.target.value || "mouser")}
+                                          style={{ ...cellInput, color:"#1d1d1f", cursor:"pointer", fontSize:12 }}>
+                                          {dynResult.suppliers.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name} (${fmtPrice(s.price)})</option>
+                                          ))}
+                                        </select>
+                                      );
+                                    }
+                                    return <span style={{ padding:"6px 10px",fontSize:12,color:"#c7c7cc" }}>—</span>;
+                                  })()}
                                 </td>
                                 <td style={{ padding:"12px 14px",textAlign:"center",width:60 }}>
                                   {dynSource

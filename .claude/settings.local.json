@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.nexar.com)",
+      "WebFetch(domain:support.nexar.com)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(npm run:*)",
+      "Bash(npx vite:*)",
+      "Bash(./node_modules/.bin/vite build:*)",
+      "Bash(node -e \"\nconst fs = require\\('fs'\\);\nconst code = fs.readFileSync\\('src/App.jsx', 'utf8'\\);\nlet braces = 0, parens = 0, brackets = 0;\nfor \\(const c of code\\) {\n  if \\(c === '{'\\) braces++;\n  if \\(c === '}'\\) braces--;\n  if \\(c === '\\('\\) parens++;\n  if \\(c === '\\)'\\) parens--;\n  if \\(c === '['\\) brackets++;\n  if \\(c === ']'\\) brackets--;\n}\nconsole.log\\('Braces:', braces, 'Parens:', parens, 'Brackets:', brackets\\);\nif \\(braces === 0 && parens === 0 && brackets === 0\\) console.log\\('Balance OK'\\);\nelse console.log\\('IMBALANCED!'\\);\n\")",
+      "Bash(which vercel:*)",
+      "Bash(git diff:*)",
+      "Bash(node -e \"const fs=require\\('fs'\\),c=fs.readFileSync\\('src/App.jsx','utf8'\\);let b=0,p=0,k=0;for\\(const x of c\\){if\\(x==='{'\\)b++;if\\(x==='}'\\)b--;if\\(x==='\\('\\)p++;if\\(x==='\\)'\\)p--;if\\(x==='['\\)k++;if\\(x===']'\\)k--;}console.log\\('B:',b,'P:',p,'K:',k,b===0&&p===0&&k===0?'OK':'FAIL'\\)\")",
+      "Bash(open /Users/BradJackson/Downloads/jackson-bom/pricing-preview.html)",
+      "Bash(npx -y acorn --ecma2020 --module src/App.jsx > /dev/null 2>&1; echo \"Exit: $?\")",
+      "Bash(grep -n '>\\\\$\\\\{[a-z]' src/App.jsx | grep -v '`' | head -20)",
+      "WebFetch(domain:www.mouser.com)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"const fs = require\\('fs'\\); const code = fs.readFileSync\\('/Users/BradJackson/Downloads/jackson-bom/src/App.jsx','utf8'\\); console.log\\('File length:', code.length, 'lines:', code.split\\('\\\\n'\\).length\\); console.log\\('Syntax looks OK \\(basic check passed\\)'\\);\")",
+      "Bash(node -e \"\nconst code = require\\('fs'\\).readFileSync\\('/Users/BradJackson/Downloads/jackson-bom/src/App.jsx','utf8'\\);\nlet curlies=0, parens=0, squares=0, angles=0;\nfor\\(const c of code\\){\n  if\\(c==='{'\\)curlies++;if\\(c==='}'\\)curlies--;\n  if\\(c==='\\('\\)parens++;if\\(c==='\\)'\\)parens--;\n  if\\(c==='['\\)squares++;if\\(c===']'\\)squares--;\n}\nconsole.log\\('Curly balance:',curlies,'Paren balance:',parens,'Square balance:',squares\\);\n\")",
+      "Bash(node -e \"\nconst code = require\\('fs'\\).readFileSync\\('/Users/BradJackson/Downloads/jackson-bom/src/App.jsx','utf8'\\);\nlet curlies=0, parens=0, squares=0;\nfor\\(const c of code\\){\n  if\\(c==='{'\\)curlies++;if\\(c==='}'\\)curlies--;\n  if\\(c==='\\('\\)parens++;if\\(c==='\\)'\\)parens--;\n  if\\(c==='['\\)squares++;if\\(c===']'\\)squares--;\n}\nconsole.log\\('Curly:',curlies,'Paren:',parens,'Square:',squares\\);\nconsole.log\\('Lines:', code.split\\('\\\\n'\\).length\\);\n// Check React.Fragment is gone\nconsole.log\\('React.Fragment refs:', \\(code.match\\(/React\\\\.Fragment/g\\)||[]\\).length\\);\n\")",
+      "Bash(node -e \"\nconst code = require\\('fs'\\).readFileSync\\('/Users/BradJackson/Downloads/jackson-bom/src/App.jsx','utf8'\\);\nlet curlies=0, parens=0, squares=0;\nfor\\(const c of code\\){if\\(c==='{'\\)curlies++;if\\(c==='}'\\)curlies--;if\\(c==='\\('\\)parens++;if\\(c==='\\)'\\)parens--;if\\(c==='['\\)squares++;if\\(c===']'\\)squares--;}\nconsole.log\\('Curly:',curlies,'Paren:',parens,'Square:',squares\\);\n\")",
+      "Bash(node -e \"\nconst code = require\\('fs'\\).readFileSync\\('/Users/BradJackson/Downloads/jackson-bom/src/App.jsx','utf8'\\);\nlet curlies=0, parens=0;\nfor\\(const c of code\\){if\\(c==='{'\\)curlies++;if\\(c==='}'\\)curlies--;if\\(c==='\\('\\)parens++;if\\(c==='\\)'\\)parens--;}\nconsole.log\\('Curly:',curlies,'Paren:',parens\\);\n\")",
+      "Bash(node -e \"const c=require\\('fs'\\).readFileSync\\('/Users/BradJackson/Downloads/jackson-bom/src/App.jsx','utf8'\\);let a=0,b=0;for\\(const x of c\\){if\\(x==='{'\\)a++;if\\(x==='}'\\)a--;if\\(x==='\\('\\)b++;if\\(x==='\\)'\\)b--;}console.log\\(a,b\\);\")",
+      "Bash(git -C /Users/BradJackson/Downloads/jackson-bom diff --stat)"
+    ]
+  }
+}
