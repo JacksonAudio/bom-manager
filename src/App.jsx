@@ -1578,19 +1578,17 @@ function BOMManager({ user }) {
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:15 }}>No parts yet — import a BOM to get started</div>
               </div>
             ) : (
-              <div style={{ overflowX:"auto" }}>
-                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+              <div style={{ overflowX:"auto",background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                   <thead>
-                    <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
-                      {/* ── Select-all checkbox */}
-                      <th style={{ padding:"5px 4px",width:24 }}>
+                    <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
+                      <th style={{ padding:"12px 10px",width:28,borderRadius:"14px 0 0 0" }}>
                         <input
                           type="checkbox"
                           title={selectedParts.size === visibleParts.length && visibleParts.length > 0 ? "Deselect all" : "Select all visible"}
-                          style={{ width:14,height:14,cursor:"pointer",accentColor:"#0071e3" }}
+                          style={{ width:15,height:15,cursor:"pointer",accentColor:"#0071e3" }}
                           checked={visibleParts.length > 0 && visibleParts.every((p) => selectedParts.has(p.id))}
                           ref={(el) => {
-                            // Indeterminate state — some but not all selected
                             if (el) el.indeterminate = selectedParts.size > 0 && !visibleParts.every((p) => selectedParts.has(p.id));
                           }}
                           onChange={(e) => {
@@ -1599,13 +1597,12 @@ function BOMManager({ user }) {
                           }}
                         />
                       </th>
-                      {/* ── 🚩 order flag column */}
-                      <th style={{ padding:"5px 3px",width:24,textAlign:"center",color:"#aeaeb2",
-                        fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:10,fontWeight:700 }}>🚩</th>
-                      {["MPN","Internal PN","Value","Desc","Stock","Reorder",""].map((h,i)=>(
-                        <th key={i} style={{ textAlign:"left",padding:"5px 5px",color:"#aeaeb2",
-                          fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:10,fontWeight:700,
-                          letterSpacing:"0.07em",whiteSpace:"nowrap" }}>{h}</th>
+                      <th style={{ padding:"12px 6px",width:28,textAlign:"center",fontSize:11,fontWeight:700 }}>🚩</th>
+                      {["MPN","Internal Part Number","Value","Description","Current Stock","Reorder Point",""].map((h,hi,arr)=>(
+                        <th key={hi} style={{ textAlign:"left",padding:"12px 14px",
+                          fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                          fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
+                          borderRadius:hi===arr.length-1?"0 14px 0 0":undefined }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1613,58 +1610,71 @@ function BOMManager({ user }) {
                     {visibleParts.map((part,i) => {
                       const sn=parseInt(part.stockQty)||0,rn=parseInt(part.reorderQty);
                       const isLow = !isNaN(rn)&&rn>0&&sn<=rn;
+                      const inputStyle = { width:"100%",padding:"6px 10px",borderRadius:6,fontSize:13,
+                        fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                        border:"1px solid transparent",background:"transparent",outline:"none",color:"#1d1d1f",
+                        transition:"border-color 0.15s, background 0.15s" };
+                      const focusIn = (e) => { e.target.style.borderColor="#d2d2d7"; e.target.style.background="#fff"; };
+                      const focusOut = (e) => { e.target.style.borderColor="transparent"; e.target.style.background="transparent"; };
                       return (
                         <tr key={part.id} className="table-row"
-                          style={{ borderBottom:"1px solid #f0f0f2",
-                            background: selectedParts.has(part.id) ? "rgba(0,113,227,0.06)"
-                              : part.flaggedForOrder ? "rgba(255,149,0,0.06)"
-                              : i%2===0 ? "transparent" : "#f5f5f7" }}>
-                          <td style={{ padding:"5px 4px",width:24 }}>
+                          style={{ borderBottom:"1px solid #ededf0",
+                            background: selectedParts.has(part.id) ? "rgba(0,113,227,0.05)"
+                              : part.flaggedForOrder ? "rgba(255,149,0,0.05)"
+                              : "transparent" }}>
+                          <td style={{ padding:"10px 10px",width:28 }}>
                             <input type="checkbox"
                               style={{ width:15,height:15,cursor:"pointer",accentColor:"#0071e3" }}
                               checked={selectedParts.has(part.id)}
                               onChange={() => toggleSelect(part.id)} />
                           </td>
-                          <td style={{ padding:"5px 3px",width:24,textAlign:"center" }}>
+                          <td style={{ padding:"10px 6px",width:28,textAlign:"center" }}>
                             <input type="checkbox" style={{ width:15,height:15,cursor:"pointer",accentColor:"#e8500a" }}
                               checked={part.flaggedForOrder} onChange={()=>toggleFlag(part.id)}
                               title="Flag for purchase order" />
                           </td>
-                          <td style={{ padding:"5px 5px" }}>
+                          <td style={{ padding:"6px 8px" }}>
                             <input type="text" value={part.mpn||""}
                               onChange={(e)=>updatePart(part.id,"mpn",e.target.value)}
-                              style={{ width:"100%",padding:"3px 5px",borderRadius:4,color:"#0071e3",fontWeight:600,fontSize:12 }} placeholder="—" />
+                              onFocus={focusIn} onBlur={focusOut}
+                              style={{ ...inputStyle,color:"#0071e3",fontWeight:600 }} placeholder="—" />
                           </td>
-                          <td style={{ padding:"5px 5px" }}>
-                            <input type="text" value={part.reference}
+                          <td style={{ padding:"6px 8px" }}>
+                            <input type="text" value={part.reference||""}
                               onChange={(e)=>updatePart(part.id,"reference",e.target.value)}
-                              style={{ width:"100%",padding:"3px 5px",borderRadius:4,color:"#1d1d1f",fontSize:12 }} placeholder="—" />
+                              onFocus={focusIn} onBlur={focusOut}
+                              style={inputStyle} placeholder="" />
                           </td>
-                          <td style={{ padding:"5px 5px" }}>
+                          <td style={{ padding:"6px 8px" }}>
                             <input type="text" value={part.value||""}
                               onChange={(e)=>updatePart(part.id,"value",e.target.value)}
-                              style={{ width:"100%",padding:"3px 5px",borderRadius:4,color:"#1d1d1f",fontSize:12 }} placeholder="—" />
+                              onFocus={focusIn} onBlur={focusOut}
+                              style={inputStyle} placeholder="" />
                           </td>
-                          <td style={{ padding:"5px 5px" }}>
+                          <td style={{ padding:"6px 8px" }}>
                             <input type="text" value={part.description||""}
                               onChange={(e)=>updatePart(part.id,"description",e.target.value)}
-                              style={{ width:"100%",padding:"3px 5px",borderRadius:4,color:"#86868b",fontSize:11 }} placeholder="—" />
+                              onFocus={focusIn} onBlur={focusOut}
+                              style={{ ...inputStyle,color:"#6e6e73" }} placeholder="" />
                           </td>
-                          <td style={{ padding:"5px 5px",width:65 }}>
+                          <td style={{ padding:"6px 8px",width:90 }}>
                             <input type="number" placeholder="0" value={part.stockQty}
                               onChange={(e)=>updatePart(part.id,"stockQty",e.target.value)}
-                              style={{ width:"100%",padding:"3px 5px",borderRadius:4,borderColor:isLow?"#ff3b30":undefined,fontSize:12 }} min="0" />
+                              onFocus={focusIn} onBlur={focusOut}
+                              style={{ ...inputStyle,fontWeight:600,
+                                color:isLow?"#ff3b30":"#1d1d1f" }} min="0" />
                           </td>
-                          <td style={{ padding:"5px 5px",width:65 }}>
+                          <td style={{ padding:"6px 8px",width:90 }}>
                             <input type="number" placeholder="0" value={part.reorderQty}
                               onChange={(e)=>updatePart(part.id,"reorderQty",e.target.value)}
-                              style={{ width:"100%",padding:"3px 5px",borderRadius:4,fontSize:12 }} min="0" />
+                              onFocus={focusIn} onBlur={focusOut}
+                              style={inputStyle} min="0" />
                           </td>
-                          <td style={{ padding:"5px 3px",width:24 }}>
+                          <td style={{ padding:"6px 4px",width:28 }}>
                             <button onClick={()=>deletePart(part.id)}
-                              style={{ background:"none",border:"none",cursor:"pointer",color:"#aeaeb2",fontSize:13,padding:"2px 4px",borderRadius:3,transition:"color 0.15s" }}
+                              style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:14,padding:"2px 4px",borderRadius:4,transition:"color 0.15s" }}
                               onMouseOver={(e)=>e.target.style.color="#ff3b30"}
-                              onMouseOut={(e)=>e.target.style.color="#aeaeb2"}>✕</button>
+                              onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>✕</button>
                           </td>
                         </tr>
                       );
