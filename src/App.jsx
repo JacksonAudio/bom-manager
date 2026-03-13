@@ -1428,17 +1428,37 @@ function BOMManager({ user }) {
                           )}
                         </div>
 
-                        {/* Best price badge */}
-                        {bestData && (
-                          <div style={{ flex:"0 0 auto",background:"#0d2318",border:"1px solid #34d399",
-                            borderRadius:8,padding:"8px 14px" }}>
-                            <div style={{ fontSize:10,color:"#34d399",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,letterSpacing:"0.08em" }}>BEST PRICE</div>
-                            <div style={{ fontSize:18,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#34d399" }}>
-                              ${fmtPrice(bestData.unitPrice)}
+                        {/* Best price badges — USA and INTL */}
+                        {hasPricing && (() => {
+                          const entries = Object.values(pricingObj);
+                          const gc = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
+                          const usEntries = entries.filter(d => gc(d) === "US").sort((a,b) => a.unitPrice - b.unitPrice);
+                          const intlEntries = entries.filter(d => { const c = gc(d); return c && c !== "US"; }).sort((a,b) => a.unitPrice - b.unitPrice);
+                          const bestUS = usEntries[0] || null;
+                          const bestIntl = intlEntries[0] || null;
+                          return (
+                            <div style={{ display:"flex",gap:8,flex:"0 0 auto" }}>
+                              {bestUS && (
+                                <div style={{ background:"#0d2318",border:"1px solid #34d399",borderRadius:8,padding:"8px 14px" }}>
+                                  <div style={{ fontSize:10,color:"#34d399",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,letterSpacing:"0.08em" }}>BEST PRICE — USA</div>
+                                  <div style={{ fontSize:18,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#34d399" }}>
+                                    ${fmtPrice(bestUS.unitPrice)}
+                                  </div>
+                                  <div style={{ fontSize:10,color:"#475569" }}>{bestUS.displayName} · {bestUS.stock.toLocaleString()} in stock</div>
+                                </div>
+                              )}
+                              {bestIntl && (
+                                <div style={{ background:"#1a1708",border:"1px solid #f59e0b",borderRadius:8,padding:"8px 14px" }}>
+                                  <div style={{ fontSize:10,color:"#f59e0b",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,letterSpacing:"0.08em" }}>BEST PRICE — INTL</div>
+                                  <div style={{ fontSize:18,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#f59e0b" }}>
+                                    ${fmtPrice(bestIntl.unitPrice)}
+                                  </div>
+                                  <div style={{ fontSize:10,color:"#475569" }}>{bestIntl.displayName} ({gc(bestIntl)}) · {bestIntl.stock.toLocaleString()} in stock</div>
+                                </div>
+                              )}
                             </div>
-                            <div style={{ fontSize:10,color:"#475569" }}>{bestData.displayName} · {bestData.stock.toLocaleString()} in stock</div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         {/* Per-supplier prices — USA first, then by price, top 5 by default */}
                         {hasPricing && (() => {
@@ -1462,13 +1482,12 @@ function BOMManager({ user }) {
                               <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
                                 {visible.map(([key, data]) => {
                                   const isBest = key === best;
-                                  const s = SUPPLIERS.find((x)=>x.id===key);
                                   return (
                                     <div key={key} className={`price-card ${isBest?"best":""}`}
-                                      style={{ borderColor: isBest ? "#34d399" : s?.color ? s.color+"40" : "#2d3248", minWidth:150 }}>
+                                      style={{ borderColor: isBest ? "#34d399" : "#2d3248", minWidth:150 }}>
                                       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
                                         <span style={{ fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,fontSize:14,
-                                          color:s?.color||"#94a3b8" }}>{data.displayName}</span>
+                                          color:"#94a3b8" }}>{data.displayName}</span>
                                         {isBest && <span className="badge" style={{ background:"#34d39922",color:"#34d399",fontSize:10,fontWeight:700 }}>BEST</span>}
                                       </div>
                                       <div style={{ fontSize:28,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",lineHeight:1.1,
