@@ -768,7 +768,7 @@ function BOMManager({ user }) {
   // selectedParts — set of part IDs checked in the Parts Library for bulk delete
   const [selectedParts, setSelectedParts] = useState(new Set());
   const [expandedPricingParts, setExpandedPricingParts] = useState(new Set());
-  const [usOnly, setUsOnly] = useState(true);
+  const [usOnly, setUsOnly] = useState(false);
   const fileRef = useRef();
 
   // ─────────────────────────────────────────────
