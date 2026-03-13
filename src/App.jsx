@@ -1036,7 +1036,24 @@ function BOMManager({ user }) {
           return [...prev, dbPartToUI(newRow)];
         });
       } else if (eventType === "UPDATE") {
-        setParts((prev) => prev.map((p) => p.id === newRow.id ? dbPartToUI(newRow) : p));
+        setParts((prev) => prev.map((p) => {
+          if (p.id !== newRow.id) return p;
+          const updated = dbPartToUI(newRow);
+          // Preserve local custom suppliers that may not be in the realtime payload yet
+          if (p.pricing) {
+            const localCustom = {};
+            for (const [k, v] of Object.entries(p.pricing)) {
+              if (v.isCustom) localCustom[k] = v;
+            }
+            if (Object.keys(localCustom).length > 0) {
+              updated.pricing = { ...(updated.pricing || {}), ...localCustom };
+              // Preserve exclusive supplier preference
+              const exclusiveKey = Object.keys(localCustom).find(k => localCustom[k].exclusive);
+              if (exclusiveKey) updated.preferredSupplier = exclusiveKey;
+            }
+          }
+          return updated;
+        }));
       } else if (eventType === "DELETE") {
         setParts((prev) => prev.filter((p) => p.id !== oldRow.id));
         setSelectedParts((prev) => { const n = new Set(prev); n.delete(oldRow.id); return n; });
@@ -1087,7 +1104,9 @@ function BOMManager({ user }) {
 
   // ── Fetch pricing for a single part — results saved back to DB
   const fetchPartPricing = async (partId) => {
-    const part = parts.find((p) => p.id === partId);
+    // Read latest part state to avoid stale closures
+    let part;
+    setParts(prev => { part = prev.find(p => p.id === partId); return prev; });
     if (!part) return;
 
     // Preserve custom suppliers through refresh
@@ -1117,10 +1136,20 @@ function BOMManager({ user }) {
     setParts((prev) => prev.map((p) => p.id === partId ? { ...p, pricingStatus: "loading" } : p));
     try {
       const apiPricing = await fetchAllPricing(part.mpn, part.quantity, apiKeys, nexarToken, dkToken);
-      // Merge custom suppliers back in
-      const pricing = { ...apiPricing, ...customEntries };
+      // Merge custom suppliers back in — re-read latest state to catch any custom suppliers added during fetch
+      let latestCustom = { ...customEntries };
+      setParts(prev => {
+        const latest = prev.find(p => p.id === partId);
+        if (latest?.pricing) {
+          for (const [k, v] of Object.entries(latest.pricing)) {
+            if (v.isCustom) latestCustom[k] = v;
+          }
+        }
+        return prev;
+      });
+      const pricing = { ...apiPricing, ...latestCustom };
       // If an exclusive custom supplier exists, always prefer it
-      const exclusiveKey = Object.keys(customEntries).find(k => customEntries[k].exclusive);
+      const exclusiveKey = Object.keys(latestCustom).find(k => latestCustom[k].exclusive);
       const best     = exclusiveKey || bestPriceSupplier(pricing);
       const bestPrice = pricing[best]?.unitPrice;
       const newUnitCost = part.unitCost || (bestPrice ? fmtPrice(bestPrice) : part.unitCost);
