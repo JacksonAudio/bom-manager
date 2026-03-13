@@ -1972,7 +1972,7 @@ function BOMManager({ user }) {
                           <div style={{ flex:1 }}>
                             <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f",display:"flex",alignItems:"center",gap:6 }}>
                               {part.mpn || part.reference}
-                              <span style={{ marginLeft:32,fontSize:11,color:"#86868b",fontWeight:400 }}>buy</span>
+                              <span style={{ marginLeft:"auto",fontSize:11,color:"#86868b",fontWeight:400 }}>buy</span>
                               <input type="number" min="1" value={bq}
                                 onClick={(e)=>e.stopPropagation()}
                                 onChange={(e)=>{e.stopPropagation();setBuyQtys(q=>({...q,[part.id]:parseInt(e.target.value)||1}));}}
