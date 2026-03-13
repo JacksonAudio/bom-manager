@@ -191,7 +191,7 @@ async function fetchNexarToken(clientId, clientSecret) {
 function buildNexarQuery(mpn) {
   // Escape any quotes in the MPN just in case
   const safe = mpn.replace(/"/g, '\\"');
-  return `{ supSearchMpn(q: "${safe}", limit: 3, country: "US", currency: "USD") { hits results { part { mpn countryOfOrigin manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
+  return `{ supSearchMpn(q: "${safe}", limit: 3) { hits results { part { mpn countryOfOrigin manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
 }
 
 async function fetchNexarPricing(mpn, quantity, token) {
@@ -205,7 +205,11 @@ async function fetchNexarPricing(mpn, quantity, token) {
     },
     body: JSON.stringify({ query }),  // no variables — inline only
   });
-  if (!res.ok) throw new Error(`Nexar API error: ${res.status}`);
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    console.error("[Nexar] Error response:", errText.slice(0, 500));
+    throw new Error(`Nexar API error: ${res.status}`);
+  }
   const data = await res.json();
   console.log("[Nexar] Raw response:", JSON.stringify(data).slice(0, 500));
   if (data.errors) throw new Error(data.errors[0]?.message || "Nexar GraphQL error");
