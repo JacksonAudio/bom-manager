@@ -1970,16 +1970,15 @@ function BOMManager({ user }) {
                           onMouseOver={e=>{if(!isOpen)e.currentTarget.style.background="rgba(0,0,0,0.02)"}}
                           onMouseOut={e=>{if(!isOpen)e.currentTarget.style.background="transparent"}}>
                           <div style={{ flex:1 }}>
-                            <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f",display:"flex",alignItems:"center",gap:8 }}>
+                            <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f",display:"flex",alignItems:"center",gap:6 }}>
                               {part.mpn || part.reference}
+                              <span style={{ marginLeft:32,fontSize:11,color:"#86868b",fontWeight:400 }}>buy</span>
                               <input type="number" min="1" value={bq}
                                 onClick={(e)=>e.stopPropagation()}
                                 onChange={(e)=>{e.stopPropagation();setBuyQtys(q=>({...q,[part.id]:parseInt(e.target.value)||1}));}}
                                 style={{ width:72,padding:"2px 4px",border:"none",borderBottom:"1px solid transparent",fontSize:15,textAlign:"left",fontFamily:"inherit",fontWeight:600,color:"#1d1d1f",background:"transparent",outline:"none",transition:"border-color 0.15s" }}
                                 onFocus={(e)=>{e.target.style.borderBottom="1px solid #0071e3";e.target.select();}}
                                 onBlur={(e)=>{e.target.style.borderBottom="1px solid transparent";}} />
-                              <span style={{ fontSize:11,color:"#86868b",fontWeight:400,transition:"transform 0.2s",display:"inline-block",
-                                transform:isOpen?"rotate(90deg)":"none" }}>›</span>
                             </div>
                             <div style={{ fontSize:12,color:"#86868b",marginTop:1 }}>
                               {part.description ? `${part.description} · ` : ""}{part.value ? `${part.value} · ` : ""}qty {part.quantity}
