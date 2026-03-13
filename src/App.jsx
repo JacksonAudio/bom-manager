@@ -853,6 +853,7 @@ function BOMManager({ user }) {
   const [expandedPricingParts, setExpandedPricingParts] = useState(new Set());
   const [countryFilter, setCountryFilter] = useState("us"); // "us" or "rest"
   const [buyQtys, setBuyQtys] = useState({}); // { [partId]: number } — qty to price at per part
+  const [simUsOnly, setSimUsOnly] = useState(false); // simulation: US suppliers only
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
   const [mouserCartStatus, setMouserCartStatus] = useState(null); // { loading, error, cartUrl, cartKey, items }
   // Local order tracker — persists to localStorage
@@ -1424,11 +1425,17 @@ function BOMManager({ user }) {
   }
 
   // Get best price for a part from a specific supplier at given component qty
-  function supplierPriceForPart(part, supplierId, needed) {
+  const isUSSupplier = (sid, data) => {
+    const c = data?.country || DIST_COUNTRY[data?.displayName] || DIST_COUNTRY[sid] || "";
+    return !c || c === "US";
+  };
+
+  function supplierPriceForPart(part, supplierId, needed, usOnly) {
     const pricing = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
     if (!pricing || !pricing[supplierId]) return null;
     const data = pricing[supplierId];
     if (data.stock <= 0) return null;
+    if (usOnly && !isUSSupplier(supplierId, data)) return null;
     if (!data.priceBreaks?.length) return data.unitPrice > 0 ? data.unitPrice : null;
     let price = data.priceBreaks[0]?.price || data.unitPrice;
     for (const pb of data.priceBreaks) { if (needed >= pb.qty) price = pb.price; }
@@ -1436,12 +1443,13 @@ function BOMManager({ user }) {
   }
 
   // Get cheapest available price across all suppliers for a part
-  function cheapestForPart(part, needed) {
+  function cheapestForPart(part, needed, usOnly) {
     const pricing = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
     if (!pricing) return { price: parseFloat(part.unitCost) || 0, supplier: null };
     let best = { price: Infinity, supplier: null };
     for (const [sid, data] of Object.entries(pricing)) {
       if (data.stock <= 0) continue;
+      if (usOnly && !isUSSupplier(sid, data)) continue;
       let price = data.unitPrice;
       if (data.priceBreaks?.length) {
         price = data.priceBreaks[0]?.price || data.unitPrice;
@@ -1454,7 +1462,7 @@ function BOMManager({ user }) {
   }
 
   // Simulate a strategy at a given production qty, returns { partsCost, shipping, total, perUnit, suppliers, assignments }
-  function simStrategy(prodParts, prodQty, mode) {
+  function simStrategy(prodParts, prodQty, mode, usOnly = false) {
     // mode: "cheapest" | supplierId (consolidate to one) | "smart" (minimize total incl shipping)
     const assignments = []; // { partId, supplierId, unitPrice, needed, lineCost }
     const suppliersUsed = new Set();
@@ -1462,7 +1470,7 @@ function BOMManager({ user }) {
     for (const part of prodParts) {
       const needed = part.quantity * prodQty;
       if (mode === "cheapest") {
-        const { price, supplier } = cheapestForPart(part, needed);
+        const { price, supplier } = cheapestForPart(part, needed, usOnly);
         assignments.push({ partId: part.id, mpn: part.mpn, supplierId: supplier, unitPrice: price, needed, lineCost: price * needed });
         if (supplier) suppliersUsed.add(supplier);
       } else if (mode === "smart") {
@@ -1470,13 +1478,13 @@ function BOMManager({ user }) {
         assignments.push({ partId: part.id, mpn: part.mpn, needed });
       } else {
         // Consolidate to specific supplier
-        const price = supplierPriceForPart(part, mode, needed);
+        const price = supplierPriceForPart(part, mode, needed, usOnly);
         if (price !== null) {
           assignments.push({ partId: part.id, mpn: part.mpn, supplierId: mode, unitPrice: price, needed, lineCost: price * needed });
           suppliersUsed.add(mode);
         } else {
           // Fallback to cheapest if supplier doesn't have this part
-          const { price: fp, supplier } = cheapestForPart(part, needed);
+          const { price: fp, supplier } = cheapestForPart(part, needed, usOnly);
           assignments.push({ partId: part.id, mpn: part.mpn, supplierId: supplier, unitPrice: fp, needed, lineCost: fp * needed });
           if (supplier) suppliersUsed.add(supplier);
         }
@@ -1488,7 +1496,7 @@ function BOMManager({ user }) {
       // First pass: find cheapest for each part
       const cheapestAssign = prodParts.map(part => {
         const needed = part.quantity * prodQty;
-        const { price, supplier } = cheapestForPart(part, needed);
+        const { price, supplier } = cheapestForPart(part, needed, usOnly);
         return { part, needed, price, supplier };
       });
       // Count how many parts each supplier is cheapest for
@@ -1507,7 +1515,7 @@ function BOMManager({ user }) {
           if (cheapest.supplier) suppliersUsed.add(cheapest.supplier);
         } else {
           // Can we get this from primary supplier? If the extra cost < shipping cost / total parts
-          const primaryPrice = supplierPriceForPart(part, primarySup, needed);
+          const primaryPrice = supplierPriceForPart(part, primarySup, needed, usOnly);
           const extraCost = primaryPrice !== null ? (primaryPrice - cheapest.price) * needed : Infinity;
           const shippingSaved = getShipping(cheapest.supplier); // cost of adding that extra supplier
           if (primaryPrice !== null && extraCost < shippingSaved) {
@@ -1539,10 +1547,10 @@ function BOMManager({ user }) {
     let tariffTotal = 0;
     for (const a of assignments) {
       if (!a.supplierId || !a.lineCost) continue;
-      // Get country of origin from the part's pricing data
+      // Get supplier country for tariff calculation
       const part = prodParts.find(p => p.id === a.partId);
       const pricingData = part?.pricing?.[a.supplierId];
-      const origin = pricingData?.countryOfOrigin || "";
+      const origin = pricingData?.country || DIST_COUNTRY[pricingData?.displayName] || DIST_COUNTRY[a.supplierId] || pricingData?.countryOfOrigin || "";
       const rate = getTariffRate(origin, tariffFallback);
       if (rate > 0) {
         const cost = a.lineCost * (rate / 100);
@@ -1585,10 +1593,10 @@ function BOMManager({ user }) {
       ...[25, 50, 100, 150, 200, 250, 500, 1000].filter(q => q >= baseQty * 0.8 && q <= baseQty * 3),
     ])].sort((a, b) => a - b);
 
-    // Run 3 strategies at each qty: cheapest-per-part, smart (consolidated), primary-supplier-only
+    // Run strategies at each qty: cheapest-per-part, smart (consolidated)
     const results = testQtys.map(q => {
-      const cheapest = simStrategy(freshParts, q, "cheapest");
-      const smart = simStrategy(freshParts, q, "smart");
+      const cheapest = simStrategy(freshParts, q, "cheapest", simUsOnly);
+      const smart = simStrategy(freshParts, q, "smart", simUsOnly);
       return { qty: q, cheapest, smart };
     });
 
@@ -3048,6 +3056,10 @@ function BOMManager({ user }) {
                           onClick={() => runBomSimulation(prod.id)}>
                           {bomSim[prod.id]?.loading ? <><span className="spinner" /> Calculating…</> : "Run Simulation"}
                         </button>
+                        <label style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#86868b",cursor:"pointer",marginLeft:8 }}>
+                          <input type="checkbox" checked={simUsOnly} onChange={(e)=>setSimUsOnly(e.target.checked)} />
+                          US suppliers only
+                        </label>
                       </div>
 
                       {bomSim[prod.id]?.results && (() => {
@@ -3197,6 +3209,44 @@ function BOMManager({ user }) {
                                 })}
                               </tbody>
                             </table>
+                            </div>
+
+                            {/* Order This Run button */}
+                            <div style={{ marginTop:16,display:"flex",alignItems:"center",gap:12 }}>
+                              <button className="btn-primary" style={{ fontSize:13,padding:"10px 24px",background:"#34c759" }}
+                                onClick={() => {
+                                  // Use smart strategy at base qty
+                                  const assign = smartBase.assignments;
+                                  if (!assign?.length) return;
+                                  // Group by supplier
+                                  const grouped = {};
+                                  for (const a of assign) {
+                                    if (!a.supplierId) continue;
+                                    if (!grouped[a.supplierId]) grouped[a.supplierId] = [];
+                                    grouped[a.supplierId].push(a);
+                                  }
+                                  // Flag parts for order and set quantities
+                                  setParts(prev => prev.map(p => {
+                                    const a = assign.find(x => x.partId === p.id);
+                                    if (!a) return p;
+                                    return { ...p, flaggedForOrder: true, orderQty: String(a.needed), preferredSupplier: a.supplierId || p.preferredSupplier };
+                                  }));
+                                  // Persist to DB
+                                  for (const a of assign) {
+                                    if (!a.supplierId) continue;
+                                    dbUpdatePart(a.partId, {
+                                      flagged_for_order: true,
+                                      order_qty: a.needed,
+                                      preferred_supplier: a.supplierId,
+                                    }, user.id).catch(e => console.error("order flag failed:", e));
+                                  }
+                                  setActiveView("purchasing");
+                                }}>
+                                Order This Run
+                              </button>
+                              <span style={{ fontSize:11,color:"#86868b" }}>
+                                Flags all parts for purchase at the base qty ({baseQty.toLocaleString()} units) using Smart Consolidated assignments
+                              </span>
                             </div>
                           </div>
                         );
