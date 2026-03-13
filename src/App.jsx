@@ -851,6 +851,7 @@ function BOMManager({ user }) {
   const [selectedParts, setSelectedParts] = useState(new Set());
   const [expandedPricingParts, setExpandedPricingParts] = useState(new Set());
   const [countryFilter, setCountryFilter] = useState("us"); // "us" or "rest"
+  const [buyQtys, setBuyQtys] = useState({}); // { [partId]: number } — qty to price at per part
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
   const [mouserCartStatus, setMouserCartStatus] = useState(null); // { loading, error, cartUrl, cartKey, items }
   // Local order tracker — persists to localStorage
@@ -1943,13 +1944,14 @@ function BOMManager({ user }) {
                     const effectiveStatus = hasPricing ? "done" : part.pricingStatus;
                     const isOpen = expandedPart === part.id;
 
-                    // Sort suppliers
-                    const p100 = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (100 >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
+                    // Sort suppliers — price at buy qty
+                    const bq = buyQtys[part.id] || parseInt(part.quantity) || 1;
+                    const pAtQty = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (bq >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
                     const getCountry = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
                     const isNonUS = (d) => { const c = getCountry(d); return c && c !== "US"; };
                     const sorted = hasPricing ? Object.entries(pricingObj)
                       .filter(([,d]) => d.stock > 0 && (countryFilter === "us" ? !isNonUS(d) : isNonUS(d)))
-                      .sort((a,b) => (p100(a[1])||Infinity) - (p100(b[1])||Infinity)) : [];
+                      .sort((a,b) => (pAtQty(a[1])||Infinity) - (pAtQty(b[1])||Infinity)) : [];
 
                     // Tariff helpers
                     let userTariffs; try { userTariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { userTariffs = { ...DEFAULT_TARIFFS }; }
@@ -1957,7 +1959,7 @@ function BOMManager({ user }) {
                     // Best display price — use filtered sorted list so US Only is respected
                     const filteredBest = sorted.length > 0 ? sorted[0][0] : null;
                     const filteredBestData = sorted.length > 0 ? sorted[0][1] : null;
-                    const bestDisplayPrice = filteredBestData ? p100(filteredBestData) : null;
+                    const bestDisplayPrice = filteredBestData ? pAtQty(filteredBestData) : null;
 
                     return (
                       <div key={part.id} style={{ borderBottom: partIdx < parts.length-1 ? "1px solid #f0f0f2" : "none" }}>
@@ -1973,8 +1975,13 @@ function BOMManager({ user }) {
                               <span style={{ fontSize:11,color:"#86868b",fontWeight:400,transition:"transform 0.2s",display:"inline-block",
                                 transform:isOpen?"rotate(90deg)":"none" }}>›</span>
                             </div>
-                            <div style={{ fontSize:12,color:"#86868b",marginTop:1 }}>
-                              {part.description ? `${part.description} · ` : ""}{part.value ? `${part.value} · ` : ""}qty {part.quantity}
+                            <div style={{ fontSize:12,color:"#86868b",marginTop:1,display:"flex",alignItems:"center",gap:4 }}>
+                              {part.description ? `${part.description} · ` : ""}{part.value ? `${part.value} · ` : ""}
+                              <span>buy</span>
+                              <input type="number" min="1" value={bq}
+                                onClick={(e)=>e.stopPropagation()}
+                                onChange={(e)=>{e.stopPropagation();setBuyQtys(q=>({...q,[part.id]:parseInt(e.target.value)||1}));}}
+                                style={{ width:52,padding:"1px 4px",borderRadius:4,border:"1px solid #d2d2d7",fontSize:12,textAlign:"center",fontFamily:"inherit" }} />
                             </div>
                           </div>
                           <div style={{ textAlign:"right",minWidth:100 }}>
@@ -2010,7 +2017,7 @@ function BOMManager({ user }) {
                                 {sorted.map(([key, data], idx) => {
                                   const isBest = idx === 0;
                                   const ctry = getCountry(data);
-                                  const displayPrice = p100(data);
+                                  const displayPrice = pAtQty(data);
                                   const origin = ctry || data.countryOfOrigin || "";
                                   const tariffRate = getTariffRate(origin, userTariffs);
                                   const landedPrice = tariffRate > 0 ? displayPrice * (1 + tariffRate / 100) : 0;
@@ -2072,16 +2079,7 @@ function BOMManager({ user }) {
                                           Landed: {"$"}{fmtPrice(landedPrice)} ({origin} +{tariffRate}%)
                                         </div>
                                       )}
-                                      {data.priceBreaks?.length > 1 && (
-                                        <div style={{ marginTop:8,borderTop:"1px solid rgba(0,0,0,0.06)",paddingTop:6 }}>
-                                          {data.priceBreaks.map((pb, i) => (
-                                            <div key={i} style={{ display:"flex",justifyContent:"space-between",fontSize:11,padding:"2px 0" }}>
-                                              <span style={{ color:"#aeaeb2" }}>{pb.qty}+</span>
-                                              <span style={{ color:isBest?"#248a3d":"#1d1d1f",fontWeight:500 }}>{"$"}{fmtPrice(pb.price)}</span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
+                                      <div style={{ fontSize:10,color:"#aeaeb2",marginTop:2 }}>@ {bq} pcs</div>
                                       {data.url && (
                                         <a href={data.url} target="_blank" rel="noopener noreferrer"
                                           style={{ display:"block",marginTop:8,fontSize:11,color:"#0071e3",textDecoration:"none",fontWeight:500 }}
