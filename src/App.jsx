@@ -1566,7 +1566,8 @@ function BOMManager({ user }) {
     return { partsCost, shipping, shippingBreakdown, tariffTotal, tariffBreakdown, total, perUnit: total / prodQty, suppliers: [...suppliersUsed], assignments };
   }
 
-  async function runBomSimulation(productId) {
+  async function runBomSimulation(productId, usOnlyOverride) {
+    const useUsOnly = usOnlyOverride !== undefined ? usOnlyOverride : simUsOnly;
     const prodParts = parts.filter((p) => p.projectId === productId);
     if (!prodParts.length) return;
     const baseQty = parseInt(bomSim[productId]?.qty) || 100;
@@ -1595,8 +1596,8 @@ function BOMManager({ user }) {
 
     // Run strategies at each qty: cheapest-per-part, smart (consolidated)
     const results = testQtys.map(q => {
-      const cheapest = simStrategy(freshParts, q, "cheapest", simUsOnly);
-      const smart = simStrategy(freshParts, q, "smart", simUsOnly);
+      const cheapest = simStrategy(freshParts, q, "cheapest", useUsOnly);
+      const smart = simStrategy(freshParts, q, "smart", useUsOnly);
       return { qty: q, cheapest, smart };
     });
 
@@ -2942,8 +2943,8 @@ function BOMManager({ user }) {
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                         <thead>
                           <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
-                            {["Part Number","Quantity","Description","Value","Manufacturer","Unit Price","Extended",""].map((h,hi,arr)=>(
-                              <th key={hi} style={{ padding:"12px 14px",textAlign:hi>=5&&hi<=6?"right":"left",
+                            {["Part Number","Quantity","Description","Value","Manufacturer","Source","Unit Price","Extended",""].map((h,hi,arr)=>(
+                              <th key={hi} style={{ padding:"12px 14px",textAlign:hi>=6&&hi<=7?"right":hi===5?"center":"left",
                                 fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                                 fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
                                 borderRadius:hi===0?"8px 0 0 0":hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
@@ -2953,15 +2954,19 @@ function BOMManager({ user }) {
                         <tbody>
                           {prodParts.map((part,i) => {
                             // Calculate unit price from best supplier's price breaks at this qty
-                            const dynPrice = (() => {
+                            const dynResult = (() => {
                               const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
-                              if (!pr) return parseFloat(part.unitCost) || 0;
+                              if (!pr) return { price: parseFloat(part.unitCost) || 0, source: null };
                               const entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
-                              if (!entries.length) return parseFloat(part.unitCost) || 0;
+                              if (!entries.length) return { price: parseFloat(part.unitCost) || 0, source: null };
                               const priceAt = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
                               entries.sort((a,b) => (priceAt(a[1])||Infinity) - (priceAt(b[1])||Infinity));
-                              return priceAt(entries[0][1]);
+                              const [sid, data] = entries[0];
+                              const c = data.country || DIST_COUNTRY[data.displayName] || DIST_COUNTRY[sid] || "";
+                              return { price: priceAt(data), source: (!c || c === "US") ? "USA" : "INTL" };
                             })();
+                            const dynPrice = dynResult.price;
+                            const dynSource = dynResult.source;
                             const ext = dynPrice * part.quantity;
                             const cellInput = { width:"100%",padding:"6px 10px",borderRadius:6,fontSize:13,
                               fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
@@ -3000,6 +3005,13 @@ function BOMManager({ user }) {
                                     onChange={(e)=>updatePart(part.id,"manufacturer",e.target.value)}
                                     onFocus={cFocusIn} onBlur={cFocusOut}
                                     style={{ ...cellInput,color:"#6e6e73" }} placeholder="" />
+                                </td>
+                                <td style={{ padding:"12px 14px",textAlign:"center",width:60 }}>
+                                  {dynSource
+                                    ? <span style={{ fontSize:10,fontWeight:700,letterSpacing:"0.04em",padding:"2px 8px",borderRadius:4,
+                                        background:dynSource==="USA"?"rgba(52,199,89,0.1)":"rgba(255,149,0,0.1)",
+                                        color:dynSource==="USA"?"#248a3d":"#ff9500" }}>{dynSource}</span>
+                                    : <span style={{ color:"#c7c7cc" }}>—</span>}
                                 </td>
                                 <td style={{ padding:"12px 14px",textAlign:"right",width:90 }}>
                                   {dynPrice > 0
@@ -3057,7 +3069,11 @@ function BOMManager({ user }) {
                           {bomSim[prod.id]?.loading ? <><span className="spinner" /> Calculating…</> : "Run Simulation"}
                         </button>
                         <label style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#86868b",cursor:"pointer",marginLeft:8 }}>
-                          <input type="checkbox" checked={simUsOnly} onChange={(e)=>setSimUsOnly(e.target.checked)} />
+                          <input type="checkbox" checked={simUsOnly} onChange={(e)=>{
+                            const v = e.target.checked;
+                            setSimUsOnly(v);
+                            if (bomSim[prod.id]?.results) runBomSimulation(prod.id, v);
+                          }} />
                           US suppliers only
                         </label>
                       </div>
@@ -3099,6 +3115,9 @@ function BOMManager({ user }) {
                                     Tariffs: {"$"}{fmtDollar(cheapBase.tariffTotal)}
                                   </div>
                                 )}
+                                <div style={{ fontSize:12,color:"#1d1d1f",fontWeight:700,marginTop:4,borderTop:"1px solid #e5e5ea",paddingTop:4 }}>
+                                  Total: {"$"}{fmtDollar(cheapBase.total)}
+                                </div>
                                 {/* Per-vendor shipping */}
                                 <div style={{ fontSize:10,color:"#aeaeb2",marginTop:6 }}>
                                   {cheapBase.shippingBreakdown.map(sb => (
@@ -3136,6 +3155,9 @@ function BOMManager({ user }) {
                                     Tariffs: {"$"}{fmtDollar(smartBase.tariffTotal)}
                                   </div>
                                 )}
+                                <div style={{ fontSize:12,color:"#1d1d1f",fontWeight:700,marginTop:4,borderTop:"1px solid #e5e5ea",paddingTop:4 }}>
+                                  Total: {"$"}{fmtDollar(smartBase.total)}
+                                </div>
                                 {/* Per-vendor shipping */}
                                 <div style={{ fontSize:10,color:"#aeaeb2",marginTop:6 }}>
                                   {smartBase.shippingBreakdown.map(sb => (
