@@ -2114,49 +2114,55 @@ function BOMManager({ user }) {
                         })()}
                       </div>
                     </div>
-                    <div style={{ overflowX:"auto" }}>
-                      <table className="po-table">
-                        <thead><tr>
-                          <th>Reference</th><th>MPN</th><th>Description</th><th>Mfr</th>
-                          <th style={{ textAlign:"center" }}>Need</th><th style={{ textAlign:"center" }}>Stock</th>
-                          <th style={{ textAlign:"right" }}>Unit $</th><th style={{ textAlign:"right" }}>Ext $</th>
-                          <th>Remove</th>
-                        </tr></thead>
+                    <div style={{ overflowX:"auto",background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                        <thead>
+                          <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
+                            {["Reference","MPN","Description","Manufacturer","Need","Stock","Unit Price","Extended",""].map((h,hi,arr)=>(
+                              <th key={hi} style={{ padding:"12px 14px",textAlign:hi>=4&&hi<=7?"right":"left",
+                                fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                                fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
+                                borderRadius:hi===0?"14px 0 0 0":hi===arr.length-1?"0 14px 0 0":undefined }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
                         <tbody>
-                          {lines.map((part) => {
+                          {lines.map((part,li) => {
                             const ext = (parseFloat(part.unitCost)||0)*part.neededQty;
                             return (
-                              <tr key={part.id}>
-                                <td style={{ color:"#0071e3",fontWeight:600 }}>{part.reference}</td>
-                                <td style={{ color:"#0071e3" }}>{part.mpn||"—"}</td>
-                                <td style={{ color:"#86868b" }}>{part.description||part.value||"—"}</td>
-                                <td style={{ color:"#86868b" }}>{part.manufacturer||"—"}</td>
-                                <td style={{ textAlign:"center" }}>
+                              <tr key={part.id} style={{ borderBottom:"1px solid #ededf0" }}>
+                                <td style={{ padding:"12px 14px",color:"#0071e3",fontWeight:600 }}>{part.reference}</td>
+                                <td style={{ padding:"12px 14px",color:"#1d1d1f",fontWeight:500 }}>{part.mpn||"—"}</td>
+                                <td style={{ padding:"12px 14px",color:"#6e6e73" }}>{part.description||part.value||"—"}</td>
+                                <td style={{ padding:"12px 14px",color:"#6e6e73" }}>{part.manufacturer||"—"}</td>
+                                <td style={{ padding:"12px 14px",textAlign:"right" }}>
                                   <input type="number" min="1" value={part.orderQty||part.neededQty}
                                     onChange={(e)=>updatePart(part.id,"orderQty",e.target.value)}
-                                    style={{ width:56,padding:"3px 6px",borderRadius:4,textAlign:"center",
-                                      border:"1px solid rgba(0,113,227,0.3)",color:"#0071e3",fontWeight:700 }} />
+                                    style={{ width:56,padding:"5px 6px",borderRadius:6,textAlign:"center",fontSize:13,fontWeight:700,
+                                      border:"1px solid #d2d2d7",color:"#0071e3",background:"#fff",fontFamily:"inherit" }} />
                                 </td>
-                                <td style={{ textAlign:"center",color:"#86868b" }}>{part.stockQty||"—"}</td>
-                                <td style={{ textAlign:"right" }}>
-                                  {part.unitCost ? <span style={{ color:"#86868b" }}>${fmtPrice(part.unitCost)}</span> : <span style={{ color:"#aeaeb2" }}>—</span>}
+                                <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{part.stockQty||"—"}</td>
+                                <td style={{ padding:"12px 14px",textAlign:"right" }}>
+                                  {part.unitCost ? <span style={{ color:"#1d1d1f" }}>{"$"}{fmtPrice(part.unitCost)}</span> : <span style={{ color:"#c7c7cc" }}>—</span>}
                                 </td>
-                                <td style={{ textAlign:"right" }}>
-                                  {part.unitCost ? <span style={{ color:"#34c759",fontWeight:700 }}>${ext.toFixed(2)}</span> : <span style={{ color:"#aeaeb2" }}>—</span>}
+                                <td style={{ padding:"12px 14px",textAlign:"right" }}>
+                                  {part.unitCost ? <span style={{ color:"#34c759",fontWeight:700 }}>{"$"}{ext.toFixed(2)}</span> : <span style={{ color:"#c7c7cc" }}>—</span>}
                                 </td>
-                                <td>
-                                  <button style={{ background:"none",border:"1px solid rgba(255,59,48,0.2)",color:"#ff3b30",
-                                    borderRadius:5,padding:"4px 8px",fontSize:11,cursor:"pointer",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}
+                                <td style={{ padding:"12px 8px" }}>
+                                  <button style={{ background:"none",border:"none",color:"#c7c7cc",fontSize:14,cursor:"pointer",padding:"2px 4px",
+                                    borderRadius:4,transition:"color 0.15s" }}
+                                    onMouseOver={(e)=>e.target.style.color="#ff3b30"}
+                                    onMouseOut={(e)=>e.target.style.color="#c7c7cc"}
                                     onClick={()=>{ updatePart(part.id,"flaggedForOrder",false); updatePart(part.id,"orderQty",""); }}>✕</button>
                                 </td>
                               </tr>
                             );
                           })}
-                          <tr style={{ background:"#fff",borderTop:"2px solid #e5e5ea" }}>
-                            <td colSpan={4} style={{ padding:"10px 12px",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,color:"#86868b",fontSize:12 }}>{lines.length} LINE ITEMS</td>
-                            <td style={{ textAlign:"center",color:"#0071e3",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{totalUnits}</td>
+                          <tr style={{ background:"#f9f9fb",borderTop:"2px solid #e5e5ea" }}>
+                            <td colSpan={4} style={{ padding:"12px 14px",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,color:"#6e6e73",fontSize:12,textTransform:"uppercase",letterSpacing:"0.04em" }}>{lines.length} Line Items</td>
+                            <td style={{ padding:"12px 14px",textAlign:"right",color:"#0071e3",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{totalUnits}</td>
                             <td colSpan={2} />
-                            <td style={{ textAlign:"right",color:poTotal>0?"#34c759":"#aeaeb2",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:14 }}>{poTotal>0?`$${poTotal.toFixed(2)}`:"—"}</td>
+                            <td style={{ padding:"12px 14px",textAlign:"right",color:poTotal>0?"#34c759":"#c7c7cc",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:15 }}>{poTotal>0?`$${poTotal.toFixed(2)}`:"—"}</td>
                             <td />
                           </tr>
                         </tbody>
@@ -2377,85 +2383,91 @@ function BOMManager({ user }) {
 
                   {/* ── Parts list for this product */}
                   {prodParts.length > 0 && (
-                    <div style={{ overflowX:"auto" }}>
-                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                    <div style={{ overflowX:"auto",background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                         <thead>
-                          <tr style={{ borderBottom:"1px solid #e5e5ea" }}>
-                            {["Part Number","Qty","Description","Value","Mfr","Unit $","Ext $",""].map((h,i)=>(
-                              <th key={i} style={{ padding:"6px 10px",textAlign:"left",
-                                fontSize:10,fontWeight:700,letterSpacing:"0.07em",
-                                color:"#aeaeb2",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
-                                whiteSpace:"nowrap" }}>{h}</th>
+                          <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
+                            {["Part Number","Quantity","Description","Value","Manufacturer","Unit Price","Extended",""].map((h,hi,arr)=>(
+                              <th key={hi} style={{ padding:"12px 14px",textAlign:hi>=5&&hi<=6?"right":"left",
+                                fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                                fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
+                                borderRadius:hi===0?"14px 0 0 0":hi===arr.length-1?"0 14px 0 0":undefined }}>{h}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
                           {prodParts.map((part,i) => {
                             const ext = (parseFloat(part.unitCost)||0)*part.quantity;
+                            const cellInput = { width:"100%",padding:"6px 10px",borderRadius:6,fontSize:13,
+                              fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                              border:"1px solid transparent",background:"transparent",outline:"none",color:"#1d1d1f",
+                              transition:"border-color 0.15s, background 0.15s" };
+                            const cFocusIn = (e) => { e.target.style.borderColor="#d2d2d7"; e.target.style.background="#fff"; };
+                            const cFocusOut = (e) => { e.target.style.borderColor="transparent"; e.target.style.background="transparent"; };
                             return (
-                              <tr key={part.id}
-                                style={{ borderBottom:"1px solid #f0f0f2",
-                                  background:i%2===0?"transparent":"#f5f5f7" }}>
-                                <td style={{ padding:"7px 10px" }}>
+                              <tr key={part.id} style={{ borderBottom:"1px solid #ededf0" }}>
+                                <td style={{ padding:"6px 8px" }}>
                                   <input type="text" value={part.mpn||""}
                                     onChange={(e)=>{updatePart(part.id,"mpn",e.target.value);if(!part.reference)updatePart(part.id,"reference",e.target.value);}}
-                                    style={{ width:140,padding:"2px 6px",borderRadius:4,fontSize:12,color:"#0071e3",fontWeight:700 }} placeholder="Part #" />
+                                    onFocus={cFocusIn} onBlur={cFocusOut}
+                                    style={{ ...cellInput,color:"#0071e3",fontWeight:600 }} placeholder="Part #" />
                                 </td>
-                                <td style={{ padding:"7px 10px" }}>
+                                <td style={{ padding:"6px 8px",width:80 }}>
                                   <input type="number" min="1" value={part.quantity}
                                     onChange={(e)=>updateQtyAndRefresh(part.id,parseInt(e.target.value)||1)}
-                                    style={{ width:52,padding:"2px 6px",borderRadius:4,fontSize:12 }} />
+                                    onFocus={cFocusIn} onBlur={cFocusOut}
+                                    style={{ ...cellInput,width:60,textAlign:"center",fontWeight:600 }} />
                                 </td>
-                                <td style={{ padding:"7px 10px" }}>
+                                <td style={{ padding:"6px 8px" }}>
                                   <input type="text" value={part.description||""}
                                     onChange={(e)=>updatePart(part.id,"description",e.target.value)}
-                                    style={{ width:140,padding:"2px 6px",borderRadius:4,fontSize:12,color:"#86868b" }} placeholder="—" />
+                                    onFocus={cFocusIn} onBlur={cFocusOut}
+                                    style={{ ...cellInput,color:"#6e6e73" }} placeholder="" />
                                 </td>
-                                <td style={{ padding:"7px 10px" }}>
+                                <td style={{ padding:"6px 8px" }}>
                                   <input type="text" value={part.value||""}
                                     onChange={(e)=>updatePart(part.id,"value",e.target.value)}
-                                    style={{ width:80,padding:"2px 6px",borderRadius:4,fontSize:12,color:"#1d1d1f" }} placeholder="—" />
+                                    onFocus={cFocusIn} onBlur={cFocusOut}
+                                    style={cellInput} placeholder="" />
                                 </td>
-                                <td style={{ padding:"7px 10px" }}>
+                                <td style={{ padding:"6px 8px" }}>
                                   <input type="text" value={part.manufacturer||""}
                                     onChange={(e)=>updatePart(part.id,"manufacturer",e.target.value)}
-                                    style={{ width:100,padding:"2px 6px",borderRadius:4,fontSize:12,color:"#86868b" }} placeholder="—" />
+                                    onFocus={cFocusIn} onBlur={cFocusOut}
+                                    style={{ ...cellInput,color:"#6e6e73" }} placeholder="" />
                                 </td>
-                                <td style={{ padding:"7px 10px" }}>
-                                  <div style={{ display:"flex",alignItems:"center" }}>
-                                    <span style={{ color:"#aeaeb2",marginRight:2,fontSize:11 }}>$</span>
-                                    <input type="number" placeholder="0.00" value={part.unitCost}
-                                      onChange={(e)=>updatePart(part.id,"unitCost",e.target.value)}
-                                      style={{ width:60,padding:"2px 5px",borderRadius:4,fontSize:12 }}
-                                      step="0.0001" min="0" />
-                                  </div>
+                                <td style={{ padding:"6px 8px",width:90 }}>
+                                  <input type="number" placeholder="0.00" value={part.unitCost}
+                                    onChange={(e)=>updatePart(part.id,"unitCost",e.target.value)}
+                                    onFocus={cFocusIn} onBlur={cFocusOut}
+                                    style={{ ...cellInput,textAlign:"right" }}
+                                    step="0.0001" min="0" />
                                 </td>
-                                <td style={{ padding:"7px 10px" }}>
+                                <td style={{ padding:"12px 14px",textAlign:"right" }}>
                                   {part.unitCost
-                                    ? <span style={{ color:"#34c759",fontWeight:600 }}>${ext.toFixed(2)}</span>
-                                    : <span style={{ color:"#aeaeb2" }}>—</span>}
+                                    ? <span style={{ color:"#34c759",fontWeight:600 }}>{"$"}{ext.toFixed(2)}</span>
+                                    : <span style={{ color:"#c7c7cc" }}>—</span>}
                                 </td>
-                                <td style={{ padding:"7px 6px" }}>
+                                <td style={{ padding:"6px 4px",width:28 }}>
                                   <button onClick={()=>{if(window.confirm(`Remove "${part.mpn||part.reference}" from this product?\n\nThis will NOT delete the part — it stays in your library.`))updatePart(part.id,"projectId",null);}}
                                     title="Remove from product (keeps in library)"
                                     style={{ background:"none",border:"none",cursor:"pointer",
-                                      color:"#aeaeb2",fontSize:13,padding:"2px 6px",
+                                      color:"#c7c7cc",fontSize:14,padding:"2px 4px",
                                       borderRadius:4,transition:"color 0.15s" }}
                                     onMouseOver={(e)=>e.target.style.color="#ff9500"}
-                                    onMouseOut={(e)=>e.target.style.color="#aeaeb2"}>✕</button>
+                                    onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>✕</button>
                                 </td>
                               </tr>
                             );
                           })}
-                          {/* BOM total row */}
-                          <tr style={{ background:"#fff",borderTop:"1px solid #e5e5ea" }}>
-                            <td colSpan={5} style={{ padding:"8px 10px",fontSize:11,color:"#aeaeb2",
-                              fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700 }}>
-                              {prodParts.length} PARTS
+                          <tr style={{ background:"#f9f9fb",borderTop:"2px solid #e5e5ea" }}>
+                            <td colSpan={5} style={{ padding:"12px 14px",fontSize:12,color:"#6e6e73",
+                              fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em" }}>
+                              {prodParts.length} Parts
                             </td>
-                            <td colSpan={2} style={{ padding:"8px 10px",textAlign:"right",
-                              color:"#34c759",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:14 }}>
-                              ${prod.total.toFixed(2)}
+                            <td colSpan={2} style={{ padding:"12px 14px",textAlign:"right",
+                              color:"#34c759",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:15 }}>
+                              {"$"}{prod.total.toFixed(2)}
                             </td>
                             <td />
                           </tr>
@@ -2583,12 +2595,15 @@ function BOMManager({ user }) {
                             <div style={{ fontSize:10,color:"#5856d6",fontWeight:700,letterSpacing:"0.06em",marginBottom:6,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
                               QUANTITY COMPARISON (Smart Consolidated)
                             </div>
-                            <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12,maxWidth:600 }}>
+                            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden" }}>
+                            <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                               <thead>
-                                <tr style={{ borderBottom:"1px solid #e5e5ea" }}>
-                                  {["Units","Parts","Shipping","Tariffs","Total","Per Unit","Vendors","vs Base"].map((h,i)=>(
-                                    <th key={i} style={{ padding:"5px 10px",textAlign:i>0?"right":"left",
-                                      fontSize:10,color:"#aeaeb2",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700 }}>{h}</th>
+                                <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
+                                  {["Units","Parts Cost","Shipping","Tariffs","Total","Per Unit","Vendors","vs Base"].map((h,hi,arr)=>(
+                                    <th key={hi} style={{ padding:"12px 14px",textAlign:hi>0?"right":"left",
+                                      fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                                      fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
+                                      borderRadius:hi===0?"14px 0 0 0":hi===arr.length-1?"0 14px 0 0":undefined }}>{h}</th>
                                   ))}
                                 </tr>
                               </thead>
@@ -2600,26 +2615,26 @@ function BOMManager({ user }) {
                                   const isBest = r.qty === bestQty.qty && r.qty !== baseQty;
                                   return (
                                     <tr key={r.qty} style={{
-                                      borderBottom:"1px solid #f0f0f2",
-                                      background: isBest ? "rgba(52,199,89,0.06)" : isBase ? "#f5f5f7" : "transparent"
+                                      borderBottom:"1px solid #ededf0",
+                                      background: isBest ? "rgba(52,199,89,0.06)" : isBase ? "#f9f9fb" : "transparent"
                                     }}>
-                                      <td style={{ padding:"5px 10px",fontWeight:isBase||isBest?700:400,
-                                        color:isBest?"#34c759":isBase?"#1d1d1f":"#86868b" }}>
+                                      <td style={{ padding:"12px 14px",fontWeight:isBase||isBest?700:400,
+                                        color:isBest?"#34c759":isBase?"#1d1d1f":"#6e6e73" }}>
                                         {r.qty}{isBest?" ★":""}{isBase?" (base)":""}
                                       </td>
-                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#86868b" }}>{"$"}{s.partsCost.toFixed(2)}</td>
-                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#86868b" }}>{"$"}{s.shipping.toFixed(2)}</td>
-                                      <td style={{ padding:"5px 10px",textAlign:"right",color:s.tariffTotal>0?"#ff3b30":"#aeaeb2" }}>
+                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{"$"}{s.partsCost.toFixed(2)}</td>
+                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{"$"}{s.shipping.toFixed(2)}</td>
+                                      <td style={{ padding:"12px 14px",textAlign:"right",color:s.tariffTotal>0?"#ff3b30":"#c7c7cc" }}>
                                         {s.tariffTotal > 0 ? `$${s.tariffTotal.toFixed(2)}` : "—"}
                                       </td>
-                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#1d1d1f",fontWeight:600 }}>{"$"}{s.total.toFixed(2)}</td>
-                                      <td style={{ padding:"5px 10px",textAlign:"right",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
-                                        fontWeight:700,color:isBest?"#34c759":"#1d1d1f" }}>${fmtPrice(s.perUnit)}</td>
-                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#86868b",fontSize:11 }}>
+                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#1d1d1f",fontWeight:600 }}>{"$"}{s.total.toFixed(2)}</td>
+                                      <td style={{ padding:"12px 14px",textAlign:"right",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                                        fontWeight:700,color:isBest?"#34c759":"#1d1d1f" }}>{"$"}{fmtPrice(s.perUnit)}</td>
+                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>
                                         {s.suppliers.length}
                                       </td>
-                                      <td style={{ padding:"5px 10px",textAlign:"right",
-                                        color:diff>0?"#34c759":diff<0?"#ff3b30":"#aeaeb2",fontWeight:diff!==0?600:400 }}>
+                                      <td style={{ padding:"12px 14px",textAlign:"right",
+                                        color:diff>0?"#34c759":diff<0?"#ff3b30":"#c7c7cc",fontWeight:diff!==0?600:400 }}>
                                         {isBase ? "—" : diff > 0 ? `-$${fmtPrice(diff)}/ea` : diff < 0 ? `+$${fmtPrice(Math.abs(diff))}/ea` : "same"}
                                       </td>
                                     </tr>
@@ -2627,6 +2642,7 @@ function BOMManager({ user }) {
                                 })}
                               </tbody>
                             </table>
+                            </div>
                           </div>
                         );
                       })()}
