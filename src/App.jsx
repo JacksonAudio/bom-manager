@@ -300,9 +300,18 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
     priceBreaks: breaks,
     mouserPartNumber: part.MouserPartNumber || "",
   };
-  // Mouser API may return CountryOfOrigin — capture it for tariff calculation
+  // Capture extended part data from Mouser Search API
   if (part.CountryOfOrigin) result.countryOfOrigin = part.CountryOfOrigin.toUpperCase();
   if (part.ROHSStatus) result.rohsStatus = part.ROHSStatus;
+  if (part.LifecycleStatus) result.lifecycleStatus = part.LifecycleStatus;
+  if (part.DataSheetUrl) result.datasheetUrl = part.DataSheetUrl;
+  if (part.Description) result.partDescription = part.Description;
+  if (part.Manufacturer) result.manufacturer = part.Manufacturer;
+  if (part.Category) result.category = part.Category;
+  if (part.LeadTime) result.leadTime = part.LeadTime;
+  if (part.SuggestedReplacement) result.suggestedReplacement = part.SuggestedReplacement;
+  if (part.ImagePath) result.imagePath = part.ImagePath;
+  if (part.ProductCompliance) result.compliance = part.ProductCompliance;
   return result;
 }
 
@@ -344,6 +353,32 @@ async function mouserGetOrderOptions(orderApiKey, cartKey) {
   });
   if (!res.ok) throw new Error(`Mouser Order Options ${res.status}`);
   return await res.json();
+}
+
+// ─────────────────────────────────────────────
+// MOUSER KEYWORD SEARCH (for finding alternatives)
+// Uses Search API key
+// ─────────────────────────────────────────────
+async function mouserKeywordSearch(keyword, apiKey, records = 10) {
+  const res = await fetch(
+    `https://api.mouser.com/api/v1/search/keyword?apiKey=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        SearchByKeywordRequest: {
+          keyword,
+          records,
+          startingRecord: 0,
+          searchOptions: "",
+          searchWithYourSignUpLanguage: "",
+        },
+      }),
+    }
+  );
+  if (!res.ok) throw new Error(`Mouser Keyword Search ${res.status}`);
+  const data = await res.json();
+  return data?.SearchResults?.Parts || [];
 }
 
 // ─────────────────────────────────────────────
@@ -813,21 +848,76 @@ function BOMManager({ user }) {
   const [usOnly, setUsOnly] = useState(false);
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
   const [mouserCartStatus, setMouserCartStatus] = useState(null); // { loading, error, cartUrl, cartKey, items }
+  // Local order tracker — persists to localStorage
+  const [trackedOrders, setTrackedOrders] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("bom_tracked_orders") || "[]"); } catch { return []; }
+  });
+  const [expandedOrder, setExpandedOrder] = useState(null);
+  const [orderForm, setOrderForm] = useState(null); // { supplier, poNumber, items, notes }
   const fileRef = useRef();
   const qtyTimers = useRef({}); // debounce timers for qty→price refresh
+
+  // Persist tracked orders to localStorage
+  const saveTrackedOrders = (orders) => {
+    setTrackedOrders(orders);
+    try { localStorage.setItem("bom_tracked_orders", JSON.stringify(orders)); } catch {}
+  };
+
+  // Add a new tracked order
+  const addTrackedOrder = (order) => {
+    const newOrder = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      createdAt: new Date().toISOString(),
+      supplier: order.supplier || "Mouser",
+      supplierColor: order.supplierColor || "#e8500a",
+      poNumber: order.poNumber || "",
+      status: order.status || "submitted",
+      items: order.items || [],
+      totalEstimate: order.totalEstimate || 0,
+      cartKey: order.cartKey || "",
+      cartUrl: order.cartUrl || "",
+      trackingNumbers: [],
+      carrier: "",
+      notes: order.notes || "",
+      receivedAt: null,
+    };
+    saveTrackedOrders([newOrder, ...trackedOrders]);
+    return newOrder;
+  };
+
+  // Update a tracked order field
+  const updateTrackedOrder = (orderId, updates) => {
+    saveTrackedOrders(trackedOrders.map(o => o.id === orderId ? { ...o, ...updates } : o));
+  };
+
+  // Delete a tracked order
+  const deleteTrackedOrder = (orderId) => {
+    if (!window.confirm("Delete this order record? This cannot be undone.")) return;
+    saveTrackedOrders(trackedOrders.filter(o => o.id !== orderId));
+    if (expandedOrder === orderId) setExpandedOrder(null);
+  };
+
+  // Helper: get tracking URL for carrier
+  const getTrackingUrl = (trackingNumber, carrier) => {
+    const c = (carrier || "").toLowerCase();
+    if (c.includes("ups")) return `https://www.ups.com/track?tracknum=${trackingNumber}`;
+    if (c.includes("fedex")) return `https://www.fedex.com/fedextrack/?trknbr=${trackingNumber}`;
+    if (c.includes("dhl")) return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${trackingNumber}`;
+    if (c.includes("usps")) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingNumber}`;
+    return `https://www.google.com/search?q=${encodeURIComponent(trackingNumber + " tracking")}`;
+  };
 
   // Update quantity and auto-refresh pricing after debounce
   const updateQtyAndRefresh = (partId, newQty) => {
     updatePart(partId, "quantity", newQty);
     clearTimeout(qtyTimers.current[partId]);
     qtyTimers.current[partId] = setTimeout(() => {
-      // Read fresh state to avoid stale closure
       setParts(current => {
         const p = current.find(x => x.id === partId);
-        if (p?.mpn && (nexarToken || apiKeys.mouser_api_key)) {
-          fetchPartPricing(partId);
-        }
-        return current; // no mutation
+        const hasCustom = p?.pricing && Object.values(p.pricing).some(v => v.isCustom);
+        const hasApi = p?.mpn && (nexarToken || apiKeys.mouser_api_key);
+        if (hasApi || hasCustom) fetchPartPricing(partId);
+        return current;
       });
     }, 800);
   };
@@ -947,14 +1037,37 @@ function BOMManager({ user }) {
   // ── Fetch pricing for a single part — results saved back to DB
   const fetchPartPricing = async (partId) => {
     const part = parts.find((p) => p.id === partId);
-    if (!part || !part.mpn) {
-      updatePart(partId, "pricingStatus", "no-mpn");
+    if (!part) return;
+
+    // Preserve custom suppliers through refresh
+    const customEntries = {};
+    if (part.pricing) {
+      for (const [k, v] of Object.entries(part.pricing)) {
+        if (v.isCustom) customEntries[k] = v;
+      }
+    }
+
+    // Parts with no MPN but custom pricing should still show as "done"
+    if (!part.mpn) {
+      if (Object.keys(customEntries).length > 0) {
+        const best = bestPriceSupplier(customEntries);
+        const bestPrice = customEntries[best]?.unitPrice;
+        setParts((prev) => prev.map((p) => p.id === partId ? {
+          ...p, pricing: customEntries, pricingStatus: "done", bestSupplier: best,
+          unitCost: p.unitCost || (bestPrice ? fmtPrice(bestPrice) : p.unitCost),
+        } : p));
+      } else {
+        updatePart(partId, "pricingStatus", "no-mpn");
+      }
       return;
     }
+
     // Optimistic loading state
     setParts((prev) => prev.map((p) => p.id === partId ? { ...p, pricingStatus: "loading" } : p));
     try {
-      const pricing  = await fetchAllPricing(part.mpn, part.quantity, apiKeys, nexarToken, dkToken);
+      const apiPricing = await fetchAllPricing(part.mpn, part.quantity, apiKeys, nexarToken, dkToken);
+      // Merge custom suppliers back in
+      const pricing = { ...apiPricing, ...customEntries };
       const best     = bestPriceSupplier(pricing);
       const bestPrice = pricing[best]?.unitPrice;
       const newUnitCost = part.unitCost || (bestPrice ? fmtPrice(bestPrice) : part.unitCost);
@@ -1525,6 +1638,7 @@ function BOMManager({ user }) {
           { id:"bom",       icon:"🔩", label:`All Parts (${parts.length})` },
           { id:"pricing",   icon:"💰", label:`Pricing ${pricedCount>0?`(${pricedCount}/${parts.length})`:""}` },
           { id:"purchasing",icon:"🛒", label:`Purchasing${poPartCount>0?` (${poPartCount})`:""}` },
+          { id:"orders",    icon:"📋", label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}` },
           { id:"projects",  icon:"📦", label:"Products" },
           { id:"alerts",    icon:"⚠",  label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}` },
           { id:"settings",  icon:"⚙",  label:"Settings" },
@@ -1907,6 +2021,45 @@ function BOMManager({ user }) {
                                       <div style={{ fontSize:18,fontWeight:700,letterSpacing:"-0.3px",marginTop:4,
                                         color:isBest?"#0071e3":"#1d1d1f" }}>{"$"}{fmtPrice(displayPrice)}</div>
                                       <div style={{ fontSize:10,color:"#aeaeb2",marginTop:4 }}>Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}</div>
+                                      {/* Compliance & lifecycle badges */}
+                                      <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginTop:4 }}>
+                                        {data.rohsStatus && (
+                                          <span style={{ display:"inline-block",padding:"1px 6px",borderRadius:4,fontSize:9,fontWeight:600,
+                                            background: data.rohsStatus.toLowerCase().includes("compliant") ? "rgba(52,199,89,0.12)" : "rgba(255,59,48,0.1)",
+                                            color: data.rohsStatus.toLowerCase().includes("compliant") ? "#34c759" : "#ff3b30" }}>
+                                            RoHS {data.rohsStatus.toLowerCase().includes("compliant") ? "✓" : "✗"}
+                                          </span>
+                                        )}
+                                        {data.lifecycleStatus && (
+                                          <span style={{ display:"inline-block",padding:"1px 6px",borderRadius:4,fontSize:9,fontWeight:600,
+                                            background: data.lifecycleStatus.toLowerCase().includes("eol") || data.lifecycleStatus.toLowerCase().includes("obsolete") ? "rgba(255,59,48,0.1)" :
+                                              data.lifecycleStatus.toLowerCase().includes("nrnd") || data.lifecycleStatus.toLowerCase().includes("not recommended") ? "rgba(255,149,0,0.1)" :
+                                              "rgba(52,199,89,0.12)",
+                                            color: data.lifecycleStatus.toLowerCase().includes("eol") || data.lifecycleStatus.toLowerCase().includes("obsolete") ? "#ff3b30" :
+                                              data.lifecycleStatus.toLowerCase().includes("nrnd") || data.lifecycleStatus.toLowerCase().includes("not recommended") ? "#ff9500" :
+                                              "#34c759" }}>
+                                            {data.lifecycleStatus}
+                                          </span>
+                                        )}
+                                        {data.leadTime && (
+                                          <span style={{ display:"inline-block",padding:"1px 6px",borderRadius:4,fontSize:9,fontWeight:500,
+                                            background:"rgba(0,113,227,0.08)",color:"#0071e3" }}>
+                                            Lead: {data.leadTime}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {data.datasheetUrl && (
+                                        <a href={data.datasheetUrl} target="_blank" rel="noopener noreferrer"
+                                          onClick={e => e.stopPropagation()}
+                                          style={{ display:"inline-block",marginTop:4,fontSize:10,color:"#0071e3",textDecoration:"none",fontWeight:500 }}>
+                                          📄 Datasheet
+                                        </a>
+                                      )}
+                                      {data.suggestedReplacement && (
+                                        <div style={{ fontSize:9,color:"#ff9500",marginTop:3,fontWeight:500 }}>
+                                          Replacement: {data.suggestedReplacement}
+                                        </div>
+                                      )}
                                       {landedPrice > 0 && (
                                         <div style={{ fontSize:10,color:"#ff3b30",marginTop:3,fontWeight:500 }}>
                                           Landed: {"$"}{fmtPrice(landedPrice)} ({origin} +{tariffRate}%)
@@ -2166,6 +2319,16 @@ function BOMManager({ user }) {
                                 }
                                 const result = await mouserCreateCart(apiKeys.mouser_order_api_key, cartItems);
                                 setMouserCartStatus({ loading: false, ...result });
+                                // Auto-log this order to the tracker
+                                addTrackedOrder({
+                                  supplier: "Mouser",
+                                  supplierColor: "#e8500a",
+                                  poNumber: poNum,
+                                  items: lines.map(p => ({ mpn: p.mpn, reference: p.reference, qty: p.orderQty || p.neededQty, unitPrice: p.unitCost || 0 })),
+                                  totalEstimate: poTotal,
+                                  cartKey: result.cartKey,
+                                  cartUrl: result.cartUrl,
+                                });
                                 window.open(result.cartUrl, "_blank");
                               } catch (e) {
                                 console.error("Mouser cart error:", e);
@@ -2261,6 +2424,286 @@ function BOMManager({ user }) {
                   </div>
                 );
               })
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════
+            ORDERS — Order Tracker & Shipment Tracking
+        ══════════════════════════════════════ */}
+        {activeView === "orders" && (
+          <div>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12 }}>
+              <div>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Order Tracker</h2>
+                <p style={{ color:"#86868b",fontSize:13 }}>Track orders across all suppliers. Mouser cart orders are logged automatically.</p>
+              </div>
+              <button className="btn-primary" onClick={() => setOrderForm({
+                supplier: "Mouser", supplierColor: "#e8500a", poNumber: "", notes: "",
+                items: [{ mpn: "", qty: 1, unitPrice: "" }],
+              })}>
+                + Log Order Manually
+              </button>
+            </div>
+
+            {/* Manual order form */}
+            {orderForm && (
+              <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,overflow:"hidden" }}>
+                <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+                  <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                    Log New Order
+                  </div>
+                </div>
+                <div style={{ padding:"16px 20px" }}>
+                  <div style={{ display:"flex",gap:12,flexWrap:"wrap",marginBottom:12 }}>
+                    <div>
+                      <div style={{ fontSize:10,color:"#86868b",fontWeight:600,marginBottom:3,textTransform:"uppercase" }}>Supplier</div>
+                      <select value={orderForm.supplier}
+                        onChange={e => {
+                          const sup = SUPPLIERS.find(s => s.name === e.target.value);
+                          setOrderForm(f => ({ ...f, supplier: e.target.value, supplierColor: sup?.color || "#8e8e93" }));
+                        }}
+                        style={{ padding:"7px 10px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:12,fontFamily:"inherit",minWidth:140 }}>
+                        {SUPPLIERS.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10,color:"#86868b",fontWeight:600,marginBottom:3,textTransform:"uppercase" }}>PO / Order Number</div>
+                      <input type="text" placeholder="PO-2026-001" value={orderForm.poNumber}
+                        onChange={e => setOrderForm(f => ({ ...f, poNumber: e.target.value }))}
+                        style={{ padding:"7px 10px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:12,fontFamily:"inherit",width:160 }} />
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:10,color:"#86868b",fontWeight:600,marginBottom:3,textTransform:"uppercase" }}>Notes</div>
+                      <input type="text" placeholder="Optional notes" value={orderForm.notes}
+                        onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))}
+                        style={{ padding:"7px 10px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:12,fontFamily:"inherit",width:"100%" }} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize:10,color:"#86868b",fontWeight:600,marginBottom:6,textTransform:"uppercase" }}>Line Items</div>
+                  {orderForm.items.map((item, ii) => (
+                    <div key={ii} style={{ display:"flex",gap:8,marginBottom:6,alignItems:"center" }}>
+                      <input type="text" placeholder="MPN" value={item.mpn}
+                        onChange={e => { const items = [...orderForm.items]; items[ii] = { ...items[ii], mpn: e.target.value }; setOrderForm(f => ({ ...f, items })); }}
+                        style={{ padding:"6px 10px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,fontFamily:"inherit",width:180 }} />
+                      <input type="number" placeholder="Qty" value={item.qty} min={1}
+                        onChange={e => { const items = [...orderForm.items]; items[ii] = { ...items[ii], qty: parseInt(e.target.value)||1 }; setOrderForm(f => ({ ...f, items })); }}
+                        style={{ padding:"6px 10px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,fontFamily:"inherit",width:70 }} />
+                      <span style={{ fontSize:11,color:"#aeaeb2" }}>$</span>
+                      <input type="number" step="0.01" placeholder="Unit price" value={item.unitPrice}
+                        onChange={e => { const items = [...orderForm.items]; items[ii] = { ...items[ii], unitPrice: e.target.value }; setOrderForm(f => ({ ...f, items })); }}
+                        style={{ padding:"6px 10px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,fontFamily:"inherit",width:100 }} />
+                      {orderForm.items.length > 1 && (
+                        <button onClick={() => { const items = orderForm.items.filter((_,i) => i !== ii); setOrderForm(f => ({ ...f, items })); }}
+                          style={{ background:"none",border:"none",color:"#ff3b30",cursor:"pointer",fontSize:14,fontWeight:700,padding:"2px 6px" }}>×</button>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={() => setOrderForm(f => ({ ...f, items: [...f.items, { mpn: "", qty: 1, unitPrice: "" }] }))}
+                    style={{ fontSize:11,color:"#0071e3",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit",fontWeight:500,marginTop:4 }}>
+                    + Add Line
+                  </button>
+                  <div style={{ display:"flex",gap:8,marginTop:14 }}>
+                    <button className="btn-primary" onClick={() => {
+                      const total = orderForm.items.reduce((s, i) => s + (parseFloat(i.unitPrice)||0) * (i.qty||0), 0);
+                      addTrackedOrder({ ...orderForm, totalEstimate: total, items: orderForm.items.filter(i => i.mpn) });
+                      setOrderForm(null);
+                    }}>Save Order</button>
+                    <button className="btn-ghost" onClick={() => setOrderForm(null)}>Cancel</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {trackedOrders.length === 0 ? (
+              <div className="card" style={{ textAlign:"center",padding:"60px 30px" }}>
+                <div style={{ fontSize:44,marginBottom:14 }}>📋</div>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:16,marginBottom:8 }}>No Orders Tracked Yet</div>
+                <div style={{ color:"#86868b",fontSize:13,maxWidth:440,margin:"0 auto" }}>
+                  Orders are logged automatically when you use "Send to Mouser Cart" from the Purchasing page, or you can log orders from any supplier manually.
+                </div>
+              </div>
+            ) : (
+              <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
+                {trackedOrders.map((order) => {
+                  const isOpen = expandedOrder === order.id;
+                  const statusColors = {
+                    submitted: { bg: "rgba(0,113,227,0.1)", color: "#0071e3", label: "Submitted" },
+                    processing: { bg: "rgba(255,149,0,0.1)", color: "#ff9500", label: "Processing" },
+                    shipped: { bg: "rgba(52,199,89,0.1)", color: "#34c759", label: "Shipped" },
+                    delivered: { bg: "rgba(52,199,89,0.15)", color: "#248a3d", label: "Delivered" },
+                    cancelled: { bg: "rgba(255,59,48,0.1)", color: "#ff3b30", label: "Cancelled" },
+                  };
+                  const st = statusColors[order.status] || statusColors.submitted;
+                  const orderDate = new Date(order.createdAt).toLocaleDateString();
+                  const itemCount = order.items?.length || 0;
+
+                  return (
+                    <div key={order.id} style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden" }}>
+                      {/* Order header row */}
+                      <div onClick={() => setExpandedOrder(isOpen ? null : order.id)}
+                        style={{ display:"flex",alignItems:"center",padding:"14px 20px",cursor:"pointer",gap:16,transition:"background 0.15s" }}
+                        onMouseOver={e => e.currentTarget.style.background = "rgba(0,0,0,0.015)"}
+                        onMouseOut={e => e.currentTarget.style.background = "transparent"}>
+                        <div style={{ width:36,height:36,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",
+                          background: order.supplierColor || "#8e8e93",color:"#fff",fontWeight:800,fontSize:11,
+                          fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",flexShrink:0 }}>
+                          {(order.supplier || "?").slice(0, 2).toUpperCase()}
+                        </div>
+                        <div style={{ flex:1,minWidth:0 }}>
+                          <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                            <span style={{ fontWeight:700,fontSize:14,color:"#1d1d1f" }}>{order.supplier}</span>
+                            {order.poNumber && <span style={{ fontSize:12,color:"#86868b" }}>#{order.poNumber}</span>}
+                            <span style={{ display:"inline-block",padding:"2px 10px",borderRadius:980,fontSize:10,fontWeight:600,
+                              background: st.bg, color: st.color }}>{st.label}</span>
+                          </div>
+                          <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>
+                            {orderDate} · {itemCount} item{itemCount !== 1 ? "s" : ""}
+                            {order.totalEstimate > 0 ? ` · est. $${order.totalEstimate.toFixed(2)}` : ""}
+                            {order.trackingNumbers?.length > 0 && ` · ${order.trackingNumbers.length} tracking #`}
+                          </div>
+                        </div>
+                        {/* Tracking link shortcut */}
+                        {order.trackingNumbers?.length > 0 && (
+                          <a href={getTrackingUrl(order.trackingNumbers[0], order.carrier)}
+                            target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                            style={{ padding:"5px 12px",borderRadius:980,fontSize:11,fontWeight:600,textDecoration:"none",
+                              background:"rgba(0,113,227,0.08)",color:"#0071e3",whiteSpace:"nowrap" }}>
+                            Track Package
+                          </a>
+                        )}
+                        <span style={{ fontSize:12,color:"#86868b",transition:"transform 0.2s",display:"inline-block",
+                          transform: isOpen ? "rotate(90deg)" : "none", flexShrink:0 }}>›</span>
+                      </div>
+
+                      {/* Expanded detail */}
+                      {isOpen && (
+                        <div style={{ padding:"0 20px 18px",borderTop:"1px solid #f0f0f2" }}>
+                          {/* Status + tracking controls */}
+                          <div style={{ display:"flex",gap:16,flexWrap:"wrap",marginTop:16,marginBottom:16 }}>
+                            <div>
+                              <div style={{ fontSize:10,color:"#86868b",fontWeight:600,marginBottom:4,textTransform:"uppercase" }}>Status</div>
+                              <select value={order.status}
+                                onChange={e => updateTrackedOrder(order.id, { status: e.target.value, ...(e.target.value === "delivered" ? { receivedAt: new Date().toISOString() } : {}) })}
+                                style={{ padding:"6px 10px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:12,fontFamily:"inherit" }}>
+                                <option value="submitted">Submitted</option>
+                                <option value="processing">Processing</option>
+                                <option value="shipped">Shipped</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="cancelled">Cancelled</option>
+                              </select>
+                            </div>
+                            <div>
+                              <div style={{ fontSize:10,color:"#86868b",fontWeight:600,marginBottom:4,textTransform:"uppercase" }}>Carrier</div>
+                              <select value={order.carrier || ""}
+                                onChange={e => updateTrackedOrder(order.id, { carrier: e.target.value })}
+                                style={{ padding:"6px 10px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:12,fontFamily:"inherit" }}>
+                                <option value="">Select carrier</option>
+                                <option value="UPS">UPS</option>
+                                <option value="FedEx">FedEx</option>
+                                <option value="DHL">DHL</option>
+                                <option value="USPS">USPS</option>
+                                <option value="Other">Other</option>
+                              </select>
+                            </div>
+                            <div style={{ flex:1,minWidth:200 }}>
+                              <div style={{ fontSize:10,color:"#86868b",fontWeight:600,marginBottom:4,textTransform:"uppercase" }}>Tracking Numbers</div>
+                              <div style={{ display:"flex",gap:6,flexWrap:"wrap",alignItems:"center" }}>
+                                {(order.trackingNumbers || []).map((tn, ti) => (
+                                  <div key={ti} style={{ display:"flex",alignItems:"center",gap:4,background:"rgba(0,113,227,0.06)",
+                                    borderRadius:8,padding:"4px 10px" }}>
+                                    <a href={getTrackingUrl(tn, order.carrier)} target="_blank" rel="noopener noreferrer"
+                                      style={{ fontSize:12,color:"#0071e3",textDecoration:"none",fontWeight:500 }}>
+                                      {tn} ↗
+                                    </a>
+                                    <button onClick={() => {
+                                      const nums = order.trackingNumbers.filter((_, i) => i !== ti);
+                                      updateTrackedOrder(order.id, { trackingNumbers: nums });
+                                    }}
+                                      style={{ background:"none",border:"none",color:"#ff3b30",cursor:"pointer",fontSize:12,fontWeight:700,padding:0 }}>×</button>
+                                  </div>
+                                ))}
+                                <button onClick={() => {
+                                  const tn = prompt("Enter tracking number:");
+                                  if (!tn?.trim()) return;
+                                  updateTrackedOrder(order.id, {
+                                    trackingNumbers: [...(order.trackingNumbers || []), tn.trim()],
+                                    status: order.status === "submitted" ? "shipped" : order.status,
+                                  });
+                                }}
+                                  style={{ fontSize:11,color:"#0071e3",background:"none",border:"1px solid rgba(0,113,227,0.2)",
+                                    borderRadius:8,cursor:"pointer",padding:"4px 10px",fontFamily:"inherit",fontWeight:500 }}>
+                                  + Add Tracking
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Notes */}
+                          {order.notes && (
+                            <div style={{ fontSize:12,color:"#86868b",marginBottom:12,fontStyle:"italic" }}>
+                              {order.notes}
+                            </div>
+                          )}
+
+                          {/* Cart link */}
+                          {order.cartUrl && (
+                            <div style={{ marginBottom:12 }}>
+                              <a href={order.cartUrl} target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize:12,color:"#e8500a",textDecoration:"none",fontWeight:500 }}>
+                                View Cart on Mouser →
+                              </a>
+                            </div>
+                          )}
+
+                          {/* Line items */}
+                          {order.items?.length > 0 && (
+                            <div style={{ background:"#fafafa",borderRadius:10,overflow:"hidden",border:"1px solid #f0f0f2" }}>
+                              <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                                <thead>
+                                  <tr style={{ background:"#f0f0f2" }}>
+                                    {["MPN","Qty","Unit Price","Extended"].map((h, hi) => (
+                                      <th key={hi} style={{ padding:"8px 12px",textAlign:hi>=1?"right":"left",fontSize:10,fontWeight:700,
+                                        color:"#3a3f51",textTransform:"uppercase",letterSpacing:"0.04em" }}>{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {order.items.map((item, li) => (
+                                    <tr key={li} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                                      <td style={{ padding:"7px 12px",fontWeight:500 }}>{item.mpn || item.reference || "—"}</td>
+                                      <td style={{ padding:"7px 12px",textAlign:"right" }}>{item.qty || "—"}</td>
+                                      <td style={{ padding:"7px 12px",textAlign:"right" }}>
+                                        {item.unitPrice ? `$${parseFloat(item.unitPrice).toFixed(4)}` : "—"}
+                                      </td>
+                                      <td style={{ padding:"7px 12px",textAlign:"right",fontWeight:600 }}>
+                                        {item.unitPrice && item.qty ? `$${(parseFloat(item.unitPrice) * item.qty).toFixed(2)}` : "—"}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+
+                          {/* Received date + delete */}
+                          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:14 }}>
+                            <div style={{ fontSize:11,color:"#86868b" }}>
+                              Created {new Date(order.createdAt).toLocaleString()}
+                              {order.receivedAt && ` · Received ${new Date(order.receivedAt).toLocaleDateString()}`}
+                            </div>
+                            <button onClick={() => deleteTrackedOrder(order.id)}
+                              style={{ fontSize:11,color:"#ff3b30",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:500 }}>
+                              Delete Order
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
@@ -2807,155 +3250,163 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "settings" && (
           <div style={{ maxWidth:760 }}>
-            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:6 }}>Settings</h2>
+            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:6,color:"#1d1d1f" }}>Settings</h2>
             <p style={{ color:"#86868b",fontSize:13,marginBottom:24 }}>
               Keys are stored in the shared team database — one set for everyone.
-              They are not end-to-end encrypted; do not store keys here if that is a concern.
             </p>
 
             {/* ── Nexar / Octopart — PRIMARY */}
-            <div className="card" style={{ marginBottom:16,borderTop:"3px solid #5856d6" }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14 }}>
-                <div>
-                  <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:15,color:"#5856d6" }}>
-                    Nexar / Octopart ⭐ Recommended
-                  </div>
-                  <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>
-                    One API covers Mouser, Digi-Key, Arrow, LCSC, Allied + 900 more distributors simultaneously.
-                    Free: 1,000 matched parts/month.
-                  </div>
+            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  Nexar / Octopart — Primary
+                </div>
+                {nexarToken && <span style={{ fontSize:11,fontWeight:600,color:"#34c759" }}>Connected</span>}
+              </div>
+              <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  One API covers Mouser, Digi-Key, Arrow, LCSC, Allied + 900 more. Free: 1,000 parts/month.
                   <a href="https://nexar.com" target="_blank" rel="noopener noreferrer"
-                    style={{ fontSize:11,color:"#5856d6",textDecoration:"none" }}>Get keys at nexar.com →</a>
+                    style={{ marginLeft:6,color:"#0071e3",textDecoration:"none",fontWeight:500 }}>nexar.com →</a>
                 </div>
-                {nexarToken && <span className="badge" style={{ background:"rgba(52,199,89,0.08)",color:"#34c759" }}>Connected</span>}
-              </div>
-              <div className="key-input-row">
-                <div>
-                  <div className="key-label">Client ID</div>
-                  <div className="key-hint">From your Nexar app</div>
+                <div className="key-input-row">
+                  <div><div className="key-label">Client ID</div><div className="key-hint">From your Nexar app</div></div>
+                  <input type="password" placeholder="nexar-client-id" value={apiKeys.nexar_client_id}
+                    onChange={(e)=>setApiKeys((k)=>({...k,nexar_client_id:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
-                <input type="password" placeholder="nexar-client-id" value={apiKeys.nexar_client_id}
-                  onChange={(e)=>setApiKeys((k)=>({...k,nexar_client_id:e.target.value}))}
-                  style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
-              </div>
-              <div className="key-input-row">
-                <div>
-                  <div className="key-label">Client Secret</div>
-                  <div className="key-hint">From your Nexar app</div>
+                <div className="key-input-row">
+                  <div><div className="key-label">Client Secret</div><div className="key-hint">From your Nexar app</div></div>
+                  <input type="password" placeholder="nexar-client-secret" value={apiKeys.nexar_client_secret}
+                    onChange={(e)=>setApiKeys((k)=>({...k,nexar_client_secret:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
-                <input type="password" placeholder="nexar-client-secret" value={apiKeys.nexar_client_secret}
-                  onChange={(e)=>setApiKeys((k)=>({...k,nexar_client_secret:e.target.value}))}
-                  style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
               </div>
             </div>
 
             {/* ── Mouser Direct */}
-            <div className="card" style={{ marginBottom:16,borderTop:`3px solid #e8500a` }}>
-              <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:14,color:"#e8500a",marginBottom:4 }}>
-                Mouser Direct API <span style={{ fontSize:11,fontWeight:400,color:"#86868b" }}>(Optional supplement)</span>
-              </div>
-              <div style={{ fontSize:12,color:"#86868b",marginBottom:12 }}>
-                Provides deeper Mouser-specific detail. Free at
-                <a href="https://www.mouser.com/api-hub/" target="_blank" rel="noopener noreferrer"
-                  style={{ color:"#e8500a",marginLeft:4 }}>mouser.com/api-hub →</a>
-              </div>
-              <div className="key-input-row">
-                <div className="key-label">Search API Key</div>
-                <input type="password" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={apiKeys.mouser_api_key}
-                  onChange={(e)=>setApiKeys((k)=>({...k,mouser_api_key:e.target.value}))}
-                  style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
-              </div>
-              <div className="key-input-row">
-                <div>
-                  <div className="key-label">Order API Key</div>
-                  <div className="key-hint">Separate key for Cart + Ordering — register at API Hub</div>
+            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  Mouser Direct
                 </div>
-                <input type="password" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={apiKeys.mouser_order_api_key}
-                  onChange={(e)=>setApiKeys((k)=>({...k,mouser_order_api_key:e.target.value}))}
-                  style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+              </div>
+              <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  Deeper Mouser-specific pricing + Cart/Order API.
+                  <a href="https://www.mouser.com/api-hub/" target="_blank" rel="noopener noreferrer"
+                    style={{ marginLeft:6,color:"#0071e3",textDecoration:"none",fontWeight:500 }}>mouser.com/api-hub →</a>
+                </div>
+                <div className="key-input-row">
+                  <div className="key-label">Search API Key</div>
+                  <input type="password" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={apiKeys.mouser_api_key}
+                    onChange={(e)=>setApiKeys((k)=>({...k,mouser_api_key:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+                </div>
+                <div className="key-input-row">
+                  <div><div className="key-label">Order API Key</div><div className="key-hint">Separate key for Cart + Ordering</div></div>
+                  <input type="password" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={apiKeys.mouser_order_api_key}
+                    onChange={(e)=>setApiKeys((k)=>({...k,mouser_order_api_key:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+                </div>
               </div>
             </div>
 
             {/* ── DigiKey Direct */}
-            <div className="card" style={{ marginBottom:16,borderTop:`3px solid #cc0000` }}>
-              <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:14,color:"#cc0000",marginBottom:4 }}>
-                Digi-Key Direct API v4 <span style={{ fontSize:11,fontWeight:400,color:"#86868b" }}>(Optional supplement)</span>
+            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  Digi-Key Direct
+                </div>
               </div>
-              <div style={{ fontSize:12,color:"#86868b",marginBottom:12 }}>
-                OAuth2 client credentials. Register at
-                <a href="https://developer.digikey.com" target="_blank" rel="noopener noreferrer"
-                  style={{ color:"#cc0000",marginLeft:4 }}>developer.digikey.com →</a>
-              </div>
-              <div className="key-input-row">
-                <div className="key-label">Client ID</div>
-                <input type="password" placeholder="DigiKey client ID" value={apiKeys.digikey_client_id}
-                  onChange={(e)=>setApiKeys((k)=>({...k,digikey_client_id:e.target.value}))}
-                  style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
-              </div>
-              <div className="key-input-row">
-                <div className="key-label">Client Secret</div>
-                <input type="password" placeholder="DigiKey client secret" value={apiKeys.digikey_client_secret}
-                  onChange={(e)=>setApiKeys((k)=>({...k,digikey_client_secret:e.target.value}))}
-                  style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+              <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  OAuth2 client credentials.
+                  <a href="https://developer.digikey.com" target="_blank" rel="noopener noreferrer"
+                    style={{ marginLeft:6,color:"#0071e3",textDecoration:"none",fontWeight:500 }}>developer.digikey.com →</a>
+                </div>
+                <div className="key-input-row">
+                  <div className="key-label">Client ID</div>
+                  <input type="password" placeholder="DigiKey client ID" value={apiKeys.digikey_client_id}
+                    onChange={(e)=>setApiKeys((k)=>({...k,digikey_client_id:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+                </div>
+                <div className="key-input-row">
+                  <div className="key-label">Client Secret</div>
+                  <input type="password" placeholder="DigiKey client secret" value={apiKeys.digikey_client_secret}
+                    onChange={(e)=>setApiKeys((k)=>({...k,digikey_client_secret:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+                </div>
               </div>
             </div>
 
             {/* ── Arrow Direct */}
-            <div className="card" style={{ marginBottom:16,borderTop:`3px solid #005eb8` }}>
-              <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:14,color:"#005eb8",marginBottom:4 }}>
-                Arrow Direct API v4 <span style={{ fontSize:11,fontWeight:400,color:"#86868b" }}>(Optional supplement)</span>
+            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  Arrow Direct
+                </div>
               </div>
-              <div style={{ fontSize:12,color:"#86868b",marginBottom:12 }}>
-                Requires login + API key. Free at
-                <a href="https://developers.arrow.com" target="_blank" rel="noopener noreferrer"
-                  style={{ color:"#005eb8",marginLeft:4 }}>developers.arrow.com →</a>
-              </div>
-              <div className="key-input-row">
-                <div className="key-label">Login Email</div>
-                <input type="text" placeholder="your@email.com" value={apiKeys.arrow_login}
-                  onChange={(e)=>setApiKeys((k)=>({...k,arrow_login:e.target.value}))}
-                  style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
-              </div>
-              <div className="key-input-row">
-                <div className="key-label">API Key</div>
-                <input type="password" placeholder="Arrow API key" value={apiKeys.arrow_api_key}
-                  onChange={(e)=>setApiKeys((k)=>({...k,arrow_api_key:e.target.value}))}
-                  style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+              <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  Requires login + API key.
+                  <a href="https://developers.arrow.com" target="_blank" rel="noopener noreferrer"
+                    style={{ marginLeft:6,color:"#0071e3",textDecoration:"none",fontWeight:500 }}>developers.arrow.com →</a>
+                </div>
+                <div className="key-input-row">
+                  <div className="key-label">Login Email</div>
+                  <input type="text" placeholder="your@email.com" value={apiKeys.arrow_login}
+                    onChange={(e)=>setApiKeys((k)=>({...k,arrow_login:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+                </div>
+                <div className="key-input-row">
+                  <div className="key-label">API Key</div>
+                  <input type="password" placeholder="Arrow API key" value={apiKeys.arrow_api_key}
+                    onChange={(e)=>setApiKeys((k)=>({...k,arrow_api_key:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+                </div>
               </div>
             </div>
 
-            {/* ── Shipping Costs (used by BOM Simulator) */}
-            <div className="card" style={{ marginBottom:16,borderTop:"3px solid #5856d6" }}>
-              <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:15,color:"#5856d6",marginBottom:4 }}>
-                Shipping Costs
+            {/* ── Shipping Costs */}
+            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  Shipping Costs
+                </div>
               </div>
-              <div style={{ fontSize:12,color:"#86868b",marginBottom:12 }}>
-                Used by the Production Run Simulator to compare consolidation strategies. Adjust to match your actual shipping rates.
-              </div>
-              <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
-                {SUPPLIERS.map((s) => (
-                  <div key={s.id} style={{ display:"flex",alignItems:"center",gap:6 }}>
-                    <span style={{ fontSize:12,color:s.color,fontWeight:700,minWidth:70 }}>{s.name}</span>
-                    <span style={{ fontSize:11,color:"#aeaeb2" }}>$</span>
-                    <input type="number" step="0.01" min="0" value={s.shipping}
-                      onChange={(e) => { const v = parseFloat(e.target.value)||0; SUPPLIERS.find(x=>x.id===s.id).shipping = v; }}
-                      style={{ width:60,padding:"4px 6px",borderRadius:4,fontSize:12 }} />
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize:11,color:"#aeaeb2",marginTop:8 }}>
-                Default for unlisted distributors: ${DEFAULT_SHIPPING.toFixed(2)}
+              <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  Used by the simulator to compare consolidation strategies. Adjust to match your actual rates.
+                </div>
+                <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
+                  {SUPPLIERS.map((s) => (
+                    <div key={s.id} style={{ display:"flex",alignItems:"center",gap:6 }}>
+                      <span style={{ fontSize:12,color:"#3a3f51",fontWeight:600,minWidth:70 }}>{s.name}</span>
+                      <span style={{ fontSize:11,color:"#aeaeb2" }}>$</span>
+                      <input type="number" step="0.01" min="0" value={s.shipping}
+                        onChange={(e) => { const v = parseFloat(e.target.value)||0; SUPPLIERS.find(x=>x.id===s.id).shipping = v; }}
+                        style={{ width:60,padding:"4px 6px",borderRadius:4,fontSize:12 }} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize:11,color:"#aeaeb2",marginTop:8 }}>
+                  Default for unlisted distributors: {"$"}{DEFAULT_SHIPPING.toFixed(2)}
+                </div>
               </div>
             </div>
 
             {/* ── Import Tariff Rates */}
-            <div className="card" style={{ marginBottom:16,borderTop:"3px solid #ff3b30" }}>
-              <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:15,color:"#ff3b30",marginBottom:4 }}>
-                Import Tariff Rates
+            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  Import Tariff Rates
+                </div>
               </div>
-              <div style={{ fontSize:12,color:"#86868b",marginBottom:12 }}>
-                Applied in the Production Run Simulator when parts come from non-US distributors. Rates are % of goods value.
-              </div>
+              <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  Applied in the simulator when parts originate from non-US countries. Rates are % of goods value.
+                </div>
               <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
                 {(() => {
                   let tariffs;
@@ -2995,50 +3446,54 @@ function BOMManager({ user }) {
             </div>
 
             {/* ── Notifications & Email */}
-            <div className="card" style={{ marginBottom:16,borderTop:"3px solid #ff9500" }}>
-              <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:15,color:"#ff9500",marginBottom:4 }}>
-                Email Notifications & PO Drafts
-              </div>
-              <div style={{ fontSize:12,color:"#86868b",marginBottom:12 }}>
-                Get daily low-stock alerts and auto-draft purchase order emails to your distributors.
-              </div>
-              <div className="key-input-row">
-                <div>
-                  <div className="key-label">Your Email</div>
-                  <div className="key-hint">Receives daily low-stock alerts</div>
+            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  Email Notifications & PO Drafts
                 </div>
-                <input type="email" placeholder="you@company.com" value={apiKeys.notify_email}
-                  onChange={(e)=>setApiKeys((k)=>({...k,notify_email:e.target.value}))}
-                  style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
               </div>
-              <div style={{ marginTop:12,fontSize:11,color:"#86868b",fontWeight:700,letterSpacing:"0.06em",marginBottom:8 }}>DISTRIBUTOR ORDER EMAILS</div>
-              {SUPPLIERS.map((s) => {
-                let emails = {};
-                try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
-                return (
-                  <div key={s.id} className="key-input-row" style={{ paddingTop:6,paddingBottom:6 }}>
-                    <div className="key-label" style={{ color:s.color,minWidth:80 }}>{s.name}</div>
-                    <input type="email" placeholder={`orders@${s.id}.com`}
-                      value={emails[s.id] || ""}
-                      onChange={(e) => {
-                        const updated = { ...emails, [s.id]: e.target.value };
-                        setApiKeys((k) => ({ ...k, supplier_emails: JSON.stringify(updated) }));
-                      }}
-                      style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
+              <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  Get daily low-stock alerts and auto-draft purchase order emails to your distributors.
+                </div>
+                <div className="key-input-row">
+                  <div>
+                    <div className="key-label">Your Email</div>
+                    <div className="key-hint">Receives daily low-stock alerts</div>
                   </div>
-                );
-              })}
-              {apiKeys.notify_email && lowStockParts.length > 0 && (
-                <div style={{ marginTop:14 }}>
-                  <button className="btn-ghost" onClick={() => {
-                    const body = buildLowStockEmailBody(lowStockParts);
-                    if (body) window.location.href = `mailto:${apiKeys.notify_email}?subject=${encodeURIComponent("Low Stock Alert — Jackson Audio BOM")}&body=${encodeURIComponent(body)}`;
-                  }}>
-                    Preview Low-Stock Alert Email
-                  </button>
-                  <span style={{ fontSize:11,color:"#86868b",marginLeft:8 }}>{lowStockParts.length} parts below reorder level</span>
+                  <input type="email" placeholder="you@company.com" value={apiKeys.notify_email}
+                    onChange={(e)=>setApiKeys((k)=>({...k,notify_email:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
-              )}
+                <div style={{ marginTop:12,fontSize:11,color:"#3a3f51",fontWeight:700,letterSpacing:"0.06em",marginBottom:8 }}>DISTRIBUTOR ORDER EMAILS</div>
+                {SUPPLIERS.map((s) => {
+                  let emails = {};
+                  try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
+                  return (
+                    <div key={s.id} className="key-input-row" style={{ paddingTop:6,paddingBottom:6 }}>
+                      <div className="key-label" style={{ color:"#3a3f51",minWidth:80 }}>{s.name}</div>
+                      <input type="email" placeholder={`orders@${s.id}.com`}
+                        value={emails[s.id] || ""}
+                        onChange={(e) => {
+                          const updated = { ...emails, [s.id]: e.target.value };
+                          setApiKeys((k) => ({ ...k, supplier_emails: JSON.stringify(updated) }));
+                        }}
+                        style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
+                    </div>
+                  );
+                })}
+                {apiKeys.notify_email && lowStockParts.length > 0 && (
+                  <div style={{ marginTop:14 }}>
+                    <button className="btn-ghost" onClick={() => {
+                      const body = buildLowStockEmailBody(lowStockParts);
+                      if (body) window.location.href = `mailto:${apiKeys.notify_email}?subject=${encodeURIComponent("Low Stock Alert — Jackson Audio BOM")}&body=${encodeURIComponent(body)}`;
+                    }}>
+                      Preview Low-Stock Alert Email
+                    </button>
+                    <span style={{ fontSize:11,color:"#86868b",marginLeft:8 }}>{lowStockParts.length} parts below reorder level</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Connect + save button */}
@@ -3067,23 +3522,29 @@ function BOMManager({ user }) {
             )}
 
             {/* Key acquisition guide */}
-            <div className="card" style={{ marginTop:24 }}>
-              <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:12,color:"#86868b",letterSpacing:"0.08em",marginBottom:14 }}>HOW TO GET YOUR API KEYS</div>
-              {[
-                { name:"Nexar (covers everything)", steps:["Go to nexar.com and create a free account","Click 'Create App' in the API portal","Copy your Client ID and Client Secret here","Free tier: 1,000 matched parts/month"], color:"#5856d6" },
-                { name:"Mouser", steps:["Go to mouser.com and log into your account","Navigate to My Account → API","Select 'Search API' and generate a key","Copy the key here"], color:"#e8500a" },
-                { name:"Digi-Key", steps:["Go to developer.digikey.com","Create an Organization and App","Select 'Product Information' API","Copy Client ID and Secret here"], color:"#cc0000" },
-                { name:"Arrow", steps:["Email api@arrow.com or contact your sales rep","They will issue you a login + API key","Enter both here"], color:"#005eb8" },
-              ].map((src)=>(
-                <div key={src.name} style={{ marginBottom:16,paddingLeft:12,borderLeft:`2px solid ${src.color}` }}>
-                  <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:src.color,marginBottom:6 }}>{src.name}</div>
-                  <ol style={{ paddingLeft:16 }}>
-                    {src.steps.map((step,i)=>(
-                      <li key={i} style={{ fontSize:12,color:"#86868b",marginBottom:3 }}>{step}</li>
-                    ))}
-                  </ol>
+            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  How to Get Your API Keys
                 </div>
-              ))}
+              </div>
+              <div style={{ padding:"16px 20px" }}>
+                {[
+                  { name:"Nexar (covers everything)", steps:["Go to nexar.com and create a free account","Click 'Create App' in the API portal","Copy your Client ID and Client Secret here","Free tier: 1,000 matched parts/month"] },
+                  { name:"Mouser", steps:["Go to mouser.com and log into your account","Navigate to My Account → API","Select 'Search API' and generate a key","Copy the key here"] },
+                  { name:"Digi-Key", steps:["Go to developer.digikey.com","Create an Organization and App","Select 'Product Information' API","Copy Client ID and Secret here"] },
+                  { name:"Arrow", steps:["Email api@arrow.com or contact your sales rep","They will issue you a login + API key","Enter both here"] },
+                ].map((src)=>(
+                  <div key={src.name} style={{ marginBottom:16,paddingLeft:12,borderLeft:"2px solid #b8bdd1" }}>
+                    <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",marginBottom:6 }}>{src.name}</div>
+                    <ol style={{ paddingLeft:16 }}>
+                      {src.steps.map((step,i)=>(
+                        <li key={i} style={{ fontSize:12,color:"#86868b",marginBottom:3 }}>{step}</li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
