@@ -1970,18 +1970,18 @@ function BOMManager({ user }) {
                           onMouseOver={e=>{if(!isOpen)e.currentTarget.style.background="rgba(0,0,0,0.02)"}}
                           onMouseOut={e=>{if(!isOpen)e.currentTarget.style.background="transparent"}}>
                           <div style={{ flex:1 }}>
-                            <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f",display:"flex",alignItems:"center",gap:6 }}>
+                            <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f",display:"flex",alignItems:"center",gap:8 }}>
                               {part.mpn || part.reference}
-                              <span style={{ fontSize:11,color:"#86868b",fontWeight:400,transition:"transform 0.2s",display:"inline-block",
-                                transform:isOpen?"rotate(90deg)":"none" }}>›</span>
-                            </div>
-                            <div style={{ fontSize:12,color:"#86868b",marginTop:1,display:"flex",alignItems:"center",gap:4 }}>
-                              {part.description ? `${part.description} · ` : ""}{part.value ? `${part.value} · ` : ""}
-                              <span>buy</span>
                               <input type="number" min="1" value={bq}
                                 onClick={(e)=>e.stopPropagation()}
                                 onChange={(e)=>{e.stopPropagation();setBuyQtys(q=>({...q,[part.id]:parseInt(e.target.value)||1}));}}
-                                style={{ width:52,padding:"1px 4px",borderRadius:4,border:"1px solid #d2d2d7",fontSize:12,textAlign:"center",fontFamily:"inherit" }} />
+                                style={{ width:72,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:13,textAlign:"right",fontFamily:"inherit",fontWeight:500,color:"#1d1d1f",background:"#fff" }} />
+                              <span style={{ fontSize:11,color:"#86868b",fontWeight:400 }}>pcs</span>
+                              <span style={{ fontSize:11,color:"#86868b",fontWeight:400,transition:"transform 0.2s",display:"inline-block",
+                                transform:isOpen?"rotate(90deg)":"none" }}>›</span>
+                            </div>
+                            <div style={{ fontSize:12,color:"#86868b",marginTop:1 }}>
+                              {part.description ? `${part.description} · ` : ""}{part.value ? `${part.value} · ` : ""}qty {part.quantity}
                             </div>
                           </div>
                           <div style={{ textAlign:"right",minWidth:100 }}>
