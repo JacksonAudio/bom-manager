@@ -1119,10 +1119,12 @@ function BOMManager({ user }) {
       const apiPricing = await fetchAllPricing(part.mpn, part.quantity, apiKeys, nexarToken, dkToken);
       // Merge custom suppliers back in
       const pricing = { ...apiPricing, ...customEntries };
-      const best     = bestPriceSupplier(pricing);
+      // If an exclusive custom supplier exists, always prefer it
+      const exclusiveKey = Object.keys(customEntries).find(k => customEntries[k].exclusive);
+      const best     = exclusiveKey || bestPriceSupplier(pricing);
       const bestPrice = pricing[best]?.unitPrice;
       const newUnitCost = part.unitCost || (bestPrice ? fmtPrice(bestPrice) : part.unitCost);
-      const newPref     = best || part.preferredSupplier;
+      const newPref     = exclusiveKey || best || part.preferredSupplier;
 
       // Update UI optimistically
       setParts((prev) => prev.map((p) => p.id === partId ? {
@@ -1990,9 +1992,14 @@ function BOMManager({ user }) {
                     const pAtQty = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (bq >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
                     const getCountry = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
                     const isNonUS = (d) => { const c = getCountry(d); return c && c !== "US"; };
-                    const sorted = hasPricing ? Object.entries(pricingObj)
-                      .filter(([,d]) => d.stock > 0 && (countryFilter === "us" ? !isNonUS(d) : isNonUS(d)))
-                      .sort((a,b) => (pAtQty(a[1])||Infinity) - (pAtQty(b[1])||Infinity)) : [];
+                    // If an exclusive custom supplier exists, only show that one
+                    const exclusiveSupplier = hasPricing ? Object.entries(pricingObj).find(([,d]) => d.isCustom && d.exclusive) : null;
+                    const sorted = hasPricing ? (exclusiveSupplier
+                      ? [exclusiveSupplier]
+                      : Object.entries(pricingObj)
+                        .filter(([,d]) => d.stock > 0 && (countryFilter === "us" ? !isNonUS(d) : isNonUS(d)))
+                        .sort((a,b) => (pAtQty(a[1])||Infinity) - (pAtQty(b[1])||Infinity))
+                    ) : [];
 
                     // Tariff helpers
                     let userTariffs; try { userTariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { userTariffs = { ...DEFAULT_TARIFFS }; }
