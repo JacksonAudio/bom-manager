@@ -1077,6 +1077,9 @@ function BOMManager({ user }) {
 
   // Delete a single part
   const deletePart = async (id) => {
+    const part = parts.find(p => p.id === id);
+    const label = part?.mpn || part?.reference || "this part";
+    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return;
     setParts((prev) => prev.filter((p) => p.id !== id));
     setSelectedParts((prev) => { const n = new Set(prev); n.delete(id); return n; });
     try { await dbDeletePart(id); } catch (e) { console.error("deletePart failed:", e); }
@@ -1092,6 +1095,7 @@ function BOMManager({ user }) {
   // Bulk delete selected parts
   const deleteSelected = async () => {
     const ids = [...selectedParts];
+    if (!window.confirm(`Delete ${ids.length} selected part${ids.length !== 1 ? "s" : ""}? This cannot be undone.`)) return;
     setParts((prev) => prev.filter((p) => !selectedParts.has(p.id)));
     setSelectedParts(new Set());
     try { await deletePartsMany(ids); } catch (e) { console.error("deleteSelected failed:", e); }
@@ -1370,7 +1374,7 @@ function BOMManager({ user }) {
         </div>
         <div style={{ display:"flex", gap:20, alignItems:"center" }}>
           {[
-            { label:"Parts",    value:parts.length,   warn:false },
+            { label:"All Parts", value:parts.length,   warn:false },
             { label:"Priced",   value:pricedCount,    warn:false },
             { label:"To Order", value:poPartCount,    warn:poPartCount>0 },
             { label:"Low Stock",value:lowStockParts.length, warn:lowStockParts.length>0 },
@@ -1404,7 +1408,7 @@ function BOMManager({ user }) {
         background:"#fff", gap:2 }}>
         {[
           { id:"import",    icon:"⬆", label:"Import BOM" },
-          { id:"bom",       icon:"🔩", label:`Parts (${parts.length})` },
+          { id:"bom",       icon:"🔩", label:`All Parts (${parts.length})` },
           { id:"pricing",   icon:"💰", label:`Pricing ${pricedCount>0?`(${pricedCount}/${parts.length})`:""}` },
           { id:"purchasing",icon:"🛒", label:`Purchasing${poPartCount>0?` (${poPartCount})`:""}` },
           { id:"projects",  icon:"📦", label:"Products" },
