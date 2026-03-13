@@ -28,6 +28,7 @@ const DEFAULT_KEYS = {
   nexar_client_id:     "",   // nexar.com — covers Mouser, DigiKey, Arrow, LCSC, Allied + 900 more
   nexar_client_secret: "",   // nexar.com
   mouser_api_key:      "",   // mouser.com/api-hub (optional — Nexar already covers Mouser)
+  mouser_order_api_key:"",   // mouser.com/api-hub — separate key for Cart + Order API
   digikey_client_id:   "",   // developer.digikey.com (optional — Nexar already covers DigiKey)
   digikey_client_secret: "", // developer.digikey.com
   arrow_api_key:       "",   // developers.arrow.com (optional — Nexar already covers Arrow)
@@ -297,11 +298,52 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
     moq: breaks[0]?.qty || 1,
     url: part.ProductDetailUrl || "",
     priceBreaks: breaks,
+    mouserPartNumber: part.MouserPartNumber || "",
   };
   // Mouser API may return CountryOfOrigin — capture it for tariff calculation
   if (part.CountryOfOrigin) result.countryOfOrigin = part.CountryOfOrigin.toUpperCase();
   if (part.ROHSStatus) result.rohsStatus = part.ROHSStatus;
   return result;
+}
+
+// ─────────────────────────────────────────────
+// MOUSER CART + ORDER API
+// Create cart, add items, preview order, submit order
+// ─────────────────────────────────────────────
+const MOUSER_CART_API = "https://api.mouser.com/api/v2/cart";
+const MOUSER_ORDER_API = "https://api.mouser.com/api/v1/order";
+
+async function mouserCreateCart(orderApiKey, items) {
+  // items: [{ mouserPartNumber, quantity }]
+  const res = await fetch(`${MOUSER_CART_API}/items/insert?apiKey=${orderApiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      CartKey: "",  // empty = create new cart
+      CartItems: items.map(i => ({
+        MouserPartNumber: i.mouserPartNumber,
+        Quantity: i.quantity,
+      })),
+    }),
+  });
+  if (!res.ok) throw new Error(`Mouser Cart API ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  if (data.Errors?.length) throw new Error(data.Errors.map(e => e.Message).join(", "));
+  return {
+    cartKey: data.CartKey,
+    cartItems: data.CartItems || [],
+    cartUrl: `https://www.mouser.com/Cart/?cartKey=${data.CartKey}`,
+  };
+}
+
+async function mouserGetOrderOptions(orderApiKey, cartKey) {
+  const res = await fetch(`${MOUSER_ORDER_API}/options/query?apiKey=${orderApiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ CartKey: cartKey }),
+  });
+  if (!res.ok) throw new Error(`Mouser Order Options ${res.status}`);
+  return await res.json();
 }
 
 // ─────────────────────────────────────────────
@@ -770,6 +812,7 @@ function BOMManager({ user }) {
   const [expandedPricingParts, setExpandedPricingParts] = useState(new Set());
   const [usOnly, setUsOnly] = useState(false);
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
+  const [mouserCartStatus, setMouserCartStatus] = useState(null); // { loading, error, cartUrl, cartKey, items }
   const fileRef = useRef();
   const qtyTimers = useRef({}); // debounce timers for qty→price refresh
 
@@ -2094,10 +2137,57 @@ function BOMManager({ user }) {
                           <div style={{ fontSize:11,color:"#86868b" }}>{lines.length} lines · {totalUnits} units{poTotal>0?` · est. $${poTotal.toFixed(2)}`:""}</div>
                         </div>
                       </div>
-                      <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
-                        <a href={sup.searchUrl("")} target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none" }}>
-                          <button className="btn-primary" style={{ background:sup.color,color:"#fff" }}>🛒 Order on {sup.name}</button>
-                        </a>
+                      <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
+                        {sup.id === "mouser" && apiKeys.mouser_order_api_key ? (
+                          <button className="btn-primary" style={{ background:sup.color,color:"#fff" }}
+                            disabled={mouserCartStatus?.loading}
+                            onClick={async () => {
+                              setMouserCartStatus({ loading: true });
+                              try {
+                                // Resolve Mouser part numbers — use cached from pricing, or search
+                                const cartItems = [];
+                                for (const p of lines) {
+                                  const mouserPN = p.pricing?.mouser?.mouserPartNumber;
+                                  if (mouserPN) {
+                                    cartItems.push({ mouserPartNumber: mouserPN, quantity: p.orderQty || p.neededQty });
+                                  } else if (p.mpn && apiKeys.mouser_api_key) {
+                                    // Search for Mouser part number
+                                    try {
+                                      const md = await fetchMouserPricing(p.mpn, p.neededQty, apiKeys.mouser_api_key);
+                                      if (md?.mouserPartNumber) {
+                                        cartItems.push({ mouserPartNumber: md.mouserPartNumber, quantity: p.orderQty || p.neededQty });
+                                      } else {
+                                        cartItems.push({ mouserPartNumber: p.mpn, quantity: p.orderQty || p.neededQty });
+                                      }
+                                    } catch { cartItems.push({ mouserPartNumber: p.mpn, quantity: p.orderQty || p.neededQty }); }
+                                  } else {
+                                    cartItems.push({ mouserPartNumber: p.mpn, quantity: p.orderQty || p.neededQty });
+                                  }
+                                }
+                                const result = await mouserCreateCart(apiKeys.mouser_order_api_key, cartItems);
+                                setMouserCartStatus({ loading: false, ...result });
+                                window.open(result.cartUrl, "_blank");
+                              } catch (e) {
+                                console.error("Mouser cart error:", e);
+                                setMouserCartStatus({ loading: false, error: e.message });
+                              }
+                            }}>
+                            {mouserCartStatus?.loading ? "Sending…" : "🛒 Send to Mouser Cart"}
+                          </button>
+                        ) : (
+                          <a href={sup.searchUrl("")} target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none" }}>
+                            <button className="btn-primary" style={{ background:sup.color,color:"#fff" }}>🛒 Order on {sup.name}</button>
+                          </a>
+                        )}
+                        {mouserCartStatus?.cartUrl && sup.id === "mouser" && !mouserCartStatus.loading && (
+                          <a href={mouserCartStatus.cartUrl} target="_blank" rel="noopener noreferrer"
+                            style={{ fontSize:11,color:"#e8500a",fontWeight:600,textDecoration:"none" }}>
+                            View Cart on Mouser →
+                          </a>
+                        )}
+                        {mouserCartStatus?.error && sup.id === "mouser" && (
+                          <span style={{ fontSize:11,color:"#ff3b30" }}>{mouserCartStatus.error}</span>
+                        )}
                         <button className="btn-ghost" onClick={()=>exportPOasCSV(sup,lines,poNum)}>↓ CSV</button>
                         <button className="btn-ghost" onClick={()=>printPO(sup,lines,poNum)}>🖨 Print PO</button>
                         {(() => {
@@ -2773,6 +2863,15 @@ function BOMManager({ user }) {
                 <div className="key-label">Search API Key</div>
                 <input type="password" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={apiKeys.mouser_api_key}
                   onChange={(e)=>setApiKeys((k)=>({...k,mouser_api_key:e.target.value}))}
+                  style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+              </div>
+              <div className="key-input-row">
+                <div>
+                  <div className="key-label">Order API Key</div>
+                  <div className="key-hint">Separate key for Cart + Ordering — register at API Hub</div>
+                </div>
+                <input type="password" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={apiKeys.mouser_order_api_key}
+                  onChange={(e)=>setApiKeys((k)=>({...k,mouser_order_api_key:e.target.value}))}
                   style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
               </div>
             </div>
