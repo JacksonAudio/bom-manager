@@ -3,9 +3,9 @@
 // Thursday, March 12, 2026
 //
 // Changelog:
-//   [1] Supabase database layer — all state persisted to Postgres
-//   [2] Auth gate — Supabase email login, shared team workspace
-//   [3] Realtime subscriptions — changes sync live across all sessions
+//   [1] Fix pricing display — show results even when status/bestSupplier not synced
+//   [2] Derive best supplier directly from pricing data on render
+//   [3] effectiveStatus — treat any part with pricing JSONB as "done"
 // ============================================================
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -1370,8 +1370,13 @@ function BOMManager({ user }) {
             ) : (
               <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
                 {parts.map((part) => {
-                  const best = part.bestSupplier;
-                  const bestData = part.pricing?.[best];
+                  // Derive best supplier directly from pricing data — don't trust bestSupplier field
+                  const pricingObj = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
+                  const hasPricing = pricingObj && Object.keys(pricingObj).length > 0;
+                  const best = part.bestSupplier || (hasPricing ? bestPriceSupplier(pricingObj) : null);
+                  const bestData = hasPricing ? (pricingObj[best] || Object.values(pricingObj)[0]) : null;
+                  // Show as done if we have pricing data regardless of status field
+                  const effectiveStatus = hasPricing ? "done" : part.pricingStatus;
                   const sup = supplierById(part.preferredSupplier);
                   return (
                     <div key={part.id} className="card" style={{ padding:"14px 18px" }}>
@@ -1387,7 +1392,7 @@ function BOMManager({ user }) {
 
                         {/* Status / fetch button */}
                         <div style={{ flex:"0 0 auto" }}>
-                          {part.pricingStatus === "idle" && (
+                          {part.pricingStatus === "idle" && effectiveStatus !== "done" && (
                             <button className="btn-ghost btn-sm"
                               disabled={!hasAnyKey || !part.mpn}
                               onClick={() => fetchPartPricing(part.id)}
@@ -1398,7 +1403,7 @@ function BOMManager({ user }) {
                           {part.pricingStatus === "loading" && <><span className="spinner" /><span style={{ fontSize:11,color:"#64748b",marginLeft:6 }}>fetching…</span></>}
                           {part.pricingStatus === "error"   && <span style={{ fontSize:11,color:"#f87171" }}>⚠ {part.pricingError}</span>}
                           {part.pricingStatus === "no-mpn"  && <span style={{ fontSize:11,color:"#475569" }}>No MPN</span>}
-                          {part.pricingStatus === "done"    && (
+                          {effectiveStatus === "done" && (
                             <button className="btn-ghost btn-sm" onClick={()=>fetchPartPricing(part.id)}>↻ Refresh</button>
                           )}
                         </div>
@@ -1416,9 +1421,9 @@ function BOMManager({ user }) {
                         )}
 
                         {/* Per-supplier prices */}
-                        {part.pricingStatus === "done" && part.pricing && (
+                        {hasPricing && (
                           <div style={{ display:"flex",gap:8,flexWrap:"wrap",flex:1 }}>
-                            {Object.entries(part.pricing).map(([key, data]) => {
+                            {Object.entries(pricingObj).map(([key, data]) => {
                               const isBest = key === best;
                               const s = SUPPLIERS.find((x)=>x.id===key);
                               return (
