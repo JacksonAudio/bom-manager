@@ -38,6 +38,8 @@ const DEFAULT_KEYS = {
   supplier_emails:     "",   // JSON: { "mouser": "orders@mouser.com", ... }
   tariffs_json:        "",   // JSON: { "CN": 145, "TW": 32, ... } — % tariff by country code
   shipping_json:       "",   // JSON: { "mouser": 7.99, "digikey": 6.99, ... } — per-supplier shipping
+  shopify_store_domain:"",   // your-store.myshopify.com
+  shopify_admin_token: "",   // shpat_xxxxx — Admin API access token
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -2143,22 +2145,29 @@ function BOMManager({ user }) {
                     const pAtQty = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (bq >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
                     const getCountry = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
                     const isNonUS = (d) => { const c = getCountry(d); return c && c !== "US"; };
+                    // Tariff helpers (needed for sorting by landed price)
+                    let userTariffs; try { userTariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { userTariffs = { ...DEFAULT_TARIFFS }; }
+                    // Landed price = unit price + tariff for non-US suppliers
+                    const landedAt = (d) => {
+                      const p = pAtQty(d);
+                      const c = getCountry(d);
+                      const origin = (c && c !== "US") ? c : "";
+                      const rate = getTariffRate(origin, userTariffs);
+                      return origin ? p * (1 + rate / 100) : p;
+                    };
                     // If an exclusive custom supplier exists, only show that one
                     const exclusiveSupplier = hasPricing ? Object.entries(pricingObj).find(([,d]) => d.isCustom && d.exclusive) : null;
                     const sorted = hasPricing ? (exclusiveSupplier
                       ? [exclusiveSupplier]
                       : Object.entries(pricingObj)
                         .filter(([,d]) => d.stock > 0 && (countryFilter === "us" ? !isNonUS(d) : isNonUS(d)))
-                        .sort((a,b) => (pAtQty(a[1])||Infinity) - (pAtQty(b[1])||Infinity))
+                        .sort((a,b) => (landedAt(a[1])||Infinity) - (landedAt(b[1])||Infinity))
                     ) : [];
 
-                    // Tariff helpers
-                    let userTariffs; try { userTariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { userTariffs = { ...DEFAULT_TARIFFS }; }
-
-                    // Best display price — use filtered sorted list so US Only is respected
+                    // Best display price — use landed price (includes tariff)
                     const filteredBest = sorted.length > 0 ? sorted[0][0] : null;
                     const filteredBestData = sorted.length > 0 ? sorted[0][1] : null;
-                    const bestDisplayPrice = filteredBestData ? pAtQty(filteredBestData) : null;
+                    const bestDisplayPrice = filteredBestData ? landedAt(filteredBestData) : null;
 
                     return (
                       <div key={part.id} style={{ borderBottom: partIdx < parts.length-1 ? "1px solid #f0f0f2" : "none" }}>
@@ -2234,12 +2243,17 @@ function BOMManager({ user }) {
                                         <span style={{ fontSize:10,color:"#aeaeb2",fontWeight:500,flexShrink:0,marginLeft:4 }}>{ctry}</span>
                                       </div>
                                       <div style={{ fontSize:18,fontWeight:700,letterSpacing:"-0.3px",
-                                        color:isBest?"#248a3d":"#1d1d1f" }}>{"$"}{fmtPrice(displayPrice)}</div>
-                                      {data.originalCurrency && (
-                                        <div style={{ fontSize:9,color:"#0071e3",fontWeight:500,marginTop:1 }}>
-                                          Converted from {data.originalCurrency} (1 USD = {data.fxRate} {data.originalCurrency})
+                                        color:isBest?"#248a3d":"#1d1d1f" }}>{"$"}{fmtPrice(origin ? landedPrice : displayPrice)}</div>
+                                      {origin ? (
+                                        <div style={{ fontSize:9,color:"#86868b",fontWeight:400,marginTop:2,lineHeight:"13px" }}>
+                                          {"$"}{fmtPrice(displayPrice)} unit{data.originalCurrency ? ` (${data.originalCurrency} → USD)` : ""}
+                                          {tariffRate > 0 ? ` + ${tariffRate}% tariff` : ""}
                                         </div>
-                                      )}
+                                      ) : data.originalCurrency ? (
+                                        <div style={{ fontSize:9,color:"#0071e3",fontWeight:500,marginTop:1 }}>
+                                          Converted from {data.originalCurrency}
+                                        </div>
+                                      ) : null}
                                       <div style={{ fontSize:10,marginTop:4 }}><span style={{ color: data.stock < bq ? "#ff3b30" : "#aeaeb2", fontWeight: data.stock < bq ? 600 : 400 }}>Stock: {data.stock.toLocaleString()}</span><span style={{ color:"#aeaeb2" }}> · MOQ: {data.moq}</span></div>
                                       {/* Compliance & lifecycle badges */}
                                       <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginTop:4 }}>
@@ -2278,11 +2292,6 @@ function BOMManager({ user }) {
                                       {data.suggestedReplacement && (
                                         <div style={{ fontSize:9,color:"#ff9500",marginTop:3,fontWeight:500 }}>
                                           Replacement: {data.suggestedReplacement}
-                                        </div>
-                                      )}
-                                      {origin && (
-                                        <div style={{ fontSize:10,color:tariffRate > 0 ? "#ff3b30" : "#86868b",marginTop:3,fontWeight:500 }}>
-                                          {tariffRate > 0 ? `Landed: $${fmtPrice(landedPrice)} (${origin} +${tariffRate}%)` : `Tariff: 0% (${origin})`}
                                         </div>
                                       )}
                                       <div style={{ fontSize:10,color:"#aeaeb2",marginTop:2 }}>@ {bq} pcs</div>
