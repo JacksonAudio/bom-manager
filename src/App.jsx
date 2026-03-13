@@ -101,6 +101,7 @@ function parseBOM(raw) {
   } else {
     idx.mpn = 0;
     idx.quantity = lines[0].split(delim).length > 1 ? 1 : -1;
+    idx.description = lines[0].split(delim).length > 2 ? 2 : -1;
   }
   const parts = [];
   for (let i = startIdx; i < lines.length; i++) {
@@ -1160,7 +1161,7 @@ function BOMManager({ user }) {
               <div style={{ flex:1,height:1,background:"#1e2130" }} />
             </div>
 
-            <textarea rows={8} placeholder={"PN,QTY\nCRCW060310K0FKEA,4\nGRM188R71C104KA01D,2\nLM358DR,1\n\n— or full BOM with headers —\nReference,Value,MPN,Quantity"}
+            <textarea rows={8} placeholder={"PN,QTY,DESC\nCRCW060310K0FKEA,4,Resistor 10k 0603\nGRM188R71C104KA01D,2,Cap 100nF 0402\nLM358DR,1,Op-Amp SOIC-8\n\n— or full BOM with headers —\nReference,Value,MPN,Quantity"}
               value={pasteText} onChange={(e)=>setPasteText(e.target.value)}
               style={{ width:"100%",padding:"12px",borderRadius:8,fontSize:12,lineHeight:1.7,resize:"vertical",border:"1px solid #2d3248" }} />
             <div style={{ display:"flex",gap:10,marginTop:12 }}>
