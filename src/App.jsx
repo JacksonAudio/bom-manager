@@ -59,6 +59,11 @@ const DEFAULT_TARIFFS = {
   "AU": 10,    // Australia
   "VN": 46,    // Vietnam
   "TH": 36,    // Thailand
+  "HK": 0,     // Hong Kong (duty-free)
+  "SG": 0,     // Singapore (duty-free)
+  "MY": 24,    // Malaysia
+  "PH": 17,    // Philippines
+  "IL": 17,    // Israel
 };
 
 // ─────────────────────────────────────────────
@@ -2153,7 +2158,7 @@ function BOMManager({ user }) {
                                   const displayPrice = pAtQty(data);
                                   const origin = (ctry && ctry !== "US") ? ctry : "";
                                   const tariffRate = getTariffRate(origin, userTariffs);
-                                  const landedPrice = tariffRate > 0 ? displayPrice * (1 + tariffRate / 100) : 0;
+                                  const landedPrice = origin ? displayPrice * (1 + tariffRate / 100) : 0;
                                   return (
                                     <div key={key} style={{
                                       background: isBest ? "rgba(52,199,89,0.08)" : "#f5f5f7",
@@ -2207,9 +2212,9 @@ function BOMManager({ user }) {
                                           Replacement: {data.suggestedReplacement}
                                         </div>
                                       )}
-                                      {landedPrice > 0 && (
-                                        <div style={{ fontSize:10,color:"#ff3b30",marginTop:3,fontWeight:500 }}>
-                                          Landed: {"$"}{fmtPrice(landedPrice)} ({origin} +{tariffRate}%)
+                                      {origin && (
+                                        <div style={{ fontSize:10,color:tariffRate > 0 ? "#ff3b30" : "#86868b",marginTop:3,fontWeight:500 }}>
+                                          {tariffRate > 0 ? `Landed: $${fmtPrice(landedPrice)} (${origin} +${tariffRate}%)` : `Tariff: 0% (${origin})`}
                                         </div>
                                       )}
                                       <div style={{ fontSize:10,color:"#aeaeb2",marginTop:2 }}>@ {bq} pcs</div>
