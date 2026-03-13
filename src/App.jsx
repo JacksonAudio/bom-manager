@@ -1066,7 +1066,7 @@ function BOMManager({ user }) {
   };
 
   // Save a custom supplier to a part's pricing object
-  const saveCustomSupplier = async (partId, { name, url, country, stock, breaks }) => {
+  const saveCustomSupplier = async (partId, { name, url, country, stock, breaks, editKey }) => {
     const key = "custom_" + name.toLowerCase().replace(/[^a-z0-9]/g, "_");
     const unitPrice = breaks.length > 0 ? breaks[0].price : 0;
     const entry = {
@@ -1082,13 +1082,18 @@ function BOMManager({ user }) {
     };
     setParts((prev) => prev.map((p) => {
       if (p.id !== partId) return p;
-      const pricing = { ...(p.pricing || {}), [key]: entry };
+      const pricing = { ...(p.pricing || {}) };
+      // If editing and name changed, remove old key
+      if (editKey && editKey !== key) delete pricing[editKey];
+      pricing[key] = entry;
       const best = bestPriceSupplier(pricing);
       return { ...p, pricing, bestSupplier: best, pricingStatus: "done" };
     }));
     // Persist to DB
     const part = parts.find(p => p.id === partId);
-    const newPricing = { ...(part?.pricing || {}), [key]: entry };
+    const newPricing = { ...(part?.pricing || {}) };
+    if (editKey && editKey !== key) delete newPricing[editKey];
+    newPricing[key] = entry;
     try {
       await dbUpdatePart(partId, { pricing: newPricing, pricing_status: "done", best_supplier: bestPriceSupplier(newPricing) }, user.id);
     } catch (e) { console.error("saveCustomSupplier failed:", e); }
@@ -1893,10 +1898,16 @@ function BOMManager({ user }) {
                                         </a>
                                       )}
                                       {data.isCustom && (
-                                        <button onClick={(e)=>{e.stopPropagation();removeCustomSupplier(part.id,key);}}
-                                          style={{ display:"block",marginTop:6,fontSize:10,color:"#ff3b30",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit",fontWeight:500 }}>
-                                          Remove
-                                        </button>
+                                        <div style={{ display:"flex",gap:10,marginTop:6 }}>
+                                          <button onClick={(e)=>{e.stopPropagation();setCustomSupplierForm({ partId:part.id, editKey:key, name:data.displayName, url:data.url||"", country:data.country||"US", stock:String(data.stock||""), breaks:data.priceBreaks?.length ? data.priceBreaks.map(b=>({qty:b.qty,price:b.price})) : [{qty:1,price:""}] });}}
+                                            style={{ fontSize:10,color:"#0071e3",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit",fontWeight:500 }}>
+                                            Edit
+                                          </button>
+                                          <button onClick={(e)=>{e.stopPropagation();removeCustomSupplier(part.id,key);}}
+                                            style={{ fontSize:10,color:"#ff3b30",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit",fontWeight:500 }}>
+                                            Remove
+                                          </button>
+                                        </div>
                                       )}
                                     </div>
                                   );
@@ -1928,7 +1939,7 @@ function BOMManager({ user }) {
                             {customSupplierForm && customSupplierForm.partId === part.id && (
                               <div style={{ padding:"16px",background:"#f0f4ff",borderRadius:12,marginBottom:14,border:"1px solid rgba(0,113,227,0.15)" }}
                                 onClick={e=>e.stopPropagation()}>
-                                <div style={{ fontSize:12,fontWeight:600,color:"#1d1d1f",marginBottom:12 }}>Add Custom Supplier</div>
+                                <div style={{ fontSize:12,fontWeight:600,color:"#1d1d1f",marginBottom:12 }}>{customSupplierForm.editKey ? "Edit" : "Add"} Custom Supplier</div>
                                 <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:10 }}>
                                   <div>
                                     <div style={{ fontSize:10,color:"#86868b",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Supplier Name *</div>
