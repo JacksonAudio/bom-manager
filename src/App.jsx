@@ -1656,7 +1656,7 @@ function BOMManager({ user }) {
         </div>
         <div style={{ display:"flex", gap:20, alignItems:"center" }}>
           {[
-            { label:"All Parts", value:parts.length,   warn:false },
+            { label:"Parts Library", value:parts.length,   warn:false },
             { label:"Priced",   value:pricedCount,    warn:false },
             { label:"To Order", value:poPartCount,    warn:poPartCount>0 },
             { label:"Low Stock",value:lowStockParts.length, warn:lowStockParts.length>0 },
@@ -1690,7 +1690,7 @@ function BOMManager({ user }) {
         background:"#fff", gap:2 }}>
         {[
           { id:"import",    icon:"⬆", label:"Import BOM" },
-          { id:"bom",       icon:"🔩", label:`All Parts (${parts.length})` },
+          { id:"bom",       icon:"🔩", label:`Parts Library (${parts.length})` },
           { id:"pricing",   icon:"💰", label:`Pricing ${pricedCount>0?`(${pricedCount}/${parts.length})`:""}` },
           { id:"purchasing",icon:"🛒", label:`Purchasing${poPartCount>0?` (${poPartCount})`:""}` },
           { id:"orders",    icon:"📋", label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}` },
