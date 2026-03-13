@@ -1585,7 +1585,7 @@ function BOMManager({ user }) {
                       {/* ── 🚩 order flag column */}
                       <th style={{ padding:"7px 4px",width:28,textAlign:"center",color:"#aeaeb2",
                         fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:10,fontWeight:700 }}>🚩</th>
-                      {["Reference","Value","MPN","Qty","Desc","Product","Supplier","Unit $","Ext $","Stock","Reorder",""].map((h,i)=>(
+                      {["Reference","Value","MPN","Desc","Stock","Reorder",""].map((h,i)=>(
                         <th key={i} style={{ textAlign:"left",padding:"7px 8px",color:"#aeaeb2",
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:10,fontWeight:700,
                           letterSpacing:"0.07em",whiteSpace:"nowrap" }}>{h}</th>
@@ -1594,10 +1594,8 @@ function BOMManager({ user }) {
                   </thead>
                   <tbody>
                     {visibleParts.map((part,i) => {
-                      const extCost = (parseFloat(part.unitCost)||0)*part.quantity;
                       const sn=parseInt(part.stockQty)||0,rn=parseInt(part.reorderQty);
                       const isLow = !isNaN(rn)&&rn>0&&sn<=rn;
-                      const sup = supplierById(part.preferredSupplier);
                       return (
                         <tr key={part.id} className="table-row"
                           style={{ borderBottom:"1px solid #f0f0f2",
@@ -1633,43 +1631,9 @@ function BOMManager({ user }) {
                               style={{ width:140,padding:"3px 5px",borderRadius:4,color:"#0071e3" }} placeholder="—" />
                           </td>
                           <td style={{ padding:"7px 8px" }}>
-                            <input type="number" value={part.quantity} min="1"
-                              onChange={(e)=>updatePart(part.id,"quantity",parseInt(e.target.value)||1)}
-                              style={{ width:52,padding:"3px 5px",borderRadius:4,color:"#86868b" }} />
-                          </td>
-                          <td style={{ padding:"7px 8px" }}>
                             <input type="text" value={part.description||""}
                               onChange={(e)=>updatePart(part.id,"description",e.target.value)}
                               style={{ width:120,padding:"3px 5px",borderRadius:4,color:"#86868b",fontSize:11 }} placeholder="—" />
-                          </td>
-                          <td style={{ padding:"7px 8px" }}>
-                            <div style={{ maxWidth:140 }}>
-                              <select value={part.projectId||""} onChange={(e)=>updatePart(part.id,"projectId",e.target.value||null)}
-                                style={{ padding:"3px 5px",borderRadius:4,fontSize:11,maxWidth:120 }}>
-                                <option value="">Unassigned</option>
-                                {products.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}
-                              </select>
-                            </div>
-                          </td>
-                          <td style={{ padding:"7px 8px" }}>
-                            <select value={part.preferredSupplier||"mouser"}
-                              onChange={(e)=>updatePart(part.id,"preferredSupplier",e.target.value)}
-                              style={{ padding:"3px 5px",borderRadius:4,fontSize:11,borderColor:sup.color,color:sup.color,fontWeight:700 }}>
-                              {SUPPLIERS.map((s)=><option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
-                          </td>
-                          <td style={{ padding:"7px 8px" }}>
-                            <div style={{ display:"flex",alignItems:"center" }}>
-                              <span style={{ color:"#aeaeb2",marginRight:2,fontSize:11 }}>$</span>
-                              <input type="number" placeholder="0.00" value={part.unitCost}
-                                onChange={(e)=>updatePart(part.id,"unitCost",e.target.value)}
-                                style={{ width:64,padding:"3px 5px",borderRadius:4 }} step="0.0001" min="0" />
-                            </div>
-                          </td>
-                          <td style={{ padding:"7px 8px" }}>
-                            {part.unitCost
-                              ? <span style={{ color:"#34c759",fontWeight:600 }}>${extCost.toFixed(2)}</span>
-                              : <span style={{ color:"#aeaeb2" }}>—</span>}
                           </td>
                           <td style={{ padding:"7px 8px" }}>
                             <input type="number" placeholder="0" value={part.stockQty}
