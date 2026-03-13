@@ -57,6 +57,9 @@ const NEXAR_DIST_MAP = {
   "Newark":             "allied",
 };
 
+// Format price: up to 4 decimals, strip trailing zeroes, keep min 2
+const fmtPrice = (v) => { const s = parseFloat(v).toFixed(4); return s.replace(/0{1,2}$/, ""); };
+
 // ─────────────────────────────────────────────
 // BOM PARSER
 // ─────────────────────────────────────────────
@@ -438,7 +441,7 @@ function printPO(supplier, lines, poNumber) {
       <td>${p.reference}</td><td><strong>${p.mpn||"—"}</strong></td>
       <td>${p.description||p.value||"—"}</td><td>${p.manufacturer||"—"}</td>
       <td style="text-align:center">${p.neededQty}</td>
-      <td style="text-align:right">${p.unitCost?"$"+parseFloat(p.unitCost).toFixed(4):"—"}</td>
+      <td style="text-align:right">${p.unitCost?"$"+fmtPrice(p.unitCost):"—"}</td>
       <td style="text-align:right">${p.unitCost?"$"+(parseFloat(p.unitCost)*p.neededQty).toFixed(2):"—"}</td>
     </tr>`).join("");
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PO ${poNumber}</title>
@@ -761,7 +764,7 @@ function BOMManager({ user }) {
       const pricing  = await fetchAllPricing(part.mpn, part.quantity, apiKeys, nexarToken, dkToken);
       const best     = bestPriceSupplier(pricing);
       const bestPrice = pricing[best]?.unitPrice;
-      const newUnitCost = part.unitCost || (bestPrice ? String(bestPrice.toFixed(4)) : part.unitCost);
+      const newUnitCost = part.unitCost || (bestPrice ? fmtPrice(bestPrice) : part.unitCost);
       const newPref     = best || part.preferredSupplier;
 
       // Update UI optimistically
@@ -1419,7 +1422,7 @@ function BOMManager({ user }) {
                             borderRadius:8,padding:"8px 14px" }}>
                             <div style={{ fontSize:10,color:"#34d399",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,letterSpacing:"0.08em" }}>BEST PRICE</div>
                             <div style={{ fontSize:18,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#34d399" }}>
-                              ${bestData.unitPrice.toFixed(4)}
+                              ${fmtPrice(bestData.unitPrice)}
                             </div>
                             <div style={{ fontSize:10,color:"#475569" }}>{bestData.displayName} · {bestData.stock.toLocaleString()} in stock</div>
                           </div>
@@ -1458,7 +1461,7 @@ function BOMManager({ user }) {
                                         {isBest && <span className="badge" style={{ background:"#34d39922",color:"#34d399",fontSize:10,fontWeight:700 }}>BEST</span>}
                                       </div>
                                       <div style={{ fontSize:28,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",lineHeight:1.1,
-                                        color:isBest?"#34d399":"#e2e8f0" }}>${data.unitPrice.toFixed(4)}</div>
+                                        color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(data.unitPrice)}</div>
                                       <div style={{ fontSize:12,color:"#64748b",marginTop:4 }}>
                                         Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}
                                       </div>
@@ -1468,7 +1471,7 @@ function BOMManager({ user }) {
                                           {data.priceBreaks.slice(0,4).map((pb,i)=>(
                                             <div key={i} className="price-break-row" style={{ fontSize:12 }}>
                                               <span style={{ color:"#64748b" }}>{pb.qty}+</span>
-                                              <span>${pb.price.toFixed(4)}</span>
+                                              <span>${fmtPrice(pb.price)}</span>
                                             </div>
                                           ))}
                                         </div>
@@ -1579,7 +1582,7 @@ function BOMManager({ user }) {
                                 </td>
                                 <td style={{ textAlign:"center",color:"#64748b" }}>{part.stockQty||"—"}</td>
                                 <td style={{ textAlign:"right" }}>
-                                  {part.unitCost ? <span style={{ color:"#94a3b8" }}>${parseFloat(part.unitCost).toFixed(4)}</span> : <span style={{ color:"#334155" }}>—</span>}
+                                  {part.unitCost ? <span style={{ color:"#94a3b8" }}>${fmtPrice(part.unitCost)}</span> : <span style={{ color:"#334155" }}>—</span>}
                                 </td>
                                 <td style={{ textAlign:"right" }}>
                                   {part.unitCost ? <span style={{ color:"#34d399",fontWeight:700 }}>${ext.toFixed(2)}</span> : <span style={{ color:"#334155" }}>—</span>}
