@@ -2430,6 +2430,7 @@ function BOMManager({ user }) {
                                     Saves {"$"}{smartSavings.toFixed(2)} total vs cheapest-per-part
                                   </div>
                                 )}
+                              </div>
                             </div>
 
                             {/* Qty comparison table using smart strategy */}
