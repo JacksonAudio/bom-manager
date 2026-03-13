@@ -119,7 +119,7 @@ function parseBOM(raw) {
       reference: refRaw || mpn, refs, value: get("value"), mpn,
       description: get("description"), footprint: get("footprint"),
       manufacturer: get("manufacturer"), quantity: qty,
-      unitCost: "", projectIds: [], reorderQty: "", stockQty: "",
+      unitCost: "", projectId: null, reorderQty: "", stockQty: "",
       preferredSupplier: "mouser", orderQty: "", flaggedForOrder: false,
       // Pricing data — populated by API
       pricing: null,      // { [supplierId]: { unitPrice, stock, moq, priceBreaks: [{qty, price}], url } }
@@ -935,7 +935,7 @@ function BOMManager({ user }) {
       manufacturer:      row.manufacturer || "",
       quantity:          row.quantity     || 1,
       unitCost:          row.unit_cost != null ? String(row.unit_cost) : "",
-      projectIds: (() => { const v = row.product_id; if (!v) return []; try { const a = JSON.parse(v); return Array.isArray(a) ? a : [v]; } catch { return [v]; } })(),
+      projectId: row.product_id || null,
       reorderQty:        row.reorder_qty != null ? String(row.reorder_qty) : "",
       stockQty:          row.stock_qty   != null ? String(row.stock_qty)   : "",
       preferredSupplier: row.preferred_supplier || "mouser",
@@ -961,7 +961,7 @@ function BOMManager({ user }) {
       manufacturer:      part.manufacturer      || "",
       quantity:          parseInt(part.quantity) || 1,
       unit_cost:         part.unitCost !== "" ? parseFloat(part.unitCost) || null : null,
-      product_id:        part.projectIds?.length ? JSON.stringify(part.projectIds) : null,
+      product_id:        part.projectId || null,
       reorder_qty:       part.reorderQty !== "" ? parseInt(part.reorderQty) || null : null,
       stock_qty:         part.stockQty   !== "" ? parseInt(part.stockQty)   || null : null,
       preferred_supplier:part.preferredSupplier || "mouser",
@@ -985,7 +985,7 @@ function BOMManager({ user }) {
 
     // Build DB field name from camelCase field
     const dbFieldMap = {
-      unitCost: "unit_cost", projectIds: "product_id", reorderQty: "reorder_qty",
+      unitCost: "unit_cost", projectId: "product_id", reorderQty: "reorder_qty",
       stockQty: "stock_qty", preferredSupplier: "preferred_supplier", orderQty: "order_qty",
       flaggedForOrder: "flagged_for_order", pricingStatus: "pricing_status",
       pricingError: "pricing_error", bestSupplier: "best_supplier",
@@ -996,7 +996,6 @@ function BOMManager({ user }) {
     // Type coercion for numeric DB fields
     if (["unit_cost"].includes(dbField))    dbValue = value !== "" ? parseFloat(value) || null : null;
     if (["reorder_qty","stock_qty","order_qty","quantity"].includes(dbField)) dbValue = value !== "" ? parseInt(value) || null : null;
-    if (field === "projectIds") dbValue = Array.isArray(value) && value.length ? JSON.stringify(value) : null;
 
     try {
       await dbUpdatePart(id, { [dbField]: dbValue }, user.id);
@@ -1065,7 +1064,7 @@ function BOMManager({ user }) {
     const uiPart = {
       reference: pn, refs: [pn], value: form.value || "", mpn: pn,
       description: form.desc || "", footprint: "", manufacturer: form.mfr || "",
-      quantity: qty, unitCost: "", projectIds: [productId],
+      quantity: qty, unitCost: "", projectId: productId,
       reorderQty: "", stockQty: "", preferredSupplier: "mouser",
       orderQty: "", flaggedForOrder: false,
       pricing: null, pricingStatus: "idle", pricingError: "", bestSupplier: null,
@@ -1083,20 +1082,20 @@ function BOMManager({ user }) {
 
   // ── Derived state
   const visibleParts = parts.filter((p) => {
-    const mP = selProject === "all" || p.projectIds?.includes(selProject) || (selProject === "unassigned" && !p.projectIds?.length);
+    const mP = selProject === "all" || p.projectId === selProject || (selProject === "unassigned" && !p.projectId);
     const q = search.toLowerCase();
     return mP && (!q || p.reference.toLowerCase().includes(q) || p.value.toLowerCase().includes(q) || p.mpn.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
   });
 
   const lowStockParts = parts.filter((p) => { const s=parseInt(p.stockQty),r=parseInt(p.reorderQty); return !isNaN(s)&&!isNaN(r)&&s<=r; });
-  const unassignedCount = parts.filter((p) => !p.projectIds?.length).length;
+  const unassignedCount = parts.filter((p) => !p.projectId).length;
   const purchaseOrders = buildPurchaseOrders(parts);
   const poPartCount = Object.values(purchaseOrders).reduce((s,a)=>s+a.length,0);
   const pricedCount = parts.filter((p) => p.pricingStatus === "done").length;
   const hasAnyKey = nexarToken || apiKeys.mouser_api_key || dkToken || apiKeys.arrow_api_key;
 
   const productCosts = products.map((prod) => {
-    const pp = parts.filter((p) => p.projectIds?.includes(prod.id));
+    const pp = parts.filter((p) => p.projectId === prod.id);
     const total = pp.reduce((s,p) => s+(parseFloat(p.unitCost)||0)*p.quantity, 0);
     return { ...prod, total, partCount: pp.length, costedCount: pp.filter((p)=>p.unitCost).length };
   });
@@ -1299,7 +1298,6 @@ function BOMManager({ user }) {
                   </thead>
                   <tbody>
                     {visibleParts.map((part,i) => {
-                      const projList = products.filter((p)=>part.projectIds?.includes(p.id));
                       const extCost = (parseFloat(part.unitCost)||0)*part.quantity;
                       const sn=parseInt(part.stockQty),rn=parseInt(part.reorderQty);
                       const isLow = !isNaN(sn)&&!isNaN(rn)&&sn<=rn;
@@ -1349,24 +1347,12 @@ function BOMManager({ user }) {
                               style={{ width:120,padding:"3px 5px",borderRadius:4,color:"#94a3b8",fontSize:11 }} placeholder="—" />
                           </td>
                           <td style={{ padding:"7px 8px" }}>
-                            <div style={{ display:"flex",flexDirection:"column",gap:2,maxWidth:140 }}>
-                              {products.map((p)=>{
-                                const checked = part.projectIds?.includes(p.id);
-                                return (
-                                  <label key={p.id} style={{ display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#94a3b8",cursor:"pointer" }}>
-                                    <input type="checkbox" checked={!!checked}
-                                      style={{ width:13,height:13,cursor:"pointer",accentColor:p.color||"#f8d377" }}
-                                      onChange={()=>{
-                                        const next = checked
-                                          ? (part.projectIds||[]).filter(id=>id!==p.id)
-                                          : [...(part.projectIds||[]), p.id];
-                                        updatePart(part.id,"projectIds",next);
-                                      }} />
-                                    <span style={{ color:p.color||"#94a3b8" }}>{p.name}</span>
-                                  </label>
-                                );
-                              })}
-                              {!products.length && <span style={{ fontSize:11,color:"#334155" }}>No projects</span>}
+                            <div style={{ maxWidth:140 }}>
+                              <select value={part.projectId||""} onChange={(e)=>updatePart(part.id,"projectId",e.target.value||null)}
+                                style={{ padding:"3px 5px",borderRadius:4,fontSize:11,maxWidth:120 }}>
+                                <option value="">Unassigned</option>
+                                {products.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}
+                              </select>
                             </div>
                           </td>
                           <td style={{ padding:"7px 8px" }}>
@@ -1680,24 +1666,13 @@ function BOMManager({ user }) {
                               onChange={(e)=>updatePart(part.id,"value",e.target.value)}
                               style={{ display:"block",padding:"5px 8px",borderRadius:5,fontSize:12,width:100,marginTop:2 }} />
                           </label>
-                          <div style={{ fontSize:11,color:"#64748b" }}>Projects
-                            <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginTop:2 }}>
-                              {products.map((pr)=>{
-                                const checked = part.projectIds?.includes(pr.id);
-                                return (
-                                  <label key={pr.id} style={{ display:"flex",alignItems:"center",gap:3,cursor:"pointer" }}>
-                                    <input type="checkbox" checked={!!checked}
-                                      style={{ width:13,height:13,cursor:"pointer",accentColor:pr.color||"#f8d377" }}
-                                      onChange={()=>{
-                                        const next = checked
-                                          ? (part.projectIds||[]).filter(id=>id!==pr.id)
-                                          : [...(part.projectIds||[]), pr.id];
-                                        updatePart(part.id,"projectIds",next);
-                                      }} />
-                                    <span style={{ color:pr.color||"#94a3b8",fontSize:11 }}>{pr.name}</span>
-                                  </label>
-                                );
-                              })}
+                          <div style={{ fontSize:11,color:"#64748b" }}>Project
+                            <div style={{ marginTop:2 }}>
+                              <select value={part.projectId||""} onChange={(e)=>updatePart(part.id,"projectId",e.target.value||null)}
+                                style={{ padding:"3px 5px",borderRadius:4,fontSize:11,maxWidth:120 }}>
+                                <option value="">Unassigned</option>
+                                {products.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}
+                              </select>
                             </div>
                           </div>
                           <button className="btn-ghost btn-sm" style={{ color:"#ef4444",borderColor:"#ef4444" }}
@@ -1867,7 +1842,7 @@ function BOMManager({ user }) {
             {/* One card per product */}
             {productCosts.map((prod) => {
               const cov = prod.partCount>0 ? Math.round(prod.costedCount/prod.partCount*100) : 0;
-              const prodParts = parts.filter((p) => p.projectIds?.includes(prod.id));
+              const prodParts = parts.filter((p) => p.projectId === prod.id);
               const qa = quickAdd[prod.id] || {};
               const showOpt = qa.showOptional || false;
 
@@ -2005,18 +1980,31 @@ function BOMManager({ user }) {
                               <tr key={part.id}
                                 style={{ borderBottom:"1px solid #1a1d26",
                                   background:i%2===0?"transparent":"#0f1118" }}>
-                                <td style={{ padding:"7px 10px",color:"#f8d377",fontWeight:700 }}>
-                                  {part.mpn || part.reference}
+                                <td style={{ padding:"7px 10px" }}>
+                                  <input type="text" value={part.mpn||""}
+                                    onChange={(e)=>{updatePart(part.id,"mpn",e.target.value);if(!part.reference)updatePart(part.id,"reference",e.target.value);}}
+                                    style={{ width:140,padding:"2px 6px",borderRadius:4,fontSize:12,color:"#f8d377",fontWeight:700 }} placeholder="Part #" />
                                 </td>
-                                <td style={{ padding:"7px 10px",color:"#94a3b8" }}>
-                                  {/* Inline qty edit */}
+                                <td style={{ padding:"7px 10px" }}>
                                   <input type="number" min="1" value={part.quantity}
                                     onChange={(e)=>updatePart(part.id,"quantity",parseInt(e.target.value)||1)}
                                     style={{ width:52,padding:"2px 6px",borderRadius:4,fontSize:12 }} />
                                 </td>
-                                <td style={{ padding:"7px 10px",color:"#64748b" }}>{part.description||"—"}</td>
-                                <td style={{ padding:"7px 10px",color:"#cbd5e1" }}>{part.value||"—"}</td>
-                                <td style={{ padding:"7px 10px",color:"#64748b" }}>{part.manufacturer||"—"}</td>
+                                <td style={{ padding:"7px 10px" }}>
+                                  <input type="text" value={part.description||""}
+                                    onChange={(e)=>updatePart(part.id,"description",e.target.value)}
+                                    style={{ width:140,padding:"2px 6px",borderRadius:4,fontSize:12,color:"#64748b" }} placeholder="—" />
+                                </td>
+                                <td style={{ padding:"7px 10px" }}>
+                                  <input type="text" value={part.value||""}
+                                    onChange={(e)=>updatePart(part.id,"value",e.target.value)}
+                                    style={{ width:80,padding:"2px 6px",borderRadius:4,fontSize:12,color:"#cbd5e1" }} placeholder="—" />
+                                </td>
+                                <td style={{ padding:"7px 10px" }}>
+                                  <input type="text" value={part.manufacturer||""}
+                                    onChange={(e)=>updatePart(part.id,"manufacturer",e.target.value)}
+                                    style={{ width:100,padding:"2px 6px",borderRadius:4,fontSize:12,color:"#64748b" }} placeholder="—" />
+                                </td>
                                 <td style={{ padding:"7px 10px" }}>
                                   <div style={{ display:"flex",alignItems:"center" }}>
                                     <span style={{ color:"#475569",marginRight:2,fontSize:11 }}>$</span>
@@ -2079,7 +2067,7 @@ function BOMManager({ user }) {
             ) : (
               <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
                 {lowStockParts.map((part) => {
-                  const projList = products.filter((p)=>part.projectIds?.includes(p.id));
+                  const projList = products.filter((p)=>part.projectId === p.id);
                   const sup = supplierById(part.preferredSupplier);
                   return (
                     <div key={part.id} className="card" style={{ borderLeft:"3px solid #ef4444",display:"flex",alignItems:"center",gap:16,padding:"14px 18px",flexWrap:"wrap" }}>
