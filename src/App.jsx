@@ -40,13 +40,14 @@ const DEFAULT_KEYS = {
 // SUPPLIER DISPLAY CONFIG
 // ─────────────────────────────────────────────
 const SUPPLIERS = [
-  { id: "mouser",   name: "Mouser",   color: "#e8500a", bg: "#2d1a0e", logo: "M",  searchUrl: (pn) => `https://www.mouser.com/Search/Refine?Keyword=${encodeURIComponent(pn)}` },
-  { id: "digikey",  name: "Digi-Key", color: "#cc0000", bg: "#2d0e0e", logo: "DK", searchUrl: (pn) => `https://www.digikey.com/en/products/result?keywords=${encodeURIComponent(pn)}` },
-  { id: "arrow",    name: "Arrow",    color: "#005eb8", bg: "#0a1a2d", logo: "A",  searchUrl: (pn) => `https://www.arrow.com/en/products/search?q=${encodeURIComponent(pn)}` },
-  { id: "lcsc",     name: "LCSC",     color: "#0a8f4c", bg: "#0a1f15", logo: "LC", searchUrl: (pn) => `https://www.lcsc.com/search?q=${encodeURIComponent(pn)}` },
-  { id: "allied",   name: "Allied",   color: "#7c3aed", bg: "#1a0d2d", logo: "AL", searchUrl: (pn) => `https://www.alliedelec.com/search/?q=${encodeURIComponent(pn)}` },
-  { id: "amazon",   name: "Amazon",   color: "#f90",    bg: "#1f1800", logo: "Az", searchUrl: (pn) => `https://www.amazon.com/s?k=${encodeURIComponent(pn)}` },
+  { id: "mouser",   name: "Mouser",   color: "#e8500a", bg: "#2d1a0e", logo: "M",  shipping: 7.99,  searchUrl: (pn) => `https://www.mouser.com/Search/Refine?Keyword=${encodeURIComponent(pn)}` },
+  { id: "digikey",  name: "Digi-Key", color: "#cc0000", bg: "#2d0e0e", logo: "DK", shipping: 6.99,  searchUrl: (pn) => `https://www.digikey.com/en/products/result?keywords=${encodeURIComponent(pn)}` },
+  { id: "arrow",    name: "Arrow",    color: "#005eb8", bg: "#0a1a2d", logo: "A",  shipping: 0,     searchUrl: (pn) => `https://www.arrow.com/en/products/search?q=${encodeURIComponent(pn)}` },
+  { id: "lcsc",     name: "LCSC",     color: "#0a8f4c", bg: "#0a1f15", logo: "LC", shipping: 20.00, searchUrl: (pn) => `https://www.lcsc.com/search?q=${encodeURIComponent(pn)}` },
+  { id: "allied",   name: "Allied",   color: "#7c3aed", bg: "#1a0d2d", logo: "AL", shipping: 9.99,  searchUrl: (pn) => `https://www.alliedelec.com/search/?q=${encodeURIComponent(pn)}` },
+  { id: "amazon",   name: "Amazon",   color: "#f90",    bg: "#1f1800", logo: "Az", shipping: 0,     searchUrl: (pn) => `https://www.amazon.com/s?k=${encodeURIComponent(pn)}` },
 ];
+const DEFAULT_SHIPPING = 15.00; // for distributors not in SUPPLIERS list
 const supplierById = (id) => SUPPLIERS.find((s) => s.id === id) || SUPPLIERS[0];
 
 // Map Nexar distributor names → our supplier IDs
@@ -1081,33 +1082,115 @@ function BOMManager({ user }) {
   const setQAField = (productId, field, value) =>
     setQuickAdd((prev) => ({ ...prev, [productId]: { ...(prev[productId]||{}), [field]: value } }));
 
-  // ── BOM cost simulator — calculates per-unit BOM cost at various production quantities
-  function bomCostAtQty(prodParts, prodQty) {
-    let totalBOM = 0;
-    for (const part of prodParts) {
-      const needed = part.quantity * prodQty; // total components needed
-      const pricing = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
-      if (!pricing) {
-        // Fall back to manual unit cost
-        totalBOM += (parseFloat(part.unitCost) || 0) * needed;
-        continue;
+  // ── BOM cost simulator — compares cheapest-per-part vs consolidated strategies
+  function getShipping(supplierId) {
+    const s = SUPPLIERS.find(x => x.id === supplierId);
+    return s ? s.shipping : DEFAULT_SHIPPING;
+  }
+
+  // Get best price for a part from a specific supplier at given component qty
+  function supplierPriceForPart(part, supplierId, needed) {
+    const pricing = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
+    if (!pricing || !pricing[supplierId]) return null;
+    const data = pricing[supplierId];
+    if (data.stock <= 0) return null;
+    if (!data.priceBreaks?.length) return data.unitPrice > 0 ? data.unitPrice : null;
+    let price = data.priceBreaks[0]?.price || data.unitPrice;
+    for (const pb of data.priceBreaks) { if (needed >= pb.qty) price = pb.price; }
+    return price > 0 ? price : null;
+  }
+
+  // Get cheapest available price across all suppliers for a part
+  function cheapestForPart(part, needed) {
+    const pricing = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
+    if (!pricing) return { price: parseFloat(part.unitCost) || 0, supplier: null };
+    let best = { price: Infinity, supplier: null };
+    for (const [sid, data] of Object.entries(pricing)) {
+      if (data.stock <= 0) continue;
+      let price = data.unitPrice;
+      if (data.priceBreaks?.length) {
+        price = data.priceBreaks[0]?.price || data.unitPrice;
+        for (const pb of data.priceBreaks) { if (needed >= pb.qty) price = pb.price; }
       }
-      // Find best price across all suppliers at this quantity
-      let bestUnit = parseFloat(part.unitCost) || Infinity;
-      for (const data of Object.values(pricing)) {
-        if (!data.priceBreaks?.length) {
-          if (data.unitPrice > 0 && data.unitPrice < bestUnit) bestUnit = data.unitPrice;
-          continue;
-        }
-        let price = data.priceBreaks[0]?.price || data.unitPrice;
-        for (const pb of data.priceBreaks) {
-          if (needed >= pb.qty) price = pb.price;
-        }
-        if (price > 0 && price < bestUnit) bestUnit = price;
-      }
-      totalBOM += (bestUnit === Infinity ? 0 : bestUnit) * needed;
+      if (price > 0 && price < best.price) best = { price, supplier: sid };
     }
-    return totalBOM;
+    if (best.price === Infinity) best.price = parseFloat(part.unitCost) || 0;
+    return best;
+  }
+
+  // Simulate a strategy at a given production qty, returns { partsCost, shipping, total, perUnit, suppliers, assignments }
+  function simStrategy(prodParts, prodQty, mode) {
+    // mode: "cheapest" | supplierId (consolidate to one) | "smart" (minimize total incl shipping)
+    const assignments = []; // { partId, supplierId, unitPrice, needed, lineCost }
+    const suppliersUsed = new Set();
+
+    for (const part of prodParts) {
+      const needed = part.quantity * prodQty;
+      if (mode === "cheapest") {
+        const { price, supplier } = cheapestForPart(part, needed);
+        assignments.push({ partId: part.id, mpn: part.mpn, supplierId: supplier, unitPrice: price, needed, lineCost: price * needed });
+        if (supplier) suppliersUsed.add(supplier);
+      } else if (mode === "smart") {
+        // Handled after this loop
+        assignments.push({ partId: part.id, mpn: part.mpn, needed });
+      } else {
+        // Consolidate to specific supplier
+        const price = supplierPriceForPart(part, mode, needed);
+        if (price !== null) {
+          assignments.push({ partId: part.id, mpn: part.mpn, supplierId: mode, unitPrice: price, needed, lineCost: price * needed });
+          suppliersUsed.add(mode);
+        } else {
+          // Fallback to cheapest if supplier doesn't have this part
+          const { price: fp, supplier } = cheapestForPart(part, needed);
+          assignments.push({ partId: part.id, mpn: part.mpn, supplierId: supplier, unitPrice: fp, needed, lineCost: fp * needed });
+          if (supplier) suppliersUsed.add(supplier);
+        }
+      }
+    }
+
+    if (mode === "smart") {
+      // Smart: for each part, consider paying slightly more to avoid an extra shipment
+      // First pass: find cheapest for each part
+      const cheapestAssign = prodParts.map(part => {
+        const needed = part.quantity * prodQty;
+        const { price, supplier } = cheapestForPart(part, needed);
+        return { part, needed, price, supplier };
+      });
+      // Count how many parts each supplier is cheapest for
+      const supplierCounts = {};
+      for (const a of cheapestAssign) { if (a.supplier) supplierCounts[a.supplier] = (supplierCounts[a.supplier]||0) + 1; }
+      // Primary supplier = most parts cheapest
+      const primarySup = Object.entries(supplierCounts).sort((a,b) => b[1]-a[1])[0]?.[0];
+
+      for (let i = 0; i < prodParts.length; i++) {
+        const part = prodParts[i];
+        const needed = part.quantity * prodQty;
+        const cheapest = cheapestAssign[i];
+
+        if (cheapest.supplier === primarySup || !primarySup) {
+          assignments[i] = { partId: part.id, mpn: part.mpn, supplierId: cheapest.supplier, unitPrice: cheapest.price, needed, lineCost: cheapest.price * needed };
+          if (cheapest.supplier) suppliersUsed.add(cheapest.supplier);
+        } else {
+          // Can we get this from primary supplier? If the extra cost < shipping cost / total parts
+          const primaryPrice = supplierPriceForPart(part, primarySup, needed);
+          const extraCost = primaryPrice !== null ? (primaryPrice - cheapest.price) * needed : Infinity;
+          const shippingSaved = getShipping(cheapest.supplier); // cost of adding that extra supplier
+          if (primaryPrice !== null && extraCost < shippingSaved) {
+            // Consolidate: pay a bit more but save on shipping
+            assignments[i] = { partId: part.id, mpn: part.mpn, supplierId: primarySup, unitPrice: primaryPrice, needed, lineCost: primaryPrice * needed };
+            suppliersUsed.add(primarySup);
+          } else {
+            assignments[i] = { partId: part.id, mpn: part.mpn, supplierId: cheapest.supplier, unitPrice: cheapest.price, needed, lineCost: cheapest.price * needed };
+            if (cheapest.supplier) suppliersUsed.add(cheapest.supplier);
+          }
+        }
+      }
+    }
+
+    const partsCost = assignments.reduce((s, a) => s + (a.lineCost || 0), 0);
+    const shipping = [...suppliersUsed].reduce((s, sid) => s + getShipping(sid), 0);
+    const total = partsCost + shipping;
+    return { partsCost, shipping, total, perUnit: total / prodQty, suppliers: [...suppliersUsed], assignments };
   }
 
   async function runBomSimulation(productId) {
@@ -1116,17 +1199,17 @@ function BOMManager({ user }) {
     const baseQty = parseInt(bomSim[productId]?.qty) || 100;
     setBomSim(prev => ({ ...prev, [productId]: { ...prev[productId], loading: true } }));
 
-    // First fetch fresh pricing for any parts that don't have it
+    // Fetch fresh pricing for any parts that don't have it
     const needsFetch = prodParts.filter(p => !p.pricing && p.mpn);
     for (const p of needsFetch) {
       try { await fetchPartPricing(p.id); } catch {}
     }
 
-    // Re-read parts after fetching (get fresh state via setParts callback)
+    // Re-read parts after fetching
     let freshParts;
     setParts(current => { freshParts = current.filter((p) => p.projectId === productId); return current; });
 
-    // Test quantities: the base, then nearby round numbers and +10/20/50%
+    // Test quantities
     const testQtys = [...new Set([
       baseQty,
       Math.ceil(baseQty * 1.1 / 10) * 10,
@@ -1136,9 +1219,11 @@ function BOMManager({ user }) {
       ...[25, 50, 100, 150, 200, 250, 500, 1000].filter(q => q >= baseQty * 0.8 && q <= baseQty * 3),
     ])].sort((a, b) => a - b);
 
+    // Run 3 strategies at each qty: cheapest-per-part, smart (consolidated), primary-supplier-only
     const results = testQtys.map(q => {
-      const total = bomCostAtQty(freshParts, q);
-      return { qty: q, total, perUnit: total / q };
+      const cheapest = simStrategy(freshParts, q, "cheapest");
+      const smart = simStrategy(freshParts, q, "smart");
+      return { qty: q, cheapest, smart };
     });
 
     setBomSim(prev => ({ ...prev, [productId]: { qty: baseQty, results, loading: false } }));
@@ -2135,42 +2220,73 @@ function BOMManager({ user }) {
                         const baseQty = parseInt(bomSim[prod.id].qty) || 100;
                         const baseResult = results.find(r => r.qty === baseQty);
                         if (!baseResult) return null;
-                        const basePerUnit = baseResult.perUnit;
-                        const savings = results
-                          .filter(r => r.qty > baseQty && r.perUnit < basePerUnit)
-                          .map(r => ({ ...r, saved: basePerUnit - r.perUnit, savedPct: ((basePerUnit - r.perUnit) / basePerUnit * 100) }));
-                        const bestSave = savings.length ? savings.reduce((a, b) => a.saved > b.saved ? a : b) : null;
+
+                        const cheapBase = baseResult.cheapest;
+                        const smartBase = baseResult.smart;
+                        const smartSavings = cheapBase.total - smartBase.total;
+
+                        // Find sweet spot across all qtys using smart strategy
+                        const smartResults = results.map(r => ({ qty: r.qty, ...r.smart }));
+                        const bestQty = smartResults.reduce((a, b) => a.perUnit < b.perUnit ? a : b);
 
                         return (
                           <div>
-                            {/* Base cost */}
-                            <div style={{ display:"flex",gap:20,flexWrap:"wrap",marginBottom:12 }}>
-                              <div style={{ background:"#1a1d26",borderRadius:8,padding:"10px 16px",minWidth:150 }}>
-                                <div style={{ fontSize:10,color:"#64748b",fontWeight:700,letterSpacing:"0.06em" }}>AT {baseQty} UNITS</div>
-                                <div style={{ fontSize:22,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#e2e8f0" }}>
-                                  ${fmtPrice(basePerUnit)}<span style={{ fontSize:12,color:"#64748b",fontWeight:400 }}> / unit</span>
+                            {/* Strategy comparison at base qty */}
+                            <div style={{ display:"flex",gap:12,flexWrap:"wrap",marginBottom:16 }}>
+                              {/* Cheapest per part */}
+                              <div style={{ background:"#1a1d26",borderRadius:8,padding:"12px 16px",minWidth:200,flex:1 }}>
+                                <div style={{ fontSize:10,color:"#f59e0b",fontWeight:700,letterSpacing:"0.06em",marginBottom:4 }}>
+                                  CHEAPEST PER PART
                                 </div>
-                                <div style={{ fontSize:11,color:"#64748b" }}>Total: ${baseResult.total.toFixed(2)}</div>
+                                <div style={{ fontSize:22,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#e2e8f0" }}>
+                                  ${fmtPrice(cheapBase.perUnit)}<span style={{ fontSize:12,color:"#64748b",fontWeight:400 }}> / unit</span>
+                                </div>
+                                <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>
+                                  Parts: ${cheapBase.partsCost.toFixed(2)} + Shipping: ${cheapBase.shipping.toFixed(2)}
+                                </div>
+                                <div style={{ fontSize:11,color:"#f59e0b",marginTop:2 }}>
+                                  {cheapBase.suppliers.length} shipment{cheapBase.suppliers.length!==1?"s":""}: {cheapBase.suppliers.map(s => {
+                                    const sup = SUPPLIERS.find(x=>x.id===s);
+                                    return sup?.name || s;
+                                  }).join(", ")}
+                                </div>
                               </div>
 
-                              {bestSave && (
-                                <div style={{ background:"#0d2318",border:"1px solid #34d399",borderRadius:8,padding:"10px 16px",minWidth:150 }}>
-                                  <div style={{ fontSize:10,color:"#34d399",fontWeight:700,letterSpacing:"0.06em" }}>SWEET SPOT: {bestSave.qty} UNITS</div>
-                                  <div style={{ fontSize:22,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#34d399" }}>
-                                    ${fmtPrice(bestSave.perUnit)}<span style={{ fontSize:12,color:"#64748b",fontWeight:400 }}> / unit</span>
-                                  </div>
-                                  <div style={{ fontSize:11,color:"#34d399" }}>
-                                    Save ${fmtPrice(bestSave.saved)}/unit ({bestSave.savedPct.toFixed(1)}%)
-                                  </div>
+                              {/* Smart consolidated */}
+                              <div style={{ background:smartSavings>0?"#0d2318":"#1a1d26",
+                                border:smartSavings>0?"1px solid #34d399":"1px solid #2d3248",
+                                borderRadius:8,padding:"12px 16px",minWidth:200,flex:1 }}>
+                                <div style={{ fontSize:10,color:"#34d399",fontWeight:700,letterSpacing:"0.06em",marginBottom:4 }}>
+                                  SMART CONSOLIDATED {smartSavings > 0 ? "— RECOMMENDED" : ""}
                                 </div>
-                              )}
+                                <div style={{ fontSize:22,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#34d399" }}>
+                                  ${fmtPrice(smartBase.perUnit)}<span style={{ fontSize:12,color:"#64748b",fontWeight:400 }}> / unit</span>
+                                </div>
+                                <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>
+                                  Parts: ${smartBase.partsCost.toFixed(2)} + Shipping: ${smartBase.shipping.toFixed(2)}
+                                </div>
+                                <div style={{ fontSize:11,color:"#34d399",marginTop:2 }}>
+                                  {smartBase.suppliers.length} shipment{smartBase.suppliers.length!==1?"s":""}: {smartBase.suppliers.map(s => {
+                                    const sup = SUPPLIERS.find(x=>x.id===s);
+                                    return sup?.name || s;
+                                  }).join(", ")}
+                                </div>
+                                {smartSavings > 0 && (
+                                  <div style={{ fontSize:12,color:"#34d399",fontWeight:700,marginTop:6 }}>
+                                    Saves ${smartSavings.toFixed(2)} total vs cheapest-per-part
+                                  </div>
+                                )}
+                              </div>
                             </div>
 
-                            {/* All quantities table */}
-                            <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12,maxWidth:500 }}>
+                            {/* Qty comparison table using smart strategy */}
+                            <div style={{ fontSize:10,color:"#6366f1",fontWeight:700,letterSpacing:"0.06em",marginBottom:6,fontFamily:"'Space Grotesk',sans-serif" }}>
+                              QUANTITY COMPARISON (Smart Consolidated)
+                            </div>
+                            <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12,maxWidth:600 }}>
                               <thead>
                                 <tr style={{ borderBottom:"1px solid #1e2130" }}>
-                                  {["Units","Per Unit","Total BOM","vs Base"].map((h,i)=>(
+                                  {["Units","Parts","Shipping","Total","Per Unit","vs Base"].map((h,i)=>(
                                     <th key={i} style={{ padding:"5px 10px",textAlign:i>0?"right":"left",
                                       fontSize:10,color:"#475569",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700 }}>{h}</th>
                                   ))}
@@ -2178,9 +2294,10 @@ function BOMManager({ user }) {
                               </thead>
                               <tbody>
                                 {results.map((r) => {
-                                  const diff = basePerUnit - r.perUnit;
+                                  const s = r.smart;
+                                  const diff = smartBase.perUnit - s.perUnit;
                                   const isBase = r.qty === baseQty;
-                                  const isBest = bestSave && r.qty === bestSave.qty;
+                                  const isBest = r.qty === bestQty.qty && r.qty !== baseQty;
                                   return (
                                     <tr key={r.qty} style={{
                                       borderBottom:"1px solid #1a1d26",
@@ -2188,11 +2305,13 @@ function BOMManager({ user }) {
                                     }}>
                                       <td style={{ padding:"5px 10px",fontWeight:isBase||isBest?700:400,
                                         color:isBest?"#34d399":isBase?"#f1f5f9":"#94a3b8" }}>
-                                        {r.qty}{isBest?" ★":""}
+                                        {r.qty}{isBest?" ★":""}{isBase?" (base)":""}
                                       </td>
+                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#94a3b8" }}>${s.partsCost.toFixed(2)}</td>
+                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#94a3b8" }}>${s.shipping.toFixed(2)}</td>
+                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#e2e8f0",fontWeight:600 }}>${s.total.toFixed(2)}</td>
                                       <td style={{ padding:"5px 10px",textAlign:"right",fontFamily:"'Space Grotesk',sans-serif",
-                                        fontWeight:700,color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(r.perUnit)}</td>
-                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#64748b" }}>${r.total.toFixed(2)}</td>
+                                        fontWeight:700,color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(s.perUnit)}</td>
                                       <td style={{ padding:"5px 10px",textAlign:"right",
                                         color:diff>0?"#34d399":diff<0?"#f87171":"#475569",fontWeight:diff!==0?600:400 }}>
                                         {isBase ? "—" : diff > 0 ? `-$${fmtPrice(diff)}/ea` : diff < 0 ? `+$${fmtPrice(Math.abs(diff))}/ea` : "same"}
@@ -2202,12 +2321,6 @@ function BOMManager({ user }) {
                                 })}
                               </tbody>
                             </table>
-
-                            {!savings.length && (
-                              <div style={{ marginTop:8,fontSize:12,color:"#64748b" }}>
-                                No savings found at higher quantities — you're already at the best price breaks.
-                              </div>
-                            )}
                           </div>
                         );
                       })()}
@@ -2387,6 +2500,30 @@ function BOMManager({ user }) {
                 <input type="password" placeholder="Arrow API key" value={apiKeys.arrow_api_key}
                   onChange={(e)=>setApiKeys((k)=>({...k,arrow_api_key:e.target.value}))}
                   style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+              </div>
+            </div>
+
+            {/* ── Shipping Costs (used by BOM Simulator) */}
+            <div className="card" style={{ marginBottom:16,borderTop:"3px solid #8b5cf6" }}>
+              <div style={{ fontFamily:"'Space Grotesk',sans-serif",fontWeight:800,fontSize:15,color:"#8b5cf6",marginBottom:4 }}>
+                Shipping Costs
+              </div>
+              <div style={{ fontSize:12,color:"#64748b",marginBottom:12 }}>
+                Used by the Production Run Simulator to compare consolidation strategies. Adjust to match your actual shipping rates.
+              </div>
+              <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
+                {SUPPLIERS.map((s) => (
+                  <div key={s.id} style={{ display:"flex",alignItems:"center",gap:6 }}>
+                    <span style={{ fontSize:12,color:s.color,fontWeight:700,minWidth:70 }}>{s.name}</span>
+                    <span style={{ fontSize:11,color:"#475569" }}>$</span>
+                    <input type="number" step="0.01" min="0" value={s.shipping}
+                      onChange={(e) => { const v = parseFloat(e.target.value)||0; SUPPLIERS.find(x=>x.id===s.id).shipping = v; }}
+                      style={{ width:60,padding:"4px 6px",borderRadius:4,fontSize:12 }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize:11,color:"#475569",marginTop:8 }}>
+                Default for unlisted distributors: ${DEFAULT_SHIPPING.toFixed(2)}
               </div>
             </div>
 
