@@ -866,6 +866,7 @@ function BOMManager({ user }) {
   const [settingsSaved, setSettingsSaved] = useState(""); // which section just saved
   const fileRef = useRef();
   const qtyTimers = useRef({}); // debounce timers for qty→price refresh
+  const simTimer = useRef(null); // debounce timer for sim auto-run
 
   // Settings per-section save button helper
   const sectionSaveBtn = (sectionId, label) => (
@@ -2985,11 +2986,11 @@ function BOMManager({ user }) {
                                     onFocus={cFocusIn} onBlur={cFocusOut}
                                     style={{ ...cellInput,color:"#0071e3",fontWeight:600 }} placeholder="Part #" />
                                 </td>
-                                <td style={{ padding:"6px 8px",width:80 }}>
+                                <td style={{ padding:"6px 8px",width:100 }}>
                                   <input type="number" min="1" value={part.quantity}
                                     onChange={(e)=>updateQtyAndRefresh(part.id,parseInt(e.target.value)||1)}
                                     onFocus={cFocusIn} onBlur={cFocusOut}
-                                    style={{ ...cellInput,width:60,textAlign:"center",fontWeight:600 }} />
+                                    style={{ ...cellInput,width:80,textAlign:"center",fontWeight:600 }} />
                                 </td>
                                 <td style={{ padding:"6px 8px" }}>
                                   <input type="text" value={part.description||""}
@@ -3063,14 +3064,16 @@ function BOMManager({ user }) {
                         <span style={{ fontSize:12,color:"#86868b" }}>If I build</span>
                         <input type="number" min="1" placeholder="100"
                           value={bomSim[prod.id]?.qty || ""}
-                          onChange={(e) => setBomSim(prev => ({ ...prev, [prod.id]: { ...prev[prod.id], qty: e.target.value } }))}
-                          style={{ width:80,padding:"6px 10px",borderRadius:5,fontSize:14,fontWeight:700,textAlign:"center" }} />
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const pid = prod.id;
+                            setBomSim(prev => ({ ...prev, [pid]: { ...prev[pid], qty: val } }));
+                            clearTimeout(simTimer.current);
+                            if (parseInt(val) > 0) simTimer.current = setTimeout(() => runBomSimulation(pid), 600);
+                          }}
+                          style={{ width:100,padding:"6px 10px",borderRadius:5,fontSize:14,fontWeight:700,textAlign:"center" }} />
                         <span style={{ fontSize:12,color:"#86868b" }}>units of <strong style={{ color:"#1d1d1f" }}>{prod.name}</strong>…</span>
-                        <button className="btn-primary" style={{ fontSize:12 }}
-                          disabled={bomSim[prod.id]?.loading || !parseInt(bomSim[prod.id]?.qty)}
-                          onClick={() => runBomSimulation(prod.id)}>
-                          {bomSim[prod.id]?.loading ? <><span className="spinner" /> Calculating…</> : "Run Simulation"}
-                        </button>
+                        {bomSim[prod.id]?.loading && <span className="spinner" style={{ marginLeft:4 }} />}
                         <label style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#86868b",cursor:"pointer",marginLeft:8 }}>
                           <input type="checkbox" checked={simUsOnly} onChange={(e)=>{
                             const v = e.target.checked;
