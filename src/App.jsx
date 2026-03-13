@@ -1912,13 +1912,18 @@ function BOMManager({ user }) {
                   style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff",opacity:(!hasAnyKey||fetchingAll)?"0.4":"1" }}>
                   {fetchingAll ? "Fetching…" : "Fetch All Prices"}
                 </button>
-                <button onClick={()=>setUsOnly(v=>!v)}
-                  style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
-                    border:usOnly?"none":"1px solid #d2d2d7",
-                    background:usOnly?"#1d1d1f":"none",
-                    color:usOnly?"#fff":"#1d1d1f" }}>
-                  {usOnly ? "US Only" : "All Countries"}
-                </button>
+                <div style={{ display:"flex",borderRadius:980,overflow:"hidden",border:"1px solid #d2d2d7" }}>
+                  <button onClick={()=>setUsOnly(true)}
+                    style={{ padding:"8px 16px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",
+                      background:usOnly?"#1d1d1f":"transparent",color:usOnly?"#fff":"#86868b",transition:"all 0.15s" }}>
+                    USA!! USA!!
+                  </button>
+                  <button onClick={()=>setUsOnly(false)}
+                    style={{ padding:"8px 16px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",borderLeft:"1px solid #d2d2d7",
+                      background:!usOnly?"#1d1d1f":"transparent",color:!usOnly?"#fff":"#86868b",transition:"all 0.15s" }}>
+                    The Rest
+                  </button>
+                </div>
               </div>
             </div>
 
