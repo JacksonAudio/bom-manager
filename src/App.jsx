@@ -1455,7 +1455,7 @@ function BOMManager({ user }) {
                                   <div style={{ fontSize:10,color:"#475569" }}>{bestUS.displayName} · {bestUS.stock.toLocaleString()} in stock</div>
                                 </div>
                               )}
-                              {bestIntl && (
+                              {bestIntl && !usOnly && (
                                 <div style={{ background:"#1a1708",border:"1px solid #f59e0b",borderRadius:8,padding:"8px 14px" }}>
                                   <div style={{ fontSize:10,color:"#f59e0b",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,letterSpacing:"0.08em" }}>BEST PRICE — INTL</div>
                                   <div style={{ fontSize:18,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#f59e0b" }}>
