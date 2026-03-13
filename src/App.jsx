@@ -850,7 +850,7 @@ function BOMManager({ user }) {
   // selectedParts — set of part IDs checked in the Parts Library for bulk delete
   const [selectedParts, setSelectedParts] = useState(new Set());
   const [expandedPricingParts, setExpandedPricingParts] = useState(new Set());
-  const [usOnly, setUsOnly] = useState(false);
+  const [usOnly, setUsOnly] = useState(true);
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
   const [mouserCartStatus, setMouserCartStatus] = useState(null); // { loading, error, cartUrl, cartKey, items }
   // Local order tracker — persists to localStorage
@@ -1742,9 +1742,12 @@ function BOMManager({ user }) {
           <div>
             {/* ── Toolbar */}
             <div style={{ display:"flex",gap:8,marginBottom:8,flexWrap:"wrap",alignItems:"center" }}>
-              <input type="text" placeholder="Search ref, value, MPN…"
-                value={search} onChange={(e)=>setSearch(e.target.value)}
-                style={{ padding:"5px 10px",borderRadius:5,width:220,fontSize:12 }} />
+              <div style={{ position:"relative",width:220 }}>
+                <input type="text" placeholder="Search ref, value, MPN…"
+                  value={search} onChange={(e)=>setSearch(e.target.value)}
+                  style={{ padding:"5px 10px",paddingRight:search?24:10,borderRadius:5,width:"100%",fontSize:12,boxSizing:"border-box" }} />
+                {search && <span onClick={()=>setSearch("")} style={{ position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#86868b",lineHeight:1 }}>✕</span>}
+              </div>
               <select value={selProject} onChange={(e)=>setSelProject(e.target.value)}
                 style={{ padding:"5px 8px",borderRadius:5,fontSize:12 }}>
                 <option value="all">All Products</option>
