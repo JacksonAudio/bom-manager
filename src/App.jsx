@@ -3134,7 +3134,7 @@ function BOMManager({ user }) {
                                     const hasCustom = dynResult.suppliers.some(s => s.id.startsWith("custom_"));
                                     const customSup = hasCustom ? dynResult.suppliers.find(s => s.id.startsWith("custom_")) : null;
                                     if (customSup) {
-                                      return <span style={{ ...cellInput, color:"#1d1d1f", fontSize:12 }}>{customSup.name}</span>;
+                                      return <span style={{ ...cellInput, color:"#1d1d1f", fontSize:12, paddingLeft:14 }}>{customSup.name}</span>;
                                     }
                                     if (dynResult.suppliers.length > 0) {
                                       return (
