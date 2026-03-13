@@ -1975,8 +1975,9 @@ function BOMManager({ user }) {
                               <input type="number" min="1" value={bq}
                                 onClick={(e)=>e.stopPropagation()}
                                 onChange={(e)=>{e.stopPropagation();setBuyQtys(q=>({...q,[part.id]:parseInt(e.target.value)||1}));}}
-                                style={{ width:72,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:13,textAlign:"right",fontFamily:"inherit",fontWeight:500,color:"#1d1d1f",background:"#fff" }} />
-                              <span style={{ fontSize:11,color:"#86868b",fontWeight:400 }}>pcs</span>
+                                style={{ width:72,padding:"2px 4px",border:"none",borderBottom:"1px solid transparent",fontSize:15,textAlign:"left",fontFamily:"inherit",fontWeight:600,color:"#1d1d1f",background:"transparent",outline:"none",transition:"border-color 0.15s" }}
+                                onFocus={(e)=>{e.target.style.borderBottom="1px solid #0071e3";e.target.select();}}
+                                onBlur={(e)=>{e.target.style.borderBottom="1px solid transparent";}} />
                               <span style={{ fontSize:11,color:"#86868b",fontWeight:400,transition:"transform 0.2s",display:"inline-block",
                                 transform:isOpen?"rotate(90deg)":"none" }}>›</span>
                             </div>
