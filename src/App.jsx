@@ -705,6 +705,7 @@ function BOMManager({ user }) {
 
   // quickAdd state — one per product card: { partNumber, qty, description, value, manufacturer }
   const [quickAdd,    setQuickAdd]    = useState({}); // { [productId]: { pn, qty, desc, value, mfr, showOptional } }
+  const [bomSim,      setBomSim]      = useState({}); // { [productId]: { qty, results, loading } }
   // selectedParts — set of part IDs checked in the Parts Library for bulk delete
   const [selectedParts, setSelectedParts] = useState(new Set());
   const [expandedPricingParts, setExpandedPricingParts] = useState(new Set());
@@ -1079,6 +1080,69 @@ function BOMManager({ user }) {
   // ── Update quick-add form field for a product
   const setQAField = (productId, field, value) =>
     setQuickAdd((prev) => ({ ...prev, [productId]: { ...(prev[productId]||{}), [field]: value } }));
+
+  // ── BOM cost simulator — calculates per-unit BOM cost at various production quantities
+  function bomCostAtQty(prodParts, prodQty) {
+    let totalBOM = 0;
+    for (const part of prodParts) {
+      const needed = part.quantity * prodQty; // total components needed
+      const pricing = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
+      if (!pricing) {
+        // Fall back to manual unit cost
+        totalBOM += (parseFloat(part.unitCost) || 0) * needed;
+        continue;
+      }
+      // Find best price across all suppliers at this quantity
+      let bestUnit = parseFloat(part.unitCost) || Infinity;
+      for (const data of Object.values(pricing)) {
+        if (!data.priceBreaks?.length) {
+          if (data.unitPrice > 0 && data.unitPrice < bestUnit) bestUnit = data.unitPrice;
+          continue;
+        }
+        let price = data.priceBreaks[0]?.price || data.unitPrice;
+        for (const pb of data.priceBreaks) {
+          if (needed >= pb.qty) price = pb.price;
+        }
+        if (price > 0 && price < bestUnit) bestUnit = price;
+      }
+      totalBOM += (bestUnit === Infinity ? 0 : bestUnit) * needed;
+    }
+    return totalBOM;
+  }
+
+  async function runBomSimulation(productId) {
+    const prodParts = parts.filter((p) => p.projectId === productId);
+    if (!prodParts.length) return;
+    const baseQty = parseInt(bomSim[productId]?.qty) || 100;
+    setBomSim(prev => ({ ...prev, [productId]: { ...prev[productId], loading: true } }));
+
+    // First fetch fresh pricing for any parts that don't have it
+    const needsFetch = prodParts.filter(p => !p.pricing && p.mpn);
+    for (const p of needsFetch) {
+      try { await fetchPartPricing(p.id); } catch {}
+    }
+
+    // Re-read parts after fetching (get fresh state via setParts callback)
+    let freshParts;
+    setParts(current => { freshParts = current.filter((p) => p.projectId === productId); return current; });
+
+    // Test quantities: the base, then nearby round numbers and +10/20/50%
+    const testQtys = [...new Set([
+      baseQty,
+      Math.ceil(baseQty * 1.1 / 10) * 10,
+      Math.ceil(baseQty * 1.2 / 10) * 10,
+      Math.ceil(baseQty * 1.5 / 10) * 10,
+      Math.ceil(baseQty * 2 / 10) * 10,
+      ...[25, 50, 100, 150, 200, 250, 500, 1000].filter(q => q >= baseQty * 0.8 && q <= baseQty * 3),
+    ])].sort((a, b) => a - b);
+
+    const results = testQtys.map(q => {
+      const total = bomCostAtQty(freshParts, q);
+      return { qty: q, total, perUnit: total / q };
+    });
+
+    setBomSim(prev => ({ ...prev, [productId]: { qty: baseQty, results, loading: false } }));
+  }
 
   // ── Derived state
   const visibleParts = parts.filter((p) => {
@@ -2046,6 +2110,110 @@ function BOMManager({ user }) {
                       </table>
                     </div>
                   )}
+                  {/* ── BOM Cost Simulator */}
+                  {prodParts.length > 0 && (
+                    <div style={{ marginTop:16,background:"#0d0f14",borderRadius:8,padding:"14px 16px" }}>
+                      <div style={{ fontSize:10,color:"#6366f1",letterSpacing:"0.1em",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,marginBottom:10 }}>
+                        PRODUCTION RUN SIMULATOR
+                      </div>
+                      <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:12 }}>
+                        <span style={{ fontSize:12,color:"#94a3b8" }}>If I build</span>
+                        <input type="number" min="1" placeholder="100"
+                          value={bomSim[prod.id]?.qty || ""}
+                          onChange={(e) => setBomSim(prev => ({ ...prev, [prod.id]: { ...prev[prod.id], qty: e.target.value } }))}
+                          style={{ width:80,padding:"6px 10px",borderRadius:5,fontSize:14,fontWeight:700,textAlign:"center" }} />
+                        <span style={{ fontSize:12,color:"#94a3b8" }}>units of <strong style={{ color:"#f1f5f9" }}>{prod.name}</strong>…</span>
+                        <button className="btn-primary" style={{ fontSize:12 }}
+                          disabled={bomSim[prod.id]?.loading || !parseInt(bomSim[prod.id]?.qty)}
+                          onClick={() => runBomSimulation(prod.id)}>
+                          {bomSim[prod.id]?.loading ? <><span className="spinner" /> Calculating…</> : "Run Simulation"}
+                        </button>
+                      </div>
+
+                      {bomSim[prod.id]?.results && (() => {
+                        const results = bomSim[prod.id].results;
+                        const baseQty = parseInt(bomSim[prod.id].qty) || 100;
+                        const baseResult = results.find(r => r.qty === baseQty);
+                        if (!baseResult) return null;
+                        const basePerUnit = baseResult.perUnit;
+                        const savings = results
+                          .filter(r => r.qty > baseQty && r.perUnit < basePerUnit)
+                          .map(r => ({ ...r, saved: basePerUnit - r.perUnit, savedPct: ((basePerUnit - r.perUnit) / basePerUnit * 100) }));
+                        const bestSave = savings.length ? savings.reduce((a, b) => a.saved > b.saved ? a : b) : null;
+
+                        return (
+                          <div>
+                            {/* Base cost */}
+                            <div style={{ display:"flex",gap:20,flexWrap:"wrap",marginBottom:12 }}>
+                              <div style={{ background:"#1a1d26",borderRadius:8,padding:"10px 16px",minWidth:150 }}>
+                                <div style={{ fontSize:10,color:"#64748b",fontWeight:700,letterSpacing:"0.06em" }}>AT {baseQty} UNITS</div>
+                                <div style={{ fontSize:22,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#e2e8f0" }}>
+                                  ${fmtPrice(basePerUnit)}<span style={{ fontSize:12,color:"#64748b",fontWeight:400 }}> / unit</span>
+                                </div>
+                                <div style={{ fontSize:11,color:"#64748b" }}>Total: ${baseResult.total.toFixed(2)}</div>
+                              </div>
+
+                              {bestSave && (
+                                <div style={{ background:"#0d2318",border:"1px solid #34d399",borderRadius:8,padding:"10px 16px",minWidth:150 }}>
+                                  <div style={{ fontSize:10,color:"#34d399",fontWeight:700,letterSpacing:"0.06em" }}>SWEET SPOT: {bestSave.qty} UNITS</div>
+                                  <div style={{ fontSize:22,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#34d399" }}>
+                                    ${fmtPrice(bestSave.perUnit)}<span style={{ fontSize:12,color:"#64748b",fontWeight:400 }}> / unit</span>
+                                  </div>
+                                  <div style={{ fontSize:11,color:"#34d399" }}>
+                                    Save ${fmtPrice(bestSave.saved)}/unit ({bestSave.savedPct.toFixed(1)}%)
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* All quantities table */}
+                            <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12,maxWidth:500 }}>
+                              <thead>
+                                <tr style={{ borderBottom:"1px solid #1e2130" }}>
+                                  {["Units","Per Unit","Total BOM","vs Base"].map((h,i)=>(
+                                    <th key={i} style={{ padding:"5px 10px",textAlign:i>0?"right":"left",
+                                      fontSize:10,color:"#475569",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700 }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {results.map((r) => {
+                                  const diff = basePerUnit - r.perUnit;
+                                  const isBase = r.qty === baseQty;
+                                  const isBest = bestSave && r.qty === bestSave.qty;
+                                  return (
+                                    <tr key={r.qty} style={{
+                                      borderBottom:"1px solid #1a1d26",
+                                      background: isBest ? "#0d2318" : isBase ? "#1a1d26" : "transparent"
+                                    }}>
+                                      <td style={{ padding:"5px 10px",fontWeight:isBase||isBest?700:400,
+                                        color:isBest?"#34d399":isBase?"#f1f5f9":"#94a3b8" }}>
+                                        {r.qty}{isBest?" ★":""}
+                                      </td>
+                                      <td style={{ padding:"5px 10px",textAlign:"right",fontFamily:"'Space Grotesk',sans-serif",
+                                        fontWeight:700,color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(r.perUnit)}</td>
+                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#64748b" }}>${r.total.toFixed(2)}</td>
+                                      <td style={{ padding:"5px 10px",textAlign:"right",
+                                        color:diff>0?"#34d399":diff<0?"#f87171":"#475569",fontWeight:diff!==0?600:400 }}>
+                                        {isBase ? "—" : diff > 0 ? `-$${fmtPrice(diff)}/ea` : diff < 0 ? `+$${fmtPrice(Math.abs(diff))}/ea` : "same"}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+
+                            {!savings.length && (
+                              <div style={{ marginTop:8,fontSize:12,color:"#64748b" }}>
+                                No savings found at higher quantities — you're already at the best price breaks.
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
                 </div>
               );
             })}
