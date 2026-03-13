@@ -832,7 +832,7 @@ function BOMManager({ user }) {
   const [parts,       setParts]       = useState([]);
   const [products,    setProducts]    = useState([]);
   const [loading,     setLoading]     = useState(true);  // initial DB fetch in progress
-  const [activeView,  setActiveView]  = useState("import");
+  const [activeView,  setActiveView]  = useState("bom");
   const [selProject,  setSelProject]  = useState("all");
   const [search,      setSearch]      = useState("");
   const [pasteText,   setPasteText]   = useState("");
@@ -1805,8 +1805,8 @@ function BOMManager({ user }) {
       <nav style={{ display:"flex", padding:"0 28px", borderBottom:"1px solid #e5e5ea",
         background:"#fff", gap:2 }}>
         {[
-          { id:"import",    icon:"⬆", label:"Import BOM" },
           { id:"bom",       icon:"🔩", label:`Parts Library (${parts.length})` },
+          { id:"import",    icon:"⬆", label:"Import BOM" },
           { id:"pricing",   icon:"💰", label:`Pricing ${pricedCount>0?`(${pricedCount}/${parts.length})`:""}` },
           { id:"purchasing",icon:"🛒", label:`Purchasing${poPartCount>0?` (${poPartCount})`:""}` },
           { id:"orders",    icon:"📋", label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}` },
