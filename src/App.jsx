@@ -1205,9 +1205,10 @@ function BOMManager({ user }) {
       try { await fetchPartPricing(p.id); } catch {}
     }
 
-    // Re-read parts after fetching
-    let freshParts;
-    setParts(current => { freshParts = current.filter((p) => p.projectId === productId); return current; });
+    // Re-read parts after fetching (use Promise to guarantee state is read before continuing)
+    const freshParts = await new Promise(resolve => {
+      setParts(current => { resolve(current.filter((p) => p.projectId === productId)); return current; });
+    });
 
     // Test quantities
     const testQtys = [...new Set([
@@ -1236,7 +1237,7 @@ function BOMManager({ user }) {
     return mP && (!q || p.reference.toLowerCase().includes(q) || p.value.toLowerCase().includes(q) || p.mpn.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
   });
 
-  const lowStockParts = parts.filter((p) => { const s=parseInt(p.stockQty),r=parseInt(p.reorderQty); return !isNaN(s)&&!isNaN(r)&&s<=r; });
+  const lowStockParts = parts.filter((p) => { const s=parseInt(p.stockQty)||0, r=parseInt(p.reorderQty); return !isNaN(r) && r > 0 && s <= r; });
   const unassignedCount = parts.filter((p) => !p.projectId).length;
   const purchaseOrders = buildPurchaseOrders(parts);
   const poPartCount = Object.values(purchaseOrders).reduce((s,a)=>s+a.length,0);
@@ -1448,8 +1449,8 @@ function BOMManager({ user }) {
                   <tbody>
                     {visibleParts.map((part,i) => {
                       const extCost = (parseFloat(part.unitCost)||0)*part.quantity;
-                      const sn=parseInt(part.stockQty),rn=parseInt(part.reorderQty);
-                      const isLow = !isNaN(sn)&&!isNaN(rn)&&sn<=rn;
+                      const sn=parseInt(part.stockQty)||0,rn=parseInt(part.reorderQty);
+                      const isLow = !isNaN(rn)&&rn>0&&sn<=rn;
                       const sup = supplierById(part.preferredSupplier);
                       return (
                         <tr key={part.id} className="table-row"
