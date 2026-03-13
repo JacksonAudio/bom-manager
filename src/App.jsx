@@ -1435,7 +1435,7 @@ function BOMManager({ user }) {
                             if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (100 >= pb.qty) p = pb.price; } }
                             return parseFloat(p) || d.unitPrice;
                           };
-                          const entries = Object.values(pricingObj);
+                          const entries = Object.values(pricingObj).filter(d => d.stock > 0);
                           const gc = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
                           const usEntries = entries.filter(d => gc(d) === "US").sort((a,b) => priceAt100(a) - priceAt100(b));
                           const intlEntries = entries.filter(d => { const c = gc(d); return c && c !== "US"; }).sort((a,b) => priceAt100(a) - priceAt100(b));
@@ -1475,9 +1475,9 @@ function BOMManager({ user }) {
                           const getCountry = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
                           const isUS = (d) => getCountry(d) === "US";
                           const isNonUS = (d) => { const c = getCountry(d); return c && c !== "US"; };
-                          const filtered = usOnly
-                            ? Object.entries(pricingObj).filter(([, d]) => !isNonUS(d))
-                            : Object.entries(pricingObj);
+                          const filtered = Object.entries(pricingObj).filter(([, d]) =>
+                            d.stock > 0 && (!usOnly || !isNonUS(d))
+                          );
                           const sorted = filtered.sort((a, b) => {
                             const aUS = isUS(a[1]) ? 0 : 1;
                             const bUS = isUS(b[1]) ? 0 : 1;
