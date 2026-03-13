@@ -1651,227 +1651,202 @@ function BOMManager({ user }) {
         )}
 
         {/* ══════════════════════════════════════
-            LIVE PRICING VIEW
+            LIVE PRICING VIEW — Clean List
         ══════════════════════════════════════ */}
         {activeView === "pricing" && (
-          <div>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12 }}>
-              <div>
-                <h2 style={{ fontFamily:"'Space Grotesk',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Live Pricing</h2>
-                <p style={{ color:"#64748b",fontSize:13 }}>
-                  Fetches real-time pricing across all distributors. Best price auto-fills unit cost.
-                </p>
-              </div>
-              <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
+          <div style={{ background:"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
+            {/* Header */}
+            <div style={{ marginBottom:28 }}>
+              <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",marginBottom:4 }}>Live Pricing</h2>
+              <p style={{ fontSize:14,color:"#86868b" }}>Real-time pricing across all distributors. Click any part to expand.</p>
+              <div style={{ display:"flex",gap:10,marginTop:14,flexWrap:"wrap" }}>
                 {!hasAnyKey && (
-                  <button className="btn-ghost" onClick={()=>setActiveView("settings")} style={{ borderColor:"#f59e0b",color:"#f59e0b" }}>
-                    ⚙ Configure API Keys First
+                  <button onClick={()=>setActiveView("settings")}
+                    style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #ff9500",color:"#ff9500",background:"none" }}>
+                    Configure API Keys
                   </button>
                 )}
-                <button className="btn-primary"
-                  disabled={!hasAnyKey || fetchingAll || parts.filter((p)=>p.mpn).length===0}
-                  onClick={fetchAllPartsPricing}>
-                  {fetchingAll ? <><span className="spinner" /> Fetching…</> : "⚡ Fetch All Prices"}
+                <button
+                  disabled={!hasAnyKey || fetchingAll || parts.filter(p=>p.mpn).length===0}
+                  onClick={fetchAllPartsPricing}
+                  style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff",opacity:(!hasAnyKey||fetchingAll)?"0.4":"1" }}>
+                  {fetchingAll ? "Fetching…" : "Fetch All Prices"}
                 </button>
-                <button className={usOnly ? "btn-primary" : "btn-ghost"} style={{ fontSize:12 }}
-                  onClick={() => setUsOnly(v => !v)}>
+                <button onClick={()=>setUsOnly(v=>!v)}
+                  style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
+                    border:usOnly?"none":"1px solid #d2d2d7",
+                    background:usOnly?"#1d1d1f":"none",
+                    color:usOnly?"#fff":"#1d1d1f" }}>
                   {usOnly ? "US Only" : "All Countries"}
                 </button>
               </div>
             </div>
 
-            {/* API source legend */}
-            <div className="card" style={{ marginBottom:20, display:"flex", gap:20, flexWrap:"wrap" }}>
-              <div style={{ fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,fontSize:11,color:"#64748b",letterSpacing:"0.08em",alignSelf:"center" }}>
-                DATA SOURCES:
-              </div>
-              {[
-                { name:"Nexar/Octopart", note:"Primary — covers Mouser, DigiKey, Arrow, LCSC, Allied + 900 more", active:!!nexarToken, color:"#6366f1" },
-                { name:"Mouser Direct",  note:"Supplemental",                                                        active:!!apiKeys.mouser_api_key, color:"#e8500a" },
-                { name:"DigiKey Direct", note:"Supplemental",                                                        active:!!dkToken, color:"#cc0000" },
-                { name:"Arrow Direct",   note:"Supplemental",                                                        active:!!(apiKeys.arrow_api_key&&apiKeys.arrow_login), color:"#005eb8" },
-              ].map((src)=>(
-                <div key={src.name} style={{ display:"flex",alignItems:"center",gap:8 }}>
-                  <div style={{ width:8,height:8,borderRadius:"50%",background:src.active?src.color:"#334155" }} />
-                  <div>
-                    <div style={{ fontSize:12,fontFamily:"'Space Grotesk',sans-serif",fontWeight:600,
-                      color:src.active?src.color:"#475569" }}>{src.name}</div>
-                    <div style={{ fontSize:10,color:"#334155" }}>{src.note}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Per-part pricing table */}
             {parts.length === 0 ? (
-              <div style={{ textAlign:"center",padding:60,color:"#334155" }}>
-                <div style={{ fontSize:40,marginBottom:12 }}>💰</div>
-                <div style={{ fontFamily:"'Space Grotesk',sans-serif" }}>Import a BOM first</div>
+              <div style={{ textAlign:"center",padding:60,color:"#86868b" }}>
+                <div style={{ fontSize:14,fontFamily:"-apple-system,sans-serif" }}>Import a BOM first</div>
               </div>
             ) : (
-              <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
-                {parts.map((part) => {
-                  // Derive best supplier directly from pricing data — don't trust bestSupplier field
-                  const pricingObj = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
-                  const hasPricing = pricingObj && Object.keys(pricingObj).length > 0;
-                  const best = part.bestSupplier || (hasPricing ? bestPriceSupplier(pricingObj) : null);
-                  const bestData = hasPricing ? (pricingObj[best] || Object.values(pricingObj)[0]) : null;
-                  // Show as done if we have pricing data regardless of status field
-                  const effectiveStatus = hasPricing ? "done" : part.pricingStatus;
-                  const sup = supplierById(part.preferredSupplier);
+              <>
+                {/* Best price badges */}
+                {(() => {
+                  const allPriced = parts.filter(p => p.pricing && typeof p.pricing === "object");
+                  if (!allPriced.length) return null;
+                  const p100 = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (100 >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
+                  const gc = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
+                  let globalBestUS = null, globalBestIntl = null;
+                  for (const part of allPriced) {
+                    for (const d of Object.values(part.pricing)) {
+                      if (!d.stock || d.stock <= 0) continue;
+                      const c = gc(d); const price = p100(d);
+                      if (c === "US" && (!globalBestUS || price < globalBestUS.price)) globalBestUS = { ...d, price };
+                      if (c && c !== "US" && (!globalBestIntl || price < globalBestIntl.price)) globalBestIntl = { ...d, price };
+                    }
+                  }
+                  if (!globalBestUS && !globalBestIntl) return null;
+                  let userTariffs; try { userTariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { userTariffs = { ...DEFAULT_TARIFFS }; }
                   return (
-                    <div key={part.id} className="card" style={{ padding:"14px 18px" }}>
-                      <div style={{ display:"flex",alignItems:"center",gap:14,flexWrap:"wrap" }}>
-                        {/* Part info — click to edit */}
-                        <div style={{ flex:"0 0 auto",minWidth:180,cursor:"pointer" }}
-                          onClick={() => setExpandedPart(expandedPart === part.id ? null : part.id)}>
-                          <div style={{ fontFamily:"'Space Grotesk',sans-serif",fontWeight:800,fontSize:13,color:"#f8d377" }}>
-                            {part.reference} <span style={{ fontSize:10,color:"#475569",fontWeight:400 }}>{expandedPart===part.id?"▾ close":"▸ edit"}</span>
+                    <div style={{ display:"flex",gap:12,marginBottom:24,flexWrap:"wrap" }}>
+                      {globalBestUS && (
+                        <div style={{ flex:1,minWidth:200,background:"#fff",borderRadius:16,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)" }}>
+                          <div style={{ fontSize:11,fontWeight:600,letterSpacing:"0.5px",color:"#86868b",textTransform:"uppercase" }}>Best USA</div>
+                          <div style={{ fontSize:30,fontWeight:700,letterSpacing:"-1px",marginTop:4,color:"#34c759" }}>{"$"}{fmtPrice(globalBestUS.price)}</div>
+                          <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>{globalBestUS.displayName} · {(globalBestUS.stock||0).toLocaleString()} in stock</div>
+                        </div>
+                      )}
+                      {globalBestIntl && !usOnly && (() => {
+                        const origin = globalBestIntl.countryOfOrigin || gc(globalBestIntl);
+                        const rate = getTariffRate(origin, userTariffs);
+                        const landed = rate > 0 ? globalBestIntl.price * (1 + rate / 100) : 0;
+                        return (
+                          <div style={{ flex:1,minWidth:200,background:"#fff",borderRadius:16,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)" }}>
+                            <div style={{ fontSize:11,fontWeight:600,letterSpacing:"0.5px",color:"#86868b",textTransform:"uppercase" }}>Best International</div>
+                            <div style={{ fontSize:30,fontWeight:700,letterSpacing:"-1px",marginTop:4,color:"#ff9500" }}>{"$"}{fmtPrice(globalBestIntl.price)}</div>
+                            <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>{globalBestIntl.displayName} ({gc(globalBestIntl)}) · {(globalBestIntl.stock||0).toLocaleString()} in stock</div>
+                            {landed > 0 && <div style={{ fontSize:11,color:"#ff3b30",marginTop:2 }}>Landed: {"$"}{fmtPrice(landed)} (+{rate}% tariff)</div>}
                           </div>
-                          <div style={{ fontSize:11,color:"#7dd3fc",marginTop:1 }}>{part.mpn||<span style={{ color:"#334155" }}>No MPN</span>}</div>
-                          <div style={{ fontSize:11,color:"#64748b" }}>{part.description ? `${part.description} · ` : ""}{part.value ? `${part.value} · ` : ""}qty {part.quantity}</div>
-                        </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                })()}
 
-                        {/* Status / fetch button */}
-                        <div style={{ flex:"0 0 auto" }}>
-                          {part.pricingStatus === "idle" && effectiveStatus !== "done" && (
-                            <button className="btn-ghost btn-sm"
-                              disabled={!hasAnyKey || !part.mpn}
-                              onClick={() => fetchPartPricing(part.id)}
-                              title={!part.mpn ? "No MPN — cannot fetch pricing" : !hasAnyKey ? "Add API keys in Settings" : ""}>
-                              {!part.mpn ? "No MPN" : "Fetch Price"}
-                            </button>
-                          )}
-                          {part.pricingStatus === "loading" && <><span className="spinner" /><span style={{ fontSize:11,color:"#64748b",marginLeft:6 }}>fetching…</span></>}
-                          {part.pricingStatus === "error"   && <span style={{ fontSize:11,color:"#f87171" }}>⚠ {part.pricingError}</span>}
-                          {part.pricingStatus === "no-mpn"  && <span style={{ fontSize:11,color:"#475569" }}>No MPN</span>}
-                          {effectiveStatus === "done" && (
-                            <button className="btn-ghost btn-sm" onClick={()=>fetchPartPricing(part.id)}>↻ Refresh</button>
-                          )}
-                        </div>
+                {/* Part list */}
+                <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden" }}>
+                  {parts.map((part, partIdx) => {
+                    const pricingObj = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
+                    const hasPricing = pricingObj && Object.keys(pricingObj).length > 0;
+                    const best = part.bestSupplier || (hasPricing ? bestPriceSupplier(pricingObj) : null);
+                    const bestData = hasPricing && best ? pricingObj[best] : null;
+                    const effectiveStatus = hasPricing ? "done" : part.pricingStatus;
+                    const isOpen = expandedPart === part.id;
 
-                        {/* Best price badges — USA and INTL */}
-                        {hasPricing && (() => {
-                          const priceAt100 = (d) => {
-                            let p = d.unitPrice;
-                            if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (100 >= pb.qty) p = pb.price; } }
-                            return parseFloat(p) || d.unitPrice;
-                          };
-                          const entries = Object.values(pricingObj).filter(d => d.stock > 0);
-                          const gc = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
-                          const byPriceThenStock = (a,b) => { const d = priceAt100(a) - priceAt100(b); return d !== 0 ? d : (b.stock||0) - (a.stock||0); };
-                          const usEntries = entries.filter(d => gc(d) === "US").sort(byPriceThenStock);
-                          const intlEntries = entries.filter(d => { const c = gc(d); return c && c !== "US"; }).sort(byPriceThenStock);
-                          const bestUS = usEntries[0] || null;
-                          const bestIntl = intlEntries[0] || null;
-                          return (
-                            <div style={{ display:"flex",flexDirection:"column",gap:8,flex:"0 0 auto" }}>
-                              {bestUS && (
-                                <div style={{ background:"#0d2318",border:"1px solid #34d399",borderRadius:8,padding:"8px 14px" }}>
-                                  <div style={{ fontSize:10,color:"#34d399",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,letterSpacing:"0.08em" }}>BEST PRICE — USA</div>
-                                  <div style={{ fontSize:18,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#34d399" }}>
-                                    ${fmtPrice(priceAt100(bestUS))}
-                                  </div>
-                                  <div style={{ fontSize:10,color:"#475569" }}>{bestUS.displayName} · {bestUS.stock.toLocaleString()} in stock</div>
-                                </div>
-                              )}
-                              {bestIntl && !usOnly && (
-                                <div style={{ background:"#1a1708",border:"1px solid #f59e0b",borderRadius:8,padding:"8px 14px" }}>
-                                  <div style={{ fontSize:10,color:"#f59e0b",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,letterSpacing:"0.08em" }}>BEST PRICE — INTL</div>
-                                  <div style={{ fontSize:18,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#f59e0b" }}>
-                                    ${fmtPrice(priceAt100(bestIntl))}
-                                  </div>
-                                  <div style={{ fontSize:10,color:"#475569" }}>{bestIntl.displayName} ({gc(bestIntl)}) · {bestIntl.stock.toLocaleString()} in stock</div>
-                                </div>
-                              )}
+                    // Sort suppliers
+                    const p100 = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (100 >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
+                    const getCountry = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
+                    const isNonUS = (d) => { const c = getCountry(d); return c && c !== "US"; };
+                    const sorted = hasPricing ? Object.entries(pricingObj)
+                      .filter(([,d]) => d.stock > 0 && (!usOnly || !isNonUS(d)))
+                      .sort((a,b) => {
+                        const aUS = getCountry(a[1])==="US"?0:1, bUS = getCountry(b[1])==="US"?0:1;
+                        if (aUS !== bUS) return aUS - bUS;
+                        return (p100(a[1])||Infinity) - (p100(b[1])||Infinity);
+                      }) : [];
+
+                    // Tariff helpers
+                    let userTariffs; try { userTariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { userTariffs = { ...DEFAULT_TARIFFS }; }
+
+                    // Best display price
+                    const bestDisplayPrice = bestData ? p100(bestData) : null;
+
+                    return (
+                      <div key={part.id} style={{ borderBottom: partIdx < parts.length-1 ? "1px solid #f0f0f2" : "none" }}>
+                        {/* Collapsed row — click to expand */}
+                        <div onClick={() => setExpandedPart(isOpen ? null : part.id)}
+                          style={{ display:"flex",alignItems:"center",padding:"14px 22px",cursor:"pointer",
+                            transition:"background 0.15s",background:isOpen?"rgba(0,0,0,0.02)":"transparent" }}
+                          onMouseOver={e=>{if(!isOpen)e.currentTarget.style.background="rgba(0,0,0,0.02)"}}
+                          onMouseOut={e=>{if(!isOpen)e.currentTarget.style.background="transparent"}}>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f",display:"flex",alignItems:"center",gap:6 }}>
+                              {part.mpn || part.reference}
+                              <span style={{ fontSize:11,color:"#86868b",fontWeight:400,transition:"transform 0.2s",display:"inline-block",
+                                transform:isOpen?"rotate(90deg)":"none" }}>›</span>
                             </div>
-                          );
-                        })()}
+                            <div style={{ fontSize:12,color:"#86868b",marginTop:1 }}>
+                              {part.description ? `${part.description} · ` : ""}{part.value ? `${part.value} · ` : ""}qty {part.quantity}
+                            </div>
+                          </div>
+                          <div style={{ textAlign:"right",minWidth:100 }}>
+                            {effectiveStatus === "done" && bestDisplayPrice ? (
+                              <>
+                                <div style={{ fontSize:20,fontWeight:600,letterSpacing:"-0.3px",color:"#1d1d1f" }}>{"$"}{fmtPrice(bestDisplayPrice)}</div>
+                                <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>
+                                  <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#34c759",marginRight:4,verticalAlign:"middle" }}></span>
+                                  {bestData?.displayName || best}
+                                </div>
+                              </>
+                            ) : part.pricingStatus === "loading" ? (
+                              <span style={{ fontSize:12,color:"#86868b" }}>Fetching…</span>
+                            ) : part.pricingStatus === "error" ? (
+                              <span style={{ fontSize:11,color:"#ff3b30" }}>Error</span>
+                            ) : (
+                              <button onClick={(e)=>{e.stopPropagation();if(part.mpn&&hasAnyKey)fetchPartPricing(part.id);}}
+                                disabled={!part.mpn||!hasAnyKey}
+                                style={{ padding:"5px 12px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
+                                  border:"1px solid #d2d2d7",background:"none",color:"#1d1d1f",opacity:(!part.mpn||!hasAnyKey)?"0.4":"1" }}>
+                                {!part.mpn ? "No MPN" : "Fetch Price"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
 
-                        {/* Per-supplier prices — USA first, then by price, top 5 by default */}
-                        {hasPricing && (() => {
-                          const p100 = (d) => {
-                            let p = d.unitPrice;
-                            if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (100 >= pb.qty) p = pb.price; } }
-                            return parseFloat(p) || d.unitPrice;
-                          };
-                          const getCountry = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
-                          const isUS = (d) => getCountry(d) === "US";
-                          const isNonUS = (d) => { const c = getCountry(d); return c && c !== "US"; };
-                          const filtered = Object.entries(pricingObj).filter(([, d]) =>
-                            d.stock > 0 && (!usOnly || !isNonUS(d))
-                          );
-                          const sorted = filtered.sort((a, b) => {
-                            const aUS = isUS(a[1]) ? 0 : 1;
-                            const bUS = isUS(b[1]) ? 0 : 1;
-                            if (aUS !== bUS) return aUS - bUS;
-                            const priceDiff = (p100(a[1]) || Infinity) - (p100(b[1]) || Infinity);
-                            return priceDiff !== 0 ? priceDiff : (b[1].stock||0) - (a[1].stock||0);
-                          });
-                          const isExpanded = expandedPricingParts.has(part.id);
-                          const visible = isExpanded ? sorted : sorted.slice(0, 5);
-                          const totalCount = sorted.length;
-                          return (
-                            <div style={{ flex:1 }}>
-                              <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
-                                {visible.map(([key, data]) => {
+                        {/* Expanded panel */}
+                        {isOpen && (
+                          <div style={{ padding:"0 22px 18px",animation:"none" }}>
+                            {/* Supplier cards */}
+                            {sorted.length > 0 ? (
+                              <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:14 }}>
+                                {sorted.map(([key, data]) => {
                                   const isBest = key === best;
+                                  const ctry = getCountry(data);
+                                  const displayPrice = p100(data);
+                                  const origin = data.countryOfOrigin || "";
+                                  const tariffRate = getTariffRate(origin, userTariffs);
+                                  const landedPrice = tariffRate > 0 ? displayPrice * (1 + tariffRate / 100) : 0;
                                   return (
-                                    <div key={key} className={`price-card ${isBest?"best":""}`}
-                                      style={{ borderColor: isBest ? "#34d399" : "#2d3248", minWidth:150 }}>
-                                      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
-                                        <span style={{ fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,fontSize:14,
-                                          color:"#94a3b8" }}>{data.displayName}</span>
-                                        {isBest && <span className="badge" style={{ background:"#34d39922",color:"#34d399",fontSize:10,fontWeight:700 }}>BEST</span>}
+                                    <div key={key} style={{
+                                      background: isBest ? "rgba(0,113,227,0.06)" : "#f5f5f7",
+                                      border: isBest ? "1.5px solid rgba(0,113,227,0.2)" : "1.5px solid transparent",
+                                      borderRadius:12, padding:"12px 16px", minWidth:150, flex:1, maxWidth:200,
+                                      transition:"all 0.15s"
+                                    }}>
+                                      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                                        <span style={{ fontSize:12,fontWeight:500,color:"#86868b" }}>{data.displayName}</span>
+                                        <span style={{ fontSize:10,color:"#aeaeb2",fontWeight:500 }}>{ctry}</span>
                                       </div>
-                                      {(() => {
-                                        let displayPrice = data.unitPrice;
-                                        if (data.priceBreaks?.length) {
-                                          for (const pb of data.priceBreaks) { if (100 >= pb.qty) displayPrice = pb.price; }
-                                        }
-                                        // Calculate landed price including tariff based on country of origin
-                                        const origin = data.countryOfOrigin || "";
-                                        let userTariffs;
-                                        try { userTariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { userTariffs = { ...DEFAULT_TARIFFS }; }
-                                        const tariffRate = getTariffRate(origin, userTariffs);
-                                        const landedPrice = tariffRate > 0 ? displayPrice * (1 + tariffRate / 100) : 0;
-                                        return (
-                                          <>
-                                            <div style={{ fontSize:28,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",lineHeight:1.1,
-                                              color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(displayPrice)}</div>
-                                            {landedPrice > 0 && (
-                                              <div style={{ fontSize:12,color:"#ef4444",fontWeight:700,marginTop:2 }}>
-                                                Landed: {"$"}{fmtPrice(landedPrice)} <span style={{ fontWeight:400,fontSize:10 }}>({origin} +{tariffRate}%)</span>
-                                              </div>
-                                            )}
-                                          </>
-                                        );
-                                      })()}
-                                      {(() => {
-                                        const ctry = data.country || DIST_COUNTRY[data.displayName] || DIST_COUNTRY[key] || "";
-                                        const origin = data.countryOfOrigin || "";
-                                        return (
-                                          <div style={{ fontSize:12,color:"#64748b",marginTop:4 }}>
-                                            {ctry && <span style={{ color: ctry==="US"?"#34d399":"#f59e0b",fontWeight:600 }}>{ctry}</span>}
-                                            {origin && origin !== ctry && <span style={{ color:"#94a3b8",fontSize:10 }}> · Made in {origin}</span>}
-                                            {(ctry || origin) && " · "}Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}
-                                          </div>
-                                        );
-                                      })()}
-                                      {/* Price breaks — show actual tiers from distributor */}
+                                      <div style={{ fontSize:18,fontWeight:700,letterSpacing:"-0.3px",marginTop:4,
+                                        color:isBest?"#0071e3":"#1d1d1f" }}>{"$"}{fmtPrice(displayPrice)}</div>
+                                      <div style={{ fontSize:10,color:"#aeaeb2",marginTop:4 }}>Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}</div>
+                                      {landedPrice > 0 && (
+                                        <div style={{ fontSize:10,color:"#ff3b30",marginTop:3,fontWeight:500 }}>
+                                          Landed: {"$"}{fmtPrice(landedPrice)} ({origin} +{tariffRate}%)
+                                        </div>
+                                      )}
                                       {data.priceBreaks?.length > 1 && (
-                                        <div style={{ marginTop:6,borderTop:"1px solid #1e2130",paddingTop:6 }}>
+                                        <div style={{ marginTop:8,borderTop:"1px solid rgba(0,0,0,0.06)",paddingTop:6 }}>
                                           {data.priceBreaks.map((pb, i) => (
-                                            <div key={i} className="price-break-row" style={{ fontSize:12 }}>
-                                              <span style={{ color:"#64748b" }}>{pb.qty}+</span>
-                                              <span>${fmtPrice(pb.price)}</span>
+                                            <div key={i} style={{ display:"flex",justifyContent:"space-between",fontSize:11,padding:"2px 0" }}>
+                                              <span style={{ color:"#aeaeb2" }}>{pb.qty}+</span>
+                                              <span style={{ color:isBest?"#0071e3":"#1d1d1f",fontWeight:500 }}>{"$"}{fmtPrice(pb.price)}</span>
                                             </div>
                                           ))}
                                         </div>
                                       )}
                                       {data.url && (
                                         <a href={data.url} target="_blank" rel="noopener noreferrer"
-                                          style={{ display:"block",marginTop:6,fontSize:11,color:"#3b82f6",textDecoration:"none" }}>
+                                          style={{ display:"block",marginTop:8,fontSize:11,color:"#0071e3",textDecoration:"none",fontWeight:500 }}
+                                          onClick={e=>e.stopPropagation()}>
                                           View on site →
                                         </a>
                                       )}
@@ -1879,66 +1854,68 @@ function BOMManager({ user }) {
                                   );
                                 })}
                               </div>
-                              {totalCount > 5 && (
-                                <button className="btn-ghost btn-sm" style={{ marginTop:8,fontSize:12,color:"#3b82f6" }}
-                                  onClick={() => setExpandedPricingParts(prev => {
-                                    const next = new Set(prev);
-                                    if (next.has(part.id)) next.delete(part.id); else next.add(part.id);
-                                    return next;
-                                  })}>
-                                  {isExpanded ? "Show less" : `Show all ${totalCount} suppliers →`}
+                            ) : effectiveStatus === "done" ? (
+                              <div style={{ padding:16,textAlign:"center",color:"#aeaeb2",fontSize:13 }}>No suppliers with stock{usOnly ? " (US Only filter is on)" : ""}</div>
+                            ) : (
+                              <div style={{ padding:16,textAlign:"center",color:"#aeaeb2",fontSize:13 }}>No pricing data yet</div>
+                            )}
+
+                            {/* Refresh button */}
+                            {effectiveStatus === "done" && (
+                              <div style={{ marginBottom:14 }}>
+                                <button onClick={(e)=>{e.stopPropagation();fetchPartPricing(part.id);}}
+                                  style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
+                                    border:"1px solid #d2d2d7",background:"none",color:"#86868b" }}>
+                                  Refresh Prices
                                 </button>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      {/* Inline edit panel */}
-                      {expandedPart === part.id && (
-                        <div style={{ marginTop:12,paddingTop:12,borderTop:"1px solid #1e2130",
-                          display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end" }}>
-                          <label style={{ fontSize:11,color:"#64748b" }}>Reference
-                            <input type="text" value={part.reference}
-                              onChange={(e)=>updatePart(part.id,"reference",e.target.value)}
-                              style={{ display:"block",padding:"5px 8px",borderRadius:5,fontSize:12,width:100,marginTop:2 }} />
-                          </label>
-                          <label style={{ fontSize:11,color:"#64748b" }}>MPN
-                            <input type="text" value={part.mpn}
-                              onChange={(e)=>updatePart(part.id,"mpn",e.target.value)}
-                              style={{ display:"block",padding:"5px 8px",borderRadius:5,fontSize:12,width:160,marginTop:2 }} />
-                          </label>
-                          <label style={{ fontSize:11,color:"#64748b" }}>Qty
-                            <input type="number" value={part.quantity} min="1"
-                              onChange={(e)=>updatePart(part.id,"quantity",parseInt(e.target.value)||1)}
-                              style={{ display:"block",padding:"5px 8px",borderRadius:5,fontSize:12,width:60,marginTop:2 }} />
-                          </label>
-                          <label style={{ fontSize:11,color:"#64748b" }}>Description
-                            <input type="text" value={part.description||""}
-                              onChange={(e)=>updatePart(part.id,"description",e.target.value)}
-                              style={{ display:"block",padding:"5px 8px",borderRadius:5,fontSize:12,width:200,marginTop:2 }} />
-                          </label>
-                          <label style={{ fontSize:11,color:"#64748b" }}>Value
-                            <input type="text" value={part.value||""}
-                              onChange={(e)=>updatePart(part.id,"value",e.target.value)}
-                              style={{ display:"block",padding:"5px 8px",borderRadius:5,fontSize:12,width:100,marginTop:2 }} />
-                          </label>
-                          <div style={{ fontSize:11,color:"#64748b" }}>Project
-                            <div style={{ marginTop:2 }}>
-                              <select value={part.projectId||""} onChange={(e)=>updatePart(part.id,"projectId",e.target.value||null)}
-                                style={{ padding:"3px 5px",borderRadius:4,fontSize:11,maxWidth:120 }}>
-                                <option value="">Unassigned</option>
-                                {products.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}
-                              </select>
+                              </div>
+                            )}
+
+                            {/* Inline edit */}
+                            <div style={{ padding:"14px 16px",background:"#f5f5f7",borderRadius:12,display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end" }}>
+                              <div>
+                                <div style={{ fontSize:10,color:"#86868b",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Reference</div>
+                                <input type="text" value={part.reference}
+                                  onChange={e=>updatePart(part.id,"reference",e.target.value)}
+                                  style={{ padding:"7px 10px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:13,fontFamily:"inherit",background:"#fff",color:"#1d1d1f",outline:"none",width:100 }} />
+                              </div>
+                              <div>
+                                <div style={{ fontSize:10,color:"#86868b",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>MPN</div>
+                                <input type="text" value={part.mpn}
+                                  onChange={e=>updatePart(part.id,"mpn",e.target.value)}
+                                  style={{ padding:"7px 10px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:13,fontFamily:"inherit",background:"#fff",color:"#1d1d1f",outline:"none",width:160 }} />
+                              </div>
+                              <div>
+                                <div style={{ fontSize:10,color:"#86868b",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Qty</div>
+                                <input type="number" value={part.quantity} min="1"
+                                  onChange={e=>updatePart(part.id,"quantity",parseInt(e.target.value)||1)}
+                                  style={{ padding:"7px 10px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:13,fontFamily:"inherit",background:"#fff",color:"#1d1d1f",outline:"none",width:70 }} />
+                              </div>
+                              <div>
+                                <div style={{ fontSize:10,color:"#86868b",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Description</div>
+                                <input type="text" value={part.description||""}
+                                  onChange={e=>updatePart(part.id,"description",e.target.value)}
+                                  style={{ padding:"7px 10px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:13,fontFamily:"inherit",background:"#fff",color:"#1d1d1f",outline:"none",width:160 }} />
+                              </div>
+                              <div>
+                                <div style={{ fontSize:10,color:"#86868b",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Value</div>
+                                <input type="text" value={part.value||""}
+                                  onChange={e=>updatePart(part.id,"value",e.target.value)}
+                                  style={{ padding:"7px 10px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:13,fontFamily:"inherit",background:"#fff",color:"#1d1d1f",outline:"none",width:80 }} />
+                              </div>
+                              <button onClick={()=>{deletePart(part.id);setExpandedPart(null);}}
+                                style={{ padding:"7px 14px",borderRadius:8,fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
+                                  border:"1px solid #ff3b30",background:"none",color:"#ff3b30" }}>
+                                Delete
+                              </button>
                             </div>
                           </div>
-                          <button className="btn-ghost btn-sm" style={{ color:"#ef4444",borderColor:"#ef4444" }}
-                            onClick={()=>{deletePart(part.id);setExpandedPart(null);}}>Delete</button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
         )}
