@@ -3903,13 +3903,10 @@ function BOMManager({ user }) {
                 {shopifyDemand.orders?.length > 0 && (() => {
                   // Calculate daily sell rate per product from order history
                   const now = new Date();
-                  const skipWords = ["shipping","gift card","tip","gratuity","donation","insurance","handling","gift wrap"];
-                  const isProduct = (title) => !skipWords.some(w => title.toLowerCase().includes(w));
                   const productSales = {}; // { title: { total, dates[], storeName } }
                   for (const order of shopifyDemand.orders) {
                     const d = new Date(order.createdAt);
                     for (const li of order.lineItems) {
-                      if (!isProduct(li.title)) continue;
                       if (!productSales[li.title]) productSales[li.title] = { total: 0, oldest: d, newest: d, storeName: order.storeName || "" };
                       productSales[li.title].total += li.quantity;
                       if (d < productSales[li.title].oldest) productSales[li.title].oldest = d;
