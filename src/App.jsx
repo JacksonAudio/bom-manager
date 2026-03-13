@@ -850,7 +850,7 @@ function BOMManager({ user }) {
   // selectedParts — set of part IDs checked in the Parts Library for bulk delete
   const [selectedParts, setSelectedParts] = useState(new Set());
   const [expandedPricingParts, setExpandedPricingParts] = useState(new Set());
-  const [usOnly, setUsOnly] = useState(true);
+  const [countryFilter, setCountryFilter] = useState("us"); // "us" or "rest"
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
   const [mouserCartStatus, setMouserCartStatus] = useState(null); // { loading, error, cartUrl, cartKey, items }
   // Local order tracker — persists to localStorage
@@ -1913,14 +1913,14 @@ function BOMManager({ user }) {
                   {fetchingAll ? "Fetching…" : "Fetch All Prices"}
                 </button>
                 <div style={{ display:"flex",borderRadius:980,overflow:"hidden",border:"1px solid #d2d2d7" }}>
-                  <button onClick={()=>setUsOnly(true)}
+                  <button onClick={()=>setCountryFilter("us")}
                     style={{ padding:"8px 16px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",
-                      background:usOnly?"#1d1d1f":"transparent",color:usOnly?"#fff":"#86868b",transition:"all 0.15s" }}>
+                      background:countryFilter==="us"?"#1d1d1f":"transparent",color:countryFilter==="us"?"#fff":"#86868b",transition:"all 0.15s" }}>
                     USA!! USA!!
                   </button>
-                  <button onClick={()=>setUsOnly(false)}
+                  <button onClick={()=>setCountryFilter("rest")}
                     style={{ padding:"8px 16px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",borderLeft:"1px solid #d2d2d7",
-                      background:!usOnly?"#1d1d1f":"transparent",color:!usOnly?"#fff":"#86868b",transition:"all 0.15s" }}>
+                      background:countryFilter==="rest"?"#1d1d1f":"transparent",color:countryFilter==="rest"?"#fff":"#86868b",transition:"all 0.15s" }}>
                     The Rest
                   </button>
                 </div>
@@ -1948,7 +1948,7 @@ function BOMManager({ user }) {
                     const getCountry = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
                     const isNonUS = (d) => { const c = getCountry(d); return c && c !== "US"; };
                     const sorted = hasPricing ? Object.entries(pricingObj)
-                      .filter(([,d]) => d.stock > 0 && (!usOnly || !isNonUS(d)))
+                      .filter(([,d]) => d.stock > 0 && (countryFilter === "us" ? !isNonUS(d) : isNonUS(d)))
                       .sort((a,b) => (p100(a[1])||Infinity) - (p100(b[1])||Infinity)) : [];
 
                     // Tariff helpers
@@ -2106,7 +2106,7 @@ function BOMManager({ user }) {
                                 })}
                               </div>
                             ) : effectiveStatus === "done" ? (
-                              <div style={{ padding:16,textAlign:"center",color:"#aeaeb2",fontSize:13 }}>No suppliers with stock{usOnly ? " (US Only filter is on)" : ""}</div>
+                              <div style={{ padding:16,textAlign:"center",color:"#aeaeb2",fontSize:13 }}>No suppliers with stock{countryFilter === "us" ? " (US Only filter is on)" : " (international filter is on)"}</div>
                             ) : (
                               <div style={{ padding:16,textAlign:"center",color:"#aeaeb2",fontSize:13 }}>No pricing data yet</div>
                             )}
