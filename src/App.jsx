@@ -1463,7 +1463,8 @@ function BOMManager({ user }) {
                                       <div style={{ fontSize:28,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",lineHeight:1.1,
                                         color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(data.unitPrice)}</div>
                                       <div style={{ fontSize:12,color:"#64748b",marginTop:4 }}>
-                                        Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}
+                                        {data.country && <span style={{ color: data.country==="US"?"#34d399":"#f59e0b",fontWeight:600 }}>{data.country}</span>}
+                                        {data.country && " · "}Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}
                                       </div>
                                       {/* Price breaks */}
                                       {data.priceBreaks?.length > 1 && (
