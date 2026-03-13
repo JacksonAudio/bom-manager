@@ -1548,10 +1548,12 @@ function BOMManager({ user }) {
     let tariffTotal = 0;
     for (const a of assignments) {
       if (!a.supplierId || !a.lineCost) continue;
-      // Get supplier country for tariff calculation
+      // Tariff applies when importing from a non-US supplier (they ship internationally, customs applies)
+      // US-based distributors (Mouser, DigiKey, etc.) already handle import duties in their pricing
       const part = prodParts.find(p => p.id === a.partId);
       const pricingData = part?.pricing?.[a.supplierId];
-      const origin = pricingData?.country || DIST_COUNTRY[pricingData?.displayName] || DIST_COUNTRY[a.supplierId] || pricingData?.countryOfOrigin || "";
+      const supCountry = pricingData?.country || DIST_COUNTRY[pricingData?.displayName] || DIST_COUNTRY[a.supplierId] || "";
+      const origin = (!supCountry || supCountry === "US") ? "" : supCountry;
       const rate = getTariffRate(origin, tariffFallback);
       if (rate > 0) {
         const cost = a.lineCost * (rate / 100);
@@ -2043,7 +2045,7 @@ function BOMManager({ user }) {
                                   const isBest = idx === 0;
                                   const ctry = getCountry(data);
                                   const displayPrice = pAtQty(data);
-                                  const origin = ctry || data.countryOfOrigin || "";
+                                  const origin = (ctry && ctry !== "US") ? ctry : "";
                                   const tariffRate = getTariffRate(origin, userTariffs);
                                   const landedPrice = tariffRate > 0 ? displayPrice * (1 + tariffRate / 100) : 0;
                                   return (
@@ -3073,7 +3075,11 @@ function BOMManager({ user }) {
                           }}
                           style={{ width:100,padding:"6px 10px",borderRadius:5,fontSize:14,fontWeight:700,textAlign:"center" }} />
                         <span style={{ fontSize:12,color:"#86868b" }}>units of <strong style={{ color:"#1d1d1f" }}>{prod.name}</strong>…</span>
-                        {bomSim[prod.id]?.loading && <span className="spinner" style={{ marginLeft:4 }} />}
+                        <button className="btn-primary" style={{ fontSize:12 }}
+                          disabled={bomSim[prod.id]?.loading || !parseInt(bomSim[prod.id]?.qty)}
+                          onClick={() => runBomSimulation(prod.id)}>
+                          {bomSim[prod.id]?.loading ? <><span className="spinner" /> Calculating…</> : "Run Simulation"}
+                        </button>
                         <label style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#86868b",cursor:"pointer",marginLeft:8 }}>
                           <input type="checkbox" checked={simUsOnly} onChange={(e)=>{
                             const v = e.target.checked;
