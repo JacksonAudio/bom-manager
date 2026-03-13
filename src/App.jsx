@@ -3443,6 +3443,7 @@ function BOMManager({ user }) {
                 </button>
                 <span style={{ fontSize:10,color:"#aeaeb2" }}>Rates saved with your API keys</span>
               </div>
+              </div>
             </div>
 
             {/* ── Notifications & Email */}
