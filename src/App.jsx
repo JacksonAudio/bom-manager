@@ -771,6 +771,23 @@ function BOMManager({ user }) {
   const [usOnly, setUsOnly] = useState(false);
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
   const fileRef = useRef();
+  const qtyTimers = useRef({}); // debounce timers for qty→price refresh
+
+  // Update quantity and auto-refresh pricing after debounce
+  const updateQtyAndRefresh = (partId, newQty) => {
+    updatePart(partId, "quantity", newQty);
+    clearTimeout(qtyTimers.current[partId]);
+    qtyTimers.current[partId] = setTimeout(() => {
+      // Read fresh state to avoid stale closure
+      setParts(current => {
+        const p = current.find(x => x.id === partId);
+        if (p?.mpn && (nexarToken || apiKeys.mouser_api_key)) {
+          fetchPartPricing(partId);
+        }
+        return current; // no mutation
+      });
+    }, 800);
+  };
 
   // ─────────────────────────────────────────────
   // DB BOOT — fetch initial data on mount
@@ -2376,7 +2393,7 @@ function BOMManager({ user }) {
                                 </td>
                                 <td style={{ padding:"7px 10px" }}>
                                   <input type="number" min="1" value={part.quantity}
-                                    onChange={(e)=>updatePart(part.id,"quantity",parseInt(e.target.value)||1)}
+                                    onChange={(e)=>updateQtyAndRefresh(part.id,parseInt(e.target.value)||1)}
                                     style={{ width:52,padding:"2px 6px",borderRadius:4,fontSize:12 }} />
                                 </td>
                                 <td style={{ padding:"7px 10px" }}>
