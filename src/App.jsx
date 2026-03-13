@@ -34,6 +34,27 @@ const DEFAULT_KEYS = {
   arrow_login:         "",   // Arrow also requires a login email
   notify_email:        "",   // Email to receive low-stock alerts
   supplier_emails:     "",   // JSON: { "mouser": "orders@mouser.com", ... }
+  tariffs_json:        "",   // JSON: { "CN": 145, "TW": 32, ... } — % tariff by country code
+};
+
+// Default tariff rates by country (% of goods value), updated March 2026
+// These are editable in Settings and stored in the DB
+const DEFAULT_TARIFFS = {
+  "CN": 145,   // China
+  "TW": 32,    // Taiwan
+  "DE": 20,    // Germany (EU)
+  "FR": 20,    // France (EU)
+  "IT": 20,    // Italy (EU)
+  "PL": 20,    // Poland (EU)
+  "UK": 10,    // United Kingdom
+  "JP": 24,    // Japan
+  "KR": 25,    // South Korea
+  "IN": 26,    // India
+  "CA": 25,    // Canada
+  "MX": 25,    // Mexico
+  "AU": 10,    // Australia
+  "VN": 46,    // Vietnam
+  "TH": 36,    // Thailand
 };
 
 // ─────────────────────────────────────────────
@@ -74,6 +95,15 @@ const DIST_COUNTRY = {
 
 // Format price: up to 4 decimals, strip trailing zeroes, keep min 2
 const fmtPrice = (v) => { const s = parseFloat(v).toFixed(4); return s.replace(/0{1,2}$/, ""); };
+
+// Get country code for a supplier ID (from DIST_COUNTRY or SUPPLIERS)
+const getSupplierCountry = (supplierId) => DIST_COUNTRY[supplierId] || "";
+
+// Get tariff % for a country code given current tariff settings
+const getTariffRate = (countryCode, tariffs) => {
+  if (!countryCode || countryCode === "US") return 0;
+  return tariffs[countryCode.toUpperCase()] || 0;
+};
 
 // ─────────────────────────────────────────────
 // BOM PARSER
@@ -1188,9 +1218,36 @@ function BOMManager({ user }) {
     }
 
     const partsCost = assignments.reduce((s, a) => s + (a.lineCost || 0), 0);
-    const shipping = [...suppliersUsed].reduce((s, sid) => s + getShipping(sid), 0);
-    const total = partsCost + shipping;
-    return { partsCost, shipping, total, perUnit: total / prodQty, suppliers: [...suppliersUsed], assignments };
+
+    // Per-supplier shipping breakdown
+    const shippingBreakdown = [...suppliersUsed].map(sid => {
+      const sup = SUPPLIERS.find(x => x.id === sid);
+      return { supplierId: sid, name: sup?.name || sid, cost: getShipping(sid) };
+    });
+    const shipping = shippingBreakdown.reduce((s, sb) => s + sb.cost, 0);
+
+    // Tariff calculation per supplier
+    const tariffs = (() => { try { return JSON.parse(apiKeys.tariffs_json || "{}"); } catch { return {}; } })();
+    const tariffFallback = { ...DEFAULT_TARIFFS, ...tariffs };
+    // Group line costs by supplier, find country, apply tariff %
+    const supplierLineCosts = {};
+    for (const a of assignments) {
+      if (a.supplierId && a.lineCost) {
+        supplierLineCosts[a.supplierId] = (supplierLineCosts[a.supplierId] || 0) + a.lineCost;
+      }
+    }
+    const tariffBreakdown = [...suppliersUsed].map(sid => {
+      const country = getSupplierCountry(sid);
+      const rate = getTariffRate(country, tariffFallback);
+      const goodsValue = supplierLineCosts[sid] || 0;
+      const cost = goodsValue * (rate / 100);
+      const sup = SUPPLIERS.find(x => x.id === sid);
+      return { supplierId: sid, name: sup?.name || sid, country, rate, goodsValue, cost };
+    }).filter(t => t.rate > 0);
+    const tariffTotal = tariffBreakdown.reduce((s, t) => s + t.cost, 0);
+
+    const total = partsCost + shipping + tariffTotal;
+    return { partsCost, shipping, shippingBreakdown, tariffTotal, tariffBreakdown, total, perUnit: total / prodQty, suppliers: [...suppliersUsed], assignments };
   }
 
   async function runBomSimulation(productId) {
@@ -1321,7 +1378,7 @@ function BOMManager({ user }) {
           { id:"purchasing",icon:"🛒", label:`Purchasing${poPartCount>0?` (${poPartCount})`:""}` },
           { id:"projects",  icon:"📦", label:"Products" },
           { id:"alerts",    icon:"⚠",  label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}` },
-          { id:"settings",  icon:"⚙",  label:"API Keys" },
+          { id:"settings",  icon:"⚙",  label:"Settings" },
         ].map((tab) => (
           <button key={tab.id}
             className={`nav-btn ${activeView===tab.id?"active":""}`}
@@ -2242,15 +2299,31 @@ function BOMManager({ user }) {
                                 <div style={{ fontSize:22,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#e2e8f0" }}>
                                   ${fmtPrice(cheapBase.perUnit)}<span style={{ fontSize:12,color:"#64748b",fontWeight:400 }}> / unit</span>
                                 </div>
-                                <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>
-                                  Parts: ${cheapBase.partsCost.toFixed(2)} + Shipping: ${cheapBase.shipping.toFixed(2)}
+                                <div style={{ fontSize:11,color:"#64748b",marginTop:4 }}>
+                                  Parts: ${cheapBase.partsCost.toFixed(2)}
                                 </div>
-                                <div style={{ fontSize:11,color:"#f59e0b",marginTop:2 }}>
-                                  {cheapBase.suppliers.length} shipment{cheapBase.suppliers.length!==1?"s":""}: {cheapBase.suppliers.map(s => {
-                                    const sup = SUPPLIERS.find(x=>x.id===s);
-                                    return sup?.name || s;
-                                  }).join(", ")}
+                                <div style={{ fontSize:11,color:"#64748b" }}>
+                                  Shipping: ${cheapBase.shipping.toFixed(2)} ({cheapBase.suppliers.length} vendor{cheapBase.suppliers.length!==1?"s":""})
                                 </div>
+                                {cheapBase.tariffTotal > 0 && (
+                                  <div style={{ fontSize:11,color:"#ef4444" }}>
+                                    Tariffs: ${cheapBase.tariffTotal.toFixed(2)}
+                                  </div>
+                                )}
+                                {/* Per-vendor shipping */}
+                                <div style={{ fontSize:10,color:"#475569",marginTop:6 }}>
+                                  {cheapBase.shippingBreakdown.map(sb => (
+                                    <div key={sb.supplierId}>{sb.name}: ${sb.cost.toFixed(2)} shipping</div>
+                                  ))}
+                                </div>
+                                {/* Tariff detail */}
+                                {cheapBase.tariffBreakdown?.length > 0 && (
+                                  <div style={{ fontSize:10,color:"#b45454",marginTop:4 }}>
+                                    {cheapBase.tariffBreakdown.map(t => (
+                                      <div key={t.supplierId}>{t.name} ({t.country}): {t.rate}% = ${t.cost.toFixed(2)}</div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
 
                               {/* Smart consolidated */}
@@ -2263,21 +2336,36 @@ function BOMManager({ user }) {
                                 <div style={{ fontSize:22,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#34d399" }}>
                                   ${fmtPrice(smartBase.perUnit)}<span style={{ fontSize:12,color:"#64748b",fontWeight:400 }}> / unit</span>
                                 </div>
-                                <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>
-                                  Parts: ${smartBase.partsCost.toFixed(2)} + Shipping: ${smartBase.shipping.toFixed(2)}
+                                <div style={{ fontSize:11,color:"#64748b",marginTop:4 }}>
+                                  Parts: ${smartBase.partsCost.toFixed(2)}
                                 </div>
-                                <div style={{ fontSize:11,color:"#34d399",marginTop:2 }}>
-                                  {smartBase.suppliers.length} shipment{smartBase.suppliers.length!==1?"s":""}: {smartBase.suppliers.map(s => {
-                                    const sup = SUPPLIERS.find(x=>x.id===s);
-                                    return sup?.name || s;
-                                  }).join(", ")}
+                                <div style={{ fontSize:11,color:"#64748b" }}>
+                                  Shipping: ${smartBase.shipping.toFixed(2)} ({smartBase.suppliers.length} vendor{smartBase.suppliers.length!==1?"s":""})
                                 </div>
+                                {smartBase.tariffTotal > 0 && (
+                                  <div style={{ fontSize:11,color:"#ef4444" }}>
+                                    Tariffs: ${smartBase.tariffTotal.toFixed(2)}
+                                  </div>
+                                )}
+                                {/* Per-vendor shipping */}
+                                <div style={{ fontSize:10,color:"#475569",marginTop:6 }}>
+                                  {smartBase.shippingBreakdown.map(sb => (
+                                    <div key={sb.supplierId}>{sb.name}: ${sb.cost.toFixed(2)} shipping</div>
+                                  ))}
+                                </div>
+                                {/* Tariff detail */}
+                                {smartBase.tariffBreakdown?.length > 0 && (
+                                  <div style={{ fontSize:10,color:"#b45454",marginTop:4 }}>
+                                    {smartBase.tariffBreakdown.map(t => (
+                                      <div key={t.supplierId}>{t.name} ({t.country}): {t.rate}% = ${t.cost.toFixed(2)}</div>
+                                    ))}
+                                  </div>
+                                )}
                                 {smartSavings > 0 && (
                                   <div style={{ fontSize:12,color:"#34d399",fontWeight:700,marginTop:6 }}>
                                     Saves ${smartSavings.toFixed(2)} total vs cheapest-per-part
                                   </div>
                                 )}
-                              </div>
                             </div>
 
                             {/* Qty comparison table using smart strategy */}
@@ -2287,7 +2375,7 @@ function BOMManager({ user }) {
                             <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12,maxWidth:600 }}>
                               <thead>
                                 <tr style={{ borderBottom:"1px solid #1e2130" }}>
-                                  {["Units","Parts","Shipping","Total","Per Unit","vs Base"].map((h,i)=>(
+                                  {["Units","Parts","Shipping","Tariffs","Total","Per Unit","Vendors","vs Base"].map((h,i)=>(
                                     <th key={i} style={{ padding:"5px 10px",textAlign:i>0?"right":"left",
                                       fontSize:10,color:"#475569",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700 }}>{h}</th>
                                   ))}
@@ -2310,9 +2398,15 @@ function BOMManager({ user }) {
                                       </td>
                                       <td style={{ padding:"5px 10px",textAlign:"right",color:"#94a3b8" }}>${s.partsCost.toFixed(2)}</td>
                                       <td style={{ padding:"5px 10px",textAlign:"right",color:"#94a3b8" }}>${s.shipping.toFixed(2)}</td>
+                                      <td style={{ padding:"5px 10px",textAlign:"right",color:s.tariffTotal>0?"#ef4444":"#475569" }}>
+                                        {s.tariffTotal > 0 ? `$${s.tariffTotal.toFixed(2)}` : "—"}
+                                      </td>
                                       <td style={{ padding:"5px 10px",textAlign:"right",color:"#e2e8f0",fontWeight:600 }}>${s.total.toFixed(2)}</td>
                                       <td style={{ padding:"5px 10px",textAlign:"right",fontFamily:"'Space Grotesk',sans-serif",
                                         fontWeight:700,color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(s.perUnit)}</td>
+                                      <td style={{ padding:"5px 10px",textAlign:"right",color:"#94a3b8",fontSize:11 }}>
+                                        {s.suppliers.length}
+                                      </td>
                                       <td style={{ padding:"5px 10px",textAlign:"right",
                                         color:diff>0?"#34d399":diff<0?"#f87171":"#475569",fontWeight:diff!==0?600:400 }}>
                                         {isBase ? "—" : diff > 0 ? `-$${fmtPrice(diff)}/ea` : diff < 0 ? `+$${fmtPrice(Math.abs(diff))}/ea` : "same"}
@@ -2396,7 +2490,7 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "settings" && (
           <div style={{ maxWidth:760 }}>
-            <h2 style={{ fontFamily:"'Space Grotesk',sans-serif",fontSize:21,fontWeight:800,marginBottom:6 }}>API Configuration</h2>
+            <h2 style={{ fontFamily:"'Space Grotesk',sans-serif",fontSize:21,fontWeight:800,marginBottom:6 }}>Settings</h2>
             <p style={{ color:"#64748b",fontSize:13,marginBottom:24 }}>
               Keys are stored in the shared team database — one set for everyone.
               They are not end-to-end encrypted; do not store keys here if that is a concern.
@@ -2525,6 +2619,52 @@ function BOMManager({ user }) {
               </div>
               <div style={{ fontSize:11,color:"#475569",marginTop:8 }}>
                 Default for unlisted distributors: ${DEFAULT_SHIPPING.toFixed(2)}
+              </div>
+            </div>
+
+            {/* ── Import Tariff Rates */}
+            <div className="card" style={{ marginBottom:16,borderTop:"3px solid #ef4444" }}>
+              <div style={{ fontFamily:"'Space Grotesk',sans-serif",fontWeight:800,fontSize:15,color:"#ef4444",marginBottom:4 }}>
+                Import Tariff Rates
+              </div>
+              <div style={{ fontSize:12,color:"#64748b",marginBottom:12 }}>
+                Applied in the Production Run Simulator when parts come from non-US distributors. Rates are % of goods value.
+              </div>
+              <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
+                {(() => {
+                  let tariffs;
+                  try { tariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { tariffs = { ...DEFAULT_TARIFFS }; }
+                  const countries = Object.keys(tariffs).sort();
+                  return countries.map(cc => (
+                    <div key={cc} style={{ display:"flex",alignItems:"center",gap:4 }}>
+                      <span style={{ fontSize:12,color:"#e2e8f0",fontWeight:700,minWidth:28 }}>{cc}</span>
+                      <input type="number" step="1" min="0" max="500"
+                        value={tariffs[cc]}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value) || 0;
+                          const updated = { ...tariffs, [cc]: v };
+                          setApiKeys(k => ({ ...k, tariffs_json: JSON.stringify(updated) }));
+                        }}
+                        style={{ width:52,padding:"4px 6px",borderRadius:4,fontSize:12,textAlign:"right" }} />
+                      <span style={{ fontSize:11,color:"#475569" }}>%</span>
+                    </div>
+                  ));
+                })()}
+              </div>
+              <div style={{ marginTop:10,display:"flex",gap:8,alignItems:"center" }}>
+                <button className="btn-ghost" style={{ fontSize:11 }}
+                  onClick={() => {
+                    const cc = prompt("Add country code (e.g. BR, SG, IL):");
+                    if (!cc || cc.length < 2) return;
+                    const rate = parseFloat(prompt(`Tariff % for ${cc.toUpperCase()}:`) || "0");
+                    let tariffs;
+                    try { tariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { tariffs = { ...DEFAULT_TARIFFS }; }
+                    tariffs[cc.toUpperCase()] = rate;
+                    setApiKeys(k => ({ ...k, tariffs_json: JSON.stringify(tariffs) }));
+                  }}>
+                  + Add Country
+                </button>
+                <span style={{ fontSize:10,color:"#475569" }}>Rates saved with your API keys</span>
               </div>
             </div>
 
