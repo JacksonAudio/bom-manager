@@ -1621,7 +1621,9 @@ function BOMManager({ user }) {
   const priceAtQty = (part) => {
     const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
     if (!pr) return parseFloat(part.unitCost) || 0;
-    const entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
+    const isUS = (sid, d) => { const c = d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[sid] || ""; return !c || c === "US"; };
+    let entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
+    if (simUsOnly) entries = entries.filter(([sid, d]) => isUS(sid, d));
     if (!entries.length) return parseFloat(part.unitCost) || 0;
     const calc = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
     entries.sort((a,b) => (calc(a[1])||Infinity) - (calc(b[1])||Infinity));
@@ -2957,13 +2959,14 @@ function BOMManager({ user }) {
                             const dynResult = (() => {
                               const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
                               if (!pr) return { price: parseFloat(part.unitCost) || 0, source: null };
-                              const entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
+                              const isUS = (sid, d) => { const c = d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[sid] || ""; return !c || c === "US"; };
+                              let entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
+                              if (simUsOnly) entries = entries.filter(([sid, d]) => isUS(sid, d));
                               if (!entries.length) return { price: parseFloat(part.unitCost) || 0, source: null };
                               const priceAt = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
                               entries.sort((a,b) => (priceAt(a[1])||Infinity) - (priceAt(b[1])||Infinity));
                               const [sid, data] = entries[0];
-                              const c = data.country || DIST_COUNTRY[data.displayName] || DIST_COUNTRY[sid] || "";
-                              return { price: priceAt(data), source: (!c || c === "US") ? "USA" : "INTL" };
+                              return { price: priceAt(data), source: isUS(sid, data) ? "USA" : "INTL" };
                             })();
                             const dynPrice = dynResult.price;
                             const dynSource = dynResult.source;
@@ -3104,17 +3107,15 @@ function BOMManager({ user }) {
                                 <div style={{ fontSize:22,fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",color:"#1d1d1f" }}>
                                   ${fmtPrice(cheapBase.perUnit)}<span style={{ fontSize:12,color:"#86868b",fontWeight:400 }}> / unit</span>
                                 </div>
-                                <div style={{ fontSize:11,color:"#86868b",marginTop:4 }}>
+                                <div style={{ fontSize:11,color:"#86868b",marginTop:8 }}>
                                   Parts: {"$"}{fmtDollar(cheapBase.partsCost)}
                                 </div>
                                 <div style={{ fontSize:11,color:"#86868b" }}>
                                   Shipping: {"$"}{fmtDollar(cheapBase.shipping)} ({cheapBase.suppliers.length} vendor{cheapBase.suppliers.length!==1?"s":""})
                                 </div>
-                                {cheapBase.tariffTotal > 0 && (
-                                  <div style={{ fontSize:11,color:"#ff3b30" }}>
-                                    Tariffs: {"$"}{fmtDollar(cheapBase.tariffTotal)}
-                                  </div>
-                                )}
+                                <div style={{ fontSize:11,color:cheapBase.tariffTotal>0?"#ff3b30":"#86868b" }}>
+                                  Tariffs: {cheapBase.tariffTotal > 0 ? `$${fmtDollar(cheapBase.tariffTotal)}` : "$0.00"}
+                                </div>
                                 <div style={{ fontSize:12,color:"#1d1d1f",fontWeight:700,marginTop:4,borderTop:"1px solid #e5e5ea",paddingTop:4 }}>
                                   Total: {"$"}{fmtDollar(cheapBase.total)}
                                 </div>
@@ -3144,17 +3145,15 @@ function BOMManager({ user }) {
                                 <div style={{ fontSize:22,fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",color:"#34c759" }}>
                                   ${fmtPrice(smartBase.perUnit)}<span style={{ fontSize:12,color:"#86868b",fontWeight:400 }}> / unit</span>
                                 </div>
-                                <div style={{ fontSize:11,color:"#86868b",marginTop:4 }}>
+                                <div style={{ fontSize:11,color:"#86868b",marginTop:8 }}>
                                   Parts: {"$"}{fmtDollar(smartBase.partsCost)}
                                 </div>
                                 <div style={{ fontSize:11,color:"#86868b" }}>
                                   Shipping: {"$"}{fmtDollar(smartBase.shipping)} ({smartBase.suppliers.length} vendor{smartBase.suppliers.length!==1?"s":""})
                                 </div>
-                                {smartBase.tariffTotal > 0 && (
-                                  <div style={{ fontSize:11,color:"#ff3b30" }}>
-                                    Tariffs: {"$"}{fmtDollar(smartBase.tariffTotal)}
-                                  </div>
-                                )}
+                                <div style={{ fontSize:11,color:smartBase.tariffTotal>0?"#ff3b30":"#86868b" }}>
+                                  Tariffs: {smartBase.tariffTotal > 0 ? `$${fmtDollar(smartBase.tariffTotal)}` : "$0.00"}
+                                </div>
                                 <div style={{ fontSize:12,color:"#1d1d1f",fontWeight:700,marginTop:4,borderTop:"1px solid #e5e5ea",paddingTop:4 }}>
                                   Total: {"$"}{fmtDollar(smartBase.total)}
                                 </div>
