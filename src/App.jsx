@@ -130,7 +130,7 @@ async function fetchNexarToken(clientId, clientSecret) {
 function buildNexarQuery(mpn) {
   // Escape any quotes in the MPN just in case
   const safe = mpn.replace(/"/g, '\\"');
-  return `{ supSearchMpn(q: "${safe}", limit: 3) { hits results { part { mpn manufacturer { name } sellers { company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
+  return `{ supSearchMpn(q: "${safe}", limit: 3, country: "US", currency: "USD") { hits results { part { mpn manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
 }
 
 async function fetchNexarPricing(mpn, quantity, token) {
@@ -156,6 +156,7 @@ async function fetchNexarPricing(mpn, quantity, token) {
   for (const result of results) {
     for (const seller of (result?.part?.sellers || [])) {
       const distName = seller?.company?.name || "";
+      const sellerCountry = (seller?.country || "").toUpperCase();
       const suppId = NEXAR_DIST_MAP[distName];
       const key = suppId || distName.toLowerCase().replace(/\s+/g, "_");
 
@@ -173,6 +174,7 @@ async function fetchNexarPricing(mpn, quantity, token) {
           pricing[key] = {
             supplierId: key,
             displayName: distName,
+            country: sellerCountry,
             unitPrice: parseFloat(unitPrice) || 0,
             stock: offer.inventoryLevel || 0,
             moq: offer.moq || 1,
@@ -1418,9 +1420,16 @@ function BOMManager({ user }) {
                           </div>
                         )}
 
-                        {/* Per-supplier prices — sorted by price, top 5 by default */}
+                        {/* Per-supplier prices — USA first, then by price, top 5 by default */}
                         {hasPricing && (() => {
-                          const sorted = Object.entries(pricingObj).sort((a, b) => (a[1].unitPrice || Infinity) - (b[1].unitPrice || Infinity));
+                          const US_IDS = new Set(["mouser","digikey","arrow","allied","newark"]);
+                          const isUS = (d) => d.country === "US" || US_IDS.has(d.supplierId);
+                          const sorted = Object.entries(pricingObj).sort((a, b) => {
+                            const aUS = isUS(a[1]) ? 0 : 1;
+                            const bUS = isUS(b[1]) ? 0 : 1;
+                            if (aUS !== bUS) return aUS - bUS;
+                            return (a[1].unitPrice || Infinity) - (b[1].unitPrice || Infinity);
+                          });
                           const isExpanded = expandedPricingParts.has(part.id);
                           const visible = isExpanded ? sorted : sorted.slice(0, 5);
                           const totalCount = sorted.length;
