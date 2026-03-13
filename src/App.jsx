@@ -77,9 +77,12 @@ const fmtPrice = (v) => { const s = parseFloat(v).toFixed(4); return s.replace(/
 // ─────────────────────────────────────────────
 function parseBOM(raw) {
   const lines = raw.trim().split(/\r?\n/).filter(Boolean);
-  if (lines.length < 2) return [];
+  if (lines.length < 1) return [];
   const delim = lines[0].includes("\t") ? "\t" : ",";
-  const headers = lines[0].split(delim).map((h) => h.replace(/^"|"$/g, "").trim().toLowerCase());
+  const firstLine = lines[0].split(delim).map((h) => h.replace(/^"|"$/g, "").trim().toLowerCase());
+  // Detect if first line is a header row
+  const hasHeader = firstLine.some((h) => ["pn","mpn","part number","quantity","qty","reference","value","mfr part #"].includes(h));
+  const startIdx = hasHeader ? 1 : 0;
   const colMap = {
     reference:    ["reference", "ref", "designator", "refdes", "references"],
     value:        ["value", "val", "component", "part value"],
@@ -89,21 +92,28 @@ function parseBOM(raw) {
     footprint:    ["footprint", "package"],
     manufacturer: ["manufacturer", "mfr", "mfr."],
   };
+  // If header detected, map columns; otherwise assume PN,QTY (2-column format)
   const idx = {};
-  for (const [key, variants] of Object.entries(colMap)) {
-    idx[key] = headers.findIndex((h) => variants.some((v) => h.includes(v)));
+  if (hasHeader) {
+    for (const [key, variants] of Object.entries(colMap)) {
+      idx[key] = firstLine.findIndex((h) => variants.some((v) => h.includes(v)));
+    }
+  } else {
+    idx.mpn = 0;
+    idx.quantity = lines[0].split(delim).length > 1 ? 1 : -1;
   }
   const parts = [];
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = startIdx; i < lines.length; i++) {
     const cells = lines[i].split(delim).map((c) => c.replace(/^"|"$/g, "").trim());
     if (cells.every((c) => !c)) continue;
     const get = (key) => (idx[key] >= 0 ? cells[idx[key]] || "" : "");
     const refRaw = get("reference");
     const refs = refRaw.split(/[\s,;]+/).filter(Boolean);
+    const mpn = get("mpn");
     const qty = parseInt(get("quantity")) || refs.length || 1;
     parts.push({
       id: `part-${Date.now()}-${i}`,
-      reference: refRaw, refs, value: get("value"), mpn: get("mpn"),
+      reference: refRaw || mpn, refs, value: get("value"), mpn,
       description: get("description"), footprint: get("footprint"),
       manufacturer: get("manufacturer"), quantity: qty,
       unitCost: "", projectId: null, reorderQty: "", stockQty: "",
@@ -1150,7 +1160,7 @@ function BOMManager({ user }) {
               <div style={{ flex:1,height:1,background:"#1e2130" }} />
             </div>
 
-            <textarea rows={8} placeholder={"Reference,Value,MPN,Quantity,Description\nR1,10k,CRCW060310K0FKEA,4,Resistor 0603\nC1,100nF,GRM188R71C104KA01D,2,Cap 0402\nU1,LM358,LM358DR,1,Op-Amp SOIC-8"}
+            <textarea rows={8} placeholder={"PN,QTY\nCRCW060310K0FKEA,4\nGRM188R71C104KA01D,2\nLM358DR,1\n\n— or full BOM with headers —\nReference,Value,MPN,Quantity"}
               value={pasteText} onChange={(e)=>setPasteText(e.target.value)}
               style={{ width:"100%",padding:"12px",borderRadius:8,fontSize:12,lineHeight:1.7,resize:"vertical",border:"1px solid #2d3248" }} />
             <div style={{ display:"flex",gap:10,marginTop:12 }}>
