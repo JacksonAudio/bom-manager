@@ -1,11 +1,11 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager
-// Thursday, March 12, 2026
+// src/App.jsx — Jackson Audio BOM Manager v4.01
+// Thursday, March 12, 2026 — 9:43 PM
 //
 // Changelog:
-//   [1] Fix pricing display — show results even when status/bestSupplier not synced
-//   [2] Derive best supplier directly from pricing data on render
-//   [3] effectiveStatus — treat any part with pricing JSONB as "done"
+//   [1] Fix Nexar query — inline MPN string instead of GraphQL variable (fixes 400)
+//   [2] Auto-connect APIs on page load using saved keys from DB
+//   [3] Debug console logging for Nexar response parsing
 // ============================================================
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -125,49 +125,28 @@ async function fetchNexarToken(clientId, clientSecret) {
   return data.access_token;
 }
 
-// GraphQL query — fetches pricing from all distributors for one MPN
-// Uses supSearchMpn — the correct query name for the Supply scope API
-const NEXAR_QUERY = `
-  query PriceAndAvailability($mpn: String!) {
-    supSearchMpn(q: $mpn, limit: 3) {
-      hits
-      results {
-        part {
-          mpn
-          manufacturer { name }
-          sellers(authorizedOnly: false) {
-            company { name }
-            offers {
-              inventoryLevel
-              moq
-              url
-              prices {
-                quantity
-                price
-                currency
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-`;
+// Build inline GraphQL query string with MPN interpolated directly
+// Nexar requires inline strings — named variables cause 400 errors
+function buildNexarQuery(mpn) {
+  // Escape any quotes in the MPN just in case
+  const safe = mpn.replace(/"/g, '\\"');
+  return `{ supSearchMpn(q: "${safe}", limit: 3) { hits results { part { mpn manufacturer { name } sellers(authorizedOnly: false) { company { name } offers { inventoryLevel moq url prices { quantity price currency } } } } } } }`;
+}
 
 async function fetchNexarPricing(mpn, quantity, token) {
+  const query = buildNexarQuery(mpn);
+  console.log("[Nexar] Sending query for MPN:", mpn);
   const res = await fetch("https://api.nexar.com/graphql", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      query: NEXAR_QUERY,
-      variables: { mpn },
-    }),
+    body: JSON.stringify({ query }),  // no variables — inline only
   });
   if (!res.ok) throw new Error(`Nexar API error: ${res.status}`);
   const data = await res.json();
+  console.log("[Nexar] Raw response:", JSON.stringify(data).slice(0, 500));
   if (data.errors) throw new Error(data.errors[0]?.message || "Nexar GraphQL error");
 
   // Parse response — supSearchMpn returns data.supSearchMpn.results[].part
@@ -670,8 +649,24 @@ function BOMManager({ user }) {
         setProducts(prods.map(dbProductToUI));
         setParts(pts.map(dbPartToUI));
 
-        // Merge fetched keys over defaults
-        setApiKeys((prev) => ({ ...prev, ...keys }));
+        // Merge fetched keys over defaults — store merged copy for auto-connect
+        const mergedKeys = { ...DEFAULT_KEYS, ...keys };
+        setApiKeys(mergedKeys);
+
+        // Auto-connect APIs silently on page load if keys exist in DB
+        // Avoids user having to press "Save & Connect" every session
+        if (mergedKeys.nexar_client_id && mergedKeys.nexar_client_secret) {
+          console.log("[Boot] Auto-connecting Nexar...");
+          try {
+            const nToken = await fetchNexarToken(mergedKeys.nexar_client_id, mergedKeys.nexar_client_secret);
+            setNexarToken(nToken);
+            setTokenStatus("ok");
+            setTokenMsg("✓ Nexar/Octopart auto-connected");
+            console.log("[Boot] Nexar auto-connect OK, token length:", nToken?.length);
+          } catch (e) {
+            console.warn("[Boot] Nexar auto-connect failed:", e.message);
+          }
+        }
       } catch (e) {
         console.error("Boot fetch failed:", e);
       } finally {
