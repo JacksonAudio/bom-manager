@@ -2230,7 +2230,7 @@ function BOMManager({ user }) {
 
                     {/* Required row: Part Number + Qty + Add button */}
                     <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
-                      <div style={{ flex:"1 1 200px" }}>
+                      <div style={{ flex:"1 1 200px",position:"relative" }}>
                         <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Part Number <span style={{ color:"#ff3b30" }}>*</span></div>
                         <input
                           type="text"
@@ -2238,10 +2238,55 @@ function BOMManager({ user }) {
                           value={qa.pn || ""}
                           onChange={(e) => setQAField(prod.id, "pn", e.target.value)}
                           onKeyDown={(e) => { if(e.key==="Enter") quickAddPart(prod.id); }}
+                          onFocus={() => setQAField(prod.id, "_focused", true)}
+                          onBlur={() => setTimeout(() => setQAField(prod.id, "_focused", false), 200)}
                           style={{ padding:"8px 12px",borderRadius:6,width:"100%",
                             fontSize:13,fontWeight:600,
                             borderColor: qa.pn ? prod.color : undefined }}
                         />
+                        {/* Autocomplete dropdown */}
+                        {qa._focused && qa.pn && qa.pn.trim().length >= 2 && (() => {
+                          const q = qa.pn.trim().toLowerCase();
+                          const matches = parts
+                            .filter(p => p.projectId !== prod.id && (
+                              (p.mpn && p.mpn.toLowerCase().includes(q)) ||
+                              (p.value && p.value.toLowerCase().includes(q)) ||
+                              (p.description && p.description.toLowerCase().includes(q))
+                            ))
+                            .slice(0, 8);
+                          if (matches.length === 0) return null;
+                          return (
+                            <div style={{ position:"absolute",top:"100%",left:0,right:0,zIndex:100,
+                              background:"#fff",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",
+                              border:"1px solid #e5e5ea",marginTop:4,maxHeight:240,overflowY:"auto" }}>
+                              <div style={{ padding:"6px 12px",fontSize:9,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,borderBottom:"1px solid #f0f0f2" }}>
+                                EXISTING PARTS
+                              </div>
+                              {matches.map(m => (
+                                <div key={m.id}
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    updatePart(m.id, "projectId", prod.id);
+                                    setQAField(prod.id, "pn", "");
+                                    setQAField(prod.id, "_focused", false);
+                                  }}
+                                  style={{ padding:"8px 12px",cursor:"pointer",borderBottom:"1px solid #f5f5f7",
+                                    transition:"background 0.1s" }}
+                                  onMouseOver={e=>e.currentTarget.style.background="#f5f5f7"}
+                                  onMouseOut={e=>e.currentTarget.style.background="transparent"}>
+                                  <div style={{ fontSize:13,fontWeight:600,color:"#1d1d1f" }}>{m.mpn || m.reference}</div>
+                                  <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>
+                                    {[m.value, m.description, m.manufacturer].filter(Boolean).join(" · ") || "No details"}
+                                    {m.projectId && (() => {
+                                      const p = products.find(x => x.id === m.projectId);
+                                      return p ? <span style={{ color:"#aeaeb2" }}> — {p.name}</span> : null;
+                                    })()}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <div style={{ flex:"0 0 80px" }}>
