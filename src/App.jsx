@@ -67,6 +67,39 @@ const DEFAULT_TARIFFS = {
 };
 
 // ─────────────────────────────────────────────
+// EXCHANGE RATES — convert foreign currency prices to USD
+// ─────────────────────────────────────────────
+// Fetch latest rates from Frankfurter (free, no API key, ECB data)
+// Returns { GBP: 0.79, EUR: 0.92, ... } — rates relative to USD
+let _cachedRates = null;
+let _ratesFetchedAt = 0;
+async function fetchExchangeRates() {
+  // Cache for 4 hours
+  if (_cachedRates && Date.now() - _ratesFetchedAt < 4 * 60 * 60 * 1000) return _cachedRates;
+  try {
+    const res = await fetch("https://api.frankfurter.app/latest?from=USD");
+    if (!res.ok) throw new Error(`Exchange rate fetch failed: ${res.status}`);
+    const data = await res.json();
+    _cachedRates = data.rates; // { GBP: 0.79, EUR: 0.92, CNY: 7.24, ... }
+    _ratesFetchedAt = Date.now();
+    console.log("[FX] Exchange rates loaded:", Object.keys(_cachedRates).length, "currencies");
+    return _cachedRates;
+  } catch (e) {
+    console.warn("[FX] Failed to fetch exchange rates:", e.message);
+    // Fallback rates (approximate) so the app doesn't break
+    return { GBP: 0.79, EUR: 0.92, CNY: 7.24, JPY: 154, KRW: 1380, CAD: 1.37, AUD: 1.55, SGD: 1.35, HKD: 7.82, TWD: 32, INR: 83, SEK: 10.5, CHF: 0.88 };
+  }
+}
+
+// Convert a price from source currency to USD
+function toUSD(price, currency, rates) {
+  if (!currency || currency === "USD" || !rates) return price;
+  const rate = rates[currency];
+  if (!rate) return price; // Unknown currency, assume USD
+  return price / rate;
+}
+
+// ─────────────────────────────────────────────
 // SUPPLIER DISPLAY CONFIG
 // ─────────────────────────────────────────────
 const SUPPLIERS = [
@@ -250,11 +283,15 @@ async function fetchNexarPricing(mpn, quantity, token) {
           if (quantity >= pb.quantity) unitPrice = pb.price;
         }
 
+        // Capture the currency from the first price entry
+        const currency = (prices[0]?.currency || "USD").toUpperCase();
+
         if (!pricing[key] || unitPrice < pricing[key].unitPrice) {
           pricing[key] = {
             supplierId: key,
             displayName: distName,
             country: sellerCountry,
+            currency,
             unitPrice: parseFloat(unitPrice) || 0,
             stock: offer.inventoryLevel || 0,
             moq: offer.moq || 1,
@@ -576,6 +613,29 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
       }
     }
     delete pricing._countryOfOrigin; // clean up internal field
+  }
+
+  // Convert non-USD prices to USD using live exchange rates
+  const rates = await fetchExchangeRates();
+  for (const [key, data] of Object.entries(pricing)) {
+    if (!data || typeof data !== "object" || !data.currency || data.currency === "USD") continue;
+    const origCurrency = data.currency;
+    const rate = rates[origCurrency];
+    if (!rate) continue;
+    // Convert unitPrice and all price breaks to USD
+    data.originalCurrency = origCurrency;
+    data.originalUnitPrice = data.unitPrice;
+    data.unitPrice = toUSD(data.unitPrice, origCurrency, rates);
+    if (data.priceBreaks?.length) {
+      data.priceBreaks = data.priceBreaks.map(pb => ({
+        ...pb,
+        originalPrice: pb.price,
+        price: toUSD(pb.price, origCurrency, rates),
+      }));
+    }
+    data.currency = "USD"; // now converted
+    data.fxRate = rate; // store for display
+    console.log(`[FX] ${data.displayName}: ${origCurrency} → USD (rate: ${rate})`);
   }
 
   return pricing;
@@ -992,6 +1052,9 @@ function BOMManager({ user }) {
             SUPPLIERS.forEach(s => { if (shipObj[s.id] !== undefined) s.shipping = shipObj[s.id]; });
           } catch {}
         }
+
+        // Pre-fetch exchange rates so they're cached for pricing
+        fetchExchangeRates().catch(() => {});
 
         // Auto-connect APIs silently on page load if keys exist in DB
         // Avoids user having to press "Save & Connect" every session
@@ -2172,6 +2235,11 @@ function BOMManager({ user }) {
                                       </div>
                                       <div style={{ fontSize:18,fontWeight:700,letterSpacing:"-0.3px",
                                         color:isBest?"#248a3d":"#1d1d1f" }}>{"$"}{fmtPrice(displayPrice)}</div>
+                                      {data.originalCurrency && (
+                                        <div style={{ fontSize:9,color:"#0071e3",fontWeight:500,marginTop:1 }}>
+                                          Converted from {data.originalCurrency} (1 USD = {data.fxRate} {data.originalCurrency})
+                                        </div>
+                                      )}
                                       <div style={{ fontSize:10,marginTop:4 }}><span style={{ color: data.stock < bq ? "#ff3b30" : "#aeaeb2", fontWeight: data.stock < bq ? 600 : 400 }}>Stock: {data.stock.toLocaleString()}</span><span style={{ color:"#aeaeb2" }}> · MOQ: {data.moq}</span></div>
                                       {/* Compliance & lifecycle badges */}
                                       <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginTop:4 }}>
