@@ -1430,10 +1430,15 @@ function BOMManager({ user }) {
 
                         {/* Best price badges — USA and INTL */}
                         {hasPricing && (() => {
+                          const priceAt100 = (d) => {
+                            let p = d.unitPrice;
+                            if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (100 >= pb.qty) p = pb.price; } }
+                            return parseFloat(p) || d.unitPrice;
+                          };
                           const entries = Object.values(pricingObj);
                           const gc = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
-                          const usEntries = entries.filter(d => gc(d) === "US").sort((a,b) => a.unitPrice - b.unitPrice);
-                          const intlEntries = entries.filter(d => { const c = gc(d); return c && c !== "US"; }).sort((a,b) => a.unitPrice - b.unitPrice);
+                          const usEntries = entries.filter(d => gc(d) === "US").sort((a,b) => priceAt100(a) - priceAt100(b));
+                          const intlEntries = entries.filter(d => { const c = gc(d); return c && c !== "US"; }).sort((a,b) => priceAt100(a) - priceAt100(b));
                           const bestUS = usEntries[0] || null;
                           const bestIntl = intlEntries[0] || null;
                           return (
@@ -1442,7 +1447,7 @@ function BOMManager({ user }) {
                                 <div style={{ background:"#0d2318",border:"1px solid #34d399",borderRadius:8,padding:"8px 14px" }}>
                                   <div style={{ fontSize:10,color:"#34d399",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,letterSpacing:"0.08em" }}>BEST PRICE — USA</div>
                                   <div style={{ fontSize:18,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#34d399" }}>
-                                    ${fmtPrice(bestUS.unitPrice)}
+                                    ${fmtPrice(priceAt100(bestUS))}
                                   </div>
                                   <div style={{ fontSize:10,color:"#475569" }}>{bestUS.displayName} · {bestUS.stock.toLocaleString()} in stock</div>
                                 </div>
@@ -1451,7 +1456,7 @@ function BOMManager({ user }) {
                                 <div style={{ background:"#1a1708",border:"1px solid #f59e0b",borderRadius:8,padding:"8px 14px" }}>
                                   <div style={{ fontSize:10,color:"#f59e0b",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,letterSpacing:"0.08em" }}>BEST PRICE — INTL</div>
                                   <div style={{ fontSize:18,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",color:"#f59e0b" }}>
-                                    ${fmtPrice(bestIntl.unitPrice)}
+                                    ${fmtPrice(priceAt100(bestIntl))}
                                   </div>
                                   <div style={{ fontSize:10,color:"#475569" }}>{bestIntl.displayName} ({gc(bestIntl)}) · {bestIntl.stock.toLocaleString()} in stock</div>
                                 </div>
@@ -1462,6 +1467,11 @@ function BOMManager({ user }) {
 
                         {/* Per-supplier prices — USA first, then by price, top 5 by default */}
                         {hasPricing && (() => {
+                          const p100 = (d) => {
+                            let p = d.unitPrice;
+                            if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (100 >= pb.qty) p = pb.price; } }
+                            return parseFloat(p) || d.unitPrice;
+                          };
                           const getCountry = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
                           const isUS = (d) => getCountry(d) === "US";
                           const isNonUS = (d) => { const c = getCountry(d); return c && c !== "US"; };
@@ -1472,7 +1482,7 @@ function BOMManager({ user }) {
                             const aUS = isUS(a[1]) ? 0 : 1;
                             const bUS = isUS(b[1]) ? 0 : 1;
                             if (aUS !== bUS) return aUS - bUS;
-                            return (a[1].unitPrice || Infinity) - (b[1].unitPrice || Infinity);
+                            return (p100(a[1]) || Infinity) - (p100(b[1]) || Infinity);
                           });
                           const isExpanded = expandedPricingParts.has(part.id);
                           const visible = isExpanded ? sorted : sorted.slice(0, 5);
@@ -1490,8 +1500,14 @@ function BOMManager({ user }) {
                                           color:"#94a3b8" }}>{data.displayName}</span>
                                         {isBest && <span className="badge" style={{ background:"#34d39922",color:"#34d399",fontSize:10,fontWeight:700 }}>BEST</span>}
                                       </div>
-                                      <div style={{ fontSize:28,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",lineHeight:1.1,
-                                        color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(data.unitPrice)}</div>
+                                      {(() => {
+                                        let displayPrice = data.unitPrice;
+                                        if (data.priceBreaks?.length) {
+                                          for (const pb of data.priceBreaks) { if (100 >= pb.qty) displayPrice = pb.price; }
+                                        }
+                                        return <div style={{ fontSize:28,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",lineHeight:1.1,
+                                          color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(displayPrice)}</div>;
+                                      })()}
                                       {(() => {
                                         const ctry = data.country || DIST_COUNTRY[data.displayName] || DIST_COUNTRY[key] || "";
                                         return (
