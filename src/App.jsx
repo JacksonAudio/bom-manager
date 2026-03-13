@@ -1602,7 +1602,7 @@ function BOMManager({ user }) {
       return { qty: q, cheapest, smart };
     });
 
-    setBomSim(prev => ({ ...prev, [productId]: { qty: baseQty, results, loading: false } }));
+    setBomSim(prev => ({ ...prev, [productId]: { ...prev[productId], results, loading: false } }));
   }
 
   // ── Derived state
