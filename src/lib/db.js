@@ -190,38 +190,24 @@ export async function saveApiKey(keyName, keyValue, userId) {
 }
 
 // Save all api keys at once (used by settings save button)
-// Updates existing rows; inserts new keys that don't exist yet
+// Only updates rows that already exist in the table (RLS blocks inserts)
 export async function saveAllApiKeys(keysObj, userId) {
-  // First, find which keys already exist in the table
   const { data: existing } = await supabase
     .from('api_keys')
     .select('key_name')
   const existingNames = new Set((existing || []).map(r => r.key_name))
 
-  const toUpdate = []
-  const toInsert = []
-  for (const [key_name, key_value] of Object.entries(keysObj)) {
-    if (existingNames.has(key_name)) {
-      toUpdate.push(
-        supabase.from('api_keys')
-          .update({ key_value: key_value ?? "", updated_by: userId })
-          .eq('key_name', key_name)
-      )
-    } else {
-      toInsert.push({ key_name, key_value: key_value ?? "", updated_by: userId })
-    }
-  }
+  const updates = Object.entries(keysObj)
+    .filter(([key_name]) => existingNames.has(key_name))
+    .map(([key_name, key_value]) =>
+      supabase.from('api_keys')
+        .update({ key_value: key_value ?? "", updated_by: userId })
+        .eq('key_name', key_name)
+    )
 
-  // Run updates in parallel
-  if (toUpdate.length) {
-    const results = await Promise.all(toUpdate)
+  if (updates.length) {
+    const results = await Promise.all(updates)
     for (const { error } of results) check(error, 'saveAllApiKeys')
-  }
-
-  // Insert new keys in one batch
-  if (toInsert.length) {
-    const { error } = await supabase.from('api_keys').insert(toInsert)
-    check(error, 'saveAllApiKeys')
   }
 }
 
