@@ -2319,7 +2319,7 @@ function BOMManager({ user }) {
                                   <input type="checkbox" checked={customSupplierForm.exclusive || false}
                                     onChange={e=>setCustomSupplierForm(f=>({...f,exclusive:e.target.checked}))}
                                     style={{ width:16,height:16,accentColor:"#5856d6",cursor:"pointer" }} />
-                                  <span style={{ fontSize:12,fontWeight:600,color:"#5856d6",letterSpacing:"0.3px" }}>ONLY THIS SUPPLIER</span>
+                                  <span style={{ fontSize:12,fontWeight:600,color:"#5856d6",letterSpacing:"0.3px" }}>EXCLUSIVE SUPPLIER</span>
                                 </label>
 
                                 <div style={{ display:"flex",gap:8,marginTop:4 }}>
