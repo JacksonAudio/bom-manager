@@ -18,6 +18,7 @@ import {
   fetchApiKeys, saveAllApiKeys,
   subscribeToProducts, subscribeToParts,
 } from "./lib/db.js";
+import { supabase } from "./lib/supabase.js";
 
 // ─────────────────────────────────────────────
 // API CONFIGURATION
@@ -1372,8 +1373,41 @@ function BOMManager({ user }) {
       if (newPref) dbFields.preferred_supplier = newPref;
       try {
         await dbUpdatePart(partId, dbFields, user.id);
-        console.log("[saveCustomSupplier] DB write OK, key:", key, "exclusive:", !!exclusive, "pricing keys:", Object.keys(newPricing));
+        console.log("[saveCustomSupplier] DB write OK, key:", key, "exclusive:", !!exclusive);
       } catch (e) { console.error("[saveCustomSupplier] DB write FAILED:", e); }
+
+      // Safety net: verify DB has the custom supplier after a delay
+      // (guards against concurrent fetchPartPricing overwriting)
+      const verifyAndRepair = async (attempt) => {
+        try {
+          // Read latest local state
+          let currentPricing;
+          setParts(prev => { currentPricing = prev.find(p => p.id === partId)?.pricing; return prev; });
+          if (!currentPricing || !currentPricing[key]) {
+            console.warn(`[saveCustomSupplier] verify #${attempt}: custom supplier missing from local state!`);
+            return;
+          }
+          // Read from DB to check
+          const { data } = await supabase.from("parts").select("pricing").eq("id", partId).single();
+          if (!data?.pricing?.[key]) {
+            console.warn(`[saveCustomSupplier] verify #${attempt}: custom supplier missing from DB — rewriting`);
+            const repaired = { ...(data?.pricing || {}), ...currentPricing };
+            // Keep only custom entries from local + everything from DB
+            for (const [k, v] of Object.entries(currentPricing)) {
+              if (v.isCustom) repaired[k] = v;
+            }
+            await dbUpdatePart(partId, { pricing: repaired, pricing_status: "done" }, user.id);
+            recentLocalWrites.current.add(partId);
+            setTimeout(() => recentLocalWrites.current.delete(partId), 3000);
+            console.log(`[saveCustomSupplier] verify #${attempt}: DB repaired`);
+          } else {
+            console.log(`[saveCustomSupplier] verify #${attempt}: DB OK`);
+          }
+        } catch (e) { console.error(`[saveCustomSupplier] verify #${attempt} error:`, e); }
+      };
+      // Check twice — once after 2s (catch fast overwrites), once after 5s (catch slow API fetches)
+      setTimeout(() => verifyAndRepair(1), 2000);
+      setTimeout(() => verifyAndRepair(2), 5000);
     } else {
       console.error("[saveCustomSupplier] newPricing was not set — part not found?");
     }
