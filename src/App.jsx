@@ -1946,8 +1946,10 @@ function BOMManager({ user }) {
                     // Tariff helpers
                     let userTariffs; try { userTariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { userTariffs = { ...DEFAULT_TARIFFS }; }
 
-                    // Best display price
-                    const bestDisplayPrice = bestData ? p100(bestData) : null;
+                    // Best display price — use filtered sorted list so US Only is respected
+                    const filteredBest = sorted.length > 0 ? sorted[0][0] : null;
+                    const filteredBestData = sorted.length > 0 ? sorted[0][1] : null;
+                    const bestDisplayPrice = filteredBestData ? p100(filteredBestData) : null;
 
                     return (
                       <div key={part.id} style={{ borderBottom: partIdx < parts.length-1 ? "1px solid #f0f0f2" : "none" }}>
@@ -1973,7 +1975,7 @@ function BOMManager({ user }) {
                                 <div style={{ fontSize:20,fontWeight:600,letterSpacing:"-0.3px",color:"#1d1d1f" }}>{"$"}{fmtPrice(bestDisplayPrice)}</div>
                                 <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>
                                   <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#34c759",marginRight:4,verticalAlign:"middle" }}></span>
-                                  {bestData?.displayName || best}
+                                  {filteredBestData?.displayName || filteredBest}
                                 </div>
                               </>
                             ) : part.pricingStatus === "loading" ? (
