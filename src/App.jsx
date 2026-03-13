@@ -1602,7 +1602,7 @@ function BOMManager({ user }) {
                       {/* ── 🚩 order flag column */}
                       <th style={{ padding:"5px 3px",width:24,textAlign:"center",color:"#aeaeb2",
                         fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:10,fontWeight:700 }}>🚩</th>
-                      {["Reference","Value","MPN","Desc","Stock","Reorder",""].map((h,i)=>(
+                      {["MPN","Internal PN","Value","Desc","Stock","Reorder",""].map((h,i)=>(
                         <th key={i} style={{ textAlign:"left",padding:"5px 5px",color:"#aeaeb2",
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:10,fontWeight:700,
                           letterSpacing:"0.07em",whiteSpace:"nowrap" }}>{h}</th>
@@ -1631,19 +1631,19 @@ function BOMManager({ user }) {
                               title="Flag for purchase order" />
                           </td>
                           <td style={{ padding:"5px 5px" }}>
+                            <input type="text" value={part.mpn||""}
+                              onChange={(e)=>updatePart(part.id,"mpn",e.target.value)}
+                              style={{ width:"100%",padding:"3px 5px",borderRadius:4,color:"#0071e3",fontWeight:600,fontSize:12 }} placeholder="—" />
+                          </td>
+                          <td style={{ padding:"5px 5px" }}>
                             <input type="text" value={part.reference}
                               onChange={(e)=>updatePart(part.id,"reference",e.target.value)}
-                              style={{ width:"100%",padding:"3px 5px",borderRadius:4,color:"#0071e3",fontWeight:600,fontSize:12 }} />
+                              style={{ width:"100%",padding:"3px 5px",borderRadius:4,color:"#1d1d1f",fontSize:12 }} placeholder="—" />
                           </td>
                           <td style={{ padding:"5px 5px" }}>
                             <input type="text" value={part.value||""}
                               onChange={(e)=>updatePart(part.id,"value",e.target.value)}
                               style={{ width:"100%",padding:"3px 5px",borderRadius:4,color:"#1d1d1f",fontSize:12 }} placeholder="—" />
-                          </td>
-                          <td style={{ padding:"5px 5px" }}>
-                            <input type="text" value={part.mpn||""}
-                              onChange={(e)=>updatePart(part.id,"mpn",e.target.value)}
-                              style={{ width:"100%",padding:"3px 5px",borderRadius:4,color:"#0071e3",fontSize:12 }} placeholder="—" />
                           </td>
                           <td style={{ padding:"5px 5px" }}>
                             <input type="text" value={part.description||""}
