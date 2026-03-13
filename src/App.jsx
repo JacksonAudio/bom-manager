@@ -2384,7 +2384,7 @@ function BOMManager({ user }) {
                                 {cheapBase.tariffBreakdown?.length > 0 && (
                                   <div style={{ fontSize:10,color:"#b45454",marginTop:4 }}>
                                     {cheapBase.tariffBreakdown.map((t,i) => (
-                                      <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on ${t.goodsValue.toFixed(2)} = ${t.cost.toFixed(2)}</div>
+                                      <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{t.goodsValue.toFixed(2)} = {"$"}{t.cost.toFixed(2)}</div>
                                     ))}
                                   </div>
                                 )}
@@ -2421,7 +2421,7 @@ function BOMManager({ user }) {
                                 {smartBase.tariffBreakdown?.length > 0 && (
                                   <div style={{ fontSize:10,color:"#b45454",marginTop:4 }}>
                                     {smartBase.tariffBreakdown.map((t,i) => (
-                                      <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on ${t.goodsValue.toFixed(2)} = ${t.cost.toFixed(2)}</div>
+                                      <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{t.goodsValue.toFixed(2)} = {"$"}{t.cost.toFixed(2)}</div>
                                     ))}
                                   </div>
                                 )}
