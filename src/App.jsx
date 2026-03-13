@@ -1517,25 +1517,17 @@ function BOMManager({ user }) {
                                           </div>
                                         );
                                       })()}
-                                      {/* Price breaks — fixed tiers: 100, 250, 500, 1000 */}
-                                      {(() => {
-                                        const breaks = data.priceBreaks?.length ? data.priceBreaks : [{ qty: 1, price: data.unitPrice }];
-                                        return (
+                                      {/* Price breaks — show actual tiers from distributor */}
+                                      {data.priceBreaks?.length > 1 && (
                                         <div style={{ marginTop:6,borderTop:"1px solid #1e2130",paddingTop:6 }}>
-                                          {[100,250,500,1000].map((tier) => {
-                                            let price = null;
-                                            for (const pb of breaks) { if (tier >= pb.qty) price = pb.price; }
-                                            if (price == null) return null;
-                                            return (
-                                              <div key={tier} className="price-break-row" style={{ fontSize:12 }}>
-                                                <span style={{ color:"#64748b" }}>{tier}+</span>
-                                                <span>${fmtPrice(price)}</span>
-                                              </div>
-                                            );
-                                          })}
+                                          {data.priceBreaks.map((pb, i) => (
+                                            <div key={i} className="price-break-row" style={{ fontSize:12 }}>
+                                              <span style={{ color:"#64748b" }}>{pb.qty}+</span>
+                                              <span>${fmtPrice(pb.price)}</span>
+                                            </div>
+                                          ))}
                                         </div>
-                                        );
-                                      })()}
+                                      )}
                                       {data.url && (
                                         <a href={data.url} target="_blank" rel="noopener noreferrer"
                                           style={{ display:"block",marginTop:6,fontSize:11,color:"#3b82f6",textDecoration:"none" }}>
