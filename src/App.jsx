@@ -32,6 +32,8 @@ const DEFAULT_KEYS = {
   digikey_client_secret: "", // developer.digikey.com
   arrow_api_key:       "",   // developers.arrow.com (optional — Nexar already covers Arrow)
   arrow_login:         "",   // Arrow also requires a login email
+  notify_email:        "",   // Email to receive low-stock alerts
+  supplier_emails:     "",   // JSON: { "mouser": "orders@mouser.com", ... }
 };
 
 // ─────────────────────────────────────────────
@@ -516,6 +518,51 @@ function buildPurchaseOrders(parts) {
 function genPONumber(sid) {
   const d = new Date();
   return `${String(d.getFullYear()).slice(2)}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}-${sid.slice(0,2).toUpperCase()}-${Math.floor(Math.random()*900+100)}`;
+}
+
+function buildPOEmailDraft(supplierName, lines, poNumber) {
+  const subject = `Purchase Order ${poNumber} — Jackson Audio`;
+  const body = [
+    `Hi ${supplierName} Team,`,
+    ``,
+    `Please quote / process the following order:`,
+    ``,
+    `PO #: ${poNumber}`,
+    `Date: ${new Date().toLocaleDateString()}`,
+    ``,
+    `Part Number | Qty | Description`,
+    `-----------|-----|------------`,
+    ...lines.map(l => `${l.mpn} | ${l.neededQty} | ${l.description || l.value || ""}`),
+    ``,
+    `Please confirm availability, lead time, and total cost.`,
+    ``,
+    `Thank you,`,
+    `Jackson Audio`,
+  ].join("\n");
+  return { subject, body };
+}
+
+function buildLowStockEmailBody(lowParts) {
+  if (!lowParts.length) return null;
+  const lines = lowParts.map(p => {
+    const stock = parseInt(p.stockQty)||0;
+    const reorder = parseInt(p.reorderQty)||0;
+    return `  ${p.mpn || p.reference} — Stock: ${stock}, Reorder point: ${reorder}, Need: ${Math.max(reorder-stock,0)}`;
+  });
+  return [
+    `Good morning,`,
+    ``,
+    `${lowParts.length} part${lowParts.length!==1?"s are":" is"} at or below reorder level:`,
+    ``,
+    ...lines,
+    ``,
+    `Would you like me to generate a list of POs and draft emails for you?`,
+    ``,
+    `Log in to review and take action:`,
+    `https://jackson-bom.vercel.app`,
+    ``,
+    `— Jackson Audio BOM Manager`,
+  ].join("\n");
 }
 
 // ─────────────────────────────────────────────
@@ -1243,7 +1290,7 @@ function BOMManager({ user }) {
                       {/* ── 🚩 order flag column */}
                       <th style={{ padding:"7px 4px",width:28,textAlign:"center",color:"#475569",
                         fontFamily:"'Space Grotesk',sans-serif",fontSize:10,fontWeight:700 }}>🚩</th>
-                      {["Reference","Value","MPN","Qty","Product","Supplier","Unit $","Ext $","Stock","Reorder","Search",""].map((h,i)=>(
+                      {["Reference","Value","MPN","Qty","Desc","Product","Supplier","Unit $","Ext $","Stock","Reorder","Search",""].map((h,i)=>(
                         <th key={i} style={{ textAlign:"left",padding:"7px 8px",color:"#475569",
                           fontFamily:"'Space Grotesk',sans-serif",fontSize:10,fontWeight:700,
                           letterSpacing:"0.07em",whiteSpace:"nowrap" }}>{h}</th>
@@ -1276,10 +1323,31 @@ function BOMManager({ user }) {
                               checked={part.flaggedForOrder} onChange={()=>toggleFlag(part.id)}
                               title="Flag for purchase order" />
                           </td>
-                          <td style={{ padding:"7px 8px" }}><span style={{ color:"#f8d377",fontWeight:600 }}>{part.reference}</span></td>
-                          <td style={{ padding:"7px 8px",color:"#cbd5e1" }}>{part.value||"—"}</td>
-                          <td style={{ padding:"7px 8px",color:"#7dd3fc" }}>{part.mpn||"—"}</td>
-                          <td style={{ padding:"7px 8px",color:"#94a3b8" }}>{part.quantity}</td>
+                          <td style={{ padding:"7px 8px" }}>
+                            <input type="text" value={part.reference}
+                              onChange={(e)=>updatePart(part.id,"reference",e.target.value)}
+                              style={{ width:100,padding:"3px 5px",borderRadius:4,color:"#f8d377",fontWeight:600 }} />
+                          </td>
+                          <td style={{ padding:"7px 8px" }}>
+                            <input type="text" value={part.value||""}
+                              onChange={(e)=>updatePart(part.id,"value",e.target.value)}
+                              style={{ width:80,padding:"3px 5px",borderRadius:4,color:"#cbd5e1" }} placeholder="—" />
+                          </td>
+                          <td style={{ padding:"7px 8px" }}>
+                            <input type="text" value={part.mpn||""}
+                              onChange={(e)=>updatePart(part.id,"mpn",e.target.value)}
+                              style={{ width:140,padding:"3px 5px",borderRadius:4,color:"#7dd3fc" }} placeholder="—" />
+                          </td>
+                          <td style={{ padding:"7px 8px" }}>
+                            <input type="number" value={part.quantity} min="1"
+                              onChange={(e)=>updatePart(part.id,"quantity",parseInt(e.target.value)||1)}
+                              style={{ width:52,padding:"3px 5px",borderRadius:4,color:"#94a3b8" }} />
+                          </td>
+                          <td style={{ padding:"7px 8px" }}>
+                            <input type="text" value={part.description||""}
+                              onChange={(e)=>updatePart(part.id,"description",e.target.value)}
+                              style={{ width:120,padding:"3px 5px",borderRadius:4,color:"#94a3b8",fontSize:11 }} placeholder="—" />
+                          </td>
                           <td style={{ padding:"7px 8px" }}>
                             <div style={{ display:"flex",flexDirection:"column",gap:2,maxWidth:140 }}>
                               {products.map((p)=>{
@@ -1691,6 +1759,18 @@ function BOMManager({ user }) {
                         </a>
                         <button className="btn-ghost" onClick={()=>exportPOasCSV(sup,lines,poNum)}>↓ CSV</button>
                         <button className="btn-ghost" onClick={()=>printPO(sup,lines,poNum)}>🖨 Print PO</button>
+                        {(() => {
+                          let emails = {};
+                          try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
+                          const email = emails[sup.id];
+                          if (!email) return null;
+                          const draft = buildPOEmailDraft(sup.name, lines, poNum);
+                          return (
+                            <button className="btn-ghost" onClick={() => {
+                              window.location.href = `mailto:${email}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
+                            }}>✉ Draft Email to {sup.name}</button>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div style={{ overflowX:"auto" }}>
@@ -2152,6 +2232,53 @@ function BOMManager({ user }) {
                   onChange={(e)=>setApiKeys((k)=>({...k,arrow_api_key:e.target.value}))}
                   style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
               </div>
+            </div>
+
+            {/* ── Notifications & Email */}
+            <div className="card" style={{ marginBottom:16,borderTop:"3px solid #f59e0b" }}>
+              <div style={{ fontFamily:"'Space Grotesk',sans-serif",fontWeight:800,fontSize:15,color:"#f59e0b",marginBottom:4 }}>
+                Email Notifications & PO Drafts
+              </div>
+              <div style={{ fontSize:12,color:"#64748b",marginBottom:12 }}>
+                Get daily low-stock alerts and auto-draft purchase order emails to your distributors.
+              </div>
+              <div className="key-input-row">
+                <div>
+                  <div className="key-label">Your Email</div>
+                  <div className="key-hint">Receives daily low-stock alerts</div>
+                </div>
+                <input type="email" placeholder="you@company.com" value={apiKeys.notify_email}
+                  onChange={(e)=>setApiKeys((k)=>({...k,notify_email:e.target.value}))}
+                  style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+              </div>
+              <div style={{ marginTop:12,fontSize:11,color:"#64748b",fontWeight:700,letterSpacing:"0.06em",marginBottom:8 }}>DISTRIBUTOR ORDER EMAILS</div>
+              {SUPPLIERS.map((s) => {
+                let emails = {};
+                try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
+                return (
+                  <div key={s.id} className="key-input-row" style={{ paddingTop:6,paddingBottom:6 }}>
+                    <div className="key-label" style={{ color:s.color,minWidth:80 }}>{s.name}</div>
+                    <input type="email" placeholder={`orders@${s.id}.com`}
+                      value={emails[s.id] || ""}
+                      onChange={(e) => {
+                        const updated = { ...emails, [s.id]: e.target.value };
+                        setApiKeys((k) => ({ ...k, supplier_emails: JSON.stringify(updated) }));
+                      }}
+                      style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
+                  </div>
+                );
+              })}
+              {apiKeys.notify_email && lowStockParts.length > 0 && (
+                <div style={{ marginTop:14 }}>
+                  <button className="btn-ghost" onClick={() => {
+                    const body = buildLowStockEmailBody(lowStockParts);
+                    if (body) window.location.href = `mailto:${apiKeys.notify_email}?subject=${encodeURIComponent("Low Stock Alert — Jackson Audio BOM")}&body=${encodeURIComponent(body)}`;
+                  }}>
+                    Preview Low-Stock Alert Email
+                  </button>
+                  <span style={{ fontSize:11,color:"#64748b",marginLeft:8 }}>{lowStockParts.length} parts below reorder level</span>
+                </div>
+              )}
             </div>
 
             {/* Connect + save button */}
