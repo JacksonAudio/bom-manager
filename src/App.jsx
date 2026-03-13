@@ -57,6 +57,18 @@ const NEXAR_DIST_MAP = {
   "Newark":             "allied",
 };
 
+// Known distributor countries — fallback when API doesn't return country
+const DIST_COUNTRY = {
+  "mouser":"US","digikey":"US","arrow":"US","allied":"US","newark":"US","amazon":"US",
+  "Mouser Electronics":"US","Digi-Key":"US","Arrow Electronics":"US","Allied Electronics":"US","Newark":"US",
+  "Farnell":"UK","element14":"AU","Schukat":"DE","TTI Europe":"DE","Maritex":"IT",
+  "Bravo Electro":"US","JRH Electronics":"US","TRC Electronics":"US",
+  "LCSC":"CN","TME":"PL","Verical":"US","Avnet":"US","Future Electronics":"CA",
+  "RS Components":"UK","Chip1Stop":"JP","CoreStaff":"JP","Heilind":"US","Master Electronics":"US",
+  "Rutronik":"DE","Sager Electronics":"US","Symmetry Electronics":"US","Bisco Industries":"US",
+  "Ameya360":"CN","Win Source":"CN","OnlineComponents.com":"US",
+};
+
 // Format price: up to 4 decimals, strip trailing zeroes, keep min 2
 const fmtPrice = (v) => { const s = parseFloat(v).toFixed(4); return s.replace(/0{1,2}$/, ""); };
 
@@ -1430,10 +1442,9 @@ function BOMManager({ user }) {
 
                         {/* Per-supplier prices — USA first, then by price, top 5 by default */}
                         {hasPricing && (() => {
-                          const NON_US_NAMES = new Set(["farnell","element14","schukat","tti europe","maritex","bravo electro","jrh electronics","trc electronics"]);
-                          const US_IDS = new Set(["mouser","digikey","arrow","allied","newark"]);
-                          const isUS = (d) => d.country === "US" || US_IDS.has(d.supplierId);
-                          const isNonUS = (d) => NON_US_NAMES.has(d.displayName.toLowerCase()) || (d.country && d.country !== "US" && !US_IDS.has(d.supplierId));
+                          const getCountry = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
+                          const isUS = (d) => getCountry(d) === "US";
+                          const isNonUS = (d) => { const c = getCountry(d); return c && c !== "US"; };
                           const filtered = usOnly
                             ? Object.entries(pricingObj).filter(([, d]) => !isNonUS(d))
                             : Object.entries(pricingObj);
@@ -1462,10 +1473,15 @@ function BOMManager({ user }) {
                                       </div>
                                       <div style={{ fontSize:28,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",lineHeight:1.1,
                                         color:isBest?"#34d399":"#e2e8f0" }}>${fmtPrice(data.unitPrice)}</div>
-                                      <div style={{ fontSize:12,color:"#64748b",marginTop:4 }}>
-                                        {data.country && <span style={{ color: data.country==="US"?"#34d399":"#f59e0b",fontWeight:600 }}>{data.country}</span>}
-                                        {data.country && " · "}Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}
-                                      </div>
+                                      {(() => {
+                                        const ctry = data.country || DIST_COUNTRY[data.displayName] || DIST_COUNTRY[key] || "";
+                                        return (
+                                          <div style={{ fontSize:12,color:"#64748b",marginTop:4 }}>
+                                            {ctry && <span style={{ color: ctry==="US"?"#34d399":"#f59e0b",fontWeight:600 }}>{ctry}</span>}
+                                            {ctry && " · "}Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}
+                                          </div>
+                                        );
+                                      })()}
                                       {/* Price breaks */}
                                       {data.priceBreaks?.length > 1 && (
                                         <div style={{ marginTop:6,borderTop:"1px solid #1e2130",paddingTop:6 }}>
