@@ -421,10 +421,12 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
 // ─────────────────────────────────────────────
 function bestPriceSupplier(pricing) {
   if (!pricing) return null;
-  let best = null, bestPrice = Infinity;
+  let best = null, bestPrice = Infinity, bestStock = 0;
   for (const [key, data] of Object.entries(pricing)) {
-    if (data.unitPrice > 0 && data.unitPrice < bestPrice && data.stock > 0) {
-      bestPrice = data.unitPrice; best = key;
+    if (data.unitPrice > 0 && data.stock > 0) {
+      if (data.unitPrice < bestPrice || (data.unitPrice === bestPrice && (data.stock||0) > bestStock)) {
+        bestPrice = data.unitPrice; bestStock = data.stock||0; best = key;
+      }
     }
   }
   return best;
@@ -1437,8 +1439,9 @@ function BOMManager({ user }) {
                           };
                           const entries = Object.values(pricingObj).filter(d => d.stock > 0);
                           const gc = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
-                          const usEntries = entries.filter(d => gc(d) === "US").sort((a,b) => priceAt100(a) - priceAt100(b));
-                          const intlEntries = entries.filter(d => { const c = gc(d); return c && c !== "US"; }).sort((a,b) => priceAt100(a) - priceAt100(b));
+                          const byPriceThenStock = (a,b) => { const d = priceAt100(a) - priceAt100(b); return d !== 0 ? d : (b.stock||0) - (a.stock||0); };
+                          const usEntries = entries.filter(d => gc(d) === "US").sort(byPriceThenStock);
+                          const intlEntries = entries.filter(d => { const c = gc(d); return c && c !== "US"; }).sort(byPriceThenStock);
                           const bestUS = usEntries[0] || null;
                           const bestIntl = intlEntries[0] || null;
                           return (
@@ -1482,7 +1485,8 @@ function BOMManager({ user }) {
                             const aUS = isUS(a[1]) ? 0 : 1;
                             const bUS = isUS(b[1]) ? 0 : 1;
                             if (aUS !== bUS) return aUS - bUS;
-                            return (p100(a[1]) || Infinity) - (p100(b[1]) || Infinity);
+                            const priceDiff = (p100(a[1]) || Infinity) - (p100(b[1]) || Infinity);
+                            return priceDiff !== 0 ? priceDiff : (b[1].stock||0) - (a[1].stock||0);
                           });
                           const isExpanded = expandedPricingParts.has(part.id);
                           const visible = isExpanded ? sorted : sorted.slice(0, 5);
