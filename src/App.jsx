@@ -191,7 +191,7 @@ async function fetchNexarToken(clientId, clientSecret) {
 function buildNexarQuery(mpn) {
   // Escape any quotes in the MPN just in case
   const safe = mpn.replace(/"/g, '\\"');
-  return `{ supSearchMpn(q: "${safe}", limit: 3) { hits results { part { mpn countryOfOrigin manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
+  return `{ supSearchMpn(q: "${safe}", limit: 3) { hits results { part { mpn manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
 }
 
 async function fetchNexarPricing(mpn, quantity, token) {
