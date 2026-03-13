@@ -1941,11 +1941,7 @@ function BOMManager({ user }) {
                     const isNonUS = (d) => { const c = getCountry(d); return c && c !== "US"; };
                     const sorted = hasPricing ? Object.entries(pricingObj)
                       .filter(([,d]) => d.stock > 0 && (!usOnly || !isNonUS(d)))
-                      .sort((a,b) => {
-                        const aUS = getCountry(a[1])==="US"?0:1, bUS = getCountry(b[1])==="US"?0:1;
-                        if (aUS !== bUS) return aUS - bUS;
-                        return (p100(a[1])||Infinity) - (p100(b[1])||Infinity);
-                      }) : [];
+                      .sort((a,b) => (p100(a[1])||Infinity) - (p100(b[1])||Infinity)) : [];
 
                     // Tariff helpers
                     let userTariffs; try { userTariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { userTariffs = { ...DEFAULT_TARIFFS }; }
@@ -2010,17 +2006,17 @@ function BOMManager({ user }) {
                                   const landedPrice = tariffRate > 0 ? displayPrice * (1 + tariffRate / 100) : 0;
                                   return (
                                     <div key={key} style={{
-                                      background: isBest ? "rgba(0,113,227,0.06)" : "#f5f5f7",
-                                      border: isBest ? "1.5px solid rgba(0,113,227,0.2)" : "1.5px solid transparent",
+                                      background: isBest ? "rgba(52,199,89,0.08)" : "#f5f5f7",
+                                      border: isBest ? "1.5px solid rgba(52,199,89,0.3)" : "1.5px solid transparent",
                                       borderRadius:12, padding:"12px 16px", minWidth:150, flex:1, maxWidth:200,
-                                      transition:"all 0.15s"
+                                      transition:"all 0.15s", display:"flex", flexDirection:"column"
                                     }}>
-                                      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-                                        <span style={{ fontSize:12,fontWeight:500,color:"#86868b" }}>{data.displayName}</span>
-                                        <span style={{ fontSize:10,color:"#aeaeb2",fontWeight:500 }}>{ctry}</span>
+                                      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",minHeight:32 }}>
+                                        <span style={{ fontSize:12,fontWeight:500,color:"#86868b",lineHeight:"16px" }}>{data.displayName}</span>
+                                        <span style={{ fontSize:10,color:"#aeaeb2",fontWeight:500,flexShrink:0,marginLeft:4 }}>{ctry}</span>
                                       </div>
-                                      <div style={{ fontSize:18,fontWeight:700,letterSpacing:"-0.3px",marginTop:4,
-                                        color:isBest?"#0071e3":"#1d1d1f" }}>{"$"}{fmtPrice(displayPrice)}</div>
+                                      <div style={{ fontSize:18,fontWeight:700,letterSpacing:"-0.3px",
+                                        color:isBest?"#248a3d":"#1d1d1f" }}>{"$"}{fmtPrice(displayPrice)}</div>
                                       <div style={{ fontSize:10,color:"#aeaeb2",marginTop:4 }}>Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}</div>
                                       {/* Compliance & lifecycle badges */}
                                       <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginTop:4 }}>
@@ -2071,7 +2067,7 @@ function BOMManager({ user }) {
                                           {data.priceBreaks.map((pb, i) => (
                                             <div key={i} style={{ display:"flex",justifyContent:"space-between",fontSize:11,padding:"2px 0" }}>
                                               <span style={{ color:"#aeaeb2" }}>{pb.qty}+</span>
-                                              <span style={{ color:isBest?"#0071e3":"#1d1d1f",fontWeight:500 }}>{"$"}{fmtPrice(pb.price)}</span>
+                                              <span style={{ color:isBest?"#248a3d":"#1d1d1f",fontWeight:500 }}>{"$"}{fmtPrice(pb.price)}</span>
                                             </div>
                                           ))}
                                         </div>
