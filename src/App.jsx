@@ -688,6 +688,9 @@ const CSS = `
     border-radius: 8px; padding: 12px 14px; min-width: 160px; }
   .price-card.best { border-color: #34d399; background: #0d2318; }
 
+  .pricing-view, .pricing-view * { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif !important; -webkit-font-smoothing: antialiased; }
+  .pricing-view input { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif !important; }
+
   .po-card { background: #0f1118; border: 1px solid #2d3248; border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
   .po-header { padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
   .po-table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -1654,7 +1657,7 @@ function BOMManager({ user }) {
             LIVE PRICING VIEW — Clean List
         ══════════════════════════════════════ */}
         {activeView === "pricing" && (
-          <div style={{ background:"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
+          <div className="pricing-view" style={{ background:"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
             {/* Header */}
             <div style={{ marginBottom:28 }}>
               <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",marginBottom:4 }}>Live Pricing</h2>
