@@ -1771,12 +1771,13 @@ function BOMManager({ user }) {
         </div>
         <div style={{ display:"flex", gap:20, alignItems:"center" }}>
           {[
-            { label:"Parts Library", value:parts.length,   warn:false },
-            { label:"Priced",   value:pricedCount,    warn:false },
-            { label:"To Order", value:poPartCount,    warn:poPartCount>0 },
-            { label:"Low Stock",value:lowStockParts.length, warn:lowStockParts.length>0 },
+            { label:"Parts Library", value:parts.length,   warn:false, nav:"bom" },
+            { label:"Priced",   value:pricedCount,    warn:false, nav:"pricing" },
+            { label:"To Order", value:poPartCount,    warn:poPartCount>0, nav:"purchasing" },
+            { label:"Low Stock",value:lowStockParts.length, warn:lowStockParts.length>0, nav:"alerts" },
           ].map((s) => (
-            <div key={s.label} style={{ textAlign:"center" }}>
+            <div key={s.label} style={{ textAlign:"center", cursor:"pointer" }}
+              onClick={() => setActiveView(s.nav)}>
               <div style={{ fontSize:17,fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                 color:s.warn&&s.value>0?"#ff3b30":"#0071e3" }}>{s.value}</div>
               <div style={{ fontSize:9,color:"#aeaeb2",letterSpacing:"0.08em" }}>{s.label.toUpperCase()}</div>
