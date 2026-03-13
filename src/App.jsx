@@ -854,8 +854,31 @@ function BOMManager({ user }) {
   });
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [orderForm, setOrderForm] = useState(null); // { supplier, poNumber, items, notes }
+  const [settingsSaving, setSettingsSaving] = useState(""); // which section is saving
+  const [settingsSaved, setSettingsSaved] = useState(""); // which section just saved
   const fileRef = useRef();
   const qtyTimers = useRef({}); // debounce timers for qty→price refresh
+
+  // Settings per-section save button helper
+  const sectionSaveBtn = (sectionId, label) => (
+    <div style={{ marginTop:14,display:"flex",alignItems:"center",gap:10 }}>
+      <button className="btn-primary" style={{ fontSize:12,padding:"7px 18px" }}
+        disabled={settingsSaving === sectionId}
+        onClick={async () => {
+          setSettingsSaving(sectionId); setSettingsSaved("");
+          try {
+            await saveAllApiKeys(apiKeys, user.id);
+            authenticateAPIs();
+            setSettingsSaved(sectionId);
+            setTimeout(() => setSettingsSaved(s => s === sectionId ? "" : s), 3000);
+          } catch (e) { console.error("Save failed:", e); alert("Save failed: " + e.message); }
+          finally { setSettingsSaving(""); }
+        }}>
+        {settingsSaving === sectionId ? "Saving…" : `Save ${label}`}
+      </button>
+      {settingsSaved === sectionId && <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>Saved</span>}
+    </div>
+  );
 
   // Persist tracked orders to localStorage
   const saveTrackedOrders = (orders) => {
@@ -1735,11 +1758,11 @@ function BOMManager({ user }) {
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:15 }}>No parts yet — import a BOM to get started</div>
               </div>
             ) : (
-              <div style={{ overflowX:"auto",background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ overflowX:"auto",background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                   <thead>
                     <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
-                      <th style={{ padding:"12px 10px",width:28,borderRadius:"14px 0 0 0" }}>
+                      <th style={{ padding:"12px 10px",width:28,borderRadius:"8px 0 0 0" }}>
                         <input
                           type="checkbox"
                           title={selectedParts.size === visibleParts.length && visibleParts.length > 0 ? "Deselect all" : "Select all visible"}
@@ -1759,7 +1782,7 @@ function BOMManager({ user }) {
                         <th key={hi} style={{ textAlign:"left",padding:"12px 14px",
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                           fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
-                          borderRadius:hi===arr.length-1?"0 14px 0 0":undefined }}>{h}</th>
+                          borderRadius:hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1881,49 +1904,6 @@ function BOMManager({ user }) {
               </div>
             ) : (
               <>
-                {/* Best price badges */}
-                {(() => {
-                  const allPriced = parts.filter(p => p.pricing && typeof p.pricing === "object");
-                  if (!allPriced.length) return null;
-                  const p100 = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (100 >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
-                  const gc = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
-                  let globalBestUS = null, globalBestIntl = null;
-                  for (const part of allPriced) {
-                    for (const d of Object.values(part.pricing)) {
-                      if (!d.stock || d.stock <= 0) continue;
-                      const c = gc(d); const price = p100(d);
-                      if (c === "US" && (!globalBestUS || price < globalBestUS.price)) globalBestUS = { ...d, price };
-                      if (c && c !== "US" && (!globalBestIntl || price < globalBestIntl.price)) globalBestIntl = { ...d, price };
-                    }
-                  }
-                  if (!globalBestUS && !globalBestIntl) return null;
-                  let userTariffs; try { userTariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { userTariffs = { ...DEFAULT_TARIFFS }; }
-                  return (
-                    <div style={{ display:"flex",gap:12,marginBottom:24,flexWrap:"wrap" }}>
-                      {globalBestUS && (
-                        <div style={{ flex:1,minWidth:200,background:"#fff",borderRadius:16,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)" }}>
-                          <div style={{ fontSize:11,fontWeight:600,letterSpacing:"0.5px",color:"#86868b",textTransform:"uppercase" }}>Best USA</div>
-                          <div style={{ fontSize:30,fontWeight:700,letterSpacing:"-1px",marginTop:4,color:"#34c759" }}>{"$"}{fmtPrice(globalBestUS.price)}</div>
-                          <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>{globalBestUS.displayName} · {(globalBestUS.stock||0).toLocaleString()} in stock</div>
-                        </div>
-                      )}
-                      {globalBestIntl && !usOnly && (() => {
-                        const origin = globalBestIntl.countryOfOrigin || gc(globalBestIntl);
-                        const rate = getTariffRate(origin, userTariffs);
-                        const landed = rate > 0 ? globalBestIntl.price * (1 + rate / 100) : 0;
-                        return (
-                          <div style={{ flex:1,minWidth:200,background:"#fff",borderRadius:16,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)" }}>
-                            <div style={{ fontSize:11,fontWeight:600,letterSpacing:"0.5px",color:"#86868b",textTransform:"uppercase" }}>Best International</div>
-                            <div style={{ fontSize:30,fontWeight:700,letterSpacing:"-1px",marginTop:4,color:"#ff9500" }}>{"$"}{fmtPrice(globalBestIntl.price)}</div>
-                            <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>{globalBestIntl.displayName} ({gc(globalBestIntl)}) · {(globalBestIntl.stock||0).toLocaleString()} in stock</div>
-                            {landed > 0 && <div style={{ fontSize:11,color:"#ff3b30",marginTop:2 }}>Landed: {"$"}{fmtPrice(landed)} (+{rate}% tariff)</div>}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  );
-                })()}
-
                 {/* Part list */}
                 <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden" }}>
                   {parts.map((part, partIdx) => {
@@ -2367,7 +2347,7 @@ function BOMManager({ user }) {
                         })()}
                       </div>
                     </div>
-                    <div style={{ overflowX:"auto",background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                    <div style={{ overflowX:"auto",background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                         <thead>
                           <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
@@ -2375,7 +2355,7 @@ function BOMManager({ user }) {
                               <th key={hi} style={{ padding:"12px 14px",textAlign:hi>=4&&hi<=7?"right":"left",
                                 fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                                 fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
-                                borderRadius:hi===0?"14px 0 0 0":hi===arr.length-1?"0 14px 0 0":undefined }}>{h}</th>
+                                borderRadius:hi===0?"8px 0 0 0":hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
                             ))}
                           </tr>
                         </thead>
@@ -2448,7 +2428,7 @@ function BOMManager({ user }) {
 
             {/* Manual order form */}
             {orderForm && (
-              <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,overflow:"hidden" }}>
+              <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,overflow:"hidden" }}>
                 <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
                   <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                     Log New Order
@@ -2540,7 +2520,7 @@ function BOMManager({ user }) {
                   const itemCount = order.items?.length || 0;
 
                   return (
-                    <div key={order.id} style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden" }}>
+                    <div key={order.id} style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden" }}>
                       {/* Order header row */}
                       <div onClick={() => setExpandedOrder(isOpen ? null : order.id)}
                         style={{ display:"flex",alignItems:"center",padding:"14px 20px",cursor:"pointer",gap:16,transition:"background 0.15s" }}
@@ -2916,7 +2896,7 @@ function BOMManager({ user }) {
 
                   {/* ── Parts list for this product */}
                   {prodParts.length > 0 && (
-                    <div style={{ overflowX:"auto",background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                    <div style={{ overflowX:"auto",background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                         <thead>
                           <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
@@ -2924,7 +2904,7 @@ function BOMManager({ user }) {
                               <th key={hi} style={{ padding:"12px 14px",textAlign:hi>=5&&hi<=6?"right":"left",
                                 fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                                 fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
-                                borderRadius:hi===0?"14px 0 0 0":hi===arr.length-1?"0 14px 0 0":undefined }}>{h}</th>
+                                borderRadius:hi===0?"8px 0 0 0":hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
                             ))}
                           </tr>
                         </thead>
@@ -3128,7 +3108,7 @@ function BOMManager({ user }) {
                             <div style={{ fontSize:10,color:"#5856d6",fontWeight:700,letterSpacing:"0.06em",marginBottom:6,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
                               QUANTITY COMPARISON (Smart Consolidated)
                             </div>
-                            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden" }}>
+                            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden" }}>
                             <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                               <thead>
                                 <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
@@ -3136,7 +3116,7 @@ function BOMManager({ user }) {
                                     <th key={hi} style={{ padding:"12px 14px",textAlign:hi>0?"right":"left",
                                       fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                                       fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
-                                      borderRadius:hi===0?"14px 0 0 0":hi===arr.length-1?"0 14px 0 0":undefined }}>{h}</th>
+                                      borderRadius:hi===0?"8px 0 0 0":hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
                                   ))}
                                 </tr>
                               </thead>
@@ -3256,7 +3236,7 @@ function BOMManager({ user }) {
             </p>
 
             {/* ── Nexar / Octopart — PRIMARY */}
-            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   Nexar / Octopart — Primary
@@ -3281,11 +3261,12 @@ function BOMManager({ user }) {
                     onChange={(e)=>setApiKeys((k)=>({...k,nexar_client_secret:e.target.value}))}
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
+                {sectionSaveBtn("nexar", "Nexar Keys")}
               </div>
             </div>
 
             {/* ── Mouser Direct */}
-            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   Mouser Direct
@@ -3309,11 +3290,12 @@ function BOMManager({ user }) {
                     onChange={(e)=>setApiKeys((k)=>({...k,mouser_order_api_key:e.target.value}))}
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
+                {sectionSaveBtn("mouser", "Mouser Keys")}
               </div>
             </div>
 
             {/* ── DigiKey Direct */}
-            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   Digi-Key Direct
@@ -3337,11 +3319,12 @@ function BOMManager({ user }) {
                     onChange={(e)=>setApiKeys((k)=>({...k,digikey_client_secret:e.target.value}))}
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
+                {sectionSaveBtn("digikey", "DigiKey Keys")}
               </div>
             </div>
 
             {/* ── Arrow Direct */}
-            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   Arrow Direct
@@ -3365,11 +3348,12 @@ function BOMManager({ user }) {
                     onChange={(e)=>setApiKeys((k)=>({...k,arrow_api_key:e.target.value}))}
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
+                {sectionSaveBtn("arrow", "Arrow Keys")}
               </div>
             </div>
 
             {/* ── Shipping Costs */}
-            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   Shipping Costs
@@ -3397,7 +3381,7 @@ function BOMManager({ user }) {
             </div>
 
             {/* ── Import Tariff Rates */}
-            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   Import Tariff Rates
@@ -3447,7 +3431,7 @@ function BOMManager({ user }) {
             </div>
 
             {/* ── Notifications & Email */}
-            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   Email Notifications & PO Drafts
@@ -3494,6 +3478,7 @@ function BOMManager({ user }) {
                     <span style={{ fontSize:11,color:"#86868b",marginLeft:8 }}>{lowStockParts.length} parts below reorder level</span>
                   </div>
                 )}
+                {sectionSaveBtn("notifications", "Email Settings")}
               </div>
             </div>
 
@@ -3523,7 +3508,7 @@ function BOMManager({ user }) {
             )}
 
             {/* Key acquisition guide */}
-            <div style={{ background:"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden" }}>
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   How to Get Your API Keys
