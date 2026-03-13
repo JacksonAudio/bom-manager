@@ -389,16 +389,16 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
     }
   }
 
-  // 2. Mouser direct — more detail than Nexar for Mouser-specific data
-  if (apiKeys.mouser_api_key && !pricing.mouser) {
+  // 2. Mouser direct — always prefer over Nexar (full price breaks)
+  if (apiKeys.mouser_api_key) {
     try {
       const md = await fetchMouserPricing(mpn, quantity, apiKeys.mouser_api_key);
       if (md) pricing.mouser = md;
     } catch (e) { console.warn("Mouser direct failed:", e.message); }
   }
 
-  // 3. DigiKey direct
-  if (digiKeyToken && apiKeys.digikey_client_id && !pricing.digikey) {
+  // 3. DigiKey direct — always prefer over Nexar (full price breaks)
+  if (digiKeyToken && apiKeys.digikey_client_id) {
     try {
       const dd = await fetchDigiKeyPricing(mpn, quantity, apiKeys.digikey_client_id, digiKeyToken);
       if (dd) pricing.digikey = dd;
@@ -406,7 +406,7 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
   }
 
   // 4. Arrow direct
-  if (apiKeys.arrow_api_key && apiKeys.arrow_login && !pricing.arrow) {
+  if (apiKeys.arrow_api_key && apiKeys.arrow_login) {
     try {
       const ad = await fetchArrowPricing(mpn, quantity, apiKeys.arrow_login, apiKeys.arrow_api_key);
       if (ad) pricing.arrow = ad;
