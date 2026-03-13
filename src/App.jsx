@@ -769,6 +769,7 @@ function BOMManager({ user }) {
   const [selectedParts, setSelectedParts] = useState(new Set());
   const [expandedPricingParts, setExpandedPricingParts] = useState(new Set());
   const [usOnly, setUsOnly] = useState(false);
+  const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
   const fileRef = useRef();
 
   // ─────────────────────────────────────────────
@@ -1062,6 +1063,54 @@ function BOMManager({ user }) {
     } catch (e) {
       console.error("updatePart failed:", e);
     }
+  };
+
+  // Save a custom supplier to a part's pricing object
+  const saveCustomSupplier = async (partId, { name, url, country, stock, breaks }) => {
+    const key = "custom_" + name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    const unitPrice = breaks.length > 0 ? breaks[0].price : 0;
+    const entry = {
+      supplierId: key,
+      displayName: name,
+      country: country || "US",
+      unitPrice,
+      stock: parseInt(stock) || 999999,
+      moq: breaks.length > 0 ? breaks[0].qty : 1,
+      url: url || "",
+      priceBreaks: breaks.filter(b => b.qty > 0 && b.price > 0),
+      isCustom: true,
+    };
+    setParts((prev) => prev.map((p) => {
+      if (p.id !== partId) return p;
+      const pricing = { ...(p.pricing || {}), [key]: entry };
+      const best = bestPriceSupplier(pricing);
+      return { ...p, pricing, bestSupplier: best, pricingStatus: "done" };
+    }));
+    // Persist to DB
+    const part = parts.find(p => p.id === partId);
+    const newPricing = { ...(part?.pricing || {}), [key]: entry };
+    try {
+      await dbUpdatePart(partId, { pricing: newPricing, pricing_status: "done", best_supplier: bestPriceSupplier(newPricing) }, user.id);
+    } catch (e) { console.error("saveCustomSupplier failed:", e); }
+    setCustomSupplierForm(null);
+  };
+
+  // Remove a custom supplier from a part
+  const removeCustomSupplier = async (partId, supplierKey) => {
+    if (!window.confirm("Remove this custom supplier?")) return;
+    setParts((prev) => prev.map((p) => {
+      if (p.id !== partId) return p;
+      const pricing = { ...p.pricing };
+      delete pricing[supplierKey];
+      const best = bestPriceSupplier(pricing);
+      return { ...p, pricing, bestSupplier: best };
+    }));
+    const part = parts.find(p => p.id === partId);
+    const newPricing = { ...(part?.pricing || {}) };
+    delete newPricing[supplierKey];
+    try {
+      await dbUpdatePart(partId, { pricing: newPricing, best_supplier: bestPriceSupplier(newPricing) }, user.id);
+    } catch (e) { console.error("removeCustomSupplier failed:", e); }
   };
 
   // Toggle the order flag on a part
@@ -1853,6 +1902,12 @@ function BOMManager({ user }) {
                                           View on site →
                                         </a>
                                       )}
+                                      {data.isCustom && (
+                                        <button onClick={(e)=>{e.stopPropagation();removeCustomSupplier(part.id,key);}}
+                                          style={{ display:"block",marginTop:6,fontSize:10,color:"#ff3b30",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit",fontWeight:500 }}>
+                                          Remove
+                                        </button>
+                                      )}
                                     </div>
                                   );
                                 })}
@@ -1863,14 +1918,99 @@ function BOMManager({ user }) {
                               <div style={{ padding:16,textAlign:"center",color:"#aeaeb2",fontSize:13 }}>No pricing data yet</div>
                             )}
 
-                            {/* Refresh button */}
-                            {effectiveStatus === "done" && (
-                              <div style={{ marginBottom:14 }}>
+                            {/* Add Custom Supplier + Refresh */}
+                            <div style={{ display:"flex",gap:8,marginBottom:14,flexWrap:"wrap" }}>
+                              <button onClick={(e)=>{e.stopPropagation();setCustomSupplierForm({ partId:part.id, name:"", url:"", country:"US", stock:"", breaks:[{qty:1,price:""}] });}}
+                                style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
+                                  border:"1px solid #0071e3",background:"none",color:"#0071e3" }}>
+                                + Custom Supplier
+                              </button>
+                              {effectiveStatus === "done" && (
                                 <button onClick={(e)=>{e.stopPropagation();fetchPartPricing(part.id);}}
                                   style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
                                     border:"1px solid #d2d2d7",background:"none",color:"#86868b" }}>
                                   Refresh Prices
                                 </button>
+                              )}
+                            </div>
+
+                            {/* Custom Supplier Form */}
+                            {customSupplierForm && customSupplierForm.partId === part.id && (
+                              <div style={{ padding:"16px",background:"#f0f4ff",borderRadius:12,marginBottom:14,border:"1px solid rgba(0,113,227,0.15)" }}
+                                onClick={e=>e.stopPropagation()}>
+                                <div style={{ fontSize:12,fontWeight:600,color:"#1d1d1f",marginBottom:12 }}>Add Custom Supplier</div>
+                                <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:10 }}>
+                                  <div>
+                                    <div style={{ fontSize:10,color:"#86868b",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Supplier Name *</div>
+                                    <input type="text" value={customSupplierForm.name} placeholder="e.g. CEdist"
+                                      onChange={e=>setCustomSupplierForm(f=>({...f,name:e.target.value}))}
+                                      style={{ padding:"7px 10px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:13,fontFamily:"inherit",background:"#fff",color:"#1d1d1f",outline:"none",width:140 }} />
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize:10,color:"#86868b",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Website URL</div>
+                                    <input type="text" value={customSupplierForm.url} placeholder="https://..."
+                                      onChange={e=>setCustomSupplierForm(f=>({...f,url:e.target.value}))}
+                                      style={{ padding:"7px 10px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:13,fontFamily:"inherit",background:"#fff",color:"#1d1d1f",outline:"none",width:180 }} />
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize:10,color:"#86868b",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Country</div>
+                                    <input type="text" value={customSupplierForm.country} placeholder="US"
+                                      onChange={e=>setCustomSupplierForm(f=>({...f,country:e.target.value.toUpperCase()}))}
+                                      style={{ padding:"7px 10px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:13,fontFamily:"inherit",background:"#fff",color:"#1d1d1f",outline:"none",width:50 }} />
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize:10,color:"#86868b",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Stock</div>
+                                    <input type="number" value={customSupplierForm.stock} placeholder="∞"
+                                      onChange={e=>setCustomSupplierForm(f=>({...f,stock:e.target.value}))}
+                                      style={{ padding:"7px 10px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:13,fontFamily:"inherit",background:"#fff",color:"#1d1d1f",outline:"none",width:70 }} />
+                                  </div>
+                                </div>
+
+                                {/* Price breaks */}
+                                <div style={{ fontSize:10,color:"#86868b",fontWeight:500,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.3px" }}>Price Breaks</div>
+                                {customSupplierForm.breaks.map((b, i) => (
+                                  <div key={i} style={{ display:"flex",gap:8,alignItems:"center",marginBottom:6 }}>
+                                    <input type="number" value={b.qty} placeholder="Qty" min="1"
+                                      onChange={e=>{const breaks=[...customSupplierForm.breaks];breaks[i]={...breaks[i],qty:parseInt(e.target.value)||0};setCustomSupplierForm(f=>({...f,breaks}));}}
+                                      style={{ padding:"6px 8px",border:"1px solid #d2d2d7",borderRadius:6,fontSize:12,fontFamily:"inherit",background:"#fff",color:"#1d1d1f",outline:"none",width:70 }} />
+                                    <span style={{ fontSize:11,color:"#86868b" }}>+</span>
+                                    <div style={{ position:"relative" }}>
+                                      <span style={{ position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#86868b" }}>$</span>
+                                      <input type="number" value={b.price} placeholder="0.00" step="0.001" min="0"
+                                        onChange={e=>{const breaks=[...customSupplierForm.breaks];breaks[i]={...breaks[i],price:e.target.value};setCustomSupplierForm(f=>({...f,breaks}));}}
+                                        style={{ padding:"6px 8px 6px 20px",border:"1px solid #d2d2d7",borderRadius:6,fontSize:12,fontFamily:"inherit",background:"#fff",color:"#1d1d1f",outline:"none",width:90 }} />
+                                    </div>
+                                    {customSupplierForm.breaks.length > 1 && (
+                                      <button onClick={()=>{const breaks=customSupplierForm.breaks.filter((_,j)=>j!==i);setCustomSupplierForm(f=>({...f,breaks}));}}
+                                        style={{ background:"none",border:"none",cursor:"pointer",color:"#aeaeb2",fontSize:14,padding:"0 4px" }}>✕</button>
+                                    )}
+                                  </div>
+                                ))}
+                                <button onClick={()=>setCustomSupplierForm(f=>({...f,breaks:[...f.breaks,{qty:"",price:""}]}))}
+                                  style={{ fontSize:11,color:"#0071e3",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit",fontWeight:500,marginBottom:12 }}>
+                                  + Add price break
+                                </button>
+
+                                <div style={{ display:"flex",gap:8,marginTop:4 }}>
+                                  <button onClick={()=>{
+                                    if (!customSupplierForm.name.trim()) return;
+                                    const breaks = customSupplierForm.breaks
+                                      .map(b => ({ qty: parseInt(b.qty)||1, price: parseFloat(b.price)||0 }))
+                                      .filter(b => b.price > 0)
+                                      .sort((a,b) => a.qty - b.qty);
+                                    if (breaks.length === 0) return;
+                                    saveCustomSupplier(part.id, { ...customSupplierForm, breaks });
+                                  }}
+                                    style={{ padding:"7px 18px",borderRadius:8,fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
+                                      border:"none",background:"#0071e3",color:"#fff" }}>
+                                    Save
+                                  </button>
+                                  <button onClick={()=>setCustomSupplierForm(null)}
+                                    style={{ padding:"7px 14px",borderRadius:8,fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
+                                      border:"1px solid #d2d2d7",background:"none",color:"#86868b" }}>
+                                    Cancel
+                                  </button>
+                                </div>
                               </div>
                             )}
 
