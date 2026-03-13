@@ -1608,10 +1608,20 @@ function BOMManager({ user }) {
   const pricedCount = parts.filter((p) => p.pricingStatus === "done").length;
   const hasAnyKey = nexarToken || apiKeys.mouser_api_key || dkToken || apiKeys.arrow_api_key;
 
+  const priceAtQty = (part) => {
+    const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
+    if (!pr) return parseFloat(part.unitCost) || 0;
+    const entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
+    if (!entries.length) return parseFloat(part.unitCost) || 0;
+    const calc = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
+    entries.sort((a,b) => (calc(a[1])||Infinity) - (calc(b[1])||Infinity));
+    return calc(entries[0][1]);
+  };
+
   const productCosts = products.map((prod) => {
     const pp = parts.filter((p) => p.projectId === prod.id);
-    const total = pp.reduce((s,p) => s+(parseFloat(p.unitCost)||0)*p.quantity, 0);
-    return { ...prod, total, partCount: pp.length, costedCount: pp.filter((p)=>p.unitCost).length };
+    const total = pp.reduce((s,p) => s + priceAtQty(p) * p.quantity, 0);
+    return { ...prod, total, partCount: pp.length, costedCount: pp.filter((p)=>p.unitCost || p.pricing).length };
   });
 
   // Show loading screen while initial DB fetch completes
@@ -2937,7 +2947,17 @@ function BOMManager({ user }) {
                         </thead>
                         <tbody>
                           {prodParts.map((part,i) => {
-                            const ext = (parseFloat(part.unitCost)||0)*part.quantity;
+                            // Calculate unit price from best supplier's price breaks at this qty
+                            const dynPrice = (() => {
+                              const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
+                              if (!pr) return parseFloat(part.unitCost) || 0;
+                              const entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
+                              if (!entries.length) return parseFloat(part.unitCost) || 0;
+                              const priceAt = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
+                              entries.sort((a,b) => (priceAt(a[1])||Infinity) - (priceAt(b[1])||Infinity));
+                              return priceAt(entries[0][1]);
+                            })();
+                            const ext = dynPrice * part.quantity;
                             const cellInput = { width:"100%",padding:"6px 10px",borderRadius:6,fontSize:13,
                               fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                               border:"1px solid transparent",background:"transparent",outline:"none",color:"#1d1d1f",
@@ -2976,15 +2996,13 @@ function BOMManager({ user }) {
                                     onFocus={cFocusIn} onBlur={cFocusOut}
                                     style={{ ...cellInput,color:"#6e6e73" }} placeholder="" />
                                 </td>
-                                <td style={{ padding:"6px 8px",width:90 }}>
-                                  <input type="number" placeholder="0.00" value={part.unitCost}
-                                    onChange={(e)=>updatePart(part.id,"unitCost",e.target.value)}
-                                    onFocus={cFocusIn} onBlur={cFocusOut}
-                                    style={{ ...cellInput,textAlign:"right" }}
-                                    step="0.0001" min="0" />
+                                <td style={{ padding:"12px 14px",textAlign:"right",width:90 }}>
+                                  {dynPrice > 0
+                                    ? <span style={{ fontWeight:500 }}>{fmtPrice(dynPrice)}</span>
+                                    : <span style={{ color:"#c7c7cc" }}>—</span>}
                                 </td>
                                 <td style={{ padding:"12px 14px",textAlign:"right" }}>
-                                  {part.unitCost
+                                  {dynPrice > 0
                                     ? <span style={{ color:"#34c759",fontWeight:600 }}>{"$"}{ext.toFixed(2)}</span>
                                     : <span style={{ color:"#c7c7cc" }}>—</span>}
                                 </td>
