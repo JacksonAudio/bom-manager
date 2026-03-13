@@ -1,33 +1,20 @@
 // Vercel Serverless Function — Shopify Orders Proxy
-// Fetches unfulfilled orders from Shopify Admin API
+// Fetches unfulfilled orders from a single Shopify store
 // Browser can't call Shopify directly (CORS), so this acts as proxy
-
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.SUPABASE_URL || "https://qzyxekyrzddoxtdqcnfp.supabase.co",
-  process.env.SUPABASE_SERVICE_KEY || ""
-);
+// Accepts ?domain=xxx&token=xxx query params (one store at a time, frontend loops)
 
 export default async function handler(req, res) {
-  // Allow CORS for the frontend
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
-    // Read Shopify credentials from api_keys table
-    const { data: keys } = await supabase
-      .from("api_keys")
-      .select("key_name, key_value")
-      .in("key_name", ["shopify_store_domain", "shopify_admin_token"]);
-
-    const domain = keys?.find(k => k.key_name === "shopify_store_domain")?.key_value;
-    const token = keys?.find(k => k.key_name === "shopify_admin_token")?.key_value;
+    const domain = req.query.domain;
+    const token = req.query.token;
 
     if (!domain || !token) {
-      return res.status(400).json({ error: "Shopify credentials not configured" });
+      return res.status(400).json({ error: "Missing domain or token query params" });
     }
 
     // Fetch unfulfilled orders (paginate up to 250 per page)
@@ -60,7 +47,7 @@ export default async function handler(req, res) {
     }
 
     // Filter to unfulfilled/partial orders and aggregate demand
-    const demand = {}; // { productTitle: { shopifyProductId, title, totalUnfulfilled } }
+    const demand = {};
     const orderSummaries = [];
 
     for (const order of allOrders) {

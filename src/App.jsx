@@ -38,8 +38,7 @@ const DEFAULT_KEYS = {
   supplier_emails:     "",   // JSON: { "mouser": "orders@mouser.com", ... }
   tariffs_json:        "",   // JSON: { "CN": 145, "TW": 32, ... } — % tariff by country code
   shipping_json:       "",   // JSON: { "mouser": 7.99, "digikey": 6.99, ... } — per-supplier shipping
-  shopify_store_domain:"",   // your-store.myshopify.com
-  shopify_admin_token: "",   // shpat_xxxxx — Admin API access token
+  shopify_stores_json: "",   // JSON array: [{ name, domain, token }]
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -1787,17 +1786,55 @@ function BOMManager({ user }) {
     return mP && (!q || p.reference.toLowerCase().includes(q) || p.value.toLowerCase().includes(q) || p.mpn.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
   });
 
-  // ── SHOPIFY INTEGRATION ──
+  // ── SHOPIFY INTEGRATION (multi-store) ──
+  const getShopifyStores = () => {
+    try { return JSON.parse(apiKeys.shopify_stores_json || "[]"); } catch { return []; }
+  };
+
   const syncShopifyOrders = async () => {
+    const stores = getShopifyStores();
+    if (!stores.length) {
+      setShopifyDemand({ loading: false, error: "No Shopify stores configured. Add them in Settings." });
+      return;
+    }
     setShopifyDemand(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const res = await fetch("/api/shopify-orders");
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
-      const data = await res.json();
-      setShopifyDemand({ ...data, loading: false, error: null });
-      // Also fetch Shopify product list for mapping
-      const pRes = await fetch("/api/shopify-products");
-      if (pRes.ok) { const pData = await pRes.json(); setShopifyProducts(pData.products || []); }
+      const allProducts = []; // demand aggregation
+      const allOrders = [];
+      let allShopifyProducts = [];
+      const errors = [];
+
+      for (const store of stores) {
+        if (!store.domain || !store.token) { errors.push(`${store.name || "?"}: missing domain or token`); continue; }
+        // Fetch orders
+        const oRes = await fetch(`/api/shopify-orders?domain=${encodeURIComponent(store.domain)}&token=${encodeURIComponent(store.token)}`);
+        if (!oRes.ok) { const e = await oRes.json().catch(() => ({})); errors.push(`${store.name}: ${e.error || oRes.status}`); continue; }
+        const oData = await oRes.json();
+        // Tag orders & products with store name
+        for (const o of (oData.orders || [])) { o.storeName = store.name; }
+        for (const p of (oData.products || [])) { p.storeName = store.name; }
+        allOrders.push(...(oData.orders || []));
+        allProducts.push(...(oData.products || []));
+        // Fetch product list for mapping
+        const pRes = await fetch(`/api/shopify-products?domain=${encodeURIComponent(store.domain)}&token=${encodeURIComponent(store.token)}`);
+        if (pRes.ok) {
+          const pData = await pRes.json();
+          const tagged = (pData.products || []).map(p => ({ ...p, storeName: store.name }));
+          allShopifyProducts.push(...tagged);
+        }
+      }
+
+      // Merge demand across stores (same product title from different stores = separate entries)
+      setShopifyDemand({
+        products: allProducts,
+        orders: allOrders,
+        totalOrders: allOrders.length,
+        syncedAt: new Date().toISOString(),
+        loading: false,
+        error: errors.length ? errors.join("; ") : null,
+        storeCount: stores.length,
+      });
+      setShopifyProducts(allShopifyProducts);
     } catch (e) {
       console.error("[Shopify] sync failed:", e);
       setShopifyDemand(prev => ({ ...prev, loading: false, error: e.message }));
@@ -3055,7 +3092,7 @@ function BOMManager({ user }) {
                             }}>
                             <option value="">— Not linked —</option>
                             {shopifyProducts.map(sp => (
-                              <option key={sp.id} value={sp.id}>{sp.title}</option>
+                              <option key={sp.id} value={sp.id}>{sp.storeName ? `[${sp.storeName}] ` : ""}{sp.title}</option>
                             ))}
                           </select>
                           {prod.shopifyProductId && <span style={{ fontSize:10,color:"#34c759" }}>✓</span>}
@@ -3616,8 +3653,8 @@ function BOMManager({ user }) {
 
             {shopifyDemand?.error && (
               <div style={{ background:"#fff2f0",border:"1px solid #ff3b30",borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:12,color:"#ff3b30" }}>
-                {shopifyDemand.error.includes("credentials") ? (
-                  <>Shopify not configured. <button className="btn-ghost" style={{ fontSize:11,marginLeft:8 }}
+                {shopifyDemand.error.includes("configured") || shopifyDemand.error.includes("No Shopify") ? (
+                  <>No Shopify stores configured. <button className="btn-ghost" style={{ fontSize:11,marginLeft:8 }}
                     onClick={() => setActiveView("settings")}>Go to Settings →</button></>
                 ) : shopifyDemand.error}
               </div>
@@ -3687,7 +3724,8 @@ function BOMManager({ user }) {
                               {sp.totalUnfulfilled.toLocaleString()}
                             </div>
                             <div style={{ fontSize:10,color:"#86868b" }}>units to fulfill</div>
-                            {!mapped && <div style={{ fontSize:10,color:"#ff9500",fontWeight:600,marginTop:4 }}>Not mapped</div>}
+                            {sp.storeName && <div style={{ fontSize:9,color:"#5856d6",fontWeight:600,marginTop:2 }}>{sp.storeName}</div>}
+                            {!mapped && <div style={{ fontSize:10,color:"#ff9500",fontWeight:600,marginTop:2 }}>Not mapped</div>}
                           </div>
                         );
                       })}
@@ -3789,9 +3827,10 @@ function BOMManager({ user }) {
                     <div style={{ maxHeight:400,overflowY:"auto" }}>
                       {shopifyDemand.orders.slice(0, 50).map(order => (
                         <div key={order.id} style={{ borderBottom:"1px solid #f0f0f2",padding:"10px 0",display:"flex",gap:16,alignItems:"flex-start",flexWrap:"wrap" }}>
-                          <div style={{ minWidth:100 }}>
+                          <div style={{ minWidth:120 }}>
                             <div style={{ fontWeight:700,fontSize:13,color:"#0071e3" }}>{order.name}</div>
                             <div style={{ fontSize:10,color:"#86868b" }}>{new Date(order.createdAt).toLocaleDateString()}</div>
+                            {order.storeName && <div style={{ fontSize:9,color:"#5856d6",fontWeight:600,marginTop:1 }}>{order.storeName}</div>}
                           </div>
                           <div style={{ display:"flex",gap:6,flexWrap:"wrap",flex:1 }}>
                             {order.lineItems.map((li, i) => (
@@ -4007,34 +4046,60 @@ function BOMManager({ user }) {
               </div>
             </div>
 
-            {/* ── Shopify Integration */}
+            {/* ── Shopify Integration (Multi-Store) */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#96bf48",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  Shopify Integration
+                  Shopify Stores
                 </div>
-                {apiKeys.shopify_store_domain && apiKeys.shopify_admin_token && (
-                  <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>Configured</span>
-                )}
+                {(() => { const s = getShopifyStores(); return s.length > 0 ? <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>{s.length} store{s.length !== 1 ? "s" : ""}</span> : null; })()}
               </div>
               <div style={{ padding:"16px 20px" }}>
                 <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
-                  Connect your Shopify store to pull unfulfilled orders and calculate parts demand.
-                  Requires a Custom App with <strong>read_orders</strong> and <strong>read_products</strong> scopes.
+                  Connect one or more Shopify stores. Each needs a Custom App with <strong>read_orders</strong> and <strong>read_products</strong> scopes.
                 </div>
-                <div className="key-input-row">
-                  <div><div className="key-label">Store Domain</div><div className="key-hint">e.g. your-store.myshopify.com</div></div>
-                  <input type="text" placeholder="your-store.myshopify.com" value={apiKeys.shopify_store_domain}
-                    onChange={(e)=>setApiKeys((k)=>({...k,shopify_store_domain:e.target.value}))}
-                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
-                </div>
-                <div className="key-input-row">
-                  <div><div className="key-label">Admin API Token</div><div className="key-hint">From your Custom App</div></div>
-                  <input type="password" placeholder="shpat_xxxxxxxxxxxxxxxxxxxxxxxx" value={apiKeys.shopify_admin_token}
-                    onChange={(e)=>setApiKeys((k)=>({...k,shopify_admin_token:e.target.value}))}
-                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
-                </div>
-                {sectionSaveBtn("shopify", "Shopify Keys")}
+                {(() => {
+                  const stores = getShopifyStores();
+                  const updateStores = (updated) => setApiKeys(k => ({ ...k, shopify_stores_json: JSON.stringify(updated) }));
+                  return (
+                    <>
+                      {stores.map((store, idx) => (
+                        <div key={idx} style={{ background:"#f9faf5",border:"1px solid #96bf4844",borderRadius:8,padding:"12px 16px",marginBottom:10 }}>
+                          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                            <div style={{ fontWeight:700,fontSize:13,color:"#3a3f51" }}>{store.name || `Store ${idx + 1}`}</div>
+                            <button className="btn-ghost" style={{ fontSize:10,color:"#ff3b30" }}
+                              onClick={() => { const u = stores.filter((_, i) => i !== idx); updateStores(u); }}>
+                              Remove
+                            </button>
+                          </div>
+                          <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
+                            <div className="key-label" style={{ minWidth:80 }}>Name</div>
+                            <input type="text" placeholder="Jackson Audio" value={store.name || ""}
+                              onChange={(e) => { const u = [...stores]; u[idx] = { ...u[idx], name: e.target.value }; updateStores(u); }}
+                              style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
+                          </div>
+                          <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
+                            <div className="key-label" style={{ minWidth:80 }}>Domain</div>
+                            <input type="text" placeholder="your-store.myshopify.com" value={store.domain || ""}
+                              onChange={(e) => { const u = [...stores]; u[idx] = { ...u[idx], domain: e.target.value }; updateStores(u); }}
+                              style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
+                          </div>
+                          <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
+                            <div className="key-label" style={{ minWidth:80 }}>Token</div>
+                            <input type="password" placeholder="shpat_xxxxxxxxxxxxxxxxxxxxxxxx" value={store.token || ""}
+                              onChange={(e) => { const u = [...stores]; u[idx] = { ...u[idx], token: e.target.value }; updateStores(u); }}
+                              style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
+                          </div>
+                        </div>
+                      ))}
+                      <button className="btn-ghost" style={{ fontSize:12,marginTop:4 }}
+                        onClick={() => updateStores([...stores, { name: "", domain: "", token: "" }])}>
+                        + Add Shopify Store
+                      </button>
+                    </>
+                  );
+                })()}
+                {sectionSaveBtn("shopify", "Shopify Stores")}
               </div>
             </div>
 
