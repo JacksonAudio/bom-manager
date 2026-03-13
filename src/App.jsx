@@ -126,10 +126,12 @@ async function fetchNexarToken(clientId, clientSecret) {
 }
 
 // GraphQL query — fetches pricing from all distributors for one MPN
+// Uses supSearchMpn — the correct query name for the Supply scope API
 const NEXAR_QUERY = `
-  query PriceAndAvailability($mpn: String!, $currency: String!) {
-    supSearch(q: $mpn, currency: $currency, limit: 3) {
-      hits {
+  query PriceAndAvailability($mpn: String!) {
+    supSearchMpn(q: $mpn, limit: 3) {
+      hits
+      results {
         part {
           mpn
           manufacturer { name }
@@ -161,28 +163,28 @@ async function fetchNexarPricing(mpn, quantity, token) {
     },
     body: JSON.stringify({
       query: NEXAR_QUERY,
-      variables: { mpn, currency: "USD" },
+      variables: { mpn },
     }),
   });
   if (!res.ok) throw new Error(`Nexar API error: ${res.status}`);
   const data = await res.json();
+  if (data.errors) throw new Error(data.errors[0]?.message || "Nexar GraphQL error");
 
-  // Parse response into our pricing shape
+  // Parse response — supSearchMpn returns data.supSearchMpn.results[].part
   const pricing = {};
-  const hits = data?.data?.supSearch?.hits || [];
+  const results = data?.data?.supSearchMpn?.results || [];
 
-  for (const hit of hits) {
-    for (const seller of (hit?.part?.sellers || [])) {
+  for (const result of results) {
+    for (const seller of (result?.part?.sellers || [])) {
       const distName = seller?.company?.name || "";
       const suppId = NEXAR_DIST_MAP[distName];
-      // Keep all sellers, even ones not in our map, under their name
       const key = suppId || distName.toLowerCase().replace(/\s+/g, "_");
 
       for (const offer of (seller?.offers || [])) {
         const prices = (offer?.prices || []).sort((a, b) => a.quantity - b.quantity);
         if (!prices.length) continue;
 
-        // Find unit price for requested quantity (price breaks)
+        // Find unit price for requested quantity using price breaks
         let unitPrice = prices[0]?.price || 0;
         for (const pb of prices) {
           if (quantity >= pb.quantity) unitPrice = pb.price;
