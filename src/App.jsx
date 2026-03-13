@@ -1980,9 +1980,9 @@ function BOMManager({ user }) {
                                 onFocus={(e)=>{e.target.style.borderBottom="1px solid #0071e3";e.target.select();}}
                                 onBlur={(e)=>{e.target.style.borderBottom="1px solid transparent";}} />
                             </div>
-                            {(part.description || part.value) && <div style={{ fontSize:12,color:"#86868b",marginTop:1 }}>
-                              {[part.description, part.value].filter(Boolean).join(" — ")}
-                            </div>}
+                            <div style={{ fontSize:12,color:"#86868b",marginTop:1,minHeight:18 }}>
+                              {[part.description, part.value].filter(Boolean).join(" — ") || "\u00A0"}
+                            </div>
                           </div>
                           <div style={{ textAlign:"right",minWidth:100 }}>
                             {effectiveStatus === "done" && bestDisplayPrice ? (
