@@ -630,6 +630,7 @@ function BOMManager({ user }) {
   const [quickAdd,    setQuickAdd]    = useState({}); // { [productId]: { pn, qty, desc, value, mfr, showOptional } }
   // selectedParts — set of part IDs checked in the Parts Library for bulk delete
   const [selectedParts, setSelectedParts] = useState(new Set());
+  const [expandedPricingParts, setExpandedPricingParts] = useState(new Set());
   const fileRef = useRef();
 
   // ─────────────────────────────────────────────
@@ -1417,47 +1418,65 @@ function BOMManager({ user }) {
                           </div>
                         )}
 
-                        {/* Per-supplier prices */}
-                        {hasPricing && (
-                          <div style={{ display:"flex",gap:8,flexWrap:"wrap",flex:1 }}>
-                            {Object.entries(pricingObj).map(([key, data]) => {
-                              const isBest = key === best;
-                              const s = SUPPLIERS.find((x)=>x.id===key);
-                              return (
-                                <div key={key} className={`price-card ${isBest?"best":""}`}
-                                  style={{ borderColor: isBest ? "#34d399" : s?.color ? s.color+"40" : "#2d3248" }}>
-                                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4 }}>
-                                    <span style={{ fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,fontSize:11,
-                                      color:s?.color||"#94a3b8" }}>{data.displayName}</span>
-                                    {isBest && <span className="badge" style={{ background:"#34d39922",color:"#34d399",fontSize:9 }}>BEST</span>}
-                                  </div>
-                                  <div style={{ fontSize:16,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",
-                                    color:isBest?"#34d399":"#e2e8f0" }}>${data.unitPrice.toFixed(4)}</div>
-                                  <div style={{ fontSize:10,color:"#475569",marginTop:2 }}>
-                                    Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}
-                                  </div>
-                                  {/* Price breaks */}
-                                  {data.priceBreaks?.length > 1 && (
-                                    <div style={{ marginTop:6,borderTop:"1px solid #1e2130",paddingTop:6 }}>
-                                      {data.priceBreaks.slice(0,4).map((pb,i)=>(
-                                        <div key={i} className="price-break-row">
-                                          <span style={{ color:"#475569" }}>{pb.qty}+</span>
-                                          <span>${pb.price.toFixed(4)}</span>
+                        {/* Per-supplier prices — sorted by price, top 5 by default */}
+                        {hasPricing && (() => {
+                          const sorted = Object.entries(pricingObj).sort((a, b) => (a[1].unitPrice || Infinity) - (b[1].unitPrice || Infinity));
+                          const isExpanded = expandedPricingParts.has(part.id);
+                          const visible = isExpanded ? sorted : sorted.slice(0, 5);
+                          const totalCount = sorted.length;
+                          return (
+                            <div style={{ flex:1 }}>
+                              <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
+                                {visible.map(([key, data]) => {
+                                  const isBest = key === best;
+                                  const s = SUPPLIERS.find((x)=>x.id===key);
+                                  return (
+                                    <div key={key} className={`price-card ${isBest?"best":""}`}
+                                      style={{ borderColor: isBest ? "#34d399" : s?.color ? s.color+"40" : "#2d3248", minWidth:150 }}>
+                                      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
+                                        <span style={{ fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,fontSize:14,
+                                          color:s?.color||"#94a3b8" }}>{data.displayName}</span>
+                                        {isBest && <span className="badge" style={{ background:"#34d39922",color:"#34d399",fontSize:10,fontWeight:700 }}>BEST</span>}
+                                      </div>
+                                      <div style={{ fontSize:28,fontWeight:800,fontFamily:"'Space Grotesk',sans-serif",lineHeight:1.1,
+                                        color:isBest?"#34d399":"#e2e8f0" }}>${data.unitPrice.toFixed(4)}</div>
+                                      <div style={{ fontSize:12,color:"#64748b",marginTop:4 }}>
+                                        Stock: {data.stock.toLocaleString()} · MOQ: {data.moq}
+                                      </div>
+                                      {/* Price breaks */}
+                                      {data.priceBreaks?.length > 1 && (
+                                        <div style={{ marginTop:6,borderTop:"1px solid #1e2130",paddingTop:6 }}>
+                                          {data.priceBreaks.slice(0,4).map((pb,i)=>(
+                                            <div key={i} className="price-break-row" style={{ fontSize:12 }}>
+                                              <span style={{ color:"#64748b" }}>{pb.qty}+</span>
+                                              <span>${pb.price.toFixed(4)}</span>
+                                            </div>
+                                          ))}
                                         </div>
-                                      ))}
+                                      )}
+                                      {data.url && (
+                                        <a href={data.url} target="_blank" rel="noopener noreferrer"
+                                          style={{ display:"block",marginTop:6,fontSize:11,color:"#3b82f6",textDecoration:"none" }}>
+                                          View on site →
+                                        </a>
+                                      )}
                                     </div>
-                                  )}
-                                  {data.url && (
-                                    <a href={data.url} target="_blank" rel="noopener noreferrer"
-                                      style={{ display:"block",marginTop:6,fontSize:10,color:"#3b82f6",textDecoration:"none" }}>
-                                      View on site →
-                                    </a>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                                  );
+                                })}
+                              </div>
+                              {totalCount > 5 && (
+                                <button className="btn-ghost btn-sm" style={{ marginTop:8,fontSize:12,color:"#3b82f6" }}
+                                  onClick={() => setExpandedPricingParts(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(part.id)) next.delete(part.id); else next.add(part.id);
+                                    return next;
+                                  })}>
+                                  {isExpanded ? "Show less" : `Show all ${totalCount} suppliers →`}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
