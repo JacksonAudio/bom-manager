@@ -1414,13 +1414,14 @@ function BOMManager({ user }) {
                   return (
                     <div key={part.id} className="card" style={{ padding:"14px 18px" }}>
                       <div style={{ display:"flex",alignItems:"center",gap:14,flexWrap:"wrap" }}>
-                        {/* Part info */}
-                        <div style={{ flex:"0 0 auto",minWidth:180 }}>
+                        {/* Part info — click to edit */}
+                        <div style={{ flex:"0 0 auto",minWidth:180,cursor:"pointer" }}
+                          onClick={() => setExpandedPart(expandedPart === part.id ? null : part.id)}>
                           <div style={{ fontFamily:"'Space Grotesk',sans-serif",fontWeight:800,fontSize:13,color:"#f8d377" }}>
-                            {part.reference}
+                            {part.reference} <span style={{ fontSize:10,color:"#475569",fontWeight:400 }}>{expandedPart===part.id?"▾ close":"▸ edit"}</span>
                           </div>
                           <div style={{ fontSize:11,color:"#7dd3fc",marginTop:1 }}>{part.mpn||<span style={{ color:"#334155" }}>No MPN</span>}</div>
-                          <div style={{ fontSize:11,color:"#64748b" }}>{part.value} · qty {part.quantity}</div>
+                          <div style={{ fontSize:11,color:"#64748b" }}>{part.description ? `${part.description} · ` : ""}{part.value ? `${part.value} · ` : ""}qty {part.quantity}</div>
                         </div>
 
                         {/* Status / fetch button */}
@@ -1567,6 +1568,39 @@ function BOMManager({ user }) {
                           );
                         })()}
                       </div>
+                      {/* Inline edit panel */}
+                      {expandedPart === part.id && (
+                        <div style={{ marginTop:12,paddingTop:12,borderTop:"1px solid #1e2130",
+                          display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end" }}>
+                          <label style={{ fontSize:11,color:"#64748b" }}>Reference
+                            <input type="text" value={part.reference}
+                              onChange={(e)=>updatePart(part.id,"reference",e.target.value)}
+                              style={{ display:"block",padding:"5px 8px",borderRadius:5,fontSize:12,width:100,marginTop:2 }} />
+                          </label>
+                          <label style={{ fontSize:11,color:"#64748b" }}>MPN
+                            <input type="text" value={part.mpn}
+                              onChange={(e)=>updatePart(part.id,"mpn",e.target.value)}
+                              style={{ display:"block",padding:"5px 8px",borderRadius:5,fontSize:12,width:160,marginTop:2 }} />
+                          </label>
+                          <label style={{ fontSize:11,color:"#64748b" }}>Qty
+                            <input type="number" value={part.quantity} min="1"
+                              onChange={(e)=>updatePart(part.id,"quantity",parseInt(e.target.value)||1)}
+                              style={{ display:"block",padding:"5px 8px",borderRadius:5,fontSize:12,width:60,marginTop:2 }} />
+                          </label>
+                          <label style={{ fontSize:11,color:"#64748b" }}>Description
+                            <input type="text" value={part.description||""}
+                              onChange={(e)=>updatePart(part.id,"description",e.target.value)}
+                              style={{ display:"block",padding:"5px 8px",borderRadius:5,fontSize:12,width:200,marginTop:2 }} />
+                          </label>
+                          <label style={{ fontSize:11,color:"#64748b" }}>Value
+                            <input type="text" value={part.value||""}
+                              onChange={(e)=>updatePart(part.id,"value",e.target.value)}
+                              style={{ display:"block",padding:"5px 8px",borderRadius:5,fontSize:12,width:100,marginTop:2 }} />
+                          </label>
+                          <button className="btn-ghost btn-sm" style={{ color:"#ef4444",borderColor:"#ef4444" }}
+                            onClick={()=>{deletePart(part.id);setExpandedPart(null);}}>Delete</button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
