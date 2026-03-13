@@ -1523,12 +1523,12 @@ function BOMManager({ user }) {
         {activeView === "bom" && (
           <div>
             {/* ── Toolbar */}
-            <div style={{ display:"flex",gap:10,marginBottom:18,flexWrap:"wrap",alignItems:"center" }}>
+            <div style={{ display:"flex",gap:8,marginBottom:8,flexWrap:"wrap",alignItems:"center" }}>
               <input type="text" placeholder="Search ref, value, MPN…"
                 value={search} onChange={(e)=>setSearch(e.target.value)}
-                style={{ padding:"8px 13px",borderRadius:7,width:260,fontSize:13 }} />
+                style={{ padding:"5px 10px",borderRadius:5,width:220,fontSize:12 }} />
               <select value={selProject} onChange={(e)=>setSelProject(e.target.value)}
-                style={{ padding:"8px 11px",borderRadius:7,fontSize:13 }}>
+                style={{ padding:"5px 8px",borderRadius:5,fontSize:12 }}>
                 <option value="all">All Products</option>
                 <option value="unassigned">Unassigned</option>
                 {products.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}
@@ -1539,8 +1539,8 @@ function BOMManager({ user }) {
 
             {/* ── Bulk-action bar — only visible when parts are selected */}
             {selectedParts.size > 0 && (
-              <div style={{ display:"flex",alignItems:"center",gap:14,padding:"10px 16px",
-                background:"rgba(0,113,227,0.06)",border:"1px solid rgba(0,113,227,0.3)",borderRadius:8,marginBottom:14 }}>
+              <div style={{ display:"flex",alignItems:"center",gap:10,padding:"6px 12px",
+                background:"rgba(0,113,227,0.06)",border:"1px solid rgba(0,113,227,0.3)",borderRadius:6,marginBottom:6 }}>
                 <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#0071e3" }}>
                   {selectedParts.size} part{selectedParts.size!==1?"s":""} selected
                 </span>
@@ -1562,15 +1562,15 @@ function BOMManager({ user }) {
               </div>
             ) : (
               <div style={{ overflowX:"auto" }}>
-                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11,lineHeight:"1.2" }}>
                   <thead>
                     <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
                       {/* ── Select-all checkbox */}
-                      <th style={{ padding:"7px 8px",width:32 }}>
+                      <th style={{ padding:"4px 4px",width:24 }}>
                         <input
                           type="checkbox"
                           title={selectedParts.size === visibleParts.length && visibleParts.length > 0 ? "Deselect all" : "Select all visible"}
-                          style={{ width:16,height:16,cursor:"pointer",accentColor:"#0071e3" }}
+                          style={{ width:14,height:14,cursor:"pointer",accentColor:"#0071e3" }}
                           checked={visibleParts.length > 0 && visibleParts.every((p) => selectedParts.has(p.id))}
                           ref={(el) => {
                             // Indeterminate state — some but not all selected
@@ -1583,10 +1583,10 @@ function BOMManager({ user }) {
                         />
                       </th>
                       {/* ── 🚩 order flag column */}
-                      <th style={{ padding:"7px 4px",width:28,textAlign:"center",color:"#aeaeb2",
+                      <th style={{ padding:"4px 2px",width:22,textAlign:"center",color:"#aeaeb2",
                         fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:10,fontWeight:700 }}>🚩</th>
                       {["Reference","Value","MPN","Desc","Stock","Reorder",""].map((h,i)=>(
-                        <th key={i} style={{ textAlign:"left",padding:"7px 8px",color:"#aeaeb2",
+                        <th key={i} style={{ textAlign:"left",padding:"4px 4px",color:"#aeaeb2",
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:10,fontWeight:700,
                           letterSpacing:"0.07em",whiteSpace:"nowrap" }}>{h}</th>
                       ))}
@@ -1602,52 +1602,50 @@ function BOMManager({ user }) {
                             background: selectedParts.has(part.id) ? "rgba(0,113,227,0.06)"
                               : part.flaggedForOrder ? "rgba(255,149,0,0.06)"
                               : i%2===0 ? "transparent" : "#f5f5f7" }}>
-                          {/* Row select checkbox */}
-                          <td style={{ padding:"7px 8px" }}>
+                          <td style={{ padding:"3px 4px" }}>
                             <input type="checkbox"
-                              style={{ width:16,height:16,cursor:"pointer",accentColor:"#0071e3" }}
+                              style={{ width:14,height:14,cursor:"pointer",accentColor:"#0071e3" }}
                               checked={selectedParts.has(part.id)}
                               onChange={() => toggleSelect(part.id)} />
                           </td>
-                          {/* Order flag */}
-                          <td style={{ padding:"7px 4px",textAlign:"center" }}>
-                            <input type="checkbox" style={{ width:16,height:16,cursor:"pointer",accentColor:"#e8500a" }}
+                          <td style={{ padding:"3px 2px",textAlign:"center" }}>
+                            <input type="checkbox" style={{ width:14,height:14,cursor:"pointer",accentColor:"#e8500a" }}
                               checked={part.flaggedForOrder} onChange={()=>toggleFlag(part.id)}
                               title="Flag for purchase order" />
                           </td>
-                          <td style={{ padding:"7px 8px" }}>
+                          <td style={{ padding:"3px 4px" }}>
                             <input type="text" value={part.reference}
                               onChange={(e)=>updatePart(part.id,"reference",e.target.value)}
-                              style={{ width:100,padding:"3px 5px",borderRadius:4,color:"#0071e3",fontWeight:600 }} />
+                              style={{ width:100,padding:"2px 4px",borderRadius:3,color:"#0071e3",fontWeight:600,fontSize:12 }} />
                           </td>
-                          <td style={{ padding:"7px 8px" }}>
+                          <td style={{ padding:"3px 4px" }}>
                             <input type="text" value={part.value||""}
                               onChange={(e)=>updatePart(part.id,"value",e.target.value)}
-                              style={{ width:80,padding:"3px 5px",borderRadius:4,color:"#1d1d1f" }} placeholder="—" />
+                              style={{ width:80,padding:"2px 4px",borderRadius:3,color:"#1d1d1f",fontSize:12 }} placeholder="—" />
                           </td>
-                          <td style={{ padding:"7px 8px" }}>
+                          <td style={{ padding:"3px 4px" }}>
                             <input type="text" value={part.mpn||""}
                               onChange={(e)=>updatePart(part.id,"mpn",e.target.value)}
-                              style={{ width:140,padding:"3px 5px",borderRadius:4,color:"#0071e3" }} placeholder="—" />
+                              style={{ width:140,padding:"2px 4px",borderRadius:3,color:"#0071e3",fontSize:12 }} placeholder="—" />
                           </td>
-                          <td style={{ padding:"7px 8px" }}>
+                          <td style={{ padding:"3px 4px" }}>
                             <input type="text" value={part.description||""}
                               onChange={(e)=>updatePart(part.id,"description",e.target.value)}
-                              style={{ width:120,padding:"3px 5px",borderRadius:4,color:"#86868b",fontSize:11 }} placeholder="—" />
+                              style={{ width:120,padding:"2px 4px",borderRadius:3,color:"#86868b",fontSize:11 }} placeholder="—" />
                           </td>
-                          <td style={{ padding:"7px 8px" }}>
+                          <td style={{ padding:"3px 4px" }}>
                             <input type="number" placeholder="0" value={part.stockQty}
                               onChange={(e)=>updatePart(part.id,"stockQty",e.target.value)}
-                              style={{ width:52,padding:"3px 5px",borderRadius:4,borderColor:isLow?"#ff3b30":undefined }} min="0" />
+                              style={{ width:50,padding:"2px 4px",borderRadius:3,borderColor:isLow?"#ff3b30":undefined,fontSize:12 }} min="0" />
                           </td>
-                          <td style={{ padding:"7px 8px" }}>
+                          <td style={{ padding:"3px 4px" }}>
                             <input type="number" placeholder="0" value={part.reorderQty}
                               onChange={(e)=>updatePart(part.id,"reorderQty",e.target.value)}
-                              style={{ width:52,padding:"3px 5px",borderRadius:4 }} min="0" />
+                              style={{ width:50,padding:"2px 4px",borderRadius:3,fontSize:12 }} min="0" />
                           </td>
-                          <td style={{ padding:"7px 4px" }}>
+                          <td style={{ padding:"3px 2px" }}>
                             <button onClick={()=>deletePart(part.id)}
-                              style={{ background:"none",border:"none",cursor:"pointer",color:"#aeaeb2",fontSize:13,padding:"2px 5px",borderRadius:4,transition:"color 0.15s" }}
+                              style={{ background:"none",border:"none",cursor:"pointer",color:"#aeaeb2",fontSize:12,padding:"1px 4px",borderRadius:3,transition:"color 0.15s" }}
                               onMouseOver={(e)=>e.target.style.color="#ff3b30"}
                               onMouseOut={(e)=>e.target.style.color="#aeaeb2"}>✕</button>
                           </td>
@@ -2411,11 +2409,12 @@ function BOMManager({ user }) {
                                     : <span style={{ color:"#aeaeb2" }}>—</span>}
                                 </td>
                                 <td style={{ padding:"7px 6px" }}>
-                                  <button onClick={()=>deletePart(part.id)}
+                                  <button onClick={()=>updatePart(part.id,"projectId",null)}
+                                    title="Remove from product (keeps in library)"
                                     style={{ background:"none",border:"none",cursor:"pointer",
                                       color:"#aeaeb2",fontSize:13,padding:"2px 6px",
                                       borderRadius:4,transition:"color 0.15s" }}
-                                    onMouseOver={(e)=>e.target.style.color="#ff3b30"}
+                                    onMouseOver={(e)=>e.target.style.color="#ff9500"}
                                     onMouseOut={(e)=>e.target.style.color="#aeaeb2"}>✕</button>
                                 </td>
                               </tr>
