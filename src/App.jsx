@@ -1620,7 +1620,9 @@ function BOMManager({ user }) {
     const useUsOnly = usOnlyOverride !== undefined ? usOnlyOverride : simUsOnly;
     const prodParts = parts.filter((p) => p.projectId === productId);
     if (!prodParts.length) return;
-    const baseQty = parseInt(bomSim[productId]?.qty) || 100;
+    // Read qty from latest state to avoid stale closure
+    let baseQty;
+    setBomSim(prev => { baseQty = parseInt(prev[productId]?.qty) || 100; return prev; });
     setBomSim(prev => ({ ...prev, [productId]: { ...prev[productId], loading: true } }));
 
     // Fetch fresh pricing for any parts that don't have it
@@ -2378,7 +2380,7 @@ function BOMManager({ user }) {
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{sup.logo}</div>
                         <div>
                           <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:17,color:sup.color }}>{sup.name}</div>
-                          <div style={{ fontSize:11,color:"#86868b" }}>{lines.length} lines · {totalUnits} units{poTotal>0?` · est. $${poTotal.toFixed(2)}`:""}</div>
+                          <div style={{ fontSize:11,color:"#86868b" }}>{lines.length} lines · {totalUnits.toLocaleString()} units{poTotal>0?` · est. $${fmtDollar(poTotal)}`:""}</div>
                         </div>
                       </div>
                       <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
@@ -2490,7 +2492,7 @@ function BOMManager({ user }) {
                                   {part.unitCost ? <span style={{ color:"#1d1d1f" }}>{"$"}{fmtPrice(part.unitCost)}</span> : <span style={{ color:"#c7c7cc" }}>—</span>}
                                 </td>
                                 <td style={{ padding:"12px 14px",textAlign:"right" }}>
-                                  {part.unitCost ? <span style={{ color:"#34c759",fontWeight:700 }}>{"$"}{ext.toFixed(2)}</span> : <span style={{ color:"#c7c7cc" }}>—</span>}
+                                  {part.unitCost ? <span style={{ color:"#34c759",fontWeight:700 }}>{"$"}{fmtDollar(ext)}</span> : <span style={{ color:"#c7c7cc" }}>—</span>}
                                 </td>
                                 <td style={{ padding:"12px 8px" }}>
                                   <button style={{ background:"none",border:"none",color:"#c7c7cc",fontSize:14,cursor:"pointer",padding:"2px 4px",
@@ -2506,7 +2508,7 @@ function BOMManager({ user }) {
                             <td colSpan={4} style={{ padding:"12px 14px",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,color:"#6e6e73",fontSize:12,textTransform:"uppercase",letterSpacing:"0.04em" }}>{lines.length} Line Items</td>
                             <td style={{ padding:"12px 14px",textAlign:"right",color:"#0071e3",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{totalUnits}</td>
                             <td colSpan={2} />
-                            <td style={{ padding:"12px 14px",textAlign:"right",color:poTotal>0?"#34c759":"#c7c7cc",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:15 }}>{poTotal>0?`$${poTotal.toFixed(2)}`:"—"}</td>
+                            <td style={{ padding:"12px 14px",textAlign:"right",color:poTotal>0?"#34c759":"#c7c7cc",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:15 }}>{poTotal>0?`$${fmtDollar(poTotal)}`:"—"}</td>
                             <td />
                           </tr>
                         </tbody>
@@ -2651,7 +2653,7 @@ function BOMManager({ user }) {
                           </div>
                           <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>
                             {orderDate} · {itemCount} item{itemCount !== 1 ? "s" : ""}
-                            {order.totalEstimate > 0 ? ` · est. $${order.totalEstimate.toFixed(2)}` : ""}
+                            {order.totalEstimate > 0 ? ` · est. $${fmtDollar(order.totalEstimate)}` : ""}
                             {order.trackingNumbers?.length > 0 && ` · ${order.trackingNumbers.length} tracking #`}
                           </div>
                         </div>
@@ -2769,7 +2771,7 @@ function BOMManager({ user }) {
                                         {item.unitPrice ? `$${parseFloat(item.unitPrice).toFixed(4)}` : "—"}
                                       </td>
                                       <td style={{ padding:"7px 12px",textAlign:"right",fontWeight:600 }}>
-                                        {item.unitPrice && item.qty ? `$${(parseFloat(item.unitPrice) * item.qty).toFixed(2)}` : "—"}
+                                        {item.unitPrice && item.qty ? `$${fmtDollar(parseFloat(item.unitPrice) * item.qty)}` : "—"}
                                       </td>
                                     </tr>
                                   ))}
@@ -3176,9 +3178,10 @@ function BOMManager({ user }) {
 
                       {bomSim[prod.id]?.results && (() => {
                         const results = bomSim[prod.id].results;
-                        const baseQty = parseInt(bomSim[prod.id].qty) || 100;
-                        const baseResult = results.find(r => r.qty === baseQty);
+                        // Use lowest qty in results as base (matches what was simulated)
+                        const baseResult = results.reduce((min, r) => !min || r.qty < min.qty ? r : min, null);
                         if (!baseResult) return null;
+                        const baseQty = baseResult.qty;
 
                         const cheapBase = baseResult.cheapest;
                         const smartBase = baseResult.smart;
@@ -3215,14 +3218,14 @@ function BOMManager({ user }) {
                                 {/* Per-vendor shipping */}
                                 <div style={{ fontSize:10,color:"#aeaeb2",marginTop:6 }}>
                                   {cheapBase.shippingBreakdown.map(sb => (
-                                    <div key={sb.supplierId}>{sb.name}: {"$"}{sb.cost.toFixed(2)} shipping</div>
+                                    <div key={sb.supplierId}>{sb.name}: {"$"}{fmtDollar(sb.cost)} shipping</div>
                                   ))}
                                 </div>
                                 {/* Tariff detail — by part origin country */}
                                 {cheapBase.tariffBreakdown?.length > 0 && (
                                   <div style={{ fontSize:10,color:"#ff3b30",marginTop:4 }}>
                                     {cheapBase.tariffBreakdown.map((t,i) => (
-                                      <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{t.goodsValue.toFixed(2)} = {"$"}{t.cost.toFixed(2)}</div>
+                                      <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{fmtDollar(t.goodsValue)} = {"$"}{fmtDollar(t.cost)}</div>
                                     ))}
                                   </div>
                                 )}
@@ -3253,14 +3256,14 @@ function BOMManager({ user }) {
                                 {/* Per-vendor shipping */}
                                 <div style={{ fontSize:10,color:"#aeaeb2",marginTop:6 }}>
                                   {smartBase.shippingBreakdown.map(sb => (
-                                    <div key={sb.supplierId}>{sb.name}: {"$"}{sb.cost.toFixed(2)} shipping</div>
+                                    <div key={sb.supplierId}>{sb.name}: {"$"}{fmtDollar(sb.cost)} shipping</div>
                                   ))}
                                 </div>
                                 {/* Tariff detail — by part origin country */}
                                 {smartBase.tariffBreakdown?.length > 0 && (
                                   <div style={{ fontSize:10,color:"#ff3b30",marginTop:4 }}>
                                     {smartBase.tariffBreakdown.map((t,i) => (
-                                      <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{t.goodsValue.toFixed(2)} = {"$"}{t.cost.toFixed(2)}</div>
+                                      <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{fmtDollar(t.goodsValue)} = {"$"}{fmtDollar(t.cost)}</div>
                                     ))}
                                   </div>
                                 )}
