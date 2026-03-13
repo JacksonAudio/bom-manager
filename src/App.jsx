@@ -1437,7 +1437,7 @@ function BOMManager({ user }) {
                           const bestUS = usEntries[0] || null;
                           const bestIntl = intlEntries[0] || null;
                           return (
-                            <div style={{ display:"flex",gap:8,flex:"0 0 auto" }}>
+                            <div style={{ display:"flex",flexDirection:"column",gap:8,flex:"0 0 auto" }}>
                               {bestUS && (
                                 <div style={{ background:"#0d2318",border:"1px solid #34d399",borderRadius:8,padding:"8px 14px" }}>
                                   <div style={{ fontSize:10,color:"#34d399",fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,letterSpacing:"0.08em" }}>BEST PRICE — USA</div>
