@@ -3449,18 +3449,12 @@ function BOMManager({ user }) {
                                 <td style={{ padding:"12px 14px",textAlign:"center",width:70 }}>
                                   {part.isInternal
                                     ? <span style={{ fontSize:10,fontWeight:700,letterSpacing:"0.04em",padding:"2px 8px",borderRadius:4,
-                                        background:"rgba(88,86,214,0.1)",color:"#5856d6",cursor:"pointer" }}
-                                        onClick={() => updatePart(part.id, "isInternal", false)}
-                                        title="Click to change to external">IN-HOUSE</span>
+                                        background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>IN-HOUSE</span>
                                     : dynSource
                                     ? <span style={{ fontSize:10,fontWeight:700,letterSpacing:"0.04em",padding:"2px 8px",borderRadius:4,
                                         background:dynSource==="USA"?"rgba(52,199,89,0.1)":"rgba(255,149,0,0.1)",
-                                        color:dynSource==="USA"?"#248a3d":"#ff9500",cursor:"pointer" }}
-                                        onClick={() => updatePart(part.id, "isInternal", true)}
-                                        title="Click to mark as in-house">{dynSource}</span>
-                                    : <span style={{ color:"#c7c7cc",cursor:"pointer",fontSize:10 }}
-                                        onClick={() => updatePart(part.id, "isInternal", true)}
-                                        title="Click to mark as in-house">—</span>}
+                                        color:dynSource==="USA"?"#248a3d":"#ff9500" }}>{dynSource}</span>
+                                    : <span style={{ color:"#c7c7cc",fontSize:10 }}>—</span>}
                                 </td>
                                 <td style={{ padding:"12px 14px",textAlign:"right",width:90 }}>
                                   {dynPrice > 0
