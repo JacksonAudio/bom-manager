@@ -1978,7 +1978,7 @@ function BOMManager({ user }) {
                             </div>
                           </div>
                           <div style={{ flex:1,display:"flex",alignItems:"center",gap:6,justifyContent:"center" }}>
-                            <span style={{ fontSize:11,color:"#86868b",fontWeight:400,whiteSpace:"nowrap" }}>quote quantity</span>
+                            <span style={{ fontSize:10,color:"#86868b",fontWeight:500,whiteSpace:"nowrap",letterSpacing:"0.5px",textTransform:"uppercase" }}>Quote Quantity</span>
                             <input type="text" inputMode="numeric" value={bq}
                               onClick={(e)=>e.stopPropagation()}
                               onChange={(e)=>{e.stopPropagation();const v=e.target.value.replace(/[^0-9]/g,"");setBuyQtys(q=>({...q,[part.id]:parseInt(v)||1}));}}
