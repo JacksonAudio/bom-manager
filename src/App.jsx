@@ -1969,7 +1969,7 @@ function BOMManager({ user }) {
                             transition:"background 0.15s",background:isOpen?"rgba(0,0,0,0.02)":"transparent" }}
                           onMouseOver={e=>{if(!isOpen)e.currentTarget.style.background="rgba(0,0,0,0.02)"}}
                           onMouseOut={e=>{if(!isOpen)e.currentTarget.style.background="transparent"}}>
-                          <div style={{ flex:1 }}>
+                          <div style={{ flex:1,minWidth:0 }}>
                             <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f" }}>
                               {part.mpn || part.reference}
                             </div>
@@ -1977,7 +1977,7 @@ function BOMManager({ user }) {
                               {[part.description, part.value].filter(Boolean).join(" — ") || "\u00A0"}
                             </div>
                           </div>
-                          <div style={{ display:"flex",alignItems:"center",gap:6,minWidth:160,justifyContent:"center" }}>
+                          <div style={{ flex:1,display:"flex",alignItems:"center",gap:6,justifyContent:"center" }}>
                             <span style={{ fontSize:11,color:"#86868b",fontWeight:400,whiteSpace:"nowrap" }}>quote quantity</span>
                             <input type="text" inputMode="numeric" value={bq}
                               onClick={(e)=>e.stopPropagation()}
@@ -1986,7 +1986,7 @@ function BOMManager({ user }) {
                               onFocus={(e)=>{e.target.style.borderBottom="1px solid #0071e3";e.target.select();}}
                               onBlur={(e)=>{e.target.style.borderBottom="1px solid transparent";}} />
                           </div>
-                          <div style={{ textAlign:"right",minWidth:100 }}>
+                          <div style={{ flex:1,textAlign:"right" }}>
                             {effectiveStatus === "done" && bestDisplayPrice ? (
                               <>
                                 <div style={{ fontSize:20,fontWeight:600,letterSpacing:"-0.3px",color:"#1d1d1f" }}>{"$"}{fmtPrice(bestDisplayPrice)}</div>
