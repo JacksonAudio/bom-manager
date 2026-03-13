@@ -97,6 +97,7 @@ const DIST_COUNTRY = {
 
 // Format price: up to 4 decimals, strip trailing zeroes, keep min 2
 const fmtPrice = (v) => { const s = parseFloat(v).toFixed(4); return s.replace(/0{1,2}$/, ""); };
+const fmtDollar = (v) => parseFloat(v).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
 
 // Get country code for a supplier ID (from DIST_COUNTRY or SUPPLIERS)
 const getSupplierCountry = (supplierId) => DIST_COUNTRY[supplierId] || "";
@@ -2773,7 +2774,7 @@ function BOMManager({ user }) {
                           {prod.partCount} part{prod.partCount!==1?"s":""}
                         </span>
                         <span style={{ fontSize:12,color:"#34c759",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700 }}>
-                          BOM: ${prod.total.toFixed(2)}
+                          BOM: ${fmtDollar(prod.total)}
                         </span>
                         {prod.partCount > 0 && (
                           <span style={{ fontSize:11,color:"#aeaeb2" }}>
@@ -2795,10 +2796,6 @@ function BOMManager({ user }) {
                         {prodParts.some(p => p.pricingStatus === "loading")
                           ? <><span className="spinner" /> Refreshing…</>
                           : `↻ Refresh Prices (${prodParts.filter(p=>p.mpn).length})`}
-                      </button>
-                      <button className="btn-ghost" style={{ fontSize:11 }}
-                        onClick={()=>{ setSelProject(prod.id); setActiveView("bom"); }}>
-                        View in Parts Library →
                       </button>
                     </div>
                   </div>
@@ -3003,7 +3000,7 @@ function BOMManager({ user }) {
                                 </td>
                                 <td style={{ padding:"12px 14px",textAlign:"right" }}>
                                   {dynPrice > 0
-                                    ? <span style={{ color:"#34c759",fontWeight:600 }}>{"$"}{ext.toFixed(2)}</span>
+                                    ? <span style={{ color:"#34c759",fontWeight:600 }}>{"$"}{fmtDollar(ext)}</span>
                                     : <span style={{ color:"#c7c7cc" }}>—</span>}
                                 </td>
                                 <td style={{ padding:"6px 4px",width:28 }}>
@@ -3025,7 +3022,7 @@ function BOMManager({ user }) {
                             </td>
                             <td colSpan={2} style={{ padding:"12px 14px",textAlign:"right",
                               color:"#34c759",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:15 }}>
-                              {"$"}{prod.total.toFixed(2)}
+                              {"$"}{fmtDollar(prod.total)}
                             </td>
                             <td />
                           </tr>
@@ -3080,14 +3077,14 @@ function BOMManager({ user }) {
                                   ${fmtPrice(cheapBase.perUnit)}<span style={{ fontSize:12,color:"#86868b",fontWeight:400 }}> / unit</span>
                                 </div>
                                 <div style={{ fontSize:11,color:"#86868b",marginTop:4 }}>
-                                  Parts: {"$"}{cheapBase.partsCost.toFixed(2)}
+                                  Parts: {"$"}{fmtDollar(cheapBase.partsCost)}
                                 </div>
                                 <div style={{ fontSize:11,color:"#86868b" }}>
-                                  Shipping: {"$"}{cheapBase.shipping.toFixed(2)} ({cheapBase.suppliers.length} vendor{cheapBase.suppliers.length!==1?"s":""})
+                                  Shipping: {"$"}{fmtDollar(cheapBase.shipping)} ({cheapBase.suppliers.length} vendor{cheapBase.suppliers.length!==1?"s":""})
                                 </div>
                                 {cheapBase.tariffTotal > 0 && (
                                   <div style={{ fontSize:11,color:"#ff3b30" }}>
-                                    Tariffs: {"$"}{cheapBase.tariffTotal.toFixed(2)}
+                                    Tariffs: {"$"}{fmtDollar(cheapBase.tariffTotal)}
                                   </div>
                                 )}
                                 {/* Per-vendor shipping */}
@@ -3117,14 +3114,14 @@ function BOMManager({ user }) {
                                   ${fmtPrice(smartBase.perUnit)}<span style={{ fontSize:12,color:"#86868b",fontWeight:400 }}> / unit</span>
                                 </div>
                                 <div style={{ fontSize:11,color:"#86868b",marginTop:4 }}>
-                                  Parts: {"$"}{smartBase.partsCost.toFixed(2)}
+                                  Parts: {"$"}{fmtDollar(smartBase.partsCost)}
                                 </div>
                                 <div style={{ fontSize:11,color:"#86868b" }}>
-                                  Shipping: {"$"}{smartBase.shipping.toFixed(2)} ({smartBase.suppliers.length} vendor{smartBase.suppliers.length!==1?"s":""})
+                                  Shipping: {"$"}{fmtDollar(smartBase.shipping)} ({smartBase.suppliers.length} vendor{smartBase.suppliers.length!==1?"s":""})
                                 </div>
                                 {smartBase.tariffTotal > 0 && (
                                   <div style={{ fontSize:11,color:"#ff3b30" }}>
-                                    Tariffs: {"$"}{smartBase.tariffTotal.toFixed(2)}
+                                    Tariffs: {"$"}{fmtDollar(smartBase.tariffTotal)}
                                   </div>
                                 )}
                                 {/* Per-vendor shipping */}
@@ -3143,7 +3140,7 @@ function BOMManager({ user }) {
                                 )}
                                 {smartSavings > 0 && (
                                   <div style={{ fontSize:12,color:"#34c759",fontWeight:700,marginTop:6 }}>
-                                    Saves {"$"}{smartSavings.toFixed(2)} total vs cheapest-per-part
+                                    Saves {"$"}{fmtDollar(smartSavings)} total vs cheapest-per-part
                                   </div>
                                 )}
                               </div>
@@ -3178,14 +3175,14 @@ function BOMManager({ user }) {
                                     }}>
                                       <td style={{ padding:"12px 14px",fontWeight:isBase||isBest?700:400,
                                         color:isBest?"#34c759":isBase?"#1d1d1f":"#6e6e73" }}>
-                                        {r.qty}{isBest?" ★":""}{isBase?" (base)":""}
+                                        {r.qty.toLocaleString()}{isBest?" (best value)":""}{isBase?" (base)":""}
                                       </td>
-                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{"$"}{s.partsCost.toFixed(2)}</td>
-                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{"$"}{s.shipping.toFixed(2)}</td>
+                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{"$"}{fmtDollar(s.partsCost)}</td>
+                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{"$"}{fmtDollar(s.shipping)}</td>
                                       <td style={{ padding:"12px 14px",textAlign:"right",color:s.tariffTotal>0?"#ff3b30":"#c7c7cc" }}>
-                                        {s.tariffTotal > 0 ? `$${s.tariffTotal.toFixed(2)}` : "—"}
+                                        {s.tariffTotal > 0 ? `$${fmtDollar(s.tariffTotal)}` : "—"}
                                       </td>
-                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#1d1d1f",fontWeight:600 }}>{"$"}{s.total.toFixed(2)}</td>
+                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#1d1d1f",fontWeight:600 }}>{"$"}{fmtDollar(s.total)}</td>
                                       <td style={{ padding:"12px 14px",textAlign:"right",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                                         fontWeight:700,color:isBest?"#34c759":"#1d1d1f" }}>{"$"}{fmtPrice(s.perUnit)}</td>
                                       <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>
