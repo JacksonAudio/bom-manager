@@ -1501,15 +1501,20 @@ function BOMManager({ user }) {
                                           </div>
                                         );
                                       })()}
-                                      {/* Price breaks */}
+                                      {/* Price breaks — fixed tiers: 100, 250, 500, 1000 */}
                                       {data.priceBreaks?.length > 1 && (
                                         <div style={{ marginTop:6,borderTop:"1px solid #1e2130",paddingTop:6 }}>
-                                          {data.priceBreaks.slice(0,4).map((pb,i)=>(
-                                            <div key={i} className="price-break-row" style={{ fontSize:12 }}>
-                                              <span style={{ color:"#64748b" }}>{pb.qty}+</span>
-                                              <span>${fmtPrice(pb.price)}</span>
-                                            </div>
-                                          ))}
+                                          {[100,250,500,1000].map((tier) => {
+                                            let price = null;
+                                            for (const pb of data.priceBreaks) { if (tier >= pb.qty) price = pb.price; }
+                                            if (price == null) return null;
+                                            return (
+                                              <div key={tier} className="price-break-row" style={{ fontSize:12 }}>
+                                                <span style={{ color:"#64748b" }}>{tier}+</span>
+                                                <span>${fmtPrice(price)}</span>
+                                              </div>
+                                            );
+                                          })}
                                         </div>
                                       )}
                                       {data.url && (
