@@ -3930,47 +3930,132 @@ function BOMManager({ user }) {
                   </div>
                 )}
 
-                {/* ── Recent orders */}
-                {shopifyDemand.orders?.length > 0 && (
-                  <div className="card">
-                    <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>
-                      RECENT ORDERS ({shopifyDemand.orders.length})
-                    </div>
-                    <div style={{ maxHeight:400,overflowY:"auto" }}>
-                      {shopifyDemand.orders.slice(0, 50).map(order => (
-                        <div key={order.id} style={{ borderBottom:"1px solid #f0f0f2",padding:"10px 0",display:"flex",gap:16,alignItems:"flex-start",flexWrap:"wrap" }}>
-                          <div style={{ minWidth:120 }}>
-                            <div style={{ fontWeight:700,fontSize:13,color:"#0071e3" }}>{order.name}</div>
-                            <div style={{ fontSize:10,color:"#86868b" }}>{new Date(order.createdAt).toLocaleDateString()}</div>
-                            {order.storeName && <div style={{ fontSize:9,color:"#5856d6",fontWeight:600,marginTop:1 }}>{order.storeName}</div>}
-                          </div>
-                          <div style={{ display:"flex",gap:6,flexWrap:"wrap",flex:1 }}>
-                            {order.lineItems.map((li, i) => (
-                              <span key={i} style={{
-                                fontSize:11,background:li.unfulfilled > 0 ? "#fff2f0" : "#f0faf0",
-                                border:`1px solid ${li.unfulfilled > 0 ? "#ff3b3033" : "#34c75933"}`,
-                                borderRadius:4,padding:"3px 8px"
-                              }}>
-                                {li.title} ×{li.quantity}
-                                {li.unfulfilled > 0 && li.unfulfilled < li.quantity && (
-                                  <span style={{ color:"#ff9500",fontWeight:600 }}> ({li.unfulfilled} left)</span>
-                                )}
-                              </span>
-                            ))}
-                          </div>
-                          <div style={{ fontSize:10,color:"#86868b",minWidth:80,textAlign:"right" }}>
-                            <span className="badge" style={{
-                              background: order.fulfillmentStatus === "unfulfilled" ? "#ff3b3022" : "#ff950022",
-                              color: order.fulfillmentStatus === "unfulfilled" ? "#ff3b30" : "#ff9500"
+                {/* ── Build Plan + Sales Forecast */}
+                {shopifyDemand.orders?.length > 0 && (() => {
+                  // Calculate daily sell rate per product from order history
+                  const now = new Date();
+                  const productSales = {}; // { title: { total, dates[], storeName } }
+                  for (const order of shopifyDemand.orders) {
+                    const d = new Date(order.createdAt);
+                    for (const li of order.lineItems) {
+                      if (!productSales[li.title]) productSales[li.title] = { total: 0, oldest: d, newest: d, storeName: order.storeName || "" };
+                      productSales[li.title].total += li.quantity;
+                      if (d < productSales[li.title].oldest) productSales[li.title].oldest = d;
+                      if (d > productSales[li.title].newest) productSales[li.title].newest = d;
+                    }
+                  }
+                  // Calculate rates and forecasts
+                  const forecasts = Object.entries(productSales).map(([title, data]) => {
+                    const daySpan = Math.max(1, (now - data.oldest) / (1000 * 60 * 60 * 24));
+                    const dailyRate = data.total / daySpan;
+                    // Find matching BOM product for current unfulfilled count
+                    const sp = shopifyDemand.products?.find(p => p.title === title);
+                    const unfulfilled = sp?.totalUnfulfilled || 0;
+                    return {
+                      title, storeName: data.storeName,
+                      totalOrdered: data.total, daySpan: Math.round(daySpan),
+                      dailyRate, weeklyRate: dailyRate * 7, monthlyRate: dailyRate * 30,
+                      forecast30: Math.ceil(dailyRate * 30),
+                      forecast60: Math.ceil(dailyRate * 60),
+                      forecast90: Math.ceil(dailyRate * 90),
+                      unfulfilled,
+                    };
+                  }).filter(f => f.dailyRate > 0).sort((a, b) => b.monthlyRate - a.monthlyRate);
+
+                  return (
+                    <>
+                    {/* Build Plan — what to build now */}
+                    {shopifyDemand.products?.length > 0 && (
+                      <div className="card" style={{ marginBottom:16 }}>
+                        <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>BUILD PLAN — UNITS TO BUILD NOW</div>
+                        <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
+                          {shopifyDemand.products.filter(sp => sp.totalUnfulfilled > 0).sort((a,b) => b.totalUnfulfilled - a.totalUnfulfilled).map(sp => (
+                            <div key={sp.shopifyProductId} style={{
+                              background:"#f0f7ff",border:"1px solid #0071e344",borderRadius:10,padding:"14px 18px",minWidth:160,textAlign:"center"
                             }}>
-                              {order.fulfillmentStatus}
-                            </span>
-                          </div>
+                              <div style={{ fontSize:12,fontWeight:600,color:"#1d1d1f",marginBottom:4 }}>{sp.title}</div>
+                              <div style={{ fontSize:32,fontWeight:800,color:"#0071e3",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",lineHeight:1 }}>
+                                {sp.totalUnfulfilled.toLocaleString()}
+                              </div>
+                              <div style={{ fontSize:10,color:"#86868b",marginTop:2 }}>units to build</div>
+                              {sp.storeName && <div style={{ fontSize:9,color:"#5856d6",fontWeight:600,marginTop:3 }}>{sp.storeName}</div>}
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      </div>
+                    )}
+
+                    {/* Sales Forecast */}
+                    {forecasts.length > 0 && (
+                      <div className="card">
+                        <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>
+                          SALES FORECAST — BASED ON {shopifyDemand.orders.length} ORDERS
+                        </div>
+                        <div style={{ overflowX:"auto" }}>
+                          <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
+                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>PRODUCT</th>
+                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>DAILY AVG</th>
+                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>WEEKLY</th>
+                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>MONTHLY</th>
+                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center",background:"#f0f7ff",borderRadius:"6px 0 0 0" }}>30 DAY</th>
+                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center",background:"#fff8f0" }}>60 DAY</th>
+                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center",background:"#fff2f0",borderRadius:"0 6px 0 0" }}>90 DAY</th>
+                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>UNFULFILLED</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {forecasts.map(f => (
+                                <tr key={f.title} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                                  <td style={{ padding:"10px 10px" }}>
+                                    <div style={{ fontWeight:600,color:"#1d1d1f" }}>{f.title}</div>
+                                    <div style={{ fontSize:10,color:"#86868b" }}>
+                                      {f.totalOrdered.toLocaleString()} sold over {f.daySpan} days
+                                      {f.storeName && <span style={{ color:"#5856d6",fontWeight:600,marginLeft:4 }}>{f.storeName}</span>}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:600,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                    {f.dailyRate.toFixed(1)}
+                                  </td>
+                                  <td style={{ padding:"10px 10px",textAlign:"right",color:"#86868b" }}>
+                                    {f.weeklyRate.toFixed(1)}
+                                  </td>
+                                  <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:600 }}>
+                                    {Math.round(f.monthlyRate).toLocaleString()}
+                                  </td>
+                                  <td style={{ padding:"10px 10px",textAlign:"center",fontWeight:700,fontSize:14,
+                                    background:"#f0f7ff",color:"#0071e3",
+                                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                    {f.forecast30.toLocaleString()}
+                                  </td>
+                                  <td style={{ padding:"10px 10px",textAlign:"center",fontWeight:700,fontSize:14,
+                                    background:"#fff8f0",color:"#ff9500",
+                                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                    {f.forecast60.toLocaleString()}
+                                  </td>
+                                  <td style={{ padding:"10px 10px",textAlign:"center",fontWeight:700,fontSize:14,
+                                    background:"#fff2f0",color:"#ff3b30",
+                                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                    {f.forecast90.toLocaleString()}
+                                  </td>
+                                  <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,
+                                    color:f.unfulfilled > 0 ? "#ff3b30" : "#34c759" }}>
+                                    {f.unfulfilled > 0 ? f.unfulfilled.toLocaleString() : "✓"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div style={{ marginTop:10,fontSize:10,color:"#aeaeb2",fontStyle:"italic" }}>
+                          Forecast based on average daily sell rate across all open orders in the sync window. Rates update each time you sync.
+                        </div>
+                      </div>
+                    )}
+                    </>
+                  );
+                })()}
               </>
             )}
           </div>
