@@ -711,6 +711,7 @@ function printPO(supplier, lines, poNumber) {
 
 function buildPurchaseOrders(parts) {
   const orderParts = parts.filter((p) => {
+    if (p.isInternal) return false; // internal parts have their own section
     if (p.flaggedForOrder) return true;
     const s = parseInt(p.stockQty), r = parseInt(p.reorderQty);
     return !isNaN(s) && !isNaN(r) && s <= r;
@@ -1351,6 +1352,7 @@ function BOMManager({ user }) {
       pricingStatus:     row.pricing_status     || "idle",
       pricingError:      row.pricing_error       || "",
       bestSupplier:      row.best_supplier       || null,
+      isInternal:        row.is_internal         || false,
       createdBy:         row.created_by,
       updatedBy:         row.updated_by,
     };
@@ -1377,6 +1379,7 @@ function BOMManager({ user }) {
       pricing_status:    part.pricingStatus      || "idle",
       pricing_error:     part.pricingError       || "",
       best_supplier:     part.bestSupplier       || null,
+      is_internal:       part.isInternal         || false,
     };
   }
 
@@ -1563,8 +1566,8 @@ function BOMManager({ user }) {
       reference: pn, refs: [pn], value: form.value || "", mpn: pn,
       description: form.desc || "", footprint: "", manufacturer: form.mfr || "",
       quantity: qty, unitCost: "", projectId: productId,
-      reorderQty: "", stockQty: "", preferredSupplier: "mouser",
-      orderQty: "", flaggedForOrder: false,
+      reorderQty: "", stockQty: "", preferredSupplier: form.isInternal ? "internal" : "mouser",
+      orderQty: "", flaggedForOrder: false, isInternal: form.isInternal || false,
       pricing: null, pricingStatus: "idle", pricingError: "", bestSupplier: null,
     };
 
@@ -1872,7 +1875,8 @@ function BOMManager({ user }) {
   const lowStockParts = parts.filter((p) => { const s=parseInt(p.stockQty)||0, r=parseInt(p.reorderQty); return !isNaN(r) && r > 0 && s <= r; });
   const unassignedCount = parts.filter((p) => !p.projectId).length;
   const purchaseOrders = buildPurchaseOrders(parts);
-  const poPartCount = Object.values(purchaseOrders).reduce((s,a)=>s+a.length,0);
+  const internalOrderCount = parts.filter(p => p.isInternal && (p.flaggedForOrder || (() => { const s=parseInt(p.stockQty),r=parseInt(p.reorderQty); return !isNaN(s)&&!isNaN(r)&&s<=r; })())).length;
+  const poPartCount = Object.values(purchaseOrders).reduce((s,a)=>s+a.length,0) + internalOrderCount;
   const pricedCount = parts.filter((p) => p.pricingStatus === "done").length;
   const hasAnyKey = nexarToken || apiKeys.mouser_api_key || dkToken || apiKeys.arrow_api_key;
 
@@ -2594,7 +2598,94 @@ function BOMManager({ user }) {
                 <button className="btn-primary" onClick={()=>setActiveView("bom")}>Go to Parts Library</button>
               </div>
             ) : (
-              SUPPLIERS.map((sup) => {
+              <>
+              {/* Internal Production Orders */}
+              {(() => {
+                const internalParts = parts.filter(p => p.isInternal && (p.flaggedForOrder || (() => { const s=parseInt(p.stockQty),r=parseInt(p.reorderQty); return !isNaN(s)&&!isNaN(r)&&s<=r; })()));
+                if (!internalParts.length) return null;
+                const internalLines = internalParts.map(p => {
+                  const stock = parseInt(p.stockQty)||0, reorder = parseInt(p.reorderQty)||0;
+                  const needed = p.flaggedForOrder && isNaN(parseInt(p.reorderQty))
+                    ? parseInt(p.orderQty)||p.quantity
+                    : Math.max(reorder - stock, parseInt(p.orderQty)||1);
+                  return { ...p, neededQty: needed };
+                });
+                const totalUnits = internalLines.reduce((s,p) => s + p.neededQty, 0);
+                const prodMap = {};
+                internalLines.forEach(p => {
+                  const prod = products.find(pr => pr.id === p.projectId);
+                  if (prod) { if (!prodMap[prod.id]) prodMap[prod.id] = { ...prod, parts: [] }; prodMap[prod.id].parts.push(p); }
+                });
+                return (
+                  <div className="po-card" style={{ borderTop:"3px solid #5856d6",marginBottom:20 }}>
+                    <div className="po-header" style={{ background:"#f3f2ff" }}>
+                      <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+                        <div style={{ width:38,height:38,background:"#5856d6",borderRadius:8,display:"flex",
+                          alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:14,color:"#fff",
+                          fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>🏭</div>
+                        <div>
+                          <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:17,color:"#5856d6" }}>Internal Production Orders</div>
+                          <div style={{ fontSize:11,color:"#86868b" }}>{internalLines.length} items · {totalUnits.toLocaleString()} units to produce</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ overflowX:"auto",background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                        <thead>
+                          <tr style={{ background:"#e8e7f8",color:"#3a3f51" }}>
+                            {["Reference","MPN","Description","Product","Need","Stock",""].map((h,hi,arr)=>(
+                              <th key={hi} style={{ padding:"12px 14px",textAlign:hi>=4&&hi<=5?"right":"left",
+                                fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                                fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
+                                borderRadius:hi===0?"8px 0 0 0":hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {internalLines.map(part => {
+                            const prod = products.find(pr => pr.id === part.projectId);
+                            return (
+                              <tr key={part.id} style={{ borderBottom:"1px solid #ededf0" }}>
+                                <td style={{ padding:"12px 14px",color:"#5856d6",fontWeight:600 }}>{part.reference}</td>
+                                <td style={{ padding:"12px 14px",color:"#1d1d1f",fontWeight:500 }}>{part.mpn||"—"}</td>
+                                <td style={{ padding:"12px 14px",color:"#6e6e73" }}>{part.description||part.value||"—"}</td>
+                                <td style={{ padding:"12px 14px" }}>
+                                  {prod ? <span className="badge" style={{ background:prod.color+"22",color:prod.color }}>{prod.name}</span> : "—"}
+                                </td>
+                                <td style={{ padding:"12px 14px",textAlign:"right" }}>
+                                  <input type="number" min="1" value={part.orderQty||part.neededQty}
+                                    onChange={(e)=>updatePart(part.id,"orderQty",e.target.value)}
+                                    style={{ width:56,padding:"5px 6px",borderRadius:6,textAlign:"center",fontSize:13,fontWeight:700,
+                                      border:"1px solid #d2d2d7",color:"#5856d6",background:"#fff",fontFamily:"inherit" }} />
+                                </td>
+                                <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{part.stockQty||"—"}</td>
+                                <td style={{ padding:"12px 8px" }}>
+                                  <button style={{ background:"none",border:"none",color:"#c7c7cc",fontSize:14,cursor:"pointer",padding:"2px 4px",
+                                    borderRadius:4,transition:"color 0.15s" }}
+                                    onMouseOver={(e)=>e.target.style.color="#ff3b30"}
+                                    onMouseOut={(e)=>e.target.style.color="#c7c7cc"}
+                                    onClick={()=>{ updatePart(part.id,"flaggedForOrder",false); updatePart(part.id,"orderQty",""); }}>✕</button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          <tr style={{ background:"#f9f9fb",borderTop:"2px solid #e5e5ea" }}>
+                            <td colSpan={4} style={{ padding:"12px 14px",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,color:"#6e6e73",fontSize:12,textTransform:"uppercase",letterSpacing:"0.04em" }}>
+                              {internalLines.length} Internal Items
+                            </td>
+                            <td style={{ padding:"12px 14px",textAlign:"right",color:"#5856d6",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                              {totalUnits.toLocaleString()}
+                            </td>
+                            <td colSpan={2} />
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {SUPPLIERS.map((sup) => {
                 const lines = purchaseOrders[sup.id];
                 if (!lines?.length) return null;
                 const poNum = genPONumber(sup.id);
@@ -2745,7 +2836,8 @@ function BOMManager({ user }) {
                     </div>
                   </div>
                 );
-              })
+              })}
+              </>
             )}
           </div>
         )}
@@ -3249,6 +3341,12 @@ function BOMManager({ user }) {
                             onChange={(e) => setQAField(prod.id, "mfr", e.target.value)}
                             style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12 }} />
                         </div>
+                        <div style={{ display:"flex",alignItems:"center",gap:6,paddingTop:14 }}>
+                          <input type="checkbox" checked={qa.isInternal || false}
+                            onChange={(e) => setQAField(prod.id, "isInternal", e.target.checked)}
+                            style={{ width:14,height:14,accentColor:"#5856d6",cursor:"pointer" }} />
+                          <span style={{ fontSize:11,color:"#5856d6",fontWeight:600 }}>In-House</span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -3348,12 +3446,21 @@ function BOMManager({ user }) {
                                     return <span style={{ padding:"6px 10px",fontSize:12,color:"#c7c7cc" }}>—</span>;
                                   })()}
                                 </td>
-                                <td style={{ padding:"12px 14px",textAlign:"center",width:60 }}>
-                                  {dynSource
+                                <td style={{ padding:"12px 14px",textAlign:"center",width:70 }}>
+                                  {part.isInternal
+                                    ? <span style={{ fontSize:10,fontWeight:700,letterSpacing:"0.04em",padding:"2px 8px",borderRadius:4,
+                                        background:"rgba(88,86,214,0.1)",color:"#5856d6",cursor:"pointer" }}
+                                        onClick={() => updatePart(part.id, "isInternal", false)}
+                                        title="Click to change to external">IN-HOUSE</span>
+                                    : dynSource
                                     ? <span style={{ fontSize:10,fontWeight:700,letterSpacing:"0.04em",padding:"2px 8px",borderRadius:4,
                                         background:dynSource==="USA"?"rgba(52,199,89,0.1)":"rgba(255,149,0,0.1)",
-                                        color:dynSource==="USA"?"#248a3d":"#ff9500" }}>{dynSource}</span>
-                                    : <span style={{ color:"#c7c7cc" }}>—</span>}
+                                        color:dynSource==="USA"?"#248a3d":"#ff9500",cursor:"pointer" }}
+                                        onClick={() => updatePart(part.id, "isInternal", true)}
+                                        title="Click to mark as in-house">{dynSource}</span>
+                                    : <span style={{ color:"#c7c7cc",cursor:"pointer",fontSize:10 }}
+                                        onClick={() => updatePart(part.id, "isInternal", true)}
+                                        title="Click to mark as in-house">—</span>}
                                 </td>
                                 <td style={{ padding:"12px 14px",textAlign:"right",width:90 }}>
                                   {dynPrice > 0
