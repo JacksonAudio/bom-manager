@@ -10,6 +10,8 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import AuthScreen from "./components/AuthScreen.jsx";
+import QRLabelModal from "./components/QRLabelModal.jsx";
+import ScannerView from "./components/ScannerView.jsx";
 import {
   onAuthChange, signOut,
   fetchProducts, createProduct, deleteProduct,
@@ -881,6 +883,37 @@ const CSS = `
 
   .price-break-row { display: flex; gap: 6px; align-items: center; font-size: 11px; color: #86868b; }
   .price-break-row span { color: #34c759; font-weight: 600; }
+
+  /* ── Dark Mode ── */
+  .dark { color-scheme: dark; }
+  .dark ::-webkit-scrollbar-track { background: #1a1a1e; }
+  .dark ::-webkit-scrollbar-thumb { background: #3a3a3e; }
+
+  .dark .nav-btn { color: #98989d; }
+  .dark .nav-btn:hover { color: #f5f5f7; }
+  .dark .nav-btn.active { color: #64d2ff; border-bottom-color: #64d2ff; }
+
+  .dark input[type="text"], .dark input[type="number"], .dark input[type="password"],
+  .dark select, .dark textarea {
+    background: #1c1c1e; border-color: #3a3a3e; color: #f5f5f7; }
+  .dark input:focus, .dark select:focus, .dark textarea:focus { border-color: #64d2ff; }
+
+  .dark .card { background: #1c1c1e; border-color: #3a3a3e; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .dark .btn-primary { background: #0a84ff; }
+  .dark .btn-primary:hover { background: #409cff; }
+  .dark .btn-ghost { border-color: #3a3a3e; color: #98989d; }
+  .dark .btn-ghost:hover { border-color: #64d2ff; color: #64d2ff; }
+  .dark .drop-zone { border-color: #3a3a3e; background: #1c1c1e; }
+  .dark .drop-zone.drag-over { border-color: #0a84ff; background: rgba(10,132,255,0.08); }
+  .dark .drop-zone:hover { border-color: #636366; }
+  .dark .table-row:hover td { background: rgba(255,255,255,0.04) !important; }
+  .dark .price-card { background: #1c1c1e; border-color: #3a3a3e; }
+  .dark .price-card.best { border-color: #30d158; background: rgba(48,209,88,0.08); }
+  .dark .po-card { background: #1c1c1e; border-color: #3a3a3e; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .dark .po-table th { background: #2c2c2e; color: #98989d; border-bottom-color: #3a3a3e; }
+  .dark .po-table td { border-bottom-color: #2c2c2e; }
+  .dark .po-table tr:hover td { background: #2c2c2e; }
+  .dark .spinner { border-color: #3a3a3e; border-top-color: #0a84ff; }
 `;
 
 // ─────────────────────────────────────────────
@@ -956,6 +989,10 @@ function BOMManager({ user }) {
   const [orderForm, setOrderForm] = useState(null); // { supplier, poNumber, items, notes }
   const [settingsSaving, setSettingsSaving] = useState(""); // which section is saving
   const [settingsSaved, setSettingsSaved] = useState(""); // which section just saved
+  const [qrModalParts, setQrModalParts] = useState(null); // array of parts to show QR labels for
+  const [darkMode, setDarkMode] = useState(() => {
+    try { return localStorage.getItem("bom_dark_mode") === "true"; } catch { return false; }
+  });
   const fileRef = useRef();
   const qtyTimers = useRef({}); // debounce timers for qty→price refresh
   const simTimer = useRef(null); // debounce timer for sim auto-run
@@ -1104,6 +1141,11 @@ function BOMManager({ user }) {
     }
     boot();
   }, []); // eslint-disable-line
+
+  // Persist dark mode preference
+  useEffect(() => {
+    try { localStorage.setItem("bom_dark_mode", darkMode); } catch {}
+  }, [darkMode]);
 
   // ─────────────────────────────────────────────
   // REALTIME SUBSCRIPTIONS
@@ -1582,6 +1624,9 @@ function BOMManager({ user }) {
     // Clear the form immediately
     setQAField(productId, "pn", "");
     setQAField(productId, "qty", "");
+    if (form.desc) setQAField(productId, "desc", "");
+    if (form.value) setQAField(productId, "value", "");
+    if (form.mfr) setQAField(productId, "mfr", "");
 
     const uiPart = {
       reference: pn, refs: [pn], value: form.value || "", mpn: pn,
@@ -1592,10 +1637,26 @@ function BOMManager({ user }) {
       pricing: null, pricingStatus: "idle", pricingError: "", bestSupplier: null,
     };
 
+    // Optimistic UI — add the part immediately with a temp ID
+    const tempId = "temp_" + Date.now();
+    const optimisticPart = { ...uiPart, id: tempId };
+    setParts((prev) => [...prev, optimisticPart]);
+
     try {
-      await createPart(uiPartToDB(uiPart), user.id);
-      // realtime INSERT fires → setParts handled in subscription
-    } catch (e) { console.error("quickAddPart failed:", e); }
+      const created = await createPart(uiPartToDB(uiPart), user.id);
+      // Replace temp part with real one (realtime may also fire, dedupe by checking tempId)
+      setParts((prev) => {
+        const withoutTemp = prev.filter((p) => p.id !== tempId);
+        if (withoutTemp.find((p) => p.id === created.id)) return withoutTemp; // realtime already added it
+        return [...withoutTemp, dbPartToUI(created)];
+      });
+    } catch (e) {
+      console.error("quickAddPart failed:", e);
+      // Remove optimistic part on failure
+      setParts((prev) => prev.filter((p) => p.id !== tempId));
+      setQAField(productId, "_error", `Failed to add part: ${e.message}`);
+      setTimeout(() => setQAField(productId, "_error", ""), 5000);
+    }
   };
 
   // ── Update quick-add form field for a product
@@ -1932,12 +1993,12 @@ function BOMManager({ user }) {
   // RENDER
   // ─────────────────────────────────────────────
   return (
-    <div style={{ minHeight:"100vh", background:"#f5f5f7", color:"#1d1d1f",
-      fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", display:"flex", flexDirection:"column" }}>
+    <div className={darkMode ? "dark" : ""} style={{ minHeight:"100vh", background:darkMode?"#000000":"#f5f5f7", color:darkMode?"#f5f5f7":"#1d1d1f",
+      fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", display:"flex", flexDirection:"column", transition:"background 0.3s,color 0.3s" }}>
       <style>{CSS}</style>
 
       {/* ── HEADER ── */}
-      <header style={{ background:"#fff", borderBottom:"1px solid #e5e5ea",
+      <header style={{ background:darkMode?"#1c1c1e":"#fff", borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
         padding:"0 28px", display:"flex", alignItems:"center", justifyContent:"space-between",
         height:58, position:"sticky", top:0, zIndex:100 }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -1977,15 +2038,23 @@ function BOMManager({ user }) {
               {user.email}
             </span>
             <button className="btn-ghost btn-sm" onClick={signOut}>Sign out</button>
+            <button onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Light mode" : "Dark mode"}
+              style={{ background:"none",border:"none",cursor:"pointer",fontSize:16,padding:"4px 6px",
+                borderRadius:6,transition:"background 0.15s",color:darkMode?"#f5f5f7":"#1d1d1f" }}
+              onMouseOver={(e)=>e.target.style.background=darkMode?"rgba(255,255,255,0.1)":"rgba(0,0,0,0.05)"}
+              onMouseOut={(e)=>e.target.style.background="none"}>
+              {darkMode ? "☀" : "☾"}
+            </button>
           </div>
         </div>
       </header>
 
       {/* ── NAV ── */}
-      <nav style={{ display:"flex", padding:"0 28px", borderBottom:"1px solid #e5e5ea",
-        background:"#fff", gap:2 }}>
+      <nav style={{ display:"flex", padding:"0 28px", borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
+        background:darkMode?"#1c1c1e":"#fff", gap:2 }}>
         {[
           { id:"bom",       icon:"🔩", label:`Parts Library (${parts.length})` },
+          { id:"scan",      icon:"📷", label:"Scan" },
           { id:"import",    icon:"⬆", label:"Import BOM" },
           { id:"pricing",   icon:"💰", label:`Pricing ${pricedCount>0?`(${pricedCount}/${parts.length})`:""}` },
           { id:"purchasing",icon:"🛒", label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}` },
@@ -2004,6 +2073,13 @@ function BOMManager({ user }) {
       </nav>
 
       <main style={{ flex:1, padding:"24px 28px", overflowY:"auto" }}>
+
+        {/* ══════════════════════════════════════
+            SCAN — QR/Barcode Scanner
+        ══════════════════════════════════════ */}
+        {activeView === "scan" && (
+          <ScannerView parts={parts} products={products} updatePart={updatePart} darkMode={darkMode} />
+        )}
 
         {/* ══════════════════════════════════════
             IMPORT
@@ -2079,6 +2155,13 @@ function BOMManager({ user }) {
                     padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",
                     fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",display:"flex",alignItems:"center",gap:7 }}>
                   🗑 Delete Selected
+                </button>
+                <button
+                  onClick={() => setQrModalParts(parts.filter(p => selectedParts.has(p.id)))}
+                  style={{ background:"#5856d6",color:"#fff",border:"none",borderRadius:6,
+                    padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",
+                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",display:"flex",alignItems:"center",gap:7 }}>
+                  ⊞ Print QR Labels
                 </button>
                 <button className="btn-ghost btn-sm" onClick={selectNone}>Cancel</button>
               </div>
@@ -2174,7 +2257,11 @@ function BOMManager({ user }) {
                               onFocus={focusIn} onBlur={focusOut}
                               style={inputStyle} min="0" />
                           </td>
-                          <td style={{ padding:"6px 4px",width:28 }}>
+                          <td style={{ padding:"6px 4px",width:56,whiteSpace:"nowrap" }}>
+                            <button onClick={()=>setQrModalParts([part])} title="QR Label"
+                              style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:13,padding:"2px 4px",borderRadius:4,transition:"color 0.15s" }}
+                              onMouseOver={(e)=>e.target.style.color="#0071e3"}
+                              onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>⊞</button>
                             <button onClick={()=>deletePart(part.id)}
                               style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:14,padding:"2px 4px",borderRadius:4,transition:"color 0.15s" }}
                               onMouseOver={(e)=>e.target.style.color="#ff3b30"}
@@ -3271,6 +3358,10 @@ function BOMManager({ user }) {
                     <div style={{ fontSize:10,color:"#86868b",letterSpacing:"0.5px",fontWeight:500,marginBottom:10,textTransform:"uppercase" }}>
                       Add part to {prod.name}
                     </div>
+                    {qa._error && (
+                      <div style={{ background:"#fff2f2",border:"1px solid #ffccc7",borderRadius:8,padding:"8px 12px",
+                        marginBottom:10,fontSize:12,color:"#ff3b30" }}>{qa._error}</div>
+                    )}
 
                     {/* Required row: Part Number + Qty + Add button */}
                     <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
@@ -4552,7 +4643,13 @@ function BOMManager({ user }) {
         )}
       </main>
 
-      <footer style={{ borderTop:"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2" }}>
+      {/* QR Label Modal */}
+      {qrModalParts && qrModalParts.length > 0 && (
+        <QRLabelModal parts={qrModalParts} products={products} onClose={() => setQrModalParts(null)} />
+      )}
+
+      <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
+        background:darkMode?"#1c1c1e":"transparent" }}>
         <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v4.0</span>
         <span>Thursday, March 12, 2026</span>
       </footer>
