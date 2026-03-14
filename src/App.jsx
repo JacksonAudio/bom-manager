@@ -909,6 +909,8 @@ function BOMManager({ user }) {
   const [importOk,    setImportOk]    = useState("");
   const [dragOver,    setDragOver]    = useState(false);
   const [expandedPart,setExpandedPart]= useState(null);
+  const [expandedProducts, setExpandedProducts] = useState(new Set());
+  const [collapsedSettings, setCollapsedSettings] = useState(new Set());
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
   const [keySaved,    setKeySaved]    = useState(false);
   const [nexarToken,  setNexarToken]  = useState(null);
@@ -3160,9 +3162,11 @@ function BOMManager({ user }) {
                   style={{ borderTop:`3px solid ${prod.color}`, marginBottom:16 }}>
 
                   {/* ── Product header row */}
-                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:10 }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:expandedProducts.has(prod.id)?16:0,flexWrap:"wrap",gap:10,cursor:"pointer" }}
+                    onClick={() => setExpandedProducts(prev => { const s = new Set(prev); s.has(prod.id) ? s.delete(prod.id) : s.add(prod.id); return s; })}>
                     <div>
                       <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:17,color:"#1d1d1f",marginBottom:3 }}>
+                        <span style={{ display:"inline-block",width:16,fontSize:12,color:"#86868b",marginRight:4 }}>{expandedProducts.has(prod.id) ? "▼" : "▶"}</span>
                         {prod.name}
                       </div>
                       <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
@@ -3217,6 +3221,7 @@ function BOMManager({ user }) {
                     </div>
                   </div>
 
+                  {expandedProducts.has(prod.id) && (<>
                   {/* ── Quick-add part form */}
                   <div style={{ background:"#fff",borderRadius:8,padding:"14px 16px",marginBottom:prodParts.length>0?14:0 }}>
                     <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,marginBottom:10 }}>
@@ -3351,146 +3356,94 @@ function BOMManager({ user }) {
                     )}
                   </div>
 
-                  {/* ── Parts list for this product */}
+                  {/* ── Parts list — clean row format */}
                   {prodParts.length > 0 && (
-                    <div style={{ overflowX:"auto",background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
-                        <thead>
-                          <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
-                            {["Part Number","Quantity","Description","Value","Vendor","Source","Unit Price","Extended",""].map((h,hi,arr)=>(
-                              <th key={hi} style={{ padding:"12px 14px",textAlign:hi>=6&&hi<=7?"right":hi===5?"center":"left",
-                                fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
-                                fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
-                                borderRadius:hi===0?"8px 0 0 0":hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {prodParts.map((part,i) => {
-                            // Calculate unit price from best supplier's price breaks at this qty
-                            const dynResult = (() => {
-                              const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
-                              if (!pr) return { price: parseFloat(part.unitCost) || 0, source: null, supplierId: null, supplierName: null, suppliers: [] };
-                              const isUS = (sid, d) => { const c = d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[sid] || ""; return !c || c === "US"; };
-                              // If an exclusive custom supplier exists, lock to it
-                              const exclusiveEntry = Object.entries(pr).find(([, d]) => d.isCustom && d.exclusive);
-                              if (exclusiveEntry) {
-                                const [sid, data] = exclusiveEntry;
-                                const priceAt = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
-                                return { price: priceAt(data), source: isUS(sid, data) ? "USA" : "INTL", supplierId: sid, supplierName: data.displayName || sid, suppliers: [{ id: sid, name: data.displayName || sid, price: priceAt(data) }] };
-                              }
-                              let entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
-                              if (simUsOnly) entries = entries.filter(([sid, d]) => isUS(sid, d));
-                              if (!entries.length) return { price: parseFloat(part.unitCost) || 0, source: null, supplierId: null, supplierName: null, suppliers: [] };
-                              const priceAt = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
-                              entries.sort((a,b) => (priceAt(a[1])||Infinity) - (priceAt(b[1])||Infinity));
-                              const suppliers = entries.map(([sid, d]) => ({ id: sid, name: d.displayName || sid, price: priceAt(d) }));
-                              // If user forced a vendor via preferredSupplier, use it if available
-                              const forced = part.preferredSupplier && entries.find(([sid]) => sid === part.preferredSupplier);
-                              const [sid, data] = forced || entries[0];
-                              return { price: priceAt(data), source: isUS(sid, data) ? "USA" : "INTL", supplierId: sid, supplierName: data.displayName || sid, suppliers };
-                            })();
-                            const dynPrice = dynResult.price;
-                            const dynSource = dynResult.source;
-                            const ext = dynPrice * part.quantity;
-                            const cellInput = { width:"100%",padding:"6px 10px",borderRadius:6,fontSize:13,
-                              fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
-                              border:"1px solid transparent",background:"transparent",outline:"none",color:"#1d1d1f",
-                              transition:"border-color 0.15s, background 0.15s" };
-                            const cFocusIn = (e) => { e.target.style.borderColor="#d2d2d7"; e.target.style.background="#fff"; };
-                            const cFocusOut = (e) => { e.target.style.borderColor="transparent"; e.target.style.background="transparent"; };
-                            return (
-                              <tr key={part.id} style={{ borderBottom:"1px solid #ededf0" }}>
-                                <td style={{ padding:"6px 8px" }}>
-                                  <input type="text" value={part.mpn||""}
-                                    onChange={(e)=>{updatePart(part.id,"mpn",e.target.value);if(!part.reference)updatePart(part.id,"reference",e.target.value);}}
-                                    onFocus={cFocusIn} onBlur={cFocusOut}
-                                    style={{ ...cellInput,color:"#0071e3",fontWeight:600 }} placeholder="Part #" />
-                                </td>
-                                <td style={{ padding:"6px 8px",width:100 }}>
-                                  <input type="number" min="1" value={part.quantity}
-                                    onChange={(e)=>updateQtyAndRefresh(part.id,parseInt(e.target.value)||1)}
-                                    onFocus={cFocusIn} onBlur={cFocusOut}
-                                    style={{ ...cellInput,width:80,textAlign:"center",fontWeight:600 }} />
-                                </td>
-                                <td style={{ padding:"6px 8px" }}>
-                                  <input type="text" value={part.description||""}
-                                    onChange={(e)=>updatePart(part.id,"description",e.target.value)}
-                                    onFocus={cFocusIn} onBlur={cFocusOut}
-                                    style={{ ...cellInput,color:"#6e6e73" }} placeholder="" />
-                                </td>
-                                <td style={{ padding:"6px 8px" }}>
-                                  <input type="text" value={part.value||""}
-                                    onChange={(e)=>updatePart(part.id,"value",e.target.value)}
-                                    onFocus={cFocusIn} onBlur={cFocusOut}
-                                    style={cellInput} placeholder="" />
-                                </td>
-                                <td style={{ padding:"6px 8px" }}>
-                                  {(() => {
-                                    const hasCustom = dynResult.suppliers.some(s => s.id.startsWith("custom_"));
-                                    const customSup = hasCustom ? dynResult.suppliers.find(s => s.id.startsWith("custom_")) : null;
-                                    if (customSup) {
-                                      return <span style={{ ...cellInput, color:"#1d1d1f", fontSize:12, paddingLeft:14 }}>{customSup.name} — <span style={{ fontSize:10, fontWeight:600, color:"#5856d6", letterSpacing:"0.3px" }}>EXCLUSIVELY</span></span>;
-                                    }
-                                    if (dynResult.suppliers.length > 0) {
-                                      return (
-                                        <select value={dynResult.supplierId || ""}
-                                          onChange={(e) => updatePart(part.id, "preferredSupplier", e.target.value || "mouser")}
-                                          style={{ ...cellInput, color:"#1d1d1f", cursor:"pointer", fontSize:12 }}>
-                                          {dynResult.suppliers.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name} (${fmtPrice(s.price)})</option>
-                                          ))}
-                                        </select>
-                                      );
-                                    }
-                                    return <span style={{ padding:"6px 10px",fontSize:12,color:"#c7c7cc" }}>—</span>;
-                                  })()}
-                                </td>
-                                <td style={{ padding:"12px 14px",textAlign:"center",width:70 }}>
-                                  {part.isInternal
-                                    ? <span style={{ fontSize:10,fontWeight:700,letterSpacing:"0.04em",padding:"2px 8px",borderRadius:4,
-                                        background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>IN-HOUSE</span>
-                                    : dynSource
-                                    ? <span style={{ fontSize:10,fontWeight:700,letterSpacing:"0.04em",padding:"2px 8px",borderRadius:4,
-                                        background:dynSource==="USA"?"rgba(52,199,89,0.1)":"rgba(255,149,0,0.1)",
-                                        color:dynSource==="USA"?"#248a3d":"#ff9500" }}>{dynSource}</span>
-                                    : <span style={{ color:"#c7c7cc",fontSize:10 }}>—</span>}
-                                </td>
-                                <td style={{ padding:"12px 14px",textAlign:"right",width:90 }}>
-                                  {dynPrice > 0
-                                    ? <span style={{ fontWeight:500 }}>{fmtPrice(dynPrice)}</span>
-                                    : <span style={{ color:"#c7c7cc" }}>—</span>}
-                                </td>
-                                <td style={{ padding:"12px 14px",textAlign:"right" }}>
-                                  {dynPrice > 0
-                                    ? <span style={{ color:"#34c759",fontWeight:600 }}>{"$"}{fmtDollar(ext)}</span>
-                                    : <span style={{ color:"#c7c7cc" }}>—</span>}
-                                </td>
-                                <td style={{ padding:"6px 4px",width:28 }}>
-                                  <button onClick={()=>{if(window.confirm(`Remove "${part.mpn||part.reference}" from this product?\n\nThis will NOT delete the part — it stays in your library.`))updatePart(part.id,"projectId",null);}}
-                                    title="Remove from product (keeps in library)"
-                                    style={{ background:"none",border:"none",cursor:"pointer",
-                                      color:"#c7c7cc",fontSize:14,padding:"2px 4px",
-                                      borderRadius:4,transition:"color 0.15s" }}
-                                    onMouseOver={(e)=>e.target.style.color="#ff9500"}
-                                    onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>✕</button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                          <tr style={{ background:"#f9f9fb",borderTop:"2px solid #e5e5ea" }}>
-                            <td colSpan={5} style={{ padding:"12px 14px",fontSize:12,color:"#6e6e73",
-                              fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em" }}>
-                              {prodParts.length} Parts
-                            </td>
-                            <td colSpan={2} style={{ padding:"12px 14px",textAlign:"right",
-                              color:"#34c759",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:15 }}>
-                              {"$"}{fmtDollar(prod.total)}
-                            </td>
-                            <td />
-                          </tr>
-                        </tbody>
-                      </table>
+                    <div style={{ background:"#f5f5f7",borderRadius:10,overflow:"hidden",border:"1px solid #e5e5ea" }}>
+                      {prodParts.map((part,i) => {
+                        const dynResult = (() => {
+                          const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
+                          if (!pr) return { price: parseFloat(part.unitCost) || 0, source: null, supplierId: null, supplierName: null, suppliers: [] };
+                          const isUS = (sid, d) => { const c = d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[sid] || ""; return !c || c === "US"; };
+                          const exclusiveEntry = Object.entries(pr).find(([, d]) => d.isCustom && d.exclusive);
+                          if (exclusiveEntry) {
+                            const [sid, data] = exclusiveEntry;
+                            const priceAt = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
+                            return { price: priceAt(data), source: isUS(sid, data) ? "USA" : "INTL", supplierId: sid, supplierName: data.displayName || sid, suppliers: [{ id: sid, name: data.displayName || sid, price: priceAt(data) }] };
+                          }
+                          let entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
+                          if (simUsOnly) entries = entries.filter(([sid, d]) => isUS(sid, d));
+                          if (!entries.length) return { price: parseFloat(part.unitCost) || 0, source: null, supplierId: null, supplierName: null, suppliers: [] };
+                          const priceAt = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
+                          entries.sort((a,b) => (priceAt(a[1])||Infinity) - (priceAt(b[1])||Infinity));
+                          const suppliers = entries.map(([sid, d]) => ({ id: sid, name: d.displayName || sid, price: priceAt(d) }));
+                          const forced = part.preferredSupplier && entries.find(([sid]) => sid === part.preferredSupplier);
+                          const [sid, data] = forced || entries[0];
+                          return { price: priceAt(data), source: isUS(sid, data) ? "USA" : "INTL", supplierId: sid, supplierName: data.displayName || sid, suppliers };
+                        })();
+                        const dynPrice = dynResult.price;
+                        const dynSource = dynResult.source;
+                        return (
+                          <div key={part.id} style={{ display:"flex",alignItems:"center",padding:"16px 20px",
+                            borderBottom:i<prodParts.length-1?"1px solid #e5e5ea":"none",background:"#fff",
+                            borderLeft:`3px solid ${prod.color}`,gap:16 }}>
+                            {/* Left: MPN + description */}
+                            <div style={{ flex:"1 1 200px",minWidth:0 }}>
+                              <div style={{ fontWeight:700,fontSize:15,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                {part.mpn || part.reference || "—"}
+                              </div>
+                              <div style={{ fontSize:12,color:"#86868b",marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
+                                {[part.description, part.value, part.manufacturer].filter(Boolean).join(" — ") || "No description"}
+                              </div>
+                            </div>
+                            {/* Middle: Quantity */}
+                            <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:100 }}>
+                              <div style={{ fontSize:10,color:"#86868b",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase" }}>QUANTITY</div>
+                              <div style={{ fontSize:18,fontWeight:800,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{part.quantity}</div>
+                            </div>
+                            {/* Source badge */}
+                            <div style={{ flex:"0 0 auto",minWidth:60,textAlign:"center" }}>
+                              {part.isInternal
+                                ? <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>IN-HOUSE</span>
+                                : dynSource
+                                ? <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,
+                                    background:dynSource==="USA"?"rgba(52,199,89,0.1)":"rgba(255,149,0,0.1)",
+                                    color:dynSource==="USA"?"#248a3d":"#ff9500" }}>{dynSource}</span>
+                                : null}
+                            </div>
+                            {/* Right: Price + vendor */}
+                            <div style={{ flex:"0 0 auto",textAlign:"right",minWidth:100 }}>
+                              {dynPrice > 0
+                                ? <>
+                                    <div style={{ fontSize:18,fontWeight:800,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                      ${fmtPrice(dynPrice)}
+                                    </div>
+                                    {dynResult.supplierName && (
+                                      <div style={{ fontSize:11,color:"#34c759",marginTop:2 }}>
+                                        <span style={{ display:"inline-block",width:6,height:6,borderRadius:3,background:"#34c759",marginRight:4,verticalAlign:"middle" }} />
+                                        {dynResult.supplierName}
+                                      </div>
+                                    )}
+                                  </>
+                                : <div style={{ fontSize:14,color:"#c7c7cc" }}>—</div>}
+                            </div>
+                            {/* Remove button */}
+                            <button onClick={()=>{if(window.confirm(`Remove "${part.mpn||part.reference}" from this product?`))updatePart(part.id,"projectId",null);}}
+                              title="Remove from product"
+                              style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:14,padding:"2px 6px",borderRadius:4,transition:"color 0.15s",flex:"0 0 auto" }}
+                              onMouseOver={(e)=>e.target.style.color="#ff9500"}
+                              onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>✕</button>
+                          </div>
+                        );
+                      })}
+                      {/* Footer total */}
+                      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 20px",background:"#f9f9fb",borderTop:"2px solid #e5e5ea" }}>
+                        <span style={{ fontSize:12,color:"#6e6e73",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em" }}>
+                          {prodParts.length} Parts
+                        </span>
+                        <span style={{ color:"#34c759",fontWeight:800,fontSize:15,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                          {"$"}{fmtDollar(prod.total)}
+                        </span>
+                      </div>
                     </div>
                   )}
                   {/* ── BOM Cost Simulator */}
@@ -3721,6 +3674,7 @@ function BOMManager({ user }) {
                       })()}
                     </div>
                   )}
+                  </>)}
 
                 </div>
               );
@@ -3736,7 +3690,10 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "demand" && (() => {
           const partsDemand = computePartsDemand();
+          const _skipWords = ["shipping","gift card","tip","gratuity","donation","insurance","handling","gift wrap","express shipping"];
+          const _isNonProduct = (title) => { const t = title.toLowerCase(); return _skipWords.some(w => t.includes(w)); };
           const unmapped = shopifyDemand?.products?.filter(sp => {
+            if (_isNonProduct(sp.title)) return false;
             return !products.find(p =>
               p.shopifyProductId === sp.shopifyProductId ||
               sp.title.toLowerCase().includes(p.name.toLowerCase()) ||
@@ -3760,6 +3717,30 @@ function BOMManager({ user }) {
                   disabled={shopifyDemand?.loading}>
                   {shopifyDemand?.loading ? <><span className="spinner" /> Syncing…</> : "⟳ Sync Shopify Orders"}
                 </button>
+                {partsDemand.length > 0 && (
+                  <button className="btn-primary" style={{ background:"#34c759" }}
+                    onClick={() => {
+                      const toFlag = [];
+                      for (const d of partsDemand) {
+                        const stock = parseInt(d.part.stockQty) || 0;
+                        const deficit = d.needed - stock;
+                        if (deficit <= 0) continue;
+                        toFlag.push({ id: d.part.id, qty: deficit });
+                      }
+                      if (!toFlag.length) { alert("All parts are in stock — nothing to order!"); return; }
+                      setParts(prev => prev.map(p => {
+                        const match = toFlag.find(f => f.id === p.id);
+                        if (!match) return p;
+                        return { ...p, flaggedForOrder: true, orderQty: String(match.qty) };
+                      }));
+                      for (const f of toFlag) {
+                        dbUpdatePart(f.id, { flagged_for_order: true, order_qty: f.qty }, user.id).catch(e => console.error("flag failed:", e));
+                      }
+                      setActiveView("purchasing");
+                    }}>
+                    Order Needed ({partsDemand.filter(d => d.needed > (parseInt(d.part.stockQty) || 0)).length} parts)
+                  </button>
+                )}
               </div>
             </div>
 
@@ -3933,10 +3914,13 @@ function BOMManager({ user }) {
                 {shopifyDemand.orders?.length > 0 && (() => {
                   // Calculate daily sell rate per product from order history
                   const now = new Date();
+                  const skipWords = ["shipping","gift card","tip","gratuity","donation","insurance","handling","gift wrap","express shipping"];
+                  const isNonProduct = (title) => { const t = title.toLowerCase(); return skipWords.some(w => t.includes(w)); };
                   const productSales = {}; // { title: { total, dates[], storeName } }
                   for (const order of shopifyDemand.orders) {
                     const d = new Date(order.createdAt);
                     for (const li of order.lineItems) {
+                      if (isNonProduct(li.title)) continue;
                       if (!productSales[li.title]) productSales[li.title] = { total: 0, oldest: d, newest: d, storeName: order.storeName || "" };
                       productSales[li.title].total += li.quantity;
                       if (d < productSales[li.title].oldest) productSales[li.title].oldest = d;
@@ -4106,13 +4090,15 @@ function BOMManager({ user }) {
 
             {/* ── Nexar / Octopart — PRIMARY */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("nexar") ? s.delete("nexar") : s.add("nexar"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("nexar") ? "▶" : "▼"}</span>
                   Nexar / Octopart — Primary
                 </div>
                 {nexarToken && <span style={{ fontSize:11,fontWeight:600,color:"#34c759" }}>Connected</span>}
               </div>
-              <div style={{ padding:"16px 20px" }}>
+              {!collapsedSettings.has("nexar") && <div style={{ padding:"16px 20px" }}>
                 <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
                   One API covers Mouser, Digi-Key, Arrow, LCSC, Allied + 900 more. Free: 1,000 parts/month.
                   <a href="https://nexar.com" target="_blank" rel="noopener noreferrer"
@@ -4131,17 +4117,19 @@ function BOMManager({ user }) {
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
                 {sectionSaveBtn("nexar", "Nexar Keys")}
-              </div>
+              </div>}
             </div>
 
             {/* ── Mouser Direct */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("mouser") ? s.delete("mouser") : s.add("mouser"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("mouser") ? "▶" : "▼"}</span>
                   Mouser Direct
                 </div>
               </div>
-              <div style={{ padding:"16px 20px" }}>
+              {!collapsedSettings.has("mouser") && <div style={{ padding:"16px 20px" }}>
                 <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
                   Deeper Mouser-specific pricing + Cart/Order API.
                   <a href="https://www.mouser.com/api-hub/" target="_blank" rel="noopener noreferrer"
@@ -4160,17 +4148,19 @@ function BOMManager({ user }) {
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
                 {sectionSaveBtn("mouser", "Mouser Keys")}
-              </div>
+              </div>}
             </div>
 
             {/* ── DigiKey Direct */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("digikey") ? s.delete("digikey") : s.add("digikey"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("digikey") ? "▶" : "▼"}</span>
                   Digi-Key Direct
                 </div>
               </div>
-              <div style={{ padding:"16px 20px" }}>
+              {!collapsedSettings.has("digikey") && <div style={{ padding:"16px 20px" }}>
                 <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
                   OAuth2 client credentials.
                   <a href="https://developer.digikey.com" target="_blank" rel="noopener noreferrer"
@@ -4189,17 +4179,19 @@ function BOMManager({ user }) {
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
                 {sectionSaveBtn("digikey", "DigiKey Keys")}
-              </div>
+              </div>}
             </div>
 
             {/* ── Arrow Direct */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("arrow") ? s.delete("arrow") : s.add("arrow"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("arrow") ? "▶" : "▼"}</span>
                   Arrow Direct
                 </div>
               </div>
-              <div style={{ padding:"16px 20px" }}>
+              {!collapsedSettings.has("arrow") && <div style={{ padding:"16px 20px" }}>
                 <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
                   Requires login + API key.
                   <a href="https://developers.arrow.com" target="_blank" rel="noopener noreferrer"
@@ -4218,18 +4210,20 @@ function BOMManager({ user }) {
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
                 {sectionSaveBtn("arrow", "Arrow Keys")}
-              </div>
+              </div>}
             </div>
 
             {/* ── Shopify Integration (Multi-Store) */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#96bf48",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+              <div style={{ background:"#96bf48",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shopify") ? s.delete("shopify") : s.add("shopify"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("shopify") ? "▶" : "▼"}</span>
                   Shopify Stores
                 </div>
                 {(() => { const s = getShopifyStores(); return s.length > 0 ? <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>{s.length} store{s.length !== 1 ? "s" : ""}</span> : null; })()}
               </div>
-              <div style={{ padding:"16px 20px" }}>
+              {!collapsedSettings.has("shopify") && <div style={{ padding:"16px 20px" }}>
                 <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
                   Connect one or more Shopify stores. Create an app in the Dev Dashboard with <strong>read_orders</strong> and <strong>read_products</strong> scopes, then copy the Client ID and Secret from Settings.
                 </div>
@@ -4281,17 +4275,19 @@ function BOMManager({ user }) {
                   );
                 })()}
                 {sectionSaveBtn("shopify", "Shopify Stores")}
-              </div>
+              </div>}
             </div>
 
             {/* ── Shipping Costs */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shipping") ? s.delete("shipping") : s.add("shipping"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("shipping") ? "▶" : "▼"}</span>
                   Shipping Costs
                 </div>
               </div>
-              <div style={{ padding:"16px 20px" }}>
+              {!collapsedSettings.has("shipping") && <div style={{ padding:"16px 20px" }}>
                 <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
                   Used by the simulator to compare consolidation strategies. Adjust to match your actual rates.
                 </div>
@@ -4317,17 +4313,19 @@ function BOMManager({ user }) {
                   Default for unlisted distributors: {"$"}{DEFAULT_SHIPPING.toFixed(2)}
                 </div>
                 {sectionSaveBtn("shipping", "Shipping Costs")}
-              </div>
+              </div>}
             </div>
 
             {/* ── Import Tariff Rates */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("tariffs") ? s.delete("tariffs") : s.add("tariffs"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("tariffs") ? "▶" : "▼"}</span>
                   Import Tariff Rates
                 </div>
               </div>
-              <div style={{ padding:"16px 20px" }}>
+              {!collapsedSettings.has("tariffs") && <div style={{ padding:"16px 20px" }}>
                 <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
                   Applied in the simulator when parts originate from non-US countries. Rates are % of goods value.
                 </div>
@@ -4368,17 +4366,19 @@ function BOMManager({ user }) {
                 <span style={{ fontSize:10,color:"#aeaeb2" }}>Rates saved with your API keys</span>
               </div>
               {sectionSaveBtn("tariffs", "Tariff Rates")}
-              </div>
+              </div>}
             </div>
 
             {/* ── Notifications & Email */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("email") ? s.delete("email") : s.add("email"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("email") ? "▶" : "▼"}</span>
                   Email Notifications & PO Drafts
                 </div>
               </div>
-              <div style={{ padding:"16px 20px" }}>
+              {!collapsedSettings.has("email") && <div style={{ padding:"16px 20px" }}>
                 <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
                   Get daily low-stock alerts and auto-draft purchase order emails to your distributors.
                 </div>
@@ -4420,7 +4420,7 @@ function BOMManager({ user }) {
                   </div>
                 )}
                 {sectionSaveBtn("notifications", "Email Settings")}
-              </div>
+              </div>}
             </div>
 
             {/* Connect + save button */}
@@ -4450,12 +4450,14 @@ function BOMManager({ user }) {
 
             {/* Key acquisition guide */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("guide") ? s.delete("guide") : s.add("guide"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("guide") ? "▶" : "▼"}</span>
                   How to Get Your API Keys
                 </div>
               </div>
-              <div style={{ padding:"16px 20px" }}>
+              {!collapsedSettings.has("guide") && <div style={{ padding:"16px 20px" }}>
                 {[
                   { name:"Nexar (covers everything)", steps:["Go to nexar.com and create a free account","Click 'Create App' in the API portal","Copy your Client ID and Client Secret here","Free tier: 1,000 matched parts/month"] },
                   { name:"Mouser", steps:["Go to mouser.com and log into your account","Navigate to My Account → API","Select 'Search API' and generate a key","Copy the key here"] },
@@ -4471,7 +4473,7 @@ function BOMManager({ user }) {
                     </ol>
                   </div>
                 ))}
-              </div>
+              </div>}
             </div>
           </div>
         )}
