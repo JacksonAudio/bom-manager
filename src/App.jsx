@@ -800,6 +800,7 @@ function buildLowStockEmailBody(lowParts) {
 // ─────────────────────────────────────────────
 const CSS = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { min-height: 100vh; }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: #f5f5f7; }
   ::-webkit-scrollbar-thumb { background: #d2d2d7; border-radius: 3px; }
@@ -1142,9 +1143,10 @@ function BOMManager({ user }) {
     boot();
   }, []); // eslint-disable-line
 
-  // Persist dark mode preference
+  // Persist dark mode preference + sync body background
   useEffect(() => {
     try { localStorage.setItem("bom_dark_mode", darkMode); } catch {}
+    document.body.style.background = darkMode ? "#000000" : "#f5f5f7";
   }, [darkMode]);
 
   // ─────────────────────────────────────────────
