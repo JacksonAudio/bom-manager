@@ -39,6 +39,8 @@ const DEFAULT_KEYS = {
   tariffs_json:        "",   // JSON: { "CN": 145, "TW": 32, ... } — % tariff by country code
   shipping_json:       "",   // JSON: { "mouser": 7.99, "digikey": 6.99, ... } — per-supplier shipping
   shopify_stores_json: "",   // JSON array: [{ name, domain, token }]
+  company_name:    "Jackson Audio",
+  company_address: "",   // Your company address for POs
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -104,12 +106,12 @@ function toUSD(price, currency, rates) {
 // SUPPLIER DISPLAY CONFIG
 // ─────────────────────────────────────────────
 const SUPPLIERS = [
-  { id: "mouser",   name: "Mouser",   color: "#e8500a", bg: "rgba(232,80,10,0.06)", logo: "M",  shipping: 7.99,  searchUrl: (pn) => `https://www.mouser.com/Search/Refine?Keyword=${encodeURIComponent(pn)}` },
-  { id: "digikey",  name: "Digi-Key", color: "#cc0000", bg: "rgba(204,0,0,0.06)", logo: "DK", shipping: 6.99,  searchUrl: (pn) => `https://www.digikey.com/en/products/result?keywords=${encodeURIComponent(pn)}` },
-  { id: "arrow",    name: "Arrow",    color: "#005eb8", bg: "rgba(0,94,184,0.06)", logo: "A",  shipping: 0,     searchUrl: (pn) => `https://www.arrow.com/en/products/search?q=${encodeURIComponent(pn)}` },
-  { id: "lcsc",     name: "LCSC",     color: "#0a8f4c", bg: "rgba(10,143,76,0.06)", logo: "LC", shipping: 20.00, searchUrl: (pn) => `https://www.lcsc.com/search?q=${encodeURIComponent(pn)}` },
-  { id: "allied",   name: "Allied",   color: "#7c3aed", bg: "rgba(124,58,237,0.06)", logo: "AL", shipping: 9.99,  searchUrl: (pn) => `https://www.alliedelec.com/search/?q=${encodeURIComponent(pn)}` },
-  { id: "amazon",   name: "Amazon",   color: "#f90",    bg: "rgba(255,153,0,0.06)", logo: "Az", shipping: 0,     searchUrl: (pn) => `https://www.amazon.com/s?k=${encodeURIComponent(pn)}` },
+  { id: "mouser",   name: "Mouser Electronics",   color: "#e8500a", bg: "rgba(232,80,10,0.06)", logo: "M",  shipping: 7.99,  address: "1000 N. Main Street\nMansfield, TX 76063\nUSA", searchUrl: (pn) => `https://www.mouser.com/Search/Refine?Keyword=${encodeURIComponent(pn)}` },
+  { id: "digikey",  name: "Digi-Key Electronics", color: "#cc0000", bg: "rgba(204,0,0,0.06)", logo: "DK", shipping: 6.99,  address: "701 Brooks Avenue South\nThief River Falls, MN 56701\nUSA", searchUrl: (pn) => `https://www.digikey.com/en/products/result?keywords=${encodeURIComponent(pn)}` },
+  { id: "arrow",    name: "Arrow Electronics",    color: "#005eb8", bg: "rgba(0,94,184,0.06)", logo: "A",  shipping: 0,     address: "9201 E. Dry Creek Road\nCentennial, CO 80112\nUSA", searchUrl: (pn) => `https://www.arrow.com/en/products/search?q=${encodeURIComponent(pn)}` },
+  { id: "lcsc",     name: "LCSC Electronics",     color: "#0a8f4c", bg: "rgba(10,143,76,0.06)", logo: "LC", shipping: 20.00, address: "Shenzhen, Guangdong\nChina", searchUrl: (pn) => `https://www.lcsc.com/search?q=${encodeURIComponent(pn)}` },
+  { id: "allied",   name: "Allied Electronics",   color: "#7c3aed", bg: "rgba(124,58,237,0.06)", logo: "AL", shipping: 9.99,  address: "7151 Jack Newell Blvd S\nFort Worth, TX 76118\nUSA", searchUrl: (pn) => `https://www.alliedelec.com/search/?q=${encodeURIComponent(pn)}` },
+  { id: "amazon",   name: "Amazon",   color: "#f90",    bg: "rgba(255,153,0,0.06)", logo: "Az", shipping: 0,     address: "", searchUrl: (pn) => `https://www.amazon.com/s?k=${encodeURIComponent(pn)}` },
 ];
 const DEFAULT_SHIPPING = 15.00; // for distributors not in SUPPLIERS list
 const supplierById = (id) => SUPPLIERS.find((s) => s.id === id) || SUPPLIERS[0];
@@ -673,38 +675,47 @@ function exportPOasCSV(supplier, lines, poNumber) {
   a.click(); URL.revokeObjectURL(url);
 }
 
-function printPO(supplier, lines, poNumber) {
+function printPO(supplier, lines, poNumber, companyInfo) {
+  const fmtN = (n) => n.toLocaleString("en-US");
+  const fmtD = (v) => parseFloat(v).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
   const total = lines.reduce((s, p) => s + (parseFloat(p.unitCost)||0) * p.neededQty, 0);
   const today = new Date().toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" });
+  const coName = companyInfo?.name || "Jackson Audio";
+  const coAddr = (companyInfo?.address || "").replace(/\n/g, "<br>");
+  const supAddr = (supplier.address || "").replace(/\n/g, "<br>");
   const rows = lines.map((p) => `
     <tr>
       <td>${p.reference}</td><td><strong>${p.mpn||"—"}</strong></td>
       <td>${p.description||p.value||"—"}</td><td>${p.manufacturer||"—"}</td>
-      <td style="text-align:center">${p.neededQty}</td>
+      <td style="text-align:center">${fmtN(p.neededQty)}</td>
       <td style="text-align:right">${p.unitCost?"$"+fmtPrice(p.unitCost):"—"}</td>
-      <td style="text-align:right">${p.unitCost?"$"+(parseFloat(p.unitCost)*p.neededQty).toFixed(2):"—"}</td>
+      <td style="text-align:right">${p.unitCost?"$"+fmtD(parseFloat(p.unitCost)*p.neededQty):"—"}</td>
     </tr>`).join("");
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PO ${poNumber}</title>
   <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:12px;padding:40px;color:#1a1a1a}
   .header{display:flex;justify-content:space-between;margin-bottom:28px;border-bottom:3px solid #0071e3;padding-bottom:18px}
   .company{font-size:20px;font-weight:900}.po-num{font-size:18px;font-weight:800;color:${supplier.color};text-align:right}
-  .vbox{background:#f5f5f5;border-left:4px solid ${supplier.color};padding:12px 16px;margin-bottom:20px;border-radius:4px}
+  .addr-row{display:flex;gap:40px;margin-bottom:20px}
+  .addr-box{flex:1;background:#f5f5f5;border-radius:6px;padding:14px 18px;font-size:11px;line-height:1.6;color:#444}
+  .addr-box strong{display:block;font-size:13px;color:#1a1a1a;margin-bottom:4px}
   table{width:100%;border-collapse:collapse;margin-bottom:16px}
   th{background:#1a1a1a;color:#fff;padding:7px 10px;text-align:left;font-size:10px;letter-spacing:1px;text-transform:uppercase}
   td{padding:7px 10px;border-bottom:1px solid #eee}tr:nth-child(even)td{background:#fafafa}
   .tot td{font-weight:800;border-top:2px solid #000}
   @media print{body{padding:20px}}</style></head><body>
-  <div class="header"><div><div class="company">JACKSON AUDIO</div><div style="font-size:10px;color:#666;letter-spacing:2px;margin-top:2px">PURCHASE ORDER</div>
-  <div style="margin-top:8px;font-size:11px;color:#444;line-height:1.6">Texas, USA<br>purchasing@jacksonaudio.com</div></div>
+  <div class="header"><div><div class="company">${coName.toUpperCase()}</div><div style="font-size:10px;color:#666;letter-spacing:2px;margin-top:2px">PURCHASE ORDER</div></div>
   <div class="po-num">PO-${poNumber}<br><span style="font-size:11px;font-weight:400;color:#666">${today}</span></div></div>
-  <div class="vbox"><strong style="color:${supplier.color};font-size:14px">${supplier.name}</strong></div>
+  <div class="addr-row">
+    <div class="addr-box"><strong>Ship To</strong>${coAddr || "Address not configured"}</div>
+    <div class="addr-box" style="border-left:4px solid ${supplier.color}"><strong style="color:${supplier.color}">${supplier.name}</strong>${supAddr || ""}</div>
+  </div>
   <table><thead><tr><th>Reference</th><th>MPN</th><th>Description</th><th>Manufacturer</th>
   <th style="text-align:center">Qty</th><th style="text-align:right">Unit $</th><th style="text-align:right">Extended</th></tr></thead>
   <tbody>${rows}<tr class="tot"><td colspan="4">${lines.length} line items</td>
-  <td style="text-align:center">${lines.reduce((s,p)=>s+p.neededQty,0)}</td><td></td>
-  <td style="text-align:right">${total>0?"$"+total.toFixed(2):"—"}</td></tr></tbody></table>
+  <td style="text-align:center">${fmtN(lines.reduce((s,p)=>s+p.neededQty,0))}</td><td></td>
+  <td style="text-align:right">${total>0?"$"+fmtD(total):"—"}</td></tr></tbody></table>
   <div style="margin-top:32px;font-size:10px;color:#999;border-top:1px solid #eee;padding-top:12px">
-  Generated by Jackson Audio BOM Manager · ${new Date().toISOString()}</div>
+  Generated by ${coName} BOM Manager · ${new Date().toISOString()}</div>
   <script>window.onload=()=>window.print()<\/script></body></html>`;
   const w = window.open("", "_blank"); w.document.write(html); w.document.close();
 }
@@ -734,8 +745,10 @@ function genPONumber(sid) {
   return `${String(d.getFullYear()).slice(2)}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}-${sid.slice(0,2).toUpperCase()}-${Math.floor(Math.random()*900+100)}`;
 }
 
-function buildPOEmailDraft(supplierName, lines, poNumber) {
-  const subject = `Purchase Order ${poNumber} — Jackson Audio`;
+function buildPOEmailDraft(supplierName, lines, poNumber, companyInfo) {
+  const coName = companyInfo?.name || "Jackson Audio";
+  const coAddr = companyInfo?.address || "";
+  const subject = `Purchase Order ${poNumber} — ${coName}`;
   const body = [
     `Hi ${supplierName} Team,`,
     ``,
@@ -743,15 +756,15 @@ function buildPOEmailDraft(supplierName, lines, poNumber) {
     ``,
     `PO #: ${poNumber}`,
     `Date: ${new Date().toLocaleDateString()}`,
-    ``,
+    ...(coAddr ? [`Ship To:\n${coAddr}`, ``] : [``]),
     `Part Number | Qty | Description`,
     `-----------|-----|------------`,
-    ...lines.map(l => `${l.mpn} | ${l.neededQty} | ${l.description || l.value || ""}`),
+    ...lines.map(l => `${l.mpn} | ${l.neededQty.toLocaleString()} | ${l.description || l.value || ""}`),
     ``,
     `Please confirm availability, lead time, and total cost.`,
     ``,
     `Thank you,`,
-    `Jackson Audio`,
+    coName,
   ].join("\n");
   return { subject, body };
 }
@@ -910,7 +923,7 @@ function BOMManager({ user }) {
   const [dragOver,    setDragOver]    = useState(false);
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
-  const [collapsedSettings, setCollapsedSettings] = useState(new Set());
+  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","guide"]));
   const [buildQueue, setBuildQueue] = useState(() => { try { return JSON.parse(localStorage.getItem("bom_build_queue") || "[]"); } catch { return []; } });
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
@@ -2779,7 +2792,7 @@ function BOMManager({ user }) {
                           style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
                           CSV
                         </button>
-                        <button onClick={()=>printPO(sup,poLines,poNum)}
+                        <button onClick={()=>printPO(sup,poLines,poNum,{name:apiKeys.company_name,address:apiKeys.company_address})}
                           style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
                           Print PO
                         </button>
@@ -2788,7 +2801,7 @@ function BOMManager({ user }) {
                           try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
                           const email = emails[sid];
                           if (!email) return null;
-                          const draft = buildPOEmailDraft(sup.name, poLines, poNum);
+                          const draft = buildPOEmailDraft(sup.name, poLines, poNum, {name:apiKeys.company_name,address:apiKeys.company_address});
                           return (
                             <button onClick={() => { window.location.href = `mailto:${email}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`; }}
                               style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
@@ -4104,6 +4117,26 @@ function BOMManager({ user }) {
             <p style={{ color:"#86868b",fontSize:13,marginBottom:24 }}>
               Keys are stored in the shared team database — one set for everyone.
             </p>
+
+            {/* ── Company Info (Ship-To for POs) */}
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("company") ? s.delete("company") : s.add("company"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("company") ? "▶" : "▼"}</span>
+                  Company Info — Ship-To Address
+                </div>
+              </div>
+              {!collapsedSettings.has("company") && <div style={{ padding:"16px 20px" }}>
+                <label style={{ display:"block",fontSize:13,fontWeight:600,color:"#3a3f51",marginBottom:6 }}>Company Name</label>
+                <input style={{ width:"100%",padding:"8px 12px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:14,marginBottom:14,boxSizing:"border-box" }}
+                  value={apiKeys.company_name ?? ""} onChange={e => setApiKeys(k => ({ ...k, company_name: e.target.value }))} placeholder="Jackson Audio" />
+                <label style={{ display:"block",fontSize:13,fontWeight:600,color:"#3a3f51",marginBottom:6 }}>Company Address</label>
+                <textarea style={{ width:"100%",padding:"8px 12px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:14,minHeight:80,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit" }}
+                  value={apiKeys.company_address ?? ""} onChange={e => setApiKeys(k => ({ ...k, company_address: e.target.value }))} placeholder="123 Main St&#10;City, ST 12345&#10;USA" />
+                <p style={{ fontSize:12,color:"#86868b",marginTop:8 }}>This address appears as the "Ship To" on purchase orders.</p>
+              </div>}
+            </div>
 
             {/* ── Nexar / Octopart — PRIMARY */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
