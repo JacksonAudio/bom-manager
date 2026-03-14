@@ -4135,6 +4135,7 @@ function BOMManager({ user }) {
                 <textarea style={{ width:"100%",padding:"8px 12px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:14,minHeight:80,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit" }}
                   value={apiKeys.company_address ?? ""} onChange={e => setApiKeys(k => ({ ...k, company_address: e.target.value }))} placeholder="123 Main St&#10;City, ST 12345&#10;USA" />
                 <p style={{ fontSize:12,color:"#86868b",marginTop:8 }}>This address appears as the "Ship To" on purchase orders.</p>
+                {sectionSaveBtn("company", "Company Info")}
               </div>}
             </div>
 
