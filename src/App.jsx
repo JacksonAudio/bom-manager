@@ -2799,13 +2799,12 @@ function BOMManager({ user }) {
                         {(() => {
                           let emails = {};
                           try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
-                          const email = emails[sid];
-                          if (!email) return null;
+                          const email = emails[sid] || "";
                           const draft = buildPOEmailDraft(sup.name, poLines, poNum, {name:apiKeys.company_name,address:apiKeys.company_address});
                           return (
                             <button onClick={() => { window.location.href = `mailto:${email}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`; }}
                               style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
-                              Email {sup.name}
+                              Email PO
                             </button>
                           );
                         })()}
