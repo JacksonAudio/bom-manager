@@ -41,6 +41,7 @@ const DEFAULT_KEYS = {
   shopify_stores_json: "",   // JSON array: [{ name, domain, token }]
   company_name:    "Jackson Audio",
   company_address: "",   // Your company address for POs
+  distributor_names: "",  // JSON: { "raw_key": "Display Name", ... } — rename distributors
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -923,7 +924,7 @@ function BOMManager({ user }) {
   const [dragOver,    setDragOver]    = useState(false);
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
-  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","guide"]));
+  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","guide"]));
   const [buildQueue, setBuildQueue] = useState(() => { try { return JSON.parse(localStorage.getItem("bom_build_queue") || "[]"); } catch { return []; } });
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
@@ -2771,7 +2772,9 @@ function BOMManager({ user }) {
               )}
 
               {Object.entries(supplierGroups).map(([sid, items]) => {
-                const sup = SUPPLIERS.find(s => s.id === sid) || { id: sid, name: sid, color: "#86868b", bg: "#f5f5f7", logo: "?" };
+                let distNames = {}; try { distNames = JSON.parse(apiKeys.distributor_names || "{}"); } catch {}
+                const baseSup = SUPPLIERS.find(s => s.id === sid) || { id: sid, name: sid, color: "#86868b", bg: "#f5f5f7", logo: "?" };
+                const sup = { ...baseSup, name: distNames[sid] || baseSup.name };
                 const poNum = genPONumber(sid);
                 const poTotal = items.reduce((s, d) => s + d.bestPrice * d.net, 0);
                 const totalUnits = items.reduce((s, d) => s + d.net, 0);
@@ -4138,6 +4141,66 @@ function BOMManager({ user }) {
               </div>}
             </div>
 
+            {/* ── Distributors — names + emails */}
+            {(() => {
+              // Collect all unique distributor keys from pricing data
+              const distMap = {};
+              for (const p of parts) {
+                if (!p.pricing || typeof p.pricing !== "object") continue;
+                for (const [key, val] of Object.entries(p.pricing)) {
+                  if (key.startsWith("_")) continue;
+                  if (!distMap[key]) distMap[key] = val.displayName || key;
+                }
+              }
+              // Also include hardcoded SUPPLIERS
+              for (const s of SUPPLIERS) { if (!distMap[s.id]) distMap[s.id] = s.name; }
+              const distKeys = Object.keys(distMap).sort((a, b) => distMap[a].localeCompare(distMap[b]));
+              let nameOverrides = {};
+              try { nameOverrides = JSON.parse(apiKeys.distributor_names || "{}"); } catch {}
+              let emails = {};
+              try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
+              return (
+                <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+                  <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                    onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("distributors") ? s.delete("distributors") : s.add("distributors"); return s; })}>
+                    <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                      <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("distributors") ? "▶" : "▼"}</span>
+                      Distributors ({distKeys.length})
+                    </div>
+                  </div>
+                  {!collapsedSettings.has("distributors") && <div style={{ padding:"12px 20px" }}>
+                    <div style={{ display:"flex",gap:8,marginBottom:6,fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.06em" }}>
+                      <div style={{ width:140 }}>Raw Key</div>
+                      <div style={{ flex:1 }}>Display Name</div>
+                      <div style={{ flex:1 }}>Sales Email</div>
+                    </div>
+                    <div style={{ maxHeight:400,overflowY:"auto" }}>
+                      {distKeys.map(key => (
+                        <div key={key} style={{ display:"flex",gap:8,alignItems:"center",paddingTop:3,paddingBottom:3,borderBottom:"1px solid #f0f0f2" }}>
+                          <div style={{ width:140,fontSize:11,color:"#86868b",fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }} title={key}>{key}</div>
+                          <input style={{ flex:1,padding:"4px 8px",border:"1px solid #d2d2d7",borderRadius:5,fontSize:12,boxSizing:"border-box" }}
+                            value={nameOverrides[key] ?? distMap[key] ?? ""}
+                            onChange={e => {
+                              const updated = { ...nameOverrides, [key]: e.target.value };
+                              setApiKeys(k => ({ ...k, distributor_names: JSON.stringify(updated) }));
+                            }}
+                            placeholder={distMap[key]} />
+                          <input type="email" style={{ flex:1,padding:"4px 8px",border:"1px solid #d2d2d7",borderRadius:5,fontSize:12,boxSizing:"border-box" }}
+                            value={emails[key] || ""}
+                            onChange={e => {
+                              const updated = { ...emails, [key]: e.target.value };
+                              setApiKeys(k => ({ ...k, supplier_emails: JSON.stringify(updated) }));
+                            }}
+                            placeholder={`orders@${key}.com`} />
+                        </div>
+                      ))}
+                    </div>
+                    {sectionSaveBtn("distributors", "Distributors")}
+                  </div>}
+                </div>
+              );
+            })()}
+
             {/* ── Nexar / Octopart — PRIMARY */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
@@ -4441,23 +4504,7 @@ function BOMManager({ user }) {
                     onChange={(e)=>setApiKeys((k)=>({...k,notify_email:e.target.value}))}
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
-                <div style={{ marginTop:12,fontSize:11,color:"#3a3f51",fontWeight:700,letterSpacing:"0.06em",marginBottom:8 }}>DISTRIBUTOR ORDER EMAILS</div>
-                {SUPPLIERS.map((s) => {
-                  let emails = {};
-                  try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
-                  return (
-                    <div key={s.id} className="key-input-row" style={{ paddingTop:6,paddingBottom:6 }}>
-                      <div className="key-label" style={{ color:"#3a3f51",minWidth:80 }}>{s.name}</div>
-                      <input type="email" placeholder={`orders@${s.id}.com`}
-                        value={emails[s.id] || ""}
-                        onChange={(e) => {
-                          const updated = { ...emails, [s.id]: e.target.value };
-                          setApiKeys((k) => ({ ...k, supplier_emails: JSON.stringify(updated) }));
-                        }}
-                        style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
-                    </div>
-                  );
-                })}
+                <p style={{ fontSize:11,color:"#86868b",marginTop:8 }}>Distributor emails are managed in the Distributors section above.</p>
                 {apiKeys.notify_email && lowStockParts.length > 0 && (
                   <div style={{ marginTop:14 }}>
                     <button className="btn-ghost" onClick={() => {
