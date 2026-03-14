@@ -895,10 +895,15 @@ const CSS = `
   .dark .nav-btn.active { color: #64d2ff; border-bottom-color: #64d2ff; }
 
   /* Override ALL inline backgrounds inside .dark */
+  /* Standalone inputs — visible borders */
   .dark input[type="text"], .dark input[type="number"], .dark input[type="password"],
   .dark select, .dark textarea {
     background: #1c1c1e !important; border-color: #3a3a3e !important; color: #f5f5f7 !important; }
   .dark input:focus, .dark select:focus, .dark textarea:focus { border-color: #64d2ff !important; }
+  /* Table inputs — seamless/transparent like light mode */
+  .dark table input[type="text"], .dark table input[type="number"] {
+    background: transparent !important; border-color: transparent !important; }
+  .dark table input:focus { border-color: #3a3a3e !important; background: #2c2c2e !important; }
   .dark input::placeholder, .dark textarea::placeholder { color: #636366 !important; }
   .dark option { background: #1c1c1e; color: #f5f5f7; }
 
