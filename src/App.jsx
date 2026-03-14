@@ -911,6 +911,8 @@ function BOMManager({ user }) {
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
   const [collapsedSettings, setCollapsedSettings] = useState(new Set());
+  const [buildQueue, setBuildQueue] = useState(() => { try { return JSON.parse(localStorage.getItem("bom_build_queue") || "[]"); } catch { return []; } });
+  const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
   const [keySaved,    setKeySaved]    = useState(false);
   const [nexarToken,  setNexarToken]  = useState(null);
@@ -1034,6 +1036,9 @@ function BOMManager({ user }) {
   // ─────────────────────────────────────────────
   // DB BOOT — fetch initial data on mount
   // ─────────────────────────────────────────────
+  // Persist build queue to localStorage
+  useEffect(() => { localStorage.setItem("bom_build_queue", JSON.stringify(buildQueue)); }, [buildQueue]);
+
   useEffect(() => {
     async function boot() {
       try {
@@ -1969,7 +1974,7 @@ function BOMManager({ user }) {
           { id:"bom",       icon:"🔩", label:`Parts Library (${parts.length})` },
           { id:"import",    icon:"⬆", label:"Import BOM" },
           { id:"pricing",   icon:"💰", label:`Pricing ${pricedCount>0?`(${pricedCount}/${parts.length})`:""}` },
-          { id:"purchasing",icon:"🛒", label:`Purchasing${poPartCount>0?` (${poPartCount})`:""}` },
+          { id:"purchasing",icon:"🛒", label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}` },
           { id:"orders",    icon:"📋", label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}` },
           { id:"demand",    icon:"📊", label:`Demand${shopifyDemand?.totalOrders?` (${shopifyDemand.totalOrders})`:""}` },
           { id:"projects",  icon:"📦", label:"Products" },
@@ -2090,7 +2095,6 @@ function BOMManager({ user }) {
                           }}
                         />
                       </th>
-                      <th style={{ padding:"12px 6px",width:28,textAlign:"center",fontSize:11,fontWeight:700 }}>🚩</th>
                       {["MPN","Internal Part Number","Value","Description","Current Stock","Reorder Point",""].map((h,hi,arr)=>(
                         <th key={hi} style={{ textAlign:"left",padding:"12px 14px",
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
@@ -2112,19 +2116,12 @@ function BOMManager({ user }) {
                       return (
                         <tr key={part.id} className="table-row"
                           style={{ borderBottom:"1px solid #ededf0",
-                            background: selectedParts.has(part.id) ? "rgba(0,113,227,0.05)"
-                              : part.flaggedForOrder ? "rgba(255,149,0,0.05)"
-                              : "transparent" }}>
+                            background: selectedParts.has(part.id) ? "rgba(0,113,227,0.05)" : "transparent" }}>
                           <td style={{ padding:"10px 10px",width:28 }}>
                             <input type="checkbox"
                               style={{ width:15,height:15,cursor:"pointer",accentColor:"#0071e3" }}
                               checked={selectedParts.has(part.id)}
                               onChange={() => toggleSelect(part.id)} />
-                          </td>
-                          <td style={{ padding:"10px 6px",width:28,textAlign:"center" }}>
-                            <input type="checkbox" style={{ width:15,height:15,cursor:"pointer",accentColor:"#e8500a" }}
-                              checked={part.flaggedForOrder} onChange={()=>toggleFlag(part.id)}
-                              title="Flag for purchase order" />
                           </td>
                           <td style={{ padding:"6px 8px" }}>
                             <input type="text" value={part.mpn||""}
@@ -2578,271 +2575,283 @@ function BOMManager({ user }) {
         )}
 
         {/* ══════════════════════════════════════
-            PURCHASING / POs
+            PURCHASING — Build Order Checkout
         ══════════════════════════════════════ */}
-        {activeView === "purchasing" && (
-          <div>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12 }}>
-              <div>
-                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Purchase Orders</h2>
-                <p style={{ color:"#86868b",fontSize:13 }}>Parts grouped by preferred supplier. One PO per vendor.</p>
-              </div>
-              <button className="btn-ghost" onClick={()=>setActiveView("bom")}>✏ Edit Parts & Flags</button>
+        {activeView === "purchasing" && (() => {
+          // Aggregate parts demand across all queued products
+          const aggregated = {};
+          for (const item of buildQueue) {
+            const prodParts = parts.filter(p => p.projectId === item.productId);
+            for (const part of prodParts) {
+              if (!aggregated[part.id]) {
+                aggregated[part.id] = { part, totalNeeded: 0, products: [] };
+              }
+              aggregated[part.id].totalNeeded += (parseInt(part.quantity) || 1) * item.qty;
+              aggregated[part.id].products.push({ name: item.name, qty: item.qty, perUnit: parseInt(part.quantity) || 1 });
+            }
+          }
+          const demandList = Object.values(aggregated).map(d => {
+            const stock = parseInt(d.part.stockQty) || 0;
+            const net = Math.max(0, d.totalNeeded - stock);
+            // Get best price
+            const pr = d.part.pricing && typeof d.part.pricing === "object" ? d.part.pricing : null;
+            let bestPrice = parseFloat(d.part.unitCost) || 0;
+            let bestSupplier = d.part.preferredSupplier || "mouser";
+            let bestSupplierName = "";
+            if (pr) {
+              const entries = Object.entries(pr).filter(([,dd]) => dd.stock > 0);
+              if (entries.length) {
+                const calc = (dd) => { let p = dd.unitPrice; if (dd.priceBreaks?.length) { for (const pb of dd.priceBreaks) { if (net >= pb.qty) p = pb.price; } } return parseFloat(p) || dd.unitPrice; };
+                entries.sort((a,b) => (calc(a[1])||Infinity) - (calc(b[1])||Infinity));
+                bestPrice = calc(entries[0][1]);
+                bestSupplier = entries[0][0];
+                bestSupplierName = entries[0][1].displayName || entries[0][0];
+              }
+            }
+            return { ...d, stock, net, bestPrice, bestSupplier, bestSupplierName, isInternal: d.part.isInternal || false };
+          }).filter(d => d.net > 0);
+
+          // Group by supplier
+          const supplierGroups = {};
+          const internalItems = [];
+          for (const d of demandList) {
+            if (d.isInternal) { internalItems.push(d); continue; }
+            const sid = d.bestSupplier;
+            if (!supplierGroups[sid]) supplierGroups[sid] = [];
+            supplierGroups[sid].push(d);
+          }
+
+          const grandTotal = demandList.reduce((s, d) => s + d.bestPrice * d.net, 0);
+          const totalParts = demandList.length;
+
+          return (
+          <div style={{ background:"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
+            <div style={{ marginBottom:28 }}>
+              <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",marginBottom:4 }}>Purchasing</h2>
+              <p style={{ fontSize:14,color:"#86868b" }}>Add products on the Products page, then review and order parts here.</p>
             </div>
 
-            {poPartCount === 0 ? (
-              <div className="card" style={{ textAlign:"center",padding:"60px 30px" }}>
-                <div style={{ fontSize:44,marginBottom:14 }}>🛒</div>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:16,marginBottom:8 }}>No parts flagged for ordering</div>
+            {buildQueue.length === 0 ? (
+              <div style={{ background:"#fff",borderRadius:16,padding:"60px 30px",textAlign:"center",boxShadow:"0 1px 3px rgba(0,0,0,0.06)" }}>
+                <div style={{ fontSize:16,fontWeight:600,color:"#1d1d1f",marginBottom:8 }}>No products in the build queue</div>
                 <div style={{ color:"#86868b",fontSize:13,maxWidth:400,margin:"0 auto 20px" }}>
-                  Flag parts in the Parts Library with the 🚩 checkbox, or set stock/reorder thresholds.
+                  Go to Products and enter a quantity next to any product, then click Order to add it here.
                 </div>
-                <button className="btn-primary" onClick={()=>setActiveView("bom")}>Go to Parts Library</button>
+                <button onClick={()=>setActiveView("projects")}
+                  style={{ padding:"8px 24px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff" }}>
+                  Go to Products
+                </button>
               </div>
-            ) : (
-              <>
-              {/* Internal Production Orders */}
-              {(() => {
-                const internalParts = parts.filter(p => p.isInternal && (p.flaggedForOrder || (() => { const s=parseInt(p.stockQty),r=parseInt(p.reorderQty); return !isNaN(s)&&!isNaN(r)&&s<=r; })()));
-                if (!internalParts.length) return null;
-                const internalLines = internalParts.map(p => {
-                  const stock = parseInt(p.stockQty)||0, reorder = parseInt(p.reorderQty)||0;
-                  const needed = p.flaggedForOrder && isNaN(parseInt(p.reorderQty))
-                    ? parseInt(p.orderQty)||p.quantity
-                    : Math.max(reorder - stock, parseInt(p.orderQty)||1);
-                  return { ...p, neededQty: needed };
-                });
-                const totalUnits = internalLines.reduce((s,p) => s + p.neededQty, 0);
-                const prodMap = {};
-                internalLines.forEach(p => {
-                  const prod = products.find(pr => pr.id === p.projectId);
-                  if (prod) { if (!prodMap[prod.id]) prodMap[prod.id] = { ...prod, parts: [] }; prodMap[prod.id].parts.push(p); }
-                });
-                return (
-                  <div className="po-card" style={{ borderTop:"3px solid #5856d6",marginBottom:20 }}>
-                    <div className="po-header" style={{ background:"#f3f2ff" }}>
-                      <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-                        <div style={{ width:38,height:38,background:"#5856d6",borderRadius:8,display:"flex",
-                          alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:14,color:"#fff",
-                          fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>🏭</div>
-                        <div>
-                          <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:17,color:"#5856d6" }}>Internal Production Orders</div>
-                          <div style={{ fontSize:11,color:"#86868b" }}>{internalLines.length} items · {totalUnits.toLocaleString()} units to produce</div>
+            ) : (<>
+              {/* ── Build Queue */}
+              <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:24 }}>
+                <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                  <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Build Queue — {buildQueue.length} product{buildQueue.length!==1?"s":""}</div>
+                  <button onClick={() => setBuildQueue([])}
+                    style={{ fontSize:11,color:"#ff3b30",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:500 }}>
+                    Clear All
+                  </button>
+                </div>
+                {buildQueue.map((item, idx) => {
+                  const prod = productCosts.find(p => p.id === item.productId);
+                  const unitCost = prod ? prod.total : 0;
+                  const extCost = unitCost * item.qty;
+                  return (
+                    <div key={item.productId} style={{ display:"flex",alignItems:"center",padding:"14px 22px",
+                      borderBottom:idx<buildQueue.length-1?"1px solid #f0f0f2":"none",gap:16 }}>
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f" }}>{item.name}</div>
+                        <div style={{ fontSize:12,color:"#86868b",marginTop:1 }}>
+                          <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:item.color,marginRight:4,verticalAlign:"middle" }} />
+                          ${fmtPrice(unitCost)} per unit
                         </div>
                       </div>
+                      <div style={{ flex:"0 0 auto",display:"flex",alignItems:"center",gap:6 }}>
+                        <span style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Qty</span>
+                        <input type="number" min="1" value={item.qty}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 1;
+                            setBuildQueue(prev => prev.map(q => q.productId === item.productId ? { ...q, qty: val } : q));
+                          }}
+                          style={{ width:64,padding:"5px 8px",borderRadius:6,fontSize:14,fontWeight:700,textAlign:"center",
+                            border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",color:"#1d1d1f" }} />
+                      </div>
+                      <div style={{ flex:"0 0 auto",textAlign:"right",minWidth:90 }}>
+                        <div style={{ fontSize:18,fontWeight:600,color:"#1d1d1f" }}>{"$"}{fmtDollar(extCost)}</div>
+                      </div>
+                      <button onClick={() => setBuildQueue(prev => prev.filter(q => q.productId !== item.productId))}
+                        style={{ background:"none",border:"none",color:"#c7c7cc",fontSize:14,cursor:"pointer",padding:"2px 6px",borderRadius:4,transition:"color 0.15s" }}
+                        onMouseOver={(e)=>e.target.style.color="#ff3b30"}
+                        onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>✕</button>
                     </div>
-                    <div style={{ overflowX:"auto",background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
-                        <thead>
-                          <tr style={{ background:"#e8e7f8",color:"#3a3f51" }}>
-                            {["Reference","MPN","Description","Product","Need","Stock",""].map((h,hi,arr)=>(
-                              <th key={hi} style={{ padding:"12px 14px",textAlign:hi>=4&&hi<=5?"right":"left",
-                                fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
-                                fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
-                                borderRadius:hi===0?"8px 0 0 0":hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {internalLines.map(part => {
-                            const prod = products.find(pr => pr.id === part.projectId);
-                            return (
-                              <tr key={part.id} style={{ borderBottom:"1px solid #ededf0" }}>
-                                <td style={{ padding:"12px 14px",color:"#5856d6",fontWeight:600 }}>{part.reference}</td>
-                                <td style={{ padding:"12px 14px",color:"#1d1d1f",fontWeight:500 }}>{part.mpn||"—"}</td>
-                                <td style={{ padding:"12px 14px",color:"#6e6e73" }}>{part.description||part.value||"—"}</td>
-                                <td style={{ padding:"12px 14px" }}>
-                                  {prod ? <span className="badge" style={{ background:prod.color+"22",color:prod.color }}>{prod.name}</span> : "—"}
-                                </td>
-                                <td style={{ padding:"12px 14px",textAlign:"right" }}>
-                                  <input type="number" min="1" value={part.orderQty||part.neededQty}
-                                    onChange={(e)=>updatePart(part.id,"orderQty",e.target.value)}
-                                    style={{ width:56,padding:"5px 6px",borderRadius:6,textAlign:"center",fontSize:13,fontWeight:700,
-                                      border:"1px solid #d2d2d7",color:"#5856d6",background:"#fff",fontFamily:"inherit" }} />
-                                </td>
-                                <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{part.stockQty||"—"}</td>
-                                <td style={{ padding:"12px 8px" }}>
-                                  <button style={{ background:"none",border:"none",color:"#c7c7cc",fontSize:14,cursor:"pointer",padding:"2px 4px",
-                                    borderRadius:4,transition:"color 0.15s" }}
-                                    onMouseOver={(e)=>e.target.style.color="#ff3b30"}
-                                    onMouseOut={(e)=>e.target.style.color="#c7c7cc"}
-                                    onClick={()=>{ updatePart(part.id,"flaggedForOrder",false); updatePart(part.id,"orderQty",""); }}>✕</button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                          <tr style={{ background:"#f9f9fb",borderTop:"2px solid #e5e5ea" }}>
-                            <td colSpan={4} style={{ padding:"12px 14px",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,color:"#6e6e73",fontSize:12,textTransform:"uppercase",letterSpacing:"0.04em" }}>
-                              {internalLines.length} Internal Items
-                            </td>
-                            <td style={{ padding:"12px 14px",textAlign:"right",color:"#5856d6",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                              {totalUnits.toLocaleString()}
-                            </td>
-                            <td colSpan={2} />
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
+                  );
+                })}
+                {/* Queue totals */}
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 22px",background:"#f9f9fb",borderTop:"1px solid #f0f0f2" }}>
+                  <div style={{ fontSize:12,color:"#86868b" }}>
+                    {buildQueue.reduce((s,q) => s+q.qty, 0).toLocaleString()} total units · {totalParts} unique parts to order
                   </div>
-                );
-              })()}
+                  <div style={{ fontSize:18,fontWeight:700,color:"#1d1d1f" }}>
+                    Est. {"$"}{fmtDollar(grandTotal)}
+                  </div>
+                </div>
+              </div>
 
-              {SUPPLIERS.map((sup) => {
-                const lines = purchaseOrders[sup.id];
-                if (!lines?.length) return null;
-                const poNum = genPONumber(sup.id);
-                const poTotal = lines.reduce((s,p)=>s+(parseFloat(p.unitCost)||0)*p.neededQty, 0);
-                const totalUnits = lines.reduce((s,p)=>s+p.neededQty, 0);
-                return (
-                  <div key={sup.id} className="po-card" style={{ borderTop:`3px solid ${sup.color}` }}>
-                    <div className="po-header" style={{ background:sup.bg }}>
-                      <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-                        <div style={{ width:38,height:38,background:sup.color,borderRadius:8,display:"flex",
-                          alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:12,color:"#fff",
-                          fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{sup.logo}</div>
-                        <div>
-                          <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:17,color:sup.color }}>{sup.name}</div>
-                          <div style={{ fontSize:11,color:"#86868b" }}>{lines.length} lines · {totalUnits.toLocaleString()} units{poTotal>0?` · est. $${fmtDollar(poTotal)}`:""}</div>
+              {/* ── Parts Needed (aggregated across all products) */}
+              {demandList.length > 0 && (
+                <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:24 }}>
+                  <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2" }}>
+                    <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Parts to Order — {demandList.length} items</div>
+                  </div>
+                  {demandList.map((d, idx) => (
+                    <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"14px 22px",
+                      borderBottom:idx<demandList.length-1?"1px solid #f0f0f2":"none",gap:16 }}>
+                      <div style={{ flex:"1 1 200px",minWidth:0 }}>
+                        <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f" }}>{d.part.mpn || d.part.reference || "—"}</div>
+                        <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>
+                          {[d.part.description, d.part.value].filter(Boolean).join(" — ") || ""}
+                          {d.products.length > 0 && (
+                            <span style={{ marginLeft:6 }}>
+                              {d.products.map((p,i) => <span key={i} style={{ color:"#5856d6" }}>{i>0?", ":""}{p.name} ×{p.perUnit}</span>)}
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
-                        {sup.id === "mouser" && apiKeys.mouser_order_api_key ? (
-                          <button className="btn-primary" style={{ background:sup.color,color:"#fff" }}
-                            disabled={mouserCartStatus?.loading}
-                            onClick={async () => {
-                              setMouserCartStatus({ loading: true });
-                              try {
-                                // Resolve Mouser part numbers — use cached from pricing, or search
-                                const cartItems = [];
-                                for (const p of lines) {
-                                  const mouserPN = p.pricing?.mouser?.mouserPartNumber;
-                                  if (mouserPN) {
-                                    cartItems.push({ mouserPartNumber: mouserPN, quantity: p.orderQty || p.neededQty });
-                                  } else if (p.mpn && apiKeys.mouser_api_key) {
-                                    // Search for Mouser part number
-                                    try {
-                                      const md = await fetchMouserPricing(p.mpn, p.neededQty, apiKeys.mouser_api_key);
-                                      if (md?.mouserPartNumber) {
-                                        cartItems.push({ mouserPartNumber: md.mouserPartNumber, quantity: p.orderQty || p.neededQty });
-                                      } else {
-                                        cartItems.push({ mouserPartNumber: p.mpn, quantity: p.orderQty || p.neededQty });
-                                      }
-                                    } catch { cartItems.push({ mouserPartNumber: p.mpn, quantity: p.orderQty || p.neededQty }); }
-                                  } else {
-                                    cartItems.push({ mouserPartNumber: p.mpn, quantity: p.orderQty || p.neededQty });
-                                  }
-                                }
-                                const result = await mouserCreateCart(apiKeys.mouser_order_api_key, cartItems);
-                                setMouserCartStatus({ loading: false, ...result });
-                                // Auto-log this order to the tracker
-                                addTrackedOrder({
-                                  supplier: "Mouser",
-                                  supplierColor: "#e8500a",
-                                  poNumber: poNum,
-                                  items: lines.map(p => ({ mpn: p.mpn, reference: p.reference, qty: p.orderQty || p.neededQty, unitPrice: p.unitCost || 0 })),
-                                  totalEstimate: poTotal,
-                                  cartKey: result.cartKey,
-                                  cartUrl: result.cartUrl,
-                                });
-                                window.open(result.cartUrl, "_blank");
-                              } catch (e) {
-                                console.error("Mouser cart error:", e);
-                                setMouserCartStatus({ loading: false, error: e.message });
-                              }
-                            }}>
-                            {mouserCartStatus?.loading ? "Sending…" : "🛒 Send to Mouser Cart"}
-                          </button>
-                        ) : (
-                          <a href={sup.searchUrl("")} target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none" }}>
-                            <button className="btn-primary" style={{ background:sup.color,color:"#fff" }}>🛒 Order on {sup.name}</button>
-                          </a>
-                        )}
-                        {mouserCartStatus?.cartUrl && sup.id === "mouser" && !mouserCartStatus.loading && (
-                          <a href={mouserCartStatus.cartUrl} target="_blank" rel="noopener noreferrer"
-                            style={{ fontSize:11,color:"#e8500a",fontWeight:600,textDecoration:"none" }}>
-                            View Cart on Mouser →
-                          </a>
-                        )}
-                        {mouserCartStatus?.error && sup.id === "mouser" && (
-                          <span style={{ fontSize:11,color:"#ff3b30" }}>{mouserCartStatus.error}</span>
-                        )}
-                        <button className="btn-ghost" onClick={()=>exportPOasCSV(sup,lines,poNum)}>↓ CSV</button>
-                        <button className="btn-ghost" onClick={()=>printPO(sup,lines,poNum)}>🖨 Print PO</button>
+                      <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:70 }}>
+                        <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Need</div>
+                        <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.net.toLocaleString()}</div>
+                      </div>
+                      <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:60 }}>
+                        {d.isInternal
+                          ? <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>IN-HOUSE</span>
+                          : d.bestSupplierName
+                          ? <span style={{ fontSize:10,color:"#86868b" }}>{d.bestSupplierName}</span>
+                          : null}
+                      </div>
+                      <div style={{ flex:"0 0 auto",textAlign:"right",minWidth:90 }}>
+                        {d.bestPrice > 0
+                          ? <>
+                              <div style={{ fontSize:18,fontWeight:600,color:"#1d1d1f" }}>{"$"}{fmtDollar(d.bestPrice * d.net)}</div>
+                              <div style={{ fontSize:11,color:"#86868b" }}>${fmtPrice(d.bestPrice)} ea</div>
+                            </>
+                          : <div style={{ fontSize:14,color:"#c7c7cc" }}>—</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Supplier PO Cards */}
+              {internalItems.length > 0 && (
+                <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:16 }}>
+                  <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2",display:"flex",alignItems:"center",gap:10 }}>
+                    <span style={{ fontSize:10,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>IN-HOUSE</span>
+                    <span style={{ fontSize:12,color:"#86868b" }}>{internalItems.length} items to produce internally</span>
+                  </div>
+                  {internalItems.map((d, idx) => (
+                    <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"12px 22px",borderBottom:idx<internalItems.length-1?"1px solid #f0f0f2":"none" }}>
+                      <div style={{ flex:1 }}><span style={{ fontWeight:600,color:"#1d1d1f" }}>{d.part.mpn || d.part.reference}</span></div>
+                      <div style={{ fontWeight:700 }}>{d.net.toLocaleString()} needed</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {Object.entries(supplierGroups).map(([sid, items]) => {
+                const sup = SUPPLIERS.find(s => s.id === sid) || { id: sid, name: sid, color: "#86868b", bg: "#f5f5f7", logo: "?" };
+                const poNum = genPONumber(sid);
+                const poTotal = items.reduce((s, d) => s + d.bestPrice * d.net, 0);
+                const totalUnits = items.reduce((s, d) => s + d.net, 0);
+                const poLines = items.map(d => ({ ...d.part, neededQty: d.net, unitCost: d.bestPrice, orderQty: d.net }));
+                return (
+                  <div key={sid} style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:16 }}>
+                    <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10 }}>
+                      <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                        <div style={{ width:32,height:32,background:sup.color,borderRadius:8,display:"flex",
+                          alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:11,color:"#fff" }}>{sup.logo}</div>
+                        <div>
+                          <div style={{ fontWeight:700,fontSize:14,color:"#1d1d1f" }}>{sup.name}</div>
+                          <div style={{ fontSize:11,color:"#86868b" }}>{items.length} parts · {totalUnits.toLocaleString()} units · {"$"}{fmtDollar(poTotal)}</div>
+                        </div>
+                      </div>
+                      <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                        <button onClick={()=>exportPOasCSV(sup,poLines,poNum)}
+                          style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
+                          CSV
+                        </button>
+                        <button onClick={()=>printPO(sup,poLines,poNum)}
+                          style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
+                          Print PO
+                        </button>
                         {(() => {
                           let emails = {};
                           try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
-                          const email = emails[sup.id];
+                          const email = emails[sid];
                           if (!email) return null;
-                          const draft = buildPOEmailDraft(sup.name, lines, poNum);
+                          const draft = buildPOEmailDraft(sup.name, poLines, poNum);
                           return (
-                            <button className="btn-ghost" onClick={() => {
-                              window.location.href = `mailto:${email}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
-                            }}>✉ Draft Email to {sup.name}</button>
+                            <button onClick={() => { window.location.href = `mailto:${email}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`; }}
+                              style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
+                              Email {sup.name}
+                            </button>
                           );
                         })()}
+                        {sup.id === "mouser" && apiKeys.mouser_order_api_key && (
+                          <button disabled={mouserCartStatus?.loading}
+                            onClick={async () => {
+                              setMouserCartStatus({ loading: true });
+                              try {
+                                const cartItems = [];
+                                for (const d of items) {
+                                  const mouserPN = d.part.pricing?.mouser?.mouserPartNumber || d.part.mpn;
+                                  cartItems.push({ mouserPartNumber: mouserPN, quantity: d.net });
+                                }
+                                const result = await mouserCreateCart(apiKeys.mouser_order_api_key, cartItems);
+                                setMouserCartStatus({ loading: false, ...result });
+                                addTrackedOrder({ supplier: "Mouser", supplierColor: "#e8500a", poNumber: poNum,
+                                  items: items.map(d => ({ mpn: d.part.mpn, reference: d.part.reference, qty: d.net, unitPrice: d.bestPrice })),
+                                  totalEstimate: poTotal, cartKey: result.cartKey, cartUrl: result.cartUrl });
+                                window.open(result.cartUrl, "_blank");
+                              } catch (e) { setMouserCartStatus({ loading: false, error: e.message }); }
+                            }}
+                            style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:sup.color,color:"#fff" }}>
+                            {mouserCartStatus?.loading ? "Sending…" : "Send to Mouser Cart"}
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div style={{ overflowX:"auto",background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
-                        <thead>
-                          <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
-                            {["Reference","MPN","Description","Manufacturer","Need","Stock","Unit Price","Extended",""].map((h,hi,arr)=>(
-                              <th key={hi} style={{ padding:"12px 14px",textAlign:hi>=4&&hi<=7?"right":"left",
-                                fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
-                                fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
-                                borderRadius:hi===0?"8px 0 0 0":hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {lines.map((part,li) => {
-                            const ext = (parseFloat(part.unitCost)||0)*part.neededQty;
-                            return (
-                              <tr key={part.id} style={{ borderBottom:"1px solid #ededf0" }}>
-                                <td style={{ padding:"12px 14px",color:"#0071e3",fontWeight:600 }}>{part.reference}</td>
-                                <td style={{ padding:"12px 14px",color:"#1d1d1f",fontWeight:500 }}>{part.mpn||"—"}</td>
-                                <td style={{ padding:"12px 14px",color:"#6e6e73" }}>{part.description||part.value||"—"}</td>
-                                <td style={{ padding:"12px 14px",color:"#6e6e73" }}>{part.manufacturer||"—"}</td>
-                                <td style={{ padding:"12px 14px",textAlign:"right" }}>
-                                  <input type="number" min="1" value={part.orderQty||part.neededQty}
-                                    onChange={(e)=>updatePart(part.id,"orderQty",e.target.value)}
-                                    style={{ width:56,padding:"5px 6px",borderRadius:6,textAlign:"center",fontSize:13,fontWeight:700,
-                                      border:"1px solid #d2d2d7",color:"#0071e3",background:"#fff",fontFamily:"inherit" }} />
-                                </td>
-                                <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{part.stockQty||"—"}</td>
-                                <td style={{ padding:"12px 14px",textAlign:"right" }}>
-                                  {part.unitCost ? <span style={{ color:"#1d1d1f" }}>{"$"}{fmtPrice(part.unitCost)}</span> : <span style={{ color:"#c7c7cc" }}>—</span>}
-                                </td>
-                                <td style={{ padding:"12px 14px",textAlign:"right" }}>
-                                  {part.unitCost ? <span style={{ color:"#34c759",fontWeight:700 }}>{"$"}{fmtDollar(ext)}</span> : <span style={{ color:"#c7c7cc" }}>—</span>}
-                                </td>
-                                <td style={{ padding:"12px 8px" }}>
-                                  <button style={{ background:"none",border:"none",color:"#c7c7cc",fontSize:14,cursor:"pointer",padding:"2px 4px",
-                                    borderRadius:4,transition:"color 0.15s" }}
-                                    onMouseOver={(e)=>e.target.style.color="#ff3b30"}
-                                    onMouseOut={(e)=>e.target.style.color="#c7c7cc"}
-                                    onClick={()=>{ updatePart(part.id,"flaggedForOrder",false); updatePart(part.id,"orderQty",""); }}>✕</button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                          <tr style={{ background:"#f9f9fb",borderTop:"2px solid #e5e5ea" }}>
-                            <td colSpan={4} style={{ padding:"12px 14px",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,color:"#6e6e73",fontSize:12,textTransform:"uppercase",letterSpacing:"0.04em" }}>{lines.length} Line Items</td>
-                            <td style={{ padding:"12px 14px",textAlign:"right",color:"#0071e3",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{totalUnits}</td>
-                            <td colSpan={2} />
-                            <td style={{ padding:"12px 14px",textAlign:"right",color:poTotal>0?"#34c759":"#c7c7cc",fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:15 }}>{poTotal>0?`$${fmtDollar(poTotal)}`:"—"}</td>
-                            <td />
-                          </tr>
-                        </tbody>
-                      </table>
+                    {items.map((d, idx) => (
+                      <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"12px 22px",
+                        borderBottom:idx<items.length-1?"1px solid #f0f0f2":"none",gap:16 }}>
+                        <div style={{ flex:"1 1 200px",minWidth:0 }}>
+                          <div style={{ fontWeight:600,fontSize:14,color:"#1d1d1f" }}>{d.part.mpn || d.part.reference}</div>
+                          <div style={{ fontSize:11,color:"#86868b" }}>{[d.part.description, d.part.value].filter(Boolean).join(" — ")}</div>
+                        </div>
+                        <div style={{ flex:"0 0 auto",fontWeight:700,fontSize:14,color:"#1d1d1f",minWidth:60,textAlign:"center" }}>{d.net.toLocaleString()}</div>
+                        <div style={{ flex:"0 0 auto",textAlign:"right",minWidth:80 }}>
+                          <div style={{ fontWeight:600,color:"#1d1d1f" }}>{"$"}{fmtDollar(d.bestPrice * d.net)}</div>
+                          <div style={{ fontSize:10,color:"#86868b" }}>${fmtPrice(d.bestPrice)} ea</div>
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ display:"flex",justifyContent:"flex-end",padding:"12px 22px",background:"#f9f9fb",borderTop:"1px solid #f0f0f2" }}>
+                      <span style={{ fontSize:16,fontWeight:700,color:"#1d1d1f" }}>{"$"}{fmtDollar(poTotal)}</span>
                     </div>
                   </div>
                 );
               })}
-              </>
-            )}
+
+              {/* Grand total */}
+              <div style={{ display:"flex",justifyContent:"flex-end",padding:"16px 0",gap:20,alignItems:"center" }}>
+                <span style={{ fontSize:14,color:"#86868b" }}>Estimated Total</span>
+                <span style={{ fontSize:24,fontWeight:800,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                  {"$"}{fmtDollar(grandTotal)}
+                </span>
+              </div>
+            </>)}
           </div>
-        )}
+          );
+        })()}
 
         {/* ══════════════════════════════════════
             ORDERS — Order Tracker & Shipment Tracking
@@ -3177,15 +3186,36 @@ function BOMManager({ user }) {
                         {cov > 0 && <span style={{ marginLeft:8 }}>{cov}% costed</span>}
                       </div>
                     </div>
-                    <div style={{ flex:1,display:"flex",alignItems:"center",gap:6,justifyContent:"center" }}>
-                      <span style={{ fontSize:10,color:"#86868b",fontWeight:500,whiteSpace:"nowrap",letterSpacing:"0.5px",textTransform:"uppercase" }}>Parts</span>
-                      <span style={{ fontSize:15,fontWeight:600,color:"#1d1d1f" }}>{prod.partCount}</span>
+                    <div style={{ flex:"0 0 auto",display:"flex",alignItems:"center",gap:6 }} onClick={e => e.stopPropagation()}>
+                      <input type="number" min="1" placeholder="Qty"
+                        value={buildQtyInputs[prod.id] || ""}
+                        onChange={e => setBuildQtyInputs(prev => ({ ...prev, [prod.id]: e.target.value }))}
+                        onKeyDown={e => { if (e.key === "Enter" && parseInt(buildQtyInputs[prod.id]) > 0) {
+                          const qty = parseInt(buildQtyInputs[prod.id]);
+                          setBuildQueue(prev => [...prev.filter(q => q.productId !== prod.id), { productId: prod.id, name: prod.name, qty, color: prod.color }]);
+                          setBuildQtyInputs(prev => ({ ...prev, [prod.id]: "" }));
+                        }}}
+                        style={{ width:64,padding:"5px 8px",borderRadius:6,fontSize:13,fontWeight:600,textAlign:"center",
+                          border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",background:"#fff",color:"#1d1d1f" }} />
+                      <button
+                        disabled={!parseInt(buildQtyInputs[prod.id])}
+                        onClick={() => {
+                          const qty = parseInt(buildQtyInputs[prod.id]);
+                          if (!qty) return;
+                          setBuildQueue(prev => [...prev.filter(q => q.productId !== prod.id), { productId: prod.id, name: prod.name, qty, color: prod.color }]);
+                          setBuildQtyInputs(prev => ({ ...prev, [prod.id]: "" }));
+                        }}
+                        style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                          border:"none",background:buildQueue.find(q=>q.productId===prod.id)?"#34c759":"#0071e3",color:"#fff",
+                          opacity:parseInt(buildQtyInputs[prod.id])?"1":"0.4",whiteSpace:"nowrap" }}>
+                        {buildQueue.find(q=>q.productId===prod.id) ? `✓ Queued (${buildQueue.find(q=>q.productId===prod.id).qty})` : "Order"}
+                      </button>
                     </div>
-                    <div style={{ flex:1,textAlign:"right" }}>
+                    <div style={{ flex:"0 0 auto",textAlign:"right",minWidth:90 }}>
                       <div style={{ fontSize:20,fontWeight:600,letterSpacing:"-0.3px",color:"#1d1d1f" }}>{"$"}{fmtDollar(prod.total)}</div>
                       <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>
                         <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:prod.color,marginRight:4,verticalAlign:"middle" }} />
-                        BOM Cost
+                        per unit
                       </div>
                     </div>
                   </div>
