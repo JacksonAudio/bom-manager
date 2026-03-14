@@ -3800,17 +3800,47 @@ function BOMManager({ user }) {
                   ))}
                 </div>
 
-                {/* ── Unmapped Shopify products warning */}
+                {/* ── Unmapped Shopify products */}
                 {unmapped.length > 0 && (
                   <div style={{ background:"#fff8e6",border:"1px solid #ff9500",borderRadius:8,padding:"12px 16px",marginBottom:16 }}>
-                    <div style={{ fontSize:12,fontWeight:700,color:"#ff9500",marginBottom:4 }}>
-                      {unmapped.length} Shopify product{unmapped.length !== 1 ? "s" : ""} not mapped to BOM products
+                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                      <div style={{ fontSize:12,fontWeight:700,color:"#ff9500" }}>
+                        {unmapped.length} Shopify product{unmapped.length !== 1 ? "s" : ""} not mapped to BOM products
+                      </div>
+                      <button className="btn-ghost" style={{ fontSize:10,fontWeight:700,color:"#ff9500" }}
+                        onClick={async () => {
+                          const colors = ["#ff9500","#5856d6","#ff3b30","#34c759","#0071e3","#ff2d55"];
+                          for (let i = 0; i < unmapped.length; i++) {
+                            const u = unmapped[i];
+                            const color = colors[(products.length + i) % colors.length];
+                            try {
+                              await createProduct({ name: u.title, color, userId: user.id, shopify_product_id: u.shopifyProductId });
+                            } catch (e) { console.error("Create product failed:", e); }
+                          }
+                        }}>
+                        Create All ({unmapped.length})
+                      </button>
                     </div>
-                    <div style={{ fontSize:11,color:"#86868b" }}>
-                      {unmapped.map(u => u.title).join(", ")}
-                    </div>
-                    <button className="btn-ghost" style={{ fontSize:11,marginTop:6 }}
-                      onClick={() => setActiveView("projects")}>Map Products →</button>
+                    {unmapped.map((u, i) => (
+                      <div key={u.shopifyProductId} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",
+                        padding:"6px 0",borderBottom:"1px solid #ff950022" }}>
+                        <span style={{ fontSize:12,color:"#1d1d1f" }}>{u.title}</span>
+                        <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
+                          onClick={async (e) => {
+                            const btn = e.currentTarget;
+                            const colors = ["#ff9500","#5856d6","#ff3b30","#34c759","#0071e3","#ff2d55"];
+                            const color = colors[(products.length + i) % colors.length];
+                            try {
+                              await createProduct({ name: u.title, color, userId: user.id, shopify_product_id: u.shopifyProductId });
+                              btn.textContent = "Created ✓";
+                              btn.style.color = "#34c759";
+                              btn.disabled = true;
+                            } catch (e) { console.error("Create product failed:", e); }
+                          }}>
+                          + Create Product
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
 

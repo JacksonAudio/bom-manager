@@ -72,10 +72,12 @@ export async function fetchProducts() {
 }
 
 // Insert a new product and return the created row
-export async function createProduct({ name, color, userId }) {
+export async function createProduct({ name, color, userId, shopify_product_id }) {
+  const row = { name, color, created_by: userId };
+  if (shopify_product_id) row.shopify_product_id = shopify_product_id;
   const { data, error } = await supabase
     .from('products')
-    .insert({ name, color, created_by: userId })
+    .insert(row)
     .select()
     .single()
   check(error, 'createProduct')
