@@ -971,20 +971,32 @@ const CSS = `
   /* Box shadows */
   .dark [style*="box-shadow"] { box-shadow: 0 1px 4px rgba(0,0,0,0.4) !important; }
 
-  /* Text color overrides */
-  .dark [style*="color"][style*="1d1d1f"] { color: #f5f5f7 !important; }
-  .dark [style*="color"][style*="3a3f51"] { color: #c7c7cc !important; }
-  .dark [style*="color"][style*="86868b"] { color: #98989d !important; }
-  .dark [style*="color"][style*="aeaeb2"] { color: #636366 !important; }
-  .dark [style*="color"][style*="6e6e73"] { color: #98989d !important; }
-  .dark [style*="color"][style*="475569"] { color: #636366 !important; }
+  /* Force ALL text inside dark mode to be light */
+  .dark main div, .dark main span, .dark main a, .dark main li, .dark main ol,
+  .dark main td, .dark main th, .dark main label, .dark footer div, .dark footer span {
+    color: #f5f5f7 !important;
+  }
+  /* Restore subdued text for items that should be dimmer */
+  .dark main [style*="font-size: 12px"], .dark main [style*="fontSize:12"],
+  .dark main [style*="font-size: 11px"], .dark main [style*="fontSize:11"],
+  .dark main [style*="font-size: 10px"], .dark main [style*="fontSize:10"],
+  .dark main [style*="font-size: 9px"], .dark main [style*="fontSize:9"] {
+    color: #98989d !important;
+  }
+  /* Keep colored elements their original colors */
+  .dark main [style*="color: rgb(0, 113, 227)"],
+  .dark main [style*="color:#0071e3"] { color: #64d2ff !important; }
+  .dark main [style*="color: rgb(255, 59, 48)"],
+  .dark main [style*="color:#ff3b30"] { color: #ff453a !important; }
+  .dark main [style*="color: rgb(52, 199, 89)"],
+  .dark main [style*="color:#34c759"] { color: #30d158 !important; }
+  .dark main [style*="color: rgb(255, 149, 0)"],
+  .dark main [style*="color:#ff9500"] { color: #ff9f0a !important; }
+  .dark main [style*="color: rgb(88, 86, 214)"],
+  .dark main [style*="color:#5856d6"] { color: #bf5af2 !important; }
 
   /* Table header row */
-  .dark [style*="background"][style*="b8bdd1"] { background: #2c2c2e !important; color: #c7c7cc !important; }
-
-  /* Hover backgrounds */
-  .dark [style*="background"][style*="rgba(0, 0, 0, 0.02)"] { background: rgba(255,255,255,0.04) !important; }
-  .dark [style*="background"][style*="rgba(0,0,0,0.02)"] { background: rgba(255,255,255,0.04) !important; }
+  .dark [style*="background"][style*="b8bdd1"] { background: #2c2c2e !important; }
 
   /* Key input rows in settings */
   .dark .key-label { color: #c7c7cc !important; }
