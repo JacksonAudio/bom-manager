@@ -3128,104 +3128,103 @@ function BOMManager({ user }) {
             PRODUCTS
         ══════════════════════════════════════ */}
         {activeView === "projects" && (
-          <div>
-            {/* Header + new product form */}
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:12 }}>
-              <div>
-                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Products</h2>
-                <p style={{ color:"#86868b",fontSize:13 }}>Add parts directly to any product. Only Part Number and Quantity required.</p>
-              </div>
-              <div style={{ display:"flex",gap:10 }}>
+          <div style={{ background:"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
+            {/* Header */}
+            <div style={{ marginBottom:28 }}>
+              <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",marginBottom:4 }}>Products</h2>
+              <p style={{ fontSize:14,color:"#86868b" }}>Click any product to expand its BOM. Only Part Number and Quantity required.</p>
+              <div style={{ display:"flex",gap:10,marginTop:14,flexWrap:"wrap",alignItems:"center" }}>
                 <input type="text" placeholder="New product name…" value={newProjName}
                   onChange={(e)=>setNewProjName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addProduct()}
-                  style={{ padding:"8px 13px",borderRadius:7,fontSize:13,width:220 }} />
-                <button className="btn-primary" onClick={addProduct}>+ New Product</button>
+                  style={{ padding:"8px 14px",borderRadius:980,fontSize:13,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:220 }} />
+                <button onClick={addProduct}
+                  style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff" }}>
+                  + New Product
+                </button>
               </div>
             </div>
 
             {products.length === 0 && (
-              <div className="card" style={{ textAlign:"center",padding:60,color:"#aeaeb2" }}>
-                <div style={{ fontSize:40,marginBottom:12 }}>📦</div>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:15 }}>No products yet — create one above</div>
+              <div style={{ textAlign:"center",padding:60,color:"#86868b" }}>
+                <div style={{ fontSize:14,fontFamily:"-apple-system,sans-serif" }}>No products yet — create one above</div>
               </div>
             )}
 
-            {/* One card per product */}
-            {productCosts.map((prod) => {
+            {/* Product list */}
+            <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden" }}>
+            {productCosts.map((prod, prodIdx) => {
               const cov = prod.partCount>0 ? Math.round(prod.costedCount/prod.partCount*100) : 0;
               const prodParts = parts.filter((p) => p.projectId === prod.id);
               const qa = quickAdd[prod.id] || {};
               const showOpt = qa.showOptional || false;
+              const isOpen = expandedProducts.has(prod.id);
 
               return (
-                <div key={prod.id} className="card"
-                  style={{ borderTop:`3px solid ${prod.color}`, marginBottom:16 }}>
+                <div key={prod.id} style={{ borderBottom:prodIdx<productCosts.length-1?"1px solid #f0f0f2":"none" }}>
 
-                  {/* ── Product header row */}
-                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:expandedProducts.has(prod.id)?16:0,flexWrap:"wrap",gap:10,cursor:"pointer" }}
-                    onClick={() => setExpandedProducts(prev => { const s = new Set(prev); s.has(prod.id) ? s.delete(prod.id) : s.add(prod.id); return s; })}>
-                    <div>
-                      <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:17,color:"#1d1d1f",marginBottom:3 }}>
-                        <span style={{ display:"inline-block",width:16,fontSize:12,color:"#86868b",marginRight:4 }}>{expandedProducts.has(prod.id) ? "▼" : "▶"}</span>
+                  {/* ── Product header row — matches Pricing page style */}
+                  <div style={{ display:"flex",alignItems:"center",padding:"14px 22px",cursor:"pointer",
+                    transition:"background 0.15s",background:isOpen?"rgba(0,0,0,0.02)":"transparent" }}
+                    onClick={() => setExpandedProducts(prev => { const s = new Set(prev); s.has(prod.id) ? s.delete(prod.id) : s.add(prod.id); return s; })}
+                    onMouseOver={e=>{if(!isOpen)e.currentTarget.style.background="rgba(0,0,0,0.02)"}}
+                    onMouseOut={e=>{if(!isOpen)e.currentTarget.style.background="transparent"}}>
+                    <div style={{ flex:1,minWidth:0 }}>
+                      <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f" }}>
                         {prod.name}
                       </div>
-                      <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
-                        <span className="badge" style={{ background:prod.color+"22",color:prod.color }}>
-                          {prod.partCount} part{prod.partCount!==1?"s":""}
-                        </span>
-                        <span style={{ fontSize:12,color:"#34c759",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700 }}>
-                          BOM: ${fmtDollar(prod.total)}
-                        </span>
-                        {prod.partCount > 0 && (
-                          <span style={{ fontSize:11,color:"#aeaeb2" }}>
-                            {cov}% costed
-                          </span>
-                        )}
+                      <div style={{ fontSize:12,color:"#86868b",marginTop:1 }}>
+                        {prod.partCount} part{prod.partCount!==1?"s":""}
+                        {cov > 0 && <span style={{ marginLeft:8 }}>{cov}% costed</span>}
                       </div>
                     </div>
-                    <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
-                      {/* Shopify product mapping */}
-                      {shopifyProducts.length > 0 && (
-                        <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                          <span style={{ fontSize:10,color:"#86868b" }}>Shopify:</span>
-                          <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:"#1d1d1f",minWidth:120 }}
-                            value={prod.shopifyProductId || ""}
-                            onChange={async (e) => {
-                              const val = e.target.value || null;
-                              setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, shopifyProductId: val } : p));
-                              try {
-                                await supabase.from("products").update({ shopify_product_id: val }).eq("id", prod.id);
-                              } catch (err) { console.error("Shopify mapping save failed:", err); }
-                            }}>
-                            <option value="">— Not linked —</option>
-                            {shopifyProducts.map(sp => (
-                              <option key={sp.id} value={sp.id}>{sp.storeName ? `[${sp.storeName}] ` : ""}{sp.title}</option>
-                            ))}
-                          </select>
-                          {prod.shopifyProductId && <span style={{ fontSize:10,color:"#34c759" }}>✓</span>}
-                        </div>
-                      )}
-                      <button className="btn-ghost" style={{ fontSize:11 }}
-                        disabled={!prodParts.some(p => p.mpn) || prodParts.some(p => p.pricingStatus === "loading")}
-                        onClick={async () => {
-                          const toFetch = prodParts.filter(p => p.mpn);
-                          for (const p of toFetch) {
-                            await fetchPartPricing(p.id);
-                            await new Promise(r => setTimeout(r, 300));
-                          }
-                        }}>
-                        {prodParts.some(p => p.pricingStatus === "loading")
-                          ? <><span className="spinner" /> Refreshing…</>
-                          : `↻ Refresh Prices (${prodParts.filter(p=>p.mpn).length})`}
-                      </button>
+                    <div style={{ flex:1,display:"flex",alignItems:"center",gap:6,justifyContent:"center" }}>
+                      <span style={{ fontSize:10,color:"#86868b",fontWeight:500,whiteSpace:"nowrap",letterSpacing:"0.5px",textTransform:"uppercase" }}>Parts</span>
+                      <span style={{ fontSize:15,fontWeight:600,color:"#1d1d1f" }}>{prod.partCount}</span>
+                    </div>
+                    <div style={{ flex:1,textAlign:"right" }}>
+                      <div style={{ fontSize:20,fontWeight:600,letterSpacing:"-0.3px",color:"#1d1d1f" }}>{"$"}{fmtDollar(prod.total)}</div>
+                      <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>
+                        <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:prod.color,marginRight:4,verticalAlign:"middle" }} />
+                        BOM Cost
+                      </div>
                     </div>
                   </div>
 
-                  {expandedProducts.has(prod.id) && (<>
+                  {isOpen && (<div onClick={e => e.stopPropagation()}>
+                  {/* Shopify mapping + Refresh button */}
+                  <div style={{ padding:"0 22px 12px",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
+                    {shopifyProducts.length > 0 && (
+                      <div style={{ display:"flex",alignItems:"center",gap:6 }} onClick={e => e.stopPropagation()}>
+                        <span style={{ fontSize:10,color:"#86868b" }}>Shopify:</span>
+                        <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:"#1d1d1f",minWidth:120 }}
+                          value={prod.shopifyProductId || ""}
+                          onChange={async (e) => {
+                            const val = e.target.value || null;
+                            setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, shopifyProductId: val } : p));
+                            try { await supabase.from("products").update({ shopify_product_id: val }).eq("id", prod.id); } catch (err) { console.error("Shopify mapping save failed:", err); }
+                          }}>
+                          <option value="">— Not linked —</option>
+                          {shopifyProducts.map(sp => (
+                            <option key={sp.id} value={sp.id}>{sp.storeName ? `[${sp.storeName}] ` : ""}{sp.title}</option>
+                          ))}
+                        </select>
+                        {prod.shopifyProductId && <span style={{ fontSize:10,color:"#34c759" }}>✓</span>}
+                      </div>
+                    )}
+                    <button style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}
+                      disabled={!prodParts.some(p => p.mpn) || prodParts.some(p => p.pricingStatus === "loading")}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const toFetch = prodParts.filter(p => p.mpn);
+                        for (const p of toFetch) { await fetchPartPricing(p.id); await new Promise(r => setTimeout(r, 300)); }
+                      }}>
+                      {prodParts.some(p => p.pricingStatus === "loading") ? "Refreshing…" : `Refresh Prices (${prodParts.filter(p=>p.mpn).length})`}
+                    </button>
+                  </div>
                   {/* ── Quick-add part form */}
-                  <div style={{ background:"#fff",borderRadius:8,padding:"14px 16px",marginBottom:prodParts.length>0?14:0 }}>
-                    <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,marginBottom:10 }}>
-                      + ADD PART TO {prod.name.toUpperCase()}
+                  <div style={{ padding:"12px 22px",borderTop:"1px solid #f0f0f2" }}>
+                    <div style={{ fontSize:10,color:"#86868b",letterSpacing:"0.5px",fontWeight:500,marginBottom:10,textTransform:"uppercase" }}>
+                      Add part to {prod.name}
                     </div>
 
                     {/* Required row: Part Number + Qty + Add button */}
@@ -3241,8 +3240,7 @@ function BOMManager({ user }) {
                           onFocus={() => setQAField(prod.id, "_focused", true)}
                           onBlur={() => setTimeout(() => setQAField(prod.id, "_focused", false), 200)}
                           style={{ padding:"8px 12px",borderRadius:6,width:"100%",
-                            fontSize:13,fontWeight:600,
-                            borderColor: qa.pn ? prod.color : undefined }}
+                            fontSize:13,fontWeight:600 }}
                         />
                         {/* Autocomplete dropdown */}
                         {qa._focused && qa.pn && qa.pn.trim().length >= 2 && (() => {
@@ -3304,11 +3302,9 @@ function BOMManager({ user }) {
 
                       <div style={{ flex:"0 0 auto",alignSelf:"flex-end" }}>
                         <button
-                          className="btn-primary"
                           disabled={!qa.pn?.trim()}
                           onClick={() => quickAddPart(prod.id)}
-                          style={{ background: qa.pn?.trim() ? prod.color : undefined,
-                            color: qa.pn?.trim() ? "#fff" : undefined }}>
+                          style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff",opacity:qa.pn?.trim()?"1":"0.4" }}>
                           + Add Part
                         </button>
                       </div>
@@ -3358,7 +3354,7 @@ function BOMManager({ user }) {
 
                   {/* ── Parts list — clean row format */}
                   {prodParts.length > 0 && (
-                    <div style={{ background:"#f5f5f7",borderRadius:10,overflow:"hidden",border:"1px solid #e5e5ea" }}>
+                    <div style={{ borderTop:"1px solid #f0f0f2" }}>
                       {prodParts.map((part,i) => {
                         const dynResult = (() => {
                           const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
@@ -3383,9 +3379,8 @@ function BOMManager({ user }) {
                         const dynPrice = dynResult.price;
                         const dynSource = dynResult.source;
                         return (
-                          <div key={part.id} style={{ display:"flex",alignItems:"center",padding:"16px 20px",
-                            borderBottom:i<prodParts.length-1?"1px solid #e5e5ea":"none",background:"#fff",
-                            borderLeft:`3px solid ${prod.color}`,gap:16 }}>
+                          <div key={part.id} style={{ display:"flex",alignItems:"center",padding:"14px 22px",
+                            borderBottom:"1px solid #f0f0f2",background:"transparent",gap:16 }}>
                             {/* Left: MPN + description */}
                             <div style={{ flex:"1 1 200px",minWidth:0 }}>
                               <div style={{ fontWeight:700,fontSize:15,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
@@ -3435,22 +3430,13 @@ function BOMManager({ user }) {
                           </div>
                         );
                       })}
-                      {/* Footer total */}
-                      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 20px",background:"#f9f9fb",borderTop:"2px solid #e5e5ea" }}>
-                        <span style={{ fontSize:12,color:"#6e6e73",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em" }}>
-                          {prodParts.length} Parts
-                        </span>
-                        <span style={{ color:"#34c759",fontWeight:800,fontSize:15,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                          {"$"}{fmtDollar(prod.total)}
-                        </span>
-                      </div>
                     </div>
                   )}
                   {/* ── BOM Cost Simulator */}
                   {prodParts.length > 0 && (
-                    <div style={{ marginTop:16,background:"#fff",borderRadius:8,padding:"14px 16px" }}>
-                      <div style={{ fontSize:10,color:"#5856d6",letterSpacing:"0.1em",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,marginBottom:10 }}>
-                        PRODUCTION RUN SIMULATOR
+                    <div style={{ padding:"14px 22px",borderTop:"1px solid #f0f0f2" }}>
+                      <div style={{ fontSize:10,color:"#86868b",letterSpacing:"0.5px",fontWeight:500,marginBottom:10,textTransform:"uppercase" }}>
+                        Production Run Simulator
                       </div>
                       <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:12 }}>
                         <span style={{ fontSize:12,color:"#86868b" }}>If I build</span>
@@ -3674,11 +3660,12 @@ function BOMManager({ user }) {
                       })()}
                     </div>
                   )}
-                  </>)}
+                  </div>)}
 
                 </div>
               );
             })}
+            </div>
           </div>
         )}
 
