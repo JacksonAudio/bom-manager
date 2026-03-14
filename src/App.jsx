@@ -4474,30 +4474,6 @@ function BOMManager({ user }) {
               </div>}
             </div>
 
-            {/* Connect + save button */}
-            <div style={{ display:"flex",gap:12,alignItems:"center",marginTop:8 }}>
-              <button className="btn-primary" onClick={async () => {
-                // Save keys to DB first so whole team gets them, then authenticate
-                try { await saveAllApiKeys(apiKeys, user.id); } catch(e) { console.warn("Key save failed:", e); }
-                authenticateAPIs();
-              }}>
-                {tokenStatus==="loading" ? <><span className="spinner" /> Connecting…</> : "⚡ Save & Connect APIs"}
-              </button>
-              <button className="btn-ghost" onClick={()=>{ setApiKeys(DEFAULT_KEYS); setNexarToken(null); setDkToken(null); setTokenStatus("idle"); setTokenMsg(""); }}>
-                Clear All Keys
-              </button>
-            </div>
-
-            {/* Status message */}
-            {tokenMsg && (
-              <div style={{ marginTop:14,padding:"11px 16px",
-                background: tokenStatus==="ok" ? "#0d2318" : "#2d1515",
-                border: `1px solid ${tokenStatus==="ok"?"#34c759":"#ff3b30"}`,
-                borderRadius:8, fontSize:12,
-                color: tokenStatus==="ok" ? "#34c759" : "#ff3b30" }}>
-                {tokenMsg}
-              </div>
-            )}
 
             {/* Key acquisition guide */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden" }}>
