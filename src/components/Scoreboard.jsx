@@ -6,10 +6,10 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase.js";
 
-const GOLD = "#f8d377";
-const DARK_BG = "#0a0a0f";
-const CARD_BG = "#12121a";
-const BORDER = "#1e1e2e";
+const THEMES = {
+  dark: { bg: "#0a0a0f", card: "#12121a", border: "#1e1e2e", text: "#e0e0e0", textDim: "#6b6b80", textMuted: "#4a4a5a", white: "#ffffff", accent: "#f8d377", hover: "rgba(255,255,255,0.05)" },
+  light: { bg: "#f0f0f5", card: "#ffffff", border: "#d2d2d7", text: "#1d1d1f", textDim: "#86868b", textMuted: "#aeaeb2", white: "#1d1d1f", accent: "#0071e3", hover: "rgba(0,0,0,0.03)" },
+};
 
 function formatBuildTime(minutes) {
   if (!minutes) return "";
@@ -42,6 +42,10 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
   const [products, setProducts] = useState(propProducts || []);
   const [now, setNow] = useState(new Date());
   const [loaded, setLoaded] = useState(!standalone);
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem("scoreboard_theme") || "dark"; } catch { return "dark"; }
+  });
+  const T = THEMES[theme];
   const intervalRef = useRef(null);
 
   // Live clock
@@ -185,38 +189,53 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
 
   const rankColors = ["#ffd700", "#c0c0c0", "#cd7f32"];
 
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    try { localStorage.setItem("scoreboard_theme", next); } catch {}
+  };
+
   if (!loaded) {
     return (
-      <div style={{ background: DARK_BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ color: GOLD, fontFamily: "'Space Grotesk', sans-serif", fontSize: 24 }}>Loading Scoreboard...</div>
+      <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ color: T.accent, fontFamily: "'Space Grotesk', sans-serif", fontSize: 24 }}>Loading Scoreboard...</div>
       </div>
     );
   }
 
   return (
     <div style={{
-      background: DARK_BG, minHeight: "100vh", color: "#e0e0e0",
+      background: T.bg, minHeight: "100vh", color: T.text,
       fontFamily: "'Space Grotesk', sans-serif", padding: standalone ? "24px 32px" : "20px 24px",
       display: "flex", flexDirection: "column", overflow: "hidden",
-      animation: "scoreboardFadeIn 0.8s ease-out",
+      animation: "scoreboardFadeIn 0.8s ease-out", transition: "background 0.3s, color 0.3s",
     }}>
       <style>{`
         @keyframes scoreboardFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes leaderPulse { 0%, 100% { box-shadow: 0 0 20px rgba(248,211,119,0.15); } 50% { box-shadow: 0 0 40px rgba(248,211,119,0.3); } }
+        @keyframes leaderPulse { 0%, 100% { box-shadow: 0 0 20px ${theme==="dark"?"rgba(248,211,119,0.15)":"rgba(0,113,227,0.15)"}; } 50% { box-shadow: 0 0 40px ${theme==="dark"?"rgba(248,211,119,0.3)":"rgba(0,113,227,0.3)"}; } }
         @keyframes progressGrow { from { width: 0; } }
       `}</style>
 
       {/* ── TOP SECTION */}
-      <div style={{ textAlign: "center", marginBottom: standalone ? 28 : 20, flexShrink: 0 }}>
-        <div style={{ fontSize: standalone ? 42 : 28, fontWeight: 800, color: GOLD, letterSpacing: "6px", textTransform: "uppercase" }}>
+      <div style={{ textAlign: "center", marginBottom: standalone ? 28 : 20, flexShrink: 0, position: "relative" }}>
+        {/* Day/Night toggle */}
+        <button onClick={toggleTheme}
+          style={{ position:"absolute",right:0,top:0,background:T.card,border:`1px solid ${T.border}`,
+            borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:16,color:T.text,
+            transition:"background 0.2s" }}
+          onMouseOver={e=>e.currentTarget.style.background=T.hover}
+          onMouseOut={e=>e.currentTarget.style.background=T.card}>
+          {theme === "dark" ? "☀" : "☾"}
+        </button>
+        <div style={{ fontSize: standalone ? 42 : 28, fontWeight: 800, color: T.accent, letterSpacing: "6px", textTransform: "uppercase" }}>
           JACKSON AUDIO
         </div>
-        <div style={{ fontSize: standalone ? 16 : 13, fontWeight: 400, color: "#6b6b80", letterSpacing: "4px", textTransform: "uppercase", marginTop: 4 }}>
+        <div style={{ fontSize: standalone ? 16 : 13, fontWeight: 400, color: T.textDim, letterSpacing: "4px", textTransform: "uppercase", marginTop: 4 }}>
           PRODUCTION SCOREBOARD
         </div>
-        <div style={{ marginTop: 10, display: "flex", justifyContent: "center", gap: 32, fontSize: standalone ? 15 : 12, color: "#8888a0" }}>
+        <div style={{ marginTop: 10, display: "flex", justifyContent: "center", gap: 32, fontSize: standalone ? 15 : 12, color: T.textDim }}>
           <span>{now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</span>
-          <span style={{ color: GOLD, fontWeight: 700 }}>{now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+          <span style={{ color: T.accent, fontWeight: 700 }}>{now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
         </div>
       </div>
 
@@ -225,13 +244,13 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
 
         {/* ── LEFT: Builder Rankings */}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: standalone ? 14 : 11, fontWeight: 700, color: "#6b6b80", letterSpacing: "3px", textTransform: "uppercase", marginBottom: 12 }}>
+          <div style={{ fontSize: standalone ? 14 : 11, fontWeight: 700, color: T.textDim, letterSpacing: "3px", textTransform: "uppercase", marginBottom: 12 }}>
             BUILDER RANKINGS — THIS WEEK
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
             {rankings.length === 0 && (
-              <div style={{ textAlign: "center", padding: 60, color: "#4a4a5a", fontSize: 18 }}>
+              <div style={{ textAlign: "center", padding: 60, color: T.textMuted, fontSize: 18 }}>
                 No completed builds this week yet
               </div>
             )}
@@ -242,8 +261,8 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
 
               return (
                 <div key={builder.memberId} style={{
-                  background: CARD_BG,
-                  border: `1px solid ${isLeader ? "rgba(248,211,119,0.3)" : BORDER}`,
+                  background: T.card,
+                  border: `1px solid ${isLeader ? (theme==="dark"?"rgba(248,211,119,0.3)":"rgba(0,113,227,0.3)") : T.border}`,
                   borderRadius: 12,
                   padding: standalone ? "16px 20px" : "12px 16px",
                   animation: isLeader ? "leaderPulse 3s ease-in-out infinite" : undefined,
@@ -269,17 +288,17 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
                         <span style={{
                           fontSize: standalone ? 32 : 22,
                           fontWeight: 700,
-                          color: isLeader ? GOLD : "#ffffff",
+                          color: isLeader ? T.accent :"#ffffff",
                         }}>
                           {builder.name}
                         </span>
-                        <span style={{ fontSize: standalone ? 15 : 12, color: "#6b6b80" }}>
+                        <span style={{ fontSize: standalone ? 15 : 12, color: T.textDim }}>
                           {builder.units} unit{builder.units !== 1 ? "s" : ""} built
                         </span>
                       </div>
                       <div style={{
                         fontSize: standalone ? 13 : 11,
-                        color: "#5a5a6e",
+                        color: T.textMuted,
                         marginTop: 4,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -290,13 +309,13 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
                       {/* Progress bar */}
                       <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
                         <div style={{
-                          flex: 1, height: standalone ? 8 : 6, background: "#1a1a28",
+                          flex: 1, height: standalone ? 8 : 6, background: theme==="dark"?"#1a1a28":"#e5e5ea",
                           borderRadius: 4, overflow: "hidden",
                         }}>
                           <div style={{
                             width: `${progressPct}%`,
                             height: "100%",
-                            background: `linear-gradient(90deg, ${GOLD}, #0071e3)`,
+                            background: `linear-gradient(90deg, ${T.accent}, #0071e3)`,
                             borderRadius: 4,
                             animation: "progressGrow 1s ease-out",
                             transition: "width 0.5s ease",
@@ -305,7 +324,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
                         <span style={{
                           fontSize: standalone ? 18 : 14,
                           fontWeight: 700,
-                          color: GOLD,
+                          color: T.accent,
                           minWidth: standalone ? 80 : 60,
                           textAlign: "right",
                         }}>
@@ -322,13 +341,13 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
 
         {/* ── RIGHT: Active Builds */}
         <div style={{ width: standalone ? 340 : 280, flexShrink: 0, display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: standalone ? 14 : 11, fontWeight: 700, color: "#6b6b80", letterSpacing: "3px", textTransform: "uppercase", marginBottom: 12 }}>
+          <div style={{ fontSize: standalone ? 14 : 11, fontWeight: 700, color: T.textDim, letterSpacing: "3px", textTransform: "uppercase", marginBottom: 12 }}>
             ACTIVE BUILDS
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
             {activeBuilds.length === 0 && (
-              <div style={{ textAlign: "center", padding: 40, color: "#4a4a5a", fontSize: 14 }}>
+              <div style={{ textAlign: "center", padding: 40, color: T.textMuted, fontSize: 14 }}>
                 No active builds
               </div>
             )}
@@ -336,26 +355,26 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
               const pct = build.total > 0 ? (build.completed / build.total) * 100 : 0;
               return (
                 <div key={build.id} style={{
-                  background: CARD_BG, border: `1px solid ${BORDER}`,
+                  background: T.card, border: `1px solid ${T.border}`,
                   borderRadius: 10, padding: standalone ? "14px 16px" : "10px 14px",
                 }}>
-                  <div style={{ fontSize: standalone ? 15 : 12, fontWeight: 700, color: "#fff", marginBottom: 2 }}>
+                  <div style={{ fontSize: standalone ? 15 : 12, fontWeight: 700, color: T.white, marginBottom: 2 }}>
                     {build.productName}
                   </div>
-                  <div style={{ fontSize: standalone ? 12 : 10, color: "#6b6b80", marginBottom: 8 }}>
+                  <div style={{ fontSize: standalone ? 12 : 10, color: T.textDim, marginBottom: 8 }}>
                     {build.builderName}
                     {build.priority === "urgent" && <span style={{ color: "#ff3b30", marginLeft: 6 }}>URGENT</span>}
                     {build.priority === "high" && <span style={{ color: "#ff9500", marginLeft: 6 }}>HIGH</span>}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ flex: 1, height: 6, background: "#1a1a28", borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ flex: 1, height: 6, background: theme==="dark"?"#1a1a28":"#e5e5ea", borderRadius: 3, overflow: "hidden" }}>
                       <div style={{
                         width: `${pct}%`, height: "100%",
                         background: pct >= 80 ? "#34c759" : pct >= 40 ? "#0071e3" : "#5856d6",
                         borderRadius: 3, transition: "width 0.5s ease",
                       }} />
                     </div>
-                    <span style={{ fontSize: standalone ? 14 : 11, fontWeight: 700, color: "#8888a0", minWidth: 50, textAlign: "right" }}>
+                    <span style={{ fontSize: standalone ? 14 : 11, fontWeight: 700, color: T.textDim, minWidth: 50, textAlign: "right" }}>
                       {build.completed}/{build.total}
                     </span>
                   </div>
@@ -370,8 +389,8 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
       <div style={{
         marginTop: standalone ? 20 : 14,
         padding: standalone ? "16px 24px" : "12px 18px",
-        background: CARD_BG,
-        border: `1px solid ${BORDER}`,
+        background: T.card,
+        border: `1px solid ${T.border}`,
         borderRadius: 12,
         display: "flex",
         justifyContent: "space-between",
@@ -380,19 +399,19 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
       }}>
         <div style={{ display: "flex", gap: standalone ? 48 : 32 }}>
           <div>
-            <div style={{ fontSize: standalone ? 12 : 10, color: "#6b6b80", letterSpacing: "2px", textTransform: "uppercase" }}>TOTAL UNITS</div>
-            <div style={{ fontSize: standalone ? 32 : 22, fontWeight: 800, color: "#fff" }}>{totalUnits.toLocaleString()}</div>
+            <div style={{ fontSize: standalone ? 12 : 10, color: T.textDim, letterSpacing: "2px", textTransform: "uppercase" }}>TOTAL UNITS</div>
+            <div style={{ fontSize: standalone ? 32 : 22, fontWeight: 800, color: T.white }}>{totalUnits.toLocaleString()}</div>
           </div>
           <div>
-            <div style={{ fontSize: standalone ? 12 : 10, color: "#6b6b80", letterSpacing: "2px", textTransform: "uppercase" }}>PRODUCTION POINTS</div>
-            <div style={{ fontSize: standalone ? 32 : 22, fontWeight: 800, color: GOLD }}>{totalPoints.toLocaleString()}</div>
+            <div style={{ fontSize: standalone ? 12 : 10, color: T.textDim, letterSpacing: "2px", textTransform: "uppercase" }}>PRODUCTION POINTS</div>
+            <div style={{ fontSize: standalone ? 32 : 22, fontWeight: 800, color: T.accent }}>{totalPoints.toLocaleString()}</div>
           </div>
           <div>
-            <div style={{ fontSize: standalone ? 12 : 10, color: "#6b6b80", letterSpacing: "2px", textTransform: "uppercase" }}>BUILDERS ACTIVE</div>
-            <div style={{ fontSize: standalone ? 32 : 22, fontWeight: 800, color: "#fff" }}>{rankings.length}</div>
+            <div style={{ fontSize: standalone ? 12 : 10, color: T.textDim, letterSpacing: "2px", textTransform: "uppercase" }}>BUILDERS ACTIVE</div>
+            <div style={{ fontSize: standalone ? 32 : 22, fontWeight: 800, color: T.white }}>{rankings.length}</div>
           </div>
         </div>
-        <div style={{ fontSize: standalone ? 14 : 11, color: "#6b6b80" }}>
+        <div style={{ fontSize: standalone ? 14 : 11, color: T.textDim }}>
           Week of {formatWeekLabel(monday)}
         </div>
       </div>
