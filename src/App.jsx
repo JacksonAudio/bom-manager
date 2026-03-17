@@ -1829,18 +1829,36 @@ function BOMManager({ user }) {
     setInvoiceError("");
     setInvoiceResult(null);
     try {
-      // Read file as text (for text-based PDFs) or extract from PDF
-      const text = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
-        reader.onerror = reject;
-        reader.readAsText(file);
-      });
+      const ext = file.name.toLowerCase().split(".").pop();
+      const isPDF = ext === "pdf";
+      const isImage = ["png","jpg","jpeg","gif","webp"].includes(ext);
+      let payload;
+
+      if (isPDF || isImage) {
+        // Read as base64 for Claude vision/document understanding
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result.split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const mediaType = isPDF ? "application/pdf" : file.type || `image/${ext === "jpg" ? "jpeg" : ext}`;
+        payload = { fileBase64: base64, mediaType, apiKey: apiKeys.anthropic_api_key };
+      } else {
+        // Read as text for CSV/TSV/TXT
+        const text = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.onerror = reject;
+          reader.readAsText(file);
+        });
+        payload = { invoiceText: text.substring(0, 30000), apiKey: apiKeys.anthropic_api_key };
+      }
 
       const res = await fetch("/api/parse-invoice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invoiceText: text.substring(0, 30000), apiKey: apiKeys.anthropic_api_key }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "API call failed");
@@ -3571,7 +3589,7 @@ function BOMManager({ user }) {
                   fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:"#5856d6",color:"#fff",
                   fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",whiteSpace:"nowrap" }}>
                   {invoiceParsing ? "Parsing…" : "📄 Upload Invoice (AI)"}
-                  <input type="file" accept=".pdf,.csv,.txt,.tsv" style={{ display:"none" }}
+                  <input type="file" accept=".pdf,.csv,.txt,.tsv,.png,.jpg,.jpeg,.gif,.webp,image/*" style={{ display:"none" }}
                     onChange={(e) => { const f = e.target.files[0]; if (f) parseInvoice(f); e.target.value=""; }}
                     disabled={invoiceParsing} />
                 </label>
