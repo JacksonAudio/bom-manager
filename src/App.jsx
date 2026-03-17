@@ -44,6 +44,7 @@ const DEFAULT_KEYS = {
   company_name:    "Jackson Audio",
   company_address: "",   // Your company address for POs
   distributor_names: "",  // JSON: { "raw_key": "Display Name", ... } — rename distributors
+  anthropic_api_key: "",  // anthropic.com — Claude AI for invoice parsing
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -1049,7 +1050,7 @@ function BOMManager({ user }) {
   const [dragOver,    setDragOver]    = useState(false);
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
-  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","guide"]));
+  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","ai","guide"]));
   const [buildQueue, setBuildQueue] = useState(() => { try { return JSON.parse(localStorage.getItem("bom_build_queue") || "[]"); } catch { return []; } });
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
@@ -4895,6 +4896,28 @@ function BOMManager({ user }) {
             </div>
 
 
+            {/* ── AI / Anthropic API */}
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("ai") ? s.delete("ai") : s.add("ai"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("ai") ? "▶" : "▼"}</span>
+                  AI — Invoice Parsing (Claude)
+                </div>
+              </div>
+              {!collapsedSettings.has("ai") && <div style={{ padding:"16px 20px" }}>
+                <p style={{ fontSize:12,color:"#86868b",marginBottom:14 }}>
+                  Upload PDF invoices from suppliers — Claude AI extracts part numbers, quantities, and costs automatically.
+                  Get your API key from <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}>console.anthropic.com</a>
+                </p>
+                <div className="key-input-row">
+                  <div><div className="key-label">Anthropic API Key</div><div className="key-hint">sk-ant-api03-…</div></div>
+                  <input type="password" value={apiKeys.anthropic_api_key||""} onChange={e=>setApiKeys(k=>({...k,anthropic_api_key:e.target.value}))} placeholder="sk-ant-api03-..." style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                {sectionSaveBtn("ai", "AI Settings")}
+              </div>}
+            </div>
+
             {/* Key acquisition guide */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
@@ -4933,8 +4956,8 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v4.0</span>
-        <span>Thursday, March 12, 2026</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.0</span>
+        <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
   );
