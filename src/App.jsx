@@ -1861,7 +1861,7 @@ function BOMManager({ user }) {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "API call failed");
+      if (!res.ok) throw new Error(data.error + (data.details ? ` — ${typeof data.details === "string" ? data.details.substring(0, 200) : JSON.stringify(data.details).substring(0, 200)}` : ""));
       if (!data.items?.length) throw new Error("No line items found in invoice");
 
       // Match items to existing parts by MPN
