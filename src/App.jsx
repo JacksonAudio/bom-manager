@@ -19,6 +19,10 @@ import {
   deletePart as dbDeletePart, deletePartsMany, upsertParts,
   fetchApiKeys, saveAllApiKeys,
   subscribeToProducts, subscribeToParts,
+  fetchTeamMembers, createTeamMember, updateTeamMember, deleteTeamMember,
+  fetchBuildOrders, createBuildOrder, updateBuildOrder, deleteBuildOrder,
+  fetchBuildAssignments, createBuildAssignment, updateBuildAssignment,
+  subscribeToTeamMembers, subscribeToBuildOrders, subscribeToBuildAssignments,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -1089,6 +1093,16 @@ function BOMManager({ user }) {
   const [darkMode, setDarkMode] = useState(() => {
     try { return localStorage.getItem("bom_dark_mode") === "true"; } catch { return false; }
   });
+  // ── Production Floor state
+  const [teamMembers,      setTeamMembers]      = useState([]);
+  const [buildOrders,      setBuildOrders]       = useState([]);
+  const [buildAssignments, setBuildAssignments]  = useState([]);
+  const [prodTeamCollapsed, setProdTeamCollapsed] = useState(true);
+  const [prodCompletedCollapsed, setProdCompletedCollapsed] = useState(true);
+  const [newTeamMember,    setNewTeamMember]     = useState({ name:"", role:"assembler", phone:"", email:"" });
+  const [newBuildOrder,    setNewBuildOrder]     = useState({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"" });
+  const [prodBusy,         setProdBusy]          = useState(false);
+
   const fileRef = useRef();
   const qtyTimers = useRef({}); // debounce timers for qty→price refresh
   const simTimer = useRef(null); // debounce timer for sim auto-run
@@ -1189,12 +1203,18 @@ function BOMManager({ user }) {
   useEffect(() => {
     async function boot() {
       try {
-        // Parallel fetch products, parts, and api keys
-        const [prods, pts, keys] = await Promise.all([
+        // Parallel fetch products, parts, api keys, and production data
+        const [prods, pts, keys, tms, bos, bas] = await Promise.all([
           fetchProducts(),
           fetchParts(),
           fetchApiKeys(),
+          fetchTeamMembers().catch(() => []),
+          fetchBuildOrders().catch(() => []),
+          fetchBuildAssignments().catch(() => []),
         ]);
+        setTeamMembers(tms || []);
+        setBuildOrders(bos || []);
+        setBuildAssignments(bas || []);
 
         // Normalize DB rows → UI shape (DB uses snake_case, UI uses camelCase)
         setProducts(prods.map(dbProductToUI));
@@ -1304,9 +1324,45 @@ function BOMManager({ user }) {
       }
     });
 
+    // Team members channel
+    const teamChannel = subscribeToTeamMembers((eventType, newRow, oldRow) => {
+      if (eventType === "INSERT") {
+        setTeamMembers((prev) => prev.find(t => t.id === newRow.id) ? prev : [...prev, newRow]);
+      } else if (eventType === "UPDATE") {
+        setTeamMembers((prev) => prev.map(t => t.id === newRow.id ? newRow : t));
+      } else if (eventType === "DELETE") {
+        setTeamMembers((prev) => prev.filter(t => t.id !== oldRow.id));
+      }
+    });
+
+    // Build orders channel
+    const boChannel = subscribeToBuildOrders((eventType, newRow, oldRow) => {
+      if (eventType === "INSERT") {
+        setBuildOrders((prev) => prev.find(b => b.id === newRow.id) ? prev : [newRow, ...prev]);
+      } else if (eventType === "UPDATE") {
+        setBuildOrders((prev) => prev.map(b => b.id === newRow.id ? newRow : b));
+      } else if (eventType === "DELETE") {
+        setBuildOrders((prev) => prev.filter(b => b.id !== oldRow.id));
+      }
+    });
+
+    // Build assignments channel
+    const baChannel = subscribeToBuildAssignments((eventType, newRow, oldRow) => {
+      if (eventType === "INSERT") {
+        setBuildAssignments((prev) => prev.find(a => a.id === newRow.id) ? prev : [newRow, ...prev]);
+      } else if (eventType === "UPDATE") {
+        setBuildAssignments((prev) => prev.map(a => a.id === newRow.id ? newRow : a));
+      } else if (eventType === "DELETE") {
+        setBuildAssignments((prev) => prev.filter(a => a.id !== oldRow.id));
+      }
+    });
+
     return () => {
       prodChannel.unsubscribe();
       partChannel.unsubscribe();
+      teamChannel.unsubscribe();
+      boChannel.unsubscribe();
+      baChannel.unsubscribe();
     };
   }, []); // eslint-disable-line
 
@@ -2227,6 +2283,7 @@ function BOMManager({ user }) {
           { id:"purchasing",icon:"🛒", label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}` },
           { id:"orders",    icon:"📋", label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}` },
           { id:"demand",    icon:"📊", label:`Demand${shopifyDemand?.totalOrders?` (${shopifyDemand.totalOrders})`:""}` },
+          { id:"production", icon:"\uD83C\uDFED", label:`Production${buildOrders.filter(b=>b.status!=="completed").length>0?` (${buildOrders.filter(b=>b.status!=="completed").length})`:""}` },
           { id:"projects",  icon:"📦", label:"Products" },
           { id:"alerts",    icon:"⚠",  label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}` },
           { id:"settings",  icon:"⚙",  label:"Settings" },
@@ -4811,6 +4868,382 @@ function BOMManager({ user }) {
             )}
           </div>
         )}
+
+        {/* ══════════════════════════════════════
+            PRODUCTION FLOOR
+        ══════════════════════════════════════ */}
+        {activeView === "production" && (() => {
+          const activeOrders = buildOrders.filter(b => b.status !== "completed");
+          const completedOrders = buildOrders.filter(b => b.status === "completed");
+          const today = new Date(); today.setHours(0,0,0,0);
+          const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 7);
+          const completedToday = completedOrders.filter(b => b.updated_at && new Date(b.updated_at) >= today).length;
+          const completedWeek = completedOrders.filter(b => b.updated_at && new Date(b.updated_at) >= weekAgo).length;
+          const activeMembers = teamMembers.filter(t => t.active !== false);
+
+          const handleCreateTeamMember = async () => {
+            if (!newTeamMember.name.trim()) return;
+            setProdBusy(true);
+            try {
+              const created = await createTeamMember({
+                name: newTeamMember.name.trim(),
+                role: newTeamMember.role,
+                phone: newTeamMember.phone.trim() || null,
+                email: newTeamMember.email.trim() || null,
+                active: true,
+              }, user.id);
+              setTeamMembers(prev => [...prev, created]);
+              setNewTeamMember({ name:"", role:"assembler", phone:"", email:"" });
+            } catch (e) { console.error("Create team member failed:", e); }
+            setProdBusy(false);
+          };
+
+          const handleToggleActive = async (member) => {
+            try {
+              await updateTeamMember(member.id, { active: !member.active });
+              setTeamMembers(prev => prev.map(t => t.id === member.id ? { ...t, active: !t.active } : t));
+            } catch (e) { console.error("Toggle active failed:", e); }
+          };
+
+          const handleDeleteTeamMember = async (id) => {
+            if (!window.confirm("Delete this team member?")) return;
+            try {
+              await deleteTeamMember(id);
+              setTeamMembers(prev => prev.filter(t => t.id !== id));
+            } catch (e) { console.error("Delete team member failed:", e); }
+          };
+
+          const handleCreateBuildOrder = async () => {
+            if (!newBuildOrder.product_id || !newBuildOrder.quantity) return;
+            setProdBusy(true);
+            try {
+              const bo = await createBuildOrder({
+                product_id: newBuildOrder.product_id,
+                quantity: parseInt(newBuildOrder.quantity),
+                priority: newBuildOrder.priority,
+                status: newBuildOrder.team_member_id ? "assigned" : "pending",
+                due_date: newBuildOrder.due_date || null,
+                notes: newBuildOrder.notes.trim() || null,
+              }, user.id);
+              if (newBuildOrder.team_member_id) {
+                const ba = await createBuildAssignment({
+                  build_order_id: bo.id,
+                  team_member_id: newBuildOrder.team_member_id,
+                  status: "assigned",
+                });
+                setBuildAssignments(prev => [ba, ...prev]);
+              }
+              setBuildOrders(prev => [bo, ...prev]);
+              setNewBuildOrder({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"" });
+            } catch (e) { console.error("Create build order failed:", e); }
+            setProdBusy(false);
+          };
+
+          const handleStartBuild = async (bo) => {
+            try {
+              await updateBuildOrder(bo.id, { status: "in-progress" }, user.id);
+              setBuildOrders(prev => prev.map(b => b.id === bo.id ? { ...b, status: "in-progress" } : b));
+              const assignment = buildAssignments.find(a => a.build_order_id === bo.id && a.status !== "completed");
+              if (assignment) {
+                await updateBuildAssignment(assignment.id, { status: "in-progress", started_at: new Date().toISOString() });
+                setBuildAssignments(prev => prev.map(a => a.id === assignment.id ? { ...a, status: "in-progress", started_at: new Date().toISOString() } : a));
+              }
+            } catch (e) { console.error("Start build failed:", e); }
+          };
+
+          const handleCompleteBuild = async (bo) => {
+            if (!window.confirm(`Complete build of ${bo.quantity}x ${(products.find(p=>p.id===bo.product_id)||{}).name||"product"}? This will deduct stock.`)) return;
+            setProdBusy(true);
+            try {
+              // Deduct stock for each part in the product
+              const productParts = parts.filter(p => p.projectId === bo.product_id);
+              for (const part of productParts) {
+                const currentStock = parseInt(part.stockQty) || 0;
+                const deduction = (part.quantity || 1) * bo.quantity;
+                const newStock = Math.max(0, currentStock - deduction);
+                await updatePart(part.id, "stockQty", String(newStock));
+              }
+              // Mark build order completed
+              await updateBuildOrder(bo.id, { status: "completed" }, user.id);
+              setBuildOrders(prev => prev.map(b => b.id === bo.id ? { ...b, status: "completed", updated_at: new Date().toISOString() } : b));
+              // Mark assignment completed
+              const assignment = buildAssignments.find(a => a.build_order_id === bo.id && a.status !== "completed");
+              if (assignment) {
+                await updateBuildAssignment(assignment.id, { status: "completed", completed_at: new Date().toISOString() });
+                setBuildAssignments(prev => prev.map(a => a.id === assignment.id ? { ...a, status: "completed", completed_at: new Date().toISOString() } : a));
+              }
+            } catch (e) { console.error("Complete build failed:", e); }
+            setProdBusy(false);
+          };
+
+          const handleDeleteBuildOrder = async (id) => {
+            if (!window.confirm("Delete this build order?")) return;
+            try {
+              await deleteBuildOrder(id);
+              setBuildOrders(prev => prev.filter(b => b.id !== id));
+            } catch (e) { console.error("Delete build order failed:", e); }
+          };
+
+          const priorityColors = { low:"#86868b", normal:"#0071e3", high:"#ff9500", urgent:"#ff3b30" };
+          const statusColors = { pending:"#86868b", assigned:"#0071e3", "in-progress":"#ff9500", completed:"#34c759" };
+          const inputStyle = { fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:"1px solid #d2d2d7", outline:"none", transition:"border 0.15s", width:"100%" };
+          const selectStyle = { ...inputStyle, background:"#fff", cursor:"pointer" };
+
+          return (
+          <div style={{ maxWidth:1000 }}>
+            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>Production Floor</h2>
+            <p style={{ fontSize:14,color:"#86868b",marginBottom:24 }}>Manage build orders, team assignments, and track production progress.</p>
+
+            {/* ── Summary cards ── */}
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:16,marginBottom:28 }}>
+              {[
+                { label:"Active Builds", value:activeOrders.length, color:activeOrders.length>0?"#ff9500":"#34c759" },
+                { label:"Team Members", value:activeMembers.length, color:"#0071e3" },
+                { label:"Completed Today", value:completedToday, color:"#34c759" },
+                { label:"Completed This Week", value:completedWeek, color:"#5856d6" },
+              ].map(card => (
+                <div key={card.label} style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                  <div style={{ fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
+                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Team Members (collapsible) ── */}
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setProdTeamCollapsed(!prodTeamCollapsed)}>
+                <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>Team Members ({activeMembers.length} active)</div>
+                <span style={{ fontSize:14,color:"#86868b",transform:prodTeamCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>▼</span>
+              </div>
+              {!prodTeamCollapsed && (
+                <div style={{ marginTop:16 }}>
+                  {/* Add new team member form */}
+                  <div style={{ display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"flex-end" }}>
+                    <div style={{ flex:"1 1 180px" }}>
+                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Name *</label>
+                      <input style={inputStyle} placeholder="Full name" value={newTeamMember.name} onChange={e => setNewTeamMember({...newTeamMember, name:e.target.value})} />
+                    </div>
+                    <div style={{ flex:"0 0 140px" }}>
+                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Role</label>
+                      <select style={selectStyle} value={newTeamMember.role} onChange={e => setNewTeamMember({...newTeamMember, role:e.target.value})}>
+                        <option value="assembler">Assembler</option>
+                        <option value="lead">Lead</option>
+                        <option value="manager">Manager</option>
+                      </select>
+                    </div>
+                    <div style={{ flex:"1 1 150px" }}>
+                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Phone</label>
+                      <input style={inputStyle} placeholder="Phone number" value={newTeamMember.phone} onChange={e => setNewTeamMember({...newTeamMember, phone:e.target.value})} />
+                    </div>
+                    <div style={{ flex:"1 1 180px" }}>
+                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Email</label>
+                      <input style={inputStyle} placeholder="Email address" value={newTeamMember.email} onChange={e => setNewTeamMember({...newTeamMember, email:e.target.value})} />
+                    </div>
+                    <button className="btn-primary btn-sm" disabled={!newTeamMember.name.trim() || prodBusy} onClick={handleCreateTeamMember}
+                      style={{ height:37,whiteSpace:"nowrap" }}>+ Add Member</button>
+                  </div>
+
+                  {/* Team members list */}
+                  {teamMembers.length > 0 && (
+                    <div style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",paddingTop:12 }}>
+                      <div style={{ display:"grid",gridTemplateColumns:"2fr 1fr 1.5fr 2fr 80px 80px",gap:8,padding:"0 4px",marginBottom:8 }}>
+                        {["Name","Role","Phone","Email","Status",""].map(h => (
+                          <div key={h} style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b" }}>{h}</div>
+                        ))}
+                      </div>
+                      {teamMembers.map(member => (
+                        <div key={member.id} style={{ display:"grid",gridTemplateColumns:"2fr 1fr 1.5fr 2fr 80px 80px",gap:8,padding:"8px 4px",
+                          borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f2f2f7",alignItems:"center",
+                          opacity:member.active===false?0.5:1 }}>
+                          <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{member.name}</div>
+                          <div style={{ fontSize:12,color:"#86868b",textTransform:"capitalize" }}>{member.role || "—"}</div>
+                          <div style={{ fontSize:12,color:"#86868b" }}>{member.phone || "—"}</div>
+                          <div style={{ fontSize:12,color:"#86868b" }}>{member.email || "—"}</div>
+                          <div>
+                            <button className="btn-ghost btn-sm" onClick={() => handleToggleActive(member)}
+                              style={{ fontSize:11,color:member.active!==false?"#34c759":"#86868b" }}>
+                              {member.active !== false ? "Active" : "Inactive"}
+                            </button>
+                          </div>
+                          <div>
+                            <button className="btn-ghost btn-sm" onClick={() => handleDeleteTeamMember(member.id)}
+                              style={{ fontSize:11,color:"#ff3b30" }}>Delete</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ── Create Build Order ── */}
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:16 }}>Create Build Order</div>
+              <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:12,marginBottom:12 }}>
+                <div>
+                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Product *</label>
+                  <select style={selectStyle} value={newBuildOrder.product_id} onChange={e => setNewBuildOrder({...newBuildOrder, product_id:e.target.value})}>
+                    <option value="">Select product…</option>
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Quantity *</label>
+                  <input style={inputStyle} type="number" min="1" placeholder="e.g. 50" value={newBuildOrder.quantity} onChange={e => setNewBuildOrder({...newBuildOrder, quantity:e.target.value})} />
+                </div>
+                <div>
+                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Priority</label>
+                  <select style={selectStyle} value={newBuildOrder.priority} onChange={e => setNewBuildOrder({...newBuildOrder, priority:e.target.value})}>
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Due Date</label>
+                  <input style={inputStyle} type="date" value={newBuildOrder.due_date} onChange={e => setNewBuildOrder({...newBuildOrder, due_date:e.target.value})} />
+                </div>
+                <div>
+                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Assign To</label>
+                  <select style={selectStyle} value={newBuildOrder.team_member_id} onChange={e => setNewBuildOrder({...newBuildOrder, team_member_id:e.target.value})}>
+                    <option value="">Unassigned</option>
+                    {activeMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginBottom:12 }}>
+                <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Notes</label>
+                <textarea style={{ ...inputStyle, minHeight:60,resize:"vertical" }} placeholder="Optional build notes…" value={newBuildOrder.notes}
+                  onChange={e => setNewBuildOrder({...newBuildOrder, notes:e.target.value})} />
+              </div>
+              <button className="btn-primary" disabled={!newBuildOrder.product_id || !newBuildOrder.quantity || prodBusy} onClick={handleCreateBuildOrder}>
+                Create Build Order
+              </button>
+            </div>
+
+            {/* ── Active Build Orders ── */}
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:14 }}>Active Build Orders ({activeOrders.length})</div>
+              {activeOrders.length === 0 ? (
+                <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"40px 22px",textAlign:"center",
+                  boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                  <div style={{ fontSize:32,marginBottom:8 }}>🏭</div>
+                  <div style={{ fontSize:14,color:"#86868b" }}>No active build orders. Create one above to get started.</div>
+                </div>
+              ) : (
+                <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))",gap:16 }}>
+                  {activeOrders.map(bo => {
+                    const prod = products.find(p => p.id === bo.product_id);
+                    const assignment = buildAssignments.find(a => a.build_order_id === bo.id && a.status !== "completed");
+                    const assignedMember = assignment ? teamMembers.find(m => m.id === assignment.team_member_id) : null;
+                    const dueDate = bo.due_date ? new Date(bo.due_date) : null;
+                    const isOverdue = dueDate && dueDate < new Date() && bo.status !== "completed";
+                    return (
+                      <div key={bo.id} style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",
+                        boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:isOverdue?`2px solid #ff3b30`:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
+                        transition:"transform 0.15s,box-shadow 0.15s" }}
+                        onMouseOver={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.1)"}}
+                        onMouseOut={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.06)"}}>
+                        {/* Header: product name + quantity */}
+                        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12 }}>
+                          <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                            {prod && <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#0071e3",flexShrink:0 }} />}
+                            <div style={{ fontSize:15,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{prod?.name || "Unknown Product"}</div>
+                          </div>
+                          <div style={{ fontSize:20,fontWeight:800,color:"#0071e3",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>×{bo.quantity}</div>
+                        </div>
+                        {/* Badges */}
+                        <div style={{ display:"flex",gap:8,marginBottom:12,flexWrap:"wrap" }}>
+                          <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,
+                            background:statusColors[bo.status]+"18",color:statusColors[bo.status] }}>
+                            {bo.status}
+                          </span>
+                          <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,
+                            background:priorityColors[bo.priority]+"18",color:priorityColors[bo.priority] }}>
+                            {bo.priority}
+                          </span>
+                          {isOverdue && <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,background:"#ff3b3018",color:"#ff3b30" }}>Overdue</span>}
+                        </div>
+                        {/* Details */}
+                        <div style={{ fontSize:12,color:"#86868b",marginBottom:12,display:"flex",flexDirection:"column",gap:4 }}>
+                          {dueDate && <div>Due: {dueDate.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>}
+                          <div>Assigned: {assignedMember ? assignedMember.name : "Unassigned"}</div>
+                          {bo.notes && <div style={{ fontStyle:"italic",color:"#aeaeb2" }}>{bo.notes}</div>}
+                        </div>
+                        {/* Actions */}
+                        <div style={{ display:"flex",gap:8,borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",paddingTop:12 }}>
+                          {(bo.status === "pending" || bo.status === "assigned") && (
+                            <button className="btn-primary btn-sm" onClick={() => handleStartBuild(bo)} disabled={prodBusy}
+                              style={{ fontSize:12 }}>Start Build</button>
+                          )}
+                          {(bo.status === "in-progress" || bo.status === "assigned") && (
+                            <button className="btn-sm" onClick={() => handleCompleteBuild(bo)} disabled={prodBusy}
+                              style={{ fontSize:12,background:"#34c759",color:"#fff",border:"none",borderRadius:8,padding:"6px 14px",fontWeight:600,cursor:"pointer" }}>
+                              Complete
+                            </button>
+                          )}
+                          <button className="btn-ghost btn-sm" onClick={() => handleDeleteBuildOrder(bo.id)}
+                            style={{ fontSize:12,color:"#ff3b30",marginLeft:"auto" }}>Delete</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ── Completed Orders (collapsible) ── */}
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setProdCompletedCollapsed(!prodCompletedCollapsed)}>
+                <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>Completed Orders ({completedOrders.length})</div>
+                <span style={{ fontSize:14,color:"#86868b",transform:prodCompletedCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>▼</span>
+              </div>
+              {!prodCompletedCollapsed && (
+                <div style={{ marginTop:16 }}>
+                  <div style={{ display:"flex",gap:16,marginBottom:16 }}>
+                    <div style={{ fontSize:13,color:"#86868b" }}>Today: <strong style={{ color:"#34c759" }}>{completedToday}</strong></div>
+                    <div style={{ fontSize:13,color:"#86868b" }}>This week: <strong style={{ color:"#5856d6" }}>{completedWeek}</strong></div>
+                    <div style={{ fontSize:13,color:"#86868b" }}>All time: <strong>{completedOrders.length}</strong></div>
+                  </div>
+                  {completedOrders.length === 0 ? (
+                    <div style={{ fontSize:13,color:"#aeaeb2",textAlign:"center",padding:20 }}>No completed orders yet.</div>
+                  ) : (
+                    <div style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",paddingTop:12 }}>
+                      <div style={{ display:"grid",gridTemplateColumns:"2fr 80px 100px 1.5fr 1.5fr",gap:8,padding:"0 4px",marginBottom:8 }}>
+                        {["Product","Qty","Priority","Completed","Assigned To"].map(h => (
+                          <div key={h} style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b" }}>{h}</div>
+                        ))}
+                      </div>
+                      {completedOrders.slice(0, 50).map(bo => {
+                        const prod = products.find(p => p.id === bo.product_id);
+                        const assignment = buildAssignments.find(a => a.build_order_id === bo.id);
+                        const member = assignment ? teamMembers.find(m => m.id === assignment.team_member_id) : null;
+                        return (
+                          <div key={bo.id} style={{ display:"grid",gridTemplateColumns:"2fr 80px 100px 1.5fr 1.5fr",gap:8,padding:"8px 4px",
+                            borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f2f2f7",alignItems:"center" }}>
+                            <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                              {prod && <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color||"#0071e3" }} />}
+                              <span style={{ fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{prod?.name || "—"}</span>
+                            </div>
+                            <div style={{ fontSize:13,color:darkMode?"#f5f5f7":"#1d1d1f",fontWeight:600 }}>×{bo.quantity}</div>
+                            <div><span style={{ fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:20,background:priorityColors[bo.priority]+"18",color:priorityColors[bo.priority] }}>{bo.priority}</span></div>
+                            <div style={{ fontSize:12,color:"#86868b" }}>{bo.updated_at ? new Date(bo.updated_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—"}</div>
+                            <div style={{ fontSize:12,color:"#86868b" }}>{member?.name || "—"}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          );
+        })()}
 
         {/* ══════════════════════════════════════
             API KEYS / SETTINGS

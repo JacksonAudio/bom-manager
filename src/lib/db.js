@@ -238,3 +238,145 @@ export function subscribeToParts(callback) {
     )
     .subscribe()
 }
+
+// ─────────────────────────────────────────────
+// TEAM MEMBERS
+// ─────────────────────────────────────────────
+
+export async function fetchTeamMembers() {
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('*')
+    .order('name', { ascending: true })
+  check(error, 'fetchTeamMembers')
+  return data
+}
+
+export async function createTeamMember(fields, userId) {
+  const { data, error } = await supabase
+    .from('team_members')
+    .insert({ ...fields, created_by: userId })
+    .select()
+    .single()
+  check(error, 'createTeamMember')
+  return data
+}
+
+export async function updateTeamMember(id, fields) {
+  const { error } = await supabase
+    .from('team_members')
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  check(error, 'updateTeamMember')
+}
+
+export async function deleteTeamMember(id) {
+  const { error } = await supabase
+    .from('team_members')
+    .delete()
+    .eq('id', id)
+  check(error, 'deleteTeamMember')
+}
+
+// ─────────────────────────────────────────────
+// BUILD ORDERS
+// ─────────────────────────────────────────────
+
+export async function fetchBuildOrders() {
+  const { data, error } = await supabase
+    .from('build_orders')
+    .select('*')
+    .order('created_at', { ascending: false })
+  check(error, 'fetchBuildOrders')
+  return data
+}
+
+export async function createBuildOrder(fields, userId) {
+  const { data, error } = await supabase
+    .from('build_orders')
+    .insert({ ...fields, created_by: userId })
+    .select()
+    .single()
+  check(error, 'createBuildOrder')
+  return data
+}
+
+export async function updateBuildOrder(id, fields, userId) {
+  const update = { ...fields, updated_at: new Date().toISOString() }
+  if (userId) update.updated_by = userId
+  const { error } = await supabase
+    .from('build_orders')
+    .update(update)
+    .eq('id', id)
+  check(error, 'updateBuildOrder')
+}
+
+export async function deleteBuildOrder(id) {
+  const { error } = await supabase
+    .from('build_orders')
+    .delete()
+    .eq('id', id)
+  check(error, 'deleteBuildOrder')
+}
+
+// ─────────────────────────────────────────────
+// BUILD ASSIGNMENTS
+// ─────────────────────────────────────────────
+
+export async function fetchBuildAssignments() {
+  const { data, error } = await supabase
+    .from('build_assignments')
+    .select('*')
+    .order('created_at', { ascending: false })
+  check(error, 'fetchBuildAssignments')
+  return data
+}
+
+export async function createBuildAssignment(fields) {
+  const { data, error } = await supabase
+    .from('build_assignments')
+    .insert(fields)
+    .select()
+    .single()
+  check(error, 'createBuildAssignment')
+  return data
+}
+
+export async function updateBuildAssignment(id, fields) {
+  const { error } = await supabase
+    .from('build_assignments')
+    .update(fields)
+    .eq('id', id)
+  check(error, 'updateBuildAssignment')
+}
+
+// ─────────────────────────────────────────────
+// REALTIME — Production tables
+// ─────────────────────────────────────────────
+
+export function subscribeToTeamMembers(callback) {
+  return supabase
+    .channel('team-members-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' },
+      (payload) => callback(payload.eventType, payload.new, payload.old)
+    )
+    .subscribe()
+}
+
+export function subscribeToBuildOrders(callback) {
+  return supabase
+    .channel('build-orders-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'build_orders' },
+      (payload) => callback(payload.eventType, payload.new, payload.old)
+    )
+    .subscribe()
+}
+
+export function subscribeToBuildAssignments(callback) {
+  return supabase
+    .channel('build-assignments-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'build_assignments' },
+      (payload) => callback(payload.eventType, payload.new, payload.old)
+    )
+    .subscribe()
+}
