@@ -4881,6 +4881,24 @@ function BOMManager({ user }) {
           const completedWeek = completedOrders.filter(b => b.updated_at && new Date(b.updated_at) >= weekAgo).length;
           const activeMembers = teamMembers.filter(t => t.active !== false);
 
+          // ── Performance stats per team member
+          const memberStats = teamMembers.map(m => {
+            const memberAssignments = buildAssignments.filter(a => a.team_member_id === m.id && a.status === "completed" && a.started_at && a.completed_at);
+            const totalBuilds = buildAssignments.filter(a => a.team_member_id === m.id && a.status === "completed").length;
+            const totalUnits = memberAssignments.reduce((s, a) => {
+              const bo = buildOrders.find(b => b.id === a.build_order_id);
+              return s + (bo?.quantity || 0);
+            }, 0);
+            // Average time per build (in hours)
+            const durations = memberAssignments.map(a => (new Date(a.completed_at) - new Date(a.started_at)) / 3600000);
+            const avgHours = durations.length > 0 ? durations.reduce((s, d) => s + d, 0) / durations.length : 0;
+            // Avg time per unit
+            const avgPerUnit = totalUnits > 0 && durations.length > 0
+              ? durations.reduce((s, d, i) => { const bo = buildOrders.find(b => b.id === memberAssignments[i].build_order_id); return s + d / (bo?.quantity || 1); }, 0) / durations.length * 60
+              : 0; // in minutes
+            return { ...m, totalBuilds, totalUnits, avgHours, avgPerUnit, durations };
+          }).filter(m => m.totalBuilds > 0).sort((a, b) => a.avgPerUnit - b.avgPerUnit || b.totalUnits - a.totalUnits);
+
           const handleCreateTeamMember = async () => {
             if (!newTeamMember.name.trim()) return;
             setProdBusy(true);
@@ -4891,10 +4909,10 @@ function BOMManager({ user }) {
                 phone: newTeamMember.phone.trim() || null,
                 email: newTeamMember.email.trim() || null,
                 active: true,
-              }, user.id);
+              });
               setTeamMembers(prev => [...prev, created]);
               setNewTeamMember({ name:"", role:"assembler", phone:"", email:"" });
-            } catch (e) { console.error("Create team member failed:", e); }
+            } catch (e) { console.error("Create team member failed:", e); alert("Failed to add team member: " + e.message); }
             setProdBusy(false);
           };
 
@@ -4923,7 +4941,8 @@ function BOMManager({ user }) {
                 priority: newBuildOrder.priority,
                 status: newBuildOrder.team_member_id ? "assigned" : "pending",
                 due_date: newBuildOrder.due_date || null,
-                notes: newBuildOrder.notes.trim() || null,
+                notes: newBuildOrder.notes.trim() || "",
+                completed_count: 0,
               }, user.id);
               if (newBuildOrder.team_member_id) {
                 const ba = await createBuildAssignment({
@@ -4935,7 +4954,7 @@ function BOMManager({ user }) {
               }
               setBuildOrders(prev => [bo, ...prev]);
               setNewBuildOrder({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"" });
-            } catch (e) { console.error("Create build order failed:", e); }
+            } catch (e) { console.error("Create build order failed:", e); alert("Failed: " + e.message); }
             setProdBusy(false);
           };
 
@@ -4951,29 +4970,62 @@ function BOMManager({ user }) {
             } catch (e) { console.error("Start build failed:", e); }
           };
 
-          const handleCompleteBuild = async (bo) => {
-            if (!window.confirm(`Complete build of ${bo.quantity}x ${(products.find(p=>p.id===bo.product_id)||{}).name||"product"}? This will deduct stock.`)) return;
-            setProdBusy(true);
+          // ── Check off one unit (increment completed_count)
+          const handleCheckOffUnit = async (bo) => {
+            const newCount = (bo.completed_count || 0) + 1;
+            const isFinished = newCount >= bo.quantity;
             try {
-              // Deduct stock for each part in the product
-              const productParts = parts.filter(p => p.projectId === bo.product_id);
-              for (const part of productParts) {
-                const currentStock = parseInt(part.stockQty) || 0;
-                const deduction = (part.quantity || 1) * bo.quantity;
-                const newStock = Math.max(0, currentStock - deduction);
-                await updatePart(part.id, "stockQty", String(newStock));
+              if (isFinished) {
+                // Auto-start if not started
+                if (bo.status === "pending" || bo.status === "assigned") {
+                  await updateBuildOrder(bo.id, { status: "in-progress" }, user.id);
+                }
+                // Deduct stock for all parts
+                const productParts = parts.filter(p => p.projectId === bo.product_id);
+                for (const part of productParts) {
+                  const currentStock = parseInt(part.stockQty) || 0;
+                  const deduction = (part.quantity || 1) * bo.quantity;
+                  const newStock = Math.max(0, currentStock - deduction);
+                  await updatePart(part.id, "stockQty", String(newStock));
+                }
+                await updateBuildOrder(bo.id, { status: "completed", completed_count: newCount }, user.id);
+                setBuildOrders(prev => prev.map(b => b.id === bo.id ? { ...b, status: "completed", completed_count: newCount, updated_at: new Date().toISOString() } : b));
+                const assignment = buildAssignments.find(a => a.build_order_id === bo.id && a.status !== "completed");
+                let buildDuration = null;
+                if (assignment) {
+                  const now = new Date().toISOString();
+                  await updateBuildAssignment(assignment.id, { status: "completed", completed_at: now });
+                  setBuildAssignments(prev => prev.map(a => a.id === assignment.id ? { ...a, status: "completed", completed_at: now } : a));
+                  if (assignment.started_at) buildDuration = (new Date(now) - new Date(assignment.started_at)) / 3600000;
+                }
+                // Send completion notification email
+                const prod = products.find(p => p.id === bo.product_id);
+                const member = assignment ? teamMembers.find(m => m.id === assignment.team_member_id) : null;
+                if (apiKeys.notify_email) {
+                  fetch("/api/build-complete-notify", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      productName: prod?.name, quantity: bo.quantity,
+                      builderName: member?.name, duration: buildDuration,
+                      notifyEmail: apiKeys.notify_email,
+                    }),
+                  }).catch(e => console.error("Notification failed:", e));
+                }
+              } else {
+                // Auto-start if pending
+                const newStatus = (bo.status === "pending" || bo.status === "assigned") ? "in-progress" : bo.status;
+                await updateBuildOrder(bo.id, { status: newStatus, completed_count: newCount }, user.id);
+                setBuildOrders(prev => prev.map(b => b.id === bo.id ? { ...b, status: newStatus, completed_count: newCount } : b));
+                // Start assignment timer if first check-off
+                if (newCount === 1) {
+                  const assignment = buildAssignments.find(a => a.build_order_id === bo.id && !a.started_at);
+                  if (assignment) {
+                    await updateBuildAssignment(assignment.id, { status: "in-progress", started_at: new Date().toISOString() });
+                    setBuildAssignments(prev => prev.map(a => a.id === assignment.id ? { ...a, status: "in-progress", started_at: new Date().toISOString() } : a));
+                  }
+                }
               }
-              // Mark build order completed
-              await updateBuildOrder(bo.id, { status: "completed" }, user.id);
-              setBuildOrders(prev => prev.map(b => b.id === bo.id ? { ...b, status: "completed", updated_at: new Date().toISOString() } : b));
-              // Mark assignment completed
-              const assignment = buildAssignments.find(a => a.build_order_id === bo.id && a.status !== "completed");
-              if (assignment) {
-                await updateBuildAssignment(assignment.id, { status: "completed", completed_at: new Date().toISOString() });
-                setBuildAssignments(prev => prev.map(a => a.id === assignment.id ? { ...a, status: "completed", completed_at: new Date().toISOString() } : a));
-              }
-            } catch (e) { console.error("Complete build failed:", e); }
-            setProdBusy(false);
+            } catch (e) { console.error("Check off failed:", e); }
           };
 
           const handleDeleteBuildOrder = async (id) => {
@@ -4988,6 +5040,7 @@ function BOMManager({ user }) {
           const statusColors = { pending:"#86868b", assigned:"#0071e3", "in-progress":"#ff9500", completed:"#34c759" };
           const inputStyle = { fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:"1px solid #d2d2d7", outline:"none", transition:"border 0.15s", width:"100%" };
           const selectStyle = { ...inputStyle, background:"#fff", cursor:"pointer" };
+          const fmtHours = (h) => h < 1 ? `${Math.round(h*60)}m` : `${h.toFixed(1)}h`;
 
           return (
           <div style={{ maxWidth:1000 }}>
@@ -5009,6 +5062,37 @@ function BOMManager({ user }) {
               ))}
             </div>
 
+            {/* ── Team Performance Leaderboard ── */}
+            {memberStats.length > 0 && (
+              <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:14 }}>Team Performance</div>
+                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                  <thead>
+                    <tr style={{ borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                      {["#","Name","Role","Builds","Units","Avg Time/Build","Avg Time/Unit"].map(h=>(
+                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#86868b",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {memberStats.map((m, i) => (
+                      <tr key={m.id} style={{ borderBottom:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2") }}>
+                        <td style={{ padding:"10px 12px",fontWeight:800,fontSize:16,color:i===0?"#ffd700":i===1?"#c0c0c0":i===2?"#cd7f32":"#86868b" }}>{i+1}</td>
+                        <td style={{ padding:"10px 12px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{m.name}</td>
+                        <td style={{ padding:"10px 12px",color:"#86868b",textTransform:"capitalize" }}>{m.role}</td>
+                        <td style={{ padding:"10px 12px",fontWeight:600 }}>{m.totalBuilds}</td>
+                        <td style={{ padding:"10px 12px",fontWeight:600 }}>{m.totalUnits.toLocaleString()}</td>
+                        <td style={{ padding:"10px 12px",fontWeight:600,color:"#0071e3" }}>{m.avgHours > 0 ? fmtHours(m.avgHours) : "—"}</td>
+                        <td style={{ padding:"10px 12px",fontWeight:700,color:m.avgPerUnit > 0 ? (i === 0 ? "#34c759" : "#1d1d1f") : "#86868b" }}>
+                          {m.avgPerUnit > 0 ? `${m.avgPerUnit.toFixed(1)} min` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             {/* ── Team Members (collapsible) ── */}
             <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
@@ -5018,11 +5102,12 @@ function BOMManager({ user }) {
               </div>
               {!prodTeamCollapsed && (
                 <div style={{ marginTop:16 }}>
-                  {/* Add new team member form */}
                   <div style={{ display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"flex-end" }}>
                     <div style={{ flex:"1 1 180px" }}>
                       <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Name *</label>
-                      <input style={inputStyle} placeholder="Full name" value={newTeamMember.name} onChange={e => setNewTeamMember({...newTeamMember, name:e.target.value})} />
+                      <input style={inputStyle} placeholder="Full name" value={newTeamMember.name}
+                        onChange={e => setNewTeamMember({...newTeamMember, name:e.target.value})}
+                        onKeyDown={e => { if (e.key === "Enter") handleCreateTeamMember(); }} />
                     </div>
                     <div style={{ flex:"0 0 140px" }}>
                       <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Role</label>
@@ -5043,33 +5128,22 @@ function BOMManager({ user }) {
                     <button className="btn-primary btn-sm" disabled={!newTeamMember.name.trim() || prodBusy} onClick={handleCreateTeamMember}
                       style={{ height:37,whiteSpace:"nowrap" }}>+ Add Member</button>
                   </div>
-
-                  {/* Team members list */}
                   {teamMembers.length > 0 && (
                     <div style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",paddingTop:12 }}>
-                      <div style={{ display:"grid",gridTemplateColumns:"2fr 1fr 1.5fr 2fr 80px 80px",gap:8,padding:"0 4px",marginBottom:8 }}>
-                        {["Name","Role","Phone","Email","Status",""].map(h => (
-                          <div key={h} style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b" }}>{h}</div>
-                        ))}
-                      </div>
                       {teamMembers.map(member => (
-                        <div key={member.id} style={{ display:"grid",gridTemplateColumns:"2fr 1fr 1.5fr 2fr 80px 80px",gap:8,padding:"8px 4px",
-                          borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f2f2f7",alignItems:"center",
-                          opacity:member.active===false?0.5:1 }}>
-                          <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{member.name}</div>
-                          <div style={{ fontSize:12,color:"#86868b",textTransform:"capitalize" }}>{member.role || "—"}</div>
-                          <div style={{ fontSize:12,color:"#86868b" }}>{member.phone || "—"}</div>
-                          <div style={{ fontSize:12,color:"#86868b" }}>{member.email || "—"}</div>
-                          <div>
-                            <button className="btn-ghost btn-sm" onClick={() => handleToggleActive(member)}
-                              style={{ fontSize:11,color:member.active!==false?"#34c759":"#86868b" }}>
-                              {member.active !== false ? "Active" : "Inactive"}
-                            </button>
-                          </div>
-                          <div>
-                            <button className="btn-ghost btn-sm" onClick={() => handleDeleteTeamMember(member.id)}
-                              style={{ fontSize:11,color:"#ff3b30" }}>Delete</button>
-                          </div>
+                        <div key={member.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 4px",
+                          borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f2f2f7",opacity:member.active===false?0.5:1 }}>
+                          <div style={{ flex:1,fontSize:14,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{member.name}</div>
+                          <div style={{ fontSize:12,color:"#86868b",textTransform:"capitalize",minWidth:80 }}>{member.role || "—"}</div>
+                          <div style={{ fontSize:12,color:"#86868b",minWidth:110 }}>{member.phone || "—"}</div>
+                          <div style={{ fontSize:12,color:"#86868b",minWidth:160 }}>{member.email || "—"}</div>
+                          <button className="btn-ghost btn-sm" onClick={() => handleToggleActive(member)}
+                            style={{ fontSize:11,color:member.active!==false?"#34c759":"#86868b" }}>
+                            {member.active !== false ? "Active" : "Inactive"}
+                          </button>
+                          <button onClick={() => handleDeleteTeamMember(member.id)}
+                            style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:14,padding:"2px 6px" }}
+                            onMouseOver={e=>e.target.style.color="#ff3b30"} onMouseOut={e=>e.target.style.color="#c7c7cc"}>✕</button>
                         </div>
                       ))}
                     </div>
@@ -5096,10 +5170,8 @@ function BOMManager({ user }) {
                 <div>
                   <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Priority</label>
                   <select style={selectStyle} value={newBuildOrder.priority} onChange={e => setNewBuildOrder({...newBuildOrder, priority:e.target.value})}>
-                    <option value="low">Low</option>
-                    <option value="normal">Normal</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
+                    <option value="low">Low</option><option value="normal">Normal</option>
+                    <option value="high">High</option><option value="urgent">Urgent</option>
                   </select>
                 </div>
                 <div>
@@ -5124,7 +5196,7 @@ function BOMManager({ user }) {
               </button>
             </div>
 
-            {/* ── Active Build Orders ── */}
+            {/* ── Active Build Orders with Progress ── */}
             <div style={{ marginBottom:20 }}>
               <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:14 }}>Active Build Orders ({activeOrders.length})</div>
               {activeOrders.length === 0 ? (
@@ -5134,59 +5206,92 @@ function BOMManager({ user }) {
                   <div style={{ fontSize:14,color:"#86868b" }}>No active build orders. Create one above to get started.</div>
                 </div>
               ) : (
-                <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))",gap:16 }}>
+                <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
                   {activeOrders.map(bo => {
                     const prod = products.find(p => p.id === bo.product_id);
                     const assignment = buildAssignments.find(a => a.build_order_id === bo.id && a.status !== "completed");
                     const assignedMember = assignment ? teamMembers.find(m => m.id === assignment.team_member_id) : null;
                     const dueDate = bo.due_date ? new Date(bo.due_date) : null;
-                    const isOverdue = dueDate && dueDate < new Date() && bo.status !== "completed";
+                    const isOverdue = dueDate && dueDate < new Date();
+                    const done = bo.completed_count || 0;
+                    const total = bo.quantity || 1;
+                    const pct = Math.round(done / total * 100);
+                    // Time elapsed since start
+                    const startedAt = assignment?.started_at ? new Date(assignment.started_at) : null;
+                    const elapsed = startedAt ? (Date.now() - startedAt) / 3600000 : 0;
+
                     return (
-                      <div key={bo.id} style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",
+                      <div key={bo.id} style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,
                         boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:isOverdue?`2px solid #ff3b30`:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
-                        transition:"transform 0.15s,box-shadow 0.15s" }}
-                        onMouseOver={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.1)"}}
-                        onMouseOut={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.06)"}}>
-                        {/* Header: product name + quantity */}
-                        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12 }}>
-                          <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                            {prod && <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#0071e3",flexShrink:0 }} />}
-                            <div style={{ fontSize:15,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{prod?.name || "Unknown Product"}</div>
+                        overflow:"hidden" }}>
+                        {/* Progress bar at top */}
+                        <div style={{ height:4,background:darkMode?"#2c2c2e":"#e5e5ea" }}>
+                          <div style={{ height:"100%",background:pct>=100?"#34c759":"#0071e3",width:`${Math.min(pct,100)}%`,
+                            transition:"width 0.3s",borderRadius:"0 2px 2px 0" }} />
+                        </div>
+
+                        <div style={{ padding:"18px 22px" }}>
+                          {/* Header row */}
+                          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
+                            <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                              {prod && <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#0071e3",flexShrink:0 }} />}
+                              <div style={{ fontSize:17,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{prod?.name || "Unknown"}</div>
+                            </div>
+                            <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                              <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,
+                                background:statusColors[bo.status]+"18",color:statusColors[bo.status] }}>{bo.status}</span>
+                              <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,
+                                background:priorityColors[bo.priority]+"18",color:priorityColors[bo.priority] }}>{bo.priority}</span>
+                              {isOverdue && <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,background:"#ff3b3018",color:"#ff3b30" }}>Overdue</span>}
+                            </div>
                           </div>
-                          <div style={{ fontSize:20,fontWeight:800,color:"#0071e3",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>×{bo.quantity}</div>
-                        </div>
-                        {/* Badges */}
-                        <div style={{ display:"flex",gap:8,marginBottom:12,flexWrap:"wrap" }}>
-                          <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,
-                            background:statusColors[bo.status]+"18",color:statusColors[bo.status] }}>
-                            {bo.status}
-                          </span>
-                          <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,
-                            background:priorityColors[bo.priority]+"18",color:priorityColors[bo.priority] }}>
-                            {bo.priority}
-                          </span>
-                          {isOverdue && <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,background:"#ff3b3018",color:"#ff3b30" }}>Overdue</span>}
-                        </div>
-                        {/* Details */}
-                        <div style={{ fontSize:12,color:"#86868b",marginBottom:12,display:"flex",flexDirection:"column",gap:4 }}>
-                          {dueDate && <div>Due: {dueDate.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>}
-                          <div>Assigned: {assignedMember ? assignedMember.name : "Unassigned"}</div>
-                          {bo.notes && <div style={{ fontStyle:"italic",color:"#aeaeb2" }}>{bo.notes}</div>}
-                        </div>
-                        {/* Actions */}
-                        <div style={{ display:"flex",gap:8,borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",paddingTop:12 }}>
-                          {(bo.status === "pending" || bo.status === "assigned") && (
-                            <button className="btn-primary btn-sm" onClick={() => handleStartBuild(bo)} disabled={prodBusy}
-                              style={{ fontSize:12 }}>Start Build</button>
-                          )}
-                          {(bo.status === "in-progress" || bo.status === "assigned") && (
-                            <button className="btn-sm" onClick={() => handleCompleteBuild(bo)} disabled={prodBusy}
-                              style={{ fontSize:12,background:"#34c759",color:"#fff",border:"none",borderRadius:8,padding:"6px 14px",fontWeight:600,cursor:"pointer" }}>
-                              Complete
+
+                          {/* Progress section — the main feature */}
+                          <div style={{ display:"flex",alignItems:"center",gap:16,marginBottom:14,flexWrap:"wrap" }}>
+                            <div style={{ flex:1,minWidth:200 }}>
+                              <div style={{ display:"flex",justifyContent:"space-between",marginBottom:6 }}>
+                                <span style={{ fontSize:24,fontWeight:800,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                                  {done} <span style={{ fontSize:14,fontWeight:400,color:"#86868b" }}>of</span> {total}
+                                </span>
+                                <span style={{ fontSize:18,fontWeight:700,color:pct>=100?"#34c759":"#0071e3" }}>{pct}%</span>
+                              </div>
+                              {/* Visual progress bar */}
+                              <div style={{ height:10,background:darkMode?"#2c2c2e":"#e5e5ea",borderRadius:5,overflow:"hidden" }}>
+                                <div style={{ height:"100%",background:pct>=100?"#34c759":"#0071e3",width:`${Math.min(pct,100)}%`,
+                                  transition:"width 0.3s ease",borderRadius:5 }} />
+                              </div>
+                            </div>
+                            {/* Check off button — big and easy to tap */}
+                            <button onClick={() => handleCheckOffUnit(bo)} disabled={prodBusy || done >= total}
+                              style={{ width:64,height:64,borderRadius:16,border:"none",cursor:done>=total?"not-allowed":"pointer",
+                                background:done>=total?"#34c759":"#0071e3",color:"#fff",fontSize:24,fontWeight:800,
+                                fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",
+                                display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
+                                boxShadow:"0 2px 8px rgba(0,0,0,0.15)",transition:"transform 0.1s",opacity:done>=total?0.6:1 }}
+                              onMouseDown={e=>{if(done<total)e.currentTarget.style.transform="scale(0.92)"}}
+                              onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
+                              onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
+                              {done>=total ? "✓" : "+1"}
                             </button>
-                          )}
-                          <button className="btn-ghost btn-sm" onClick={() => handleDeleteBuildOrder(bo.id)}
-                            style={{ fontSize:12,color:"#ff3b30",marginLeft:"auto" }}>Delete</button>
+                          </div>
+
+                          {/* Details row */}
+                          <div style={{ display:"flex",gap:16,fontSize:12,color:"#86868b",flexWrap:"wrap" }}>
+                            {assignedMember && <span>Builder: <strong style={{ color:darkMode?"#f5f5f7":"#1d1d1f" }}>{assignedMember.name}</strong></span>}
+                            {dueDate && <span>Due: {dueDate.toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>}
+                            {startedAt && <span>Elapsed: <strong style={{ color:"#ff9500" }}>{fmtHours(elapsed)}</strong></span>}
+                            {startedAt && done > 0 && <span>Pace: <strong style={{ color:"#0071e3" }}>{(elapsed/done*60).toFixed(1)} min/unit</strong></span>}
+                            {bo.notes && <span style={{ fontStyle:"italic" }}>{bo.notes}</span>}
+                          </div>
+
+                          {/* Actions */}
+                          <div style={{ display:"flex",gap:8,borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",paddingTop:12,marginTop:12 }}>
+                            {(bo.status === "pending" || bo.status === "assigned") && (
+                              <button className="btn-primary btn-sm" onClick={() => handleStartBuild(bo)} disabled={prodBusy}>Start Build</button>
+                            )}
+                            <button className="btn-ghost btn-sm" onClick={() => handleDeleteBuildOrder(bo.id)}
+                              style={{ color:"#ff3b30",marginLeft:"auto" }}>Delete</button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -5212,27 +5317,25 @@ function BOMManager({ user }) {
                   {completedOrders.length === 0 ? (
                     <div style={{ fontSize:13,color:"#aeaeb2",textAlign:"center",padding:20 }}>No completed orders yet.</div>
                   ) : (
-                    <div style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",paddingTop:12 }}>
-                      <div style={{ display:"grid",gridTemplateColumns:"2fr 80px 100px 1.5fr 1.5fr",gap:8,padding:"0 4px",marginBottom:8 }}>
-                        {["Product","Qty","Priority","Completed","Assigned To"].map(h => (
-                          <div key={h} style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b" }}>{h}</div>
-                        ))}
-                      </div>
+                    <div>
                       {completedOrders.slice(0, 50).map(bo => {
                         const prod = products.find(p => p.id === bo.product_id);
                         const assignment = buildAssignments.find(a => a.build_order_id === bo.id);
                         const member = assignment ? teamMembers.find(m => m.id === assignment.team_member_id) : null;
+                        const duration = assignment?.started_at && assignment?.completed_at
+                          ? (new Date(assignment.completed_at) - new Date(assignment.started_at)) / 3600000 : null;
                         return (
-                          <div key={bo.id} style={{ display:"grid",gridTemplateColumns:"2fr 80px 100px 1.5fr 1.5fr",gap:8,padding:"8px 4px",
-                            borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f2f2f7",alignItems:"center" }}>
-                            <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                              {prod && <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color||"#0071e3" }} />}
-                              <span style={{ fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{prod?.name || "—"}</span>
-                            </div>
-                            <div style={{ fontSize:13,color:darkMode?"#f5f5f7":"#1d1d1f",fontWeight:600 }}>×{bo.quantity}</div>
-                            <div><span style={{ fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:20,background:priorityColors[bo.priority]+"18",color:priorityColors[bo.priority] }}>{bo.priority}</span></div>
-                            <div style={{ fontSize:12,color:"#86868b" }}>{bo.updated_at ? new Date(bo.updated_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—"}</div>
-                            <div style={{ fontSize:12,color:"#86868b" }}>{member?.name || "—"}</div>
+                          <div key={bo.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 4px",
+                            borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f2f2f7" }}>
+                            {prod && <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color||"#0071e3",flexShrink:0 }} />}
+                            <div style={{ flex:1,fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{prod?.name || "—"}</div>
+                            <div style={{ fontSize:13,fontWeight:700,color:"#0071e3",minWidth:50 }}>×{bo.quantity}</div>
+                            <div style={{ fontSize:12,color:"#86868b",minWidth:100 }}>{member?.name || "—"}</div>
+                            {duration !== null && <div style={{ fontSize:12,fontWeight:600,color:"#34c759",minWidth:60 }}>{fmtHours(duration)}</div>}
+                            {duration !== null && bo.quantity > 0 && (
+                              <div style={{ fontSize:11,color:"#86868b",minWidth:80 }}>{(duration/bo.quantity*60).toFixed(1)} min/unit</div>
+                            )}
+                            <div style={{ fontSize:11,color:"#aeaeb2",minWidth:80 }}>{bo.updated_at ? new Date(bo.updated_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—"}</div>
                           </div>
                         );
                       })}

@@ -252,10 +252,10 @@ export async function fetchTeamMembers() {
   return data
 }
 
-export async function createTeamMember(fields, userId) {
+export async function createTeamMember(fields) {
   const { data, error } = await supabase
     .from('team_members')
-    .insert({ ...fields, created_by: userId })
+    .insert(fields)
     .select()
     .single()
   check(error, 'createTeamMember')
