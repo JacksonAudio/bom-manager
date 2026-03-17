@@ -301,12 +301,10 @@ export async function createBuildOrder(fields, userId) {
   return data
 }
 
-export async function updateBuildOrder(id, fields, userId) {
-  const update = { ...fields, updated_at: new Date().toISOString() }
-  if (userId) update.updated_by = userId
+export async function updateBuildOrder(id, fields) {
   const { error } = await supabase
     .from('build_orders')
-    .update(update)
+    .update(fields)
     .eq('id', id)
   check(error, 'updateBuildOrder')
 }

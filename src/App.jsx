@@ -814,12 +814,12 @@ const CSS = `
   ::-webkit-scrollbar-track { background: #f5f5f7; }
   ::-webkit-scrollbar-thumb { background: #d2d2d7; border-radius: 3px; }
 
-  .nav-btn { background: none; border: none; cursor: pointer; padding: 10px 18px;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; font-size: 13px; font-weight: 600;
-    color: #86868b; transition: all 0.15s; display: flex; align-items: center; gap: 8px;
-    border-bottom: 2px solid transparent; }
-  .nav-btn:hover { color: #1d1d1f; }
-  .nav-btn.active { color: #0071e3; border-bottom: 2px solid #0071e3; }
+  .nav-btn { background: none; border: none; cursor: pointer; padding: 8px 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; font-size: 12px; font-weight: 500;
+    color: #86868b; transition: all 0.15s;
+    border-bottom: 1px solid transparent; white-space: nowrap; }
+  .nav-btn:hover { color: #1d1d1f; background: rgba(0,0,0,0.03); }
+  .nav-btn.active { color: #0071e3; font-weight: 600; border-bottom: 2px solid #0071e3; }
 
   .supplier-pill { display: inline-flex; align-items: center; gap: 4px;
     padding: 3px 9px; border-radius: 4px; border: none;
@@ -900,7 +900,7 @@ const CSS = `
   .dark ::-webkit-scrollbar-thumb { background: #3a3a3e; }
 
   .dark .nav-btn { color: #98989d; }
-  .dark .nav-btn:hover { color: #f5f5f7; }
+  .dark .nav-btn:hover { color: #f5f5f7; background: rgba(255,255,255,0.05); }
   .dark .nav-btn.active { color: #64d2ff; border-bottom-color: #64d2ff; }
 
   /* Override ALL inline backgrounds inside .dark */
@@ -2277,27 +2277,27 @@ function BOMManager({ user }) {
       </header>
 
       {/* ── NAV ── */}
-      <nav style={{ display:"flex", padding:"0 28px", borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
-        background:darkMode?"#1c1c1e":"#fff", gap:2 }}>
+      <nav style={{ display:"flex", padding:"0 20px", borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
+        background:darkMode?"#1c1c1e":"#fff", gap:0, overflowX:"auto", overflowY:"hidden" }}>
         {[
-          { id:"dashboard", icon:"🏠", label:"Dashboard" },
-          { id:"bom",       icon:"🔩", label:`Parts Library (${parts.length})` },
-          { id:"scan",      icon:"📷", label:"Scan" },
-          { id:"import",    icon:"⬆", label:"Import BOM" },
-          { id:"pricing",   icon:"💰", label:`Pricing ${pricedCount>0?`(${pricedCount}/${parts.length})`:""}` },
-          { id:"purchasing",icon:"🛒", label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}` },
-          { id:"orders",    icon:"📋", label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}` },
-          { id:"demand",    icon:"📊", label:`Demand${shopifyDemand?.totalOrders?` (${shopifyDemand.totalOrders})`:""}` },
-          { id:"production", icon:"\uD83C\uDFED", label:`Production${buildOrders.filter(b=>b.status!=="completed").length>0?` (${buildOrders.filter(b=>b.status!=="completed").length})`:""}` },
-          { id:"scoreboard", icon:"\uD83C\uDFC6", label:"Scoreboard" },
-          { id:"projects",  icon:"📦", label:"Products" },
-          { id:"alerts",    icon:"⚠",  label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}` },
-          { id:"settings",  icon:"⚙",  label:"Settings" },
+          { id:"dashboard", label:"Dashboard" },
+          { id:"bom",       label:`Parts (${parts.length})` },
+          { id:"scan",      label:"Scan" },
+          { id:"import",    label:"Import" },
+          { id:"pricing",   label:`Pricing${pricedCount>0?` (${pricedCount}/${parts.length})`:""}` },
+          { id:"purchasing",label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}` },
+          { id:"orders",    label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}` },
+          { id:"demand",    label:`Demand${shopifyDemand?.totalOrders?` (${shopifyDemand.totalOrders})`:""}` },
+          { id:"production",label:`Production${buildOrders.filter(b=>b.status!=="completed").length>0?` (${buildOrders.filter(b=>b.status!=="completed").length})`:""}` },
+          { id:"scoreboard",label:"Scoreboard" },
+          { id:"projects",  label:"Products" },
+          { id:"alerts",    label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}` },
+          { id:"settings",  label:"Settings" },
         ].map((tab) => (
           <button key={tab.id}
             className={`nav-btn ${activeView===tab.id?"active":""}`}
             onClick={() => setActiveView(tab.id)}>
-            {tab.icon} {tab.label}
+            {tab.label}
           </button>
         ))}
       </nav>
@@ -5010,7 +5010,7 @@ function BOMManager({ user }) {
 
           const handleStartBuild = async (bo) => {
             try {
-              await updateBuildOrder(bo.id, { status: "in-progress" }, user.id);
+              await updateBuildOrder(bo.id, { status: "in-progress" });
               setBuildOrders(prev => prev.map(b => b.id === bo.id ? { ...b, status: "in-progress" } : b));
               const assignment = buildAssignments.find(a => a.build_order_id === bo.id && a.status !== "completed");
               if (assignment) {
@@ -5028,7 +5028,7 @@ function BOMManager({ user }) {
               if (isFinished) {
                 // Auto-start if not started
                 if (bo.status === "pending" || bo.status === "assigned") {
-                  await updateBuildOrder(bo.id, { status: "in-progress" }, user.id);
+                  await updateBuildOrder(bo.id, { status: "in-progress" });
                 }
                 // Deduct stock for all parts
                 const productParts = parts.filter(p => p.projectId === bo.product_id);
@@ -5038,7 +5038,7 @@ function BOMManager({ user }) {
                   const newStock = Math.max(0, currentStock - deduction);
                   await updatePart(part.id, "stockQty", String(newStock));
                 }
-                await updateBuildOrder(bo.id, { status: "completed", completed_count: newCount }, user.id);
+                await updateBuildOrder(bo.id, { status: "completed", completed_count: newCount });
                 setBuildOrders(prev => prev.map(b => b.id === bo.id ? { ...b, status: "completed", completed_count: newCount, updated_at: new Date().toISOString() } : b));
                 const assignment = buildAssignments.find(a => a.build_order_id === bo.id && a.status !== "completed");
                 let buildDuration = null;
@@ -5079,7 +5079,7 @@ function BOMManager({ user }) {
               } else {
                 // Auto-start if pending
                 const newStatus = (bo.status === "pending" || bo.status === "assigned") ? "in-progress" : bo.status;
-                await updateBuildOrder(bo.id, { status: newStatus, completed_count: newCount }, user.id);
+                await updateBuildOrder(bo.id, { status: newStatus, completed_count: newCount });
                 setBuildOrders(prev => prev.map(b => b.id === bo.id ? { ...b, status: newStatus, completed_count: newCount } : b));
                 // Start assignment timer if first check-off
                 if (newCount === 1) {
