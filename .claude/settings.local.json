@@ -26,7 +26,14 @@
       "Bash(node -e \"\nconst code = require\\('fs'\\).readFileSync\\('/Users/BradJackson/Downloads/jackson-bom/src/App.jsx','utf8'\\);\nlet curlies=0, parens=0, squares=0;\nfor\\(const c of code\\){if\\(c==='{'\\)curlies++;if\\(c==='}'\\)curlies--;if\\(c==='\\('\\)parens++;if\\(c==='\\)'\\)parens--;if\\(c==='['\\)squares++;if\\(c===']'\\)squares--;}\nconsole.log\\('Curly:',curlies,'Paren:',parens,'Square:',squares\\);\n\")",
       "Bash(node -e \"\nconst code = require\\('fs'\\).readFileSync\\('/Users/BradJackson/Downloads/jackson-bom/src/App.jsx','utf8'\\);\nlet curlies=0, parens=0;\nfor\\(const c of code\\){if\\(c==='{'\\)curlies++;if\\(c==='}'\\)curlies--;if\\(c==='\\('\\)parens++;if\\(c==='\\)'\\)parens--;}\nconsole.log\\('Curly:',curlies,'Paren:',parens\\);\n\")",
       "Bash(node -e \"const c=require\\('fs'\\).readFileSync\\('/Users/BradJackson/Downloads/jackson-bom/src/App.jsx','utf8'\\);let a=0,b=0;for\\(const x of c\\){if\\(x==='{'\\)a++;if\\(x==='}'\\)a--;if\\(x==='\\('\\)b++;if\\(x==='\\)'\\)b--;}console.log\\(a,b\\);\")",
-      "Bash(git -C /Users/BradJackson/Downloads/jackson-bom diff --stat)"
+      "Bash(git -C /Users/BradJackson/Downloads/jackson-bom diff --stat)",
+      "Bash(grep:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(gh auth:*)",
+      "Bash(curl:*)",
+      "Bash(/tmp/gh/gh_2.88.1_macOS_amd64/bin/gh auth:*)",
+      "Read(//Users/BradJackson/.config/gh/**)"
     ]
   }
 }

@@ -2336,7 +2336,7 @@ function BOMManager({ user }) {
 
             {/* ── Build queue */}
             {buildQueue.length > 0 && (
-              <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:"1px solid #e5e5ea" }}>
+              <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
                 <div style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",marginBottom:14,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Build Queue</div>
                 <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
                   {buildQueue.map((q) => (
@@ -2352,6 +2352,50 @@ function BOMManager({ user }) {
                 </div>
               </div>
             )}
+
+            {/* ── Quick Actions */}
+            <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:"1px solid #e5e5ea" }}>
+              <div style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",marginBottom:14,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Quick Actions</div>
+              <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
+                <button className="btn-primary" onClick={()=>setActiveView("import")}>Import BOM</button>
+                <button className="btn-primary" style={{ background:"#5856d6" }} onClick={()=>setActiveView("scan")}>Scan Parts</button>
+                <button className="btn-ghost" onClick={()=>setActiveView("purchasing")}>View Purchase Orders</button>
+                <button className="btn-ghost" onClick={() => {
+                  // Export full inventory report
+                  const header = ["Product","MPN","Reference","Value","Description","Manufacturer","Qty/Build","Stock","Reorder","Unit Cost","Stock Value","Supplier"].join(",");
+                  const rows = parts.map(p => {
+                    const stock = parseInt(p.stockQty)||0;
+                    const cost = priceAtQty(p);
+                    const prodName = products.find(x=>x.id===p.projectId)?.name || "Unassigned";
+                    return [`"${prodName}"`,p.mpn||"",p.reference||"",p.value||"",`"${(p.description||"").replace(/"/g,"'")}"`,p.manufacturer||"",p.quantity,stock,p.reorderQty||"",cost?fmtPrice(cost):"",stock*cost?(stock*cost).toFixed(2):"",p.preferredSupplier||""].join(",");
+                  });
+                  const blob = new Blob([[header,...rows].join("\n")],{type:"text/csv"});
+                  const a = document.createElement("a"); a.href=URL.createObjectURL(blob);
+                  a.download=`full-bom-report-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+                }}>
+                  Export Full Report (CSV)
+                </button>
+                <button className="btn-ghost" onClick={() => {
+                  // Save BOM snapshot for versioning
+                  const snapshot = {
+                    date: new Date().toISOString(),
+                    products: products.map(p => ({ id:p.id, name:p.name })),
+                    parts: parts.map(p => ({ id:p.id, mpn:p.mpn, reference:p.reference, value:p.value, description:p.description,
+                      quantity:p.quantity, stockQty:p.stockQty, unitCost:p.unitCost, projectId:p.projectId, manufacturer:p.manufacturer })),
+                    inventoryValue,
+                  };
+                  try {
+                    const snapshots = JSON.parse(localStorage.getItem("bom_snapshots") || "[]");
+                    snapshots.push(snapshot);
+                    if (snapshots.length > 20) snapshots.shift(); // keep last 20
+                    localStorage.setItem("bom_snapshots", JSON.stringify(snapshots));
+                    alert(`BOM snapshot saved (${snapshot.parts.length} parts, $${fmtDollar(inventoryValue)} inventory)`);
+                  } catch (e) { alert("Snapshot save failed: " + e.message); }
+                }}>
+                  Save BOM Snapshot
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
