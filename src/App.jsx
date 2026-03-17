@@ -1083,6 +1083,9 @@ function BOMManager({ user }) {
   const [settingsSaving, setSettingsSaving] = useState(""); // which section is saving
   const [settingsSaved, setSettingsSaved] = useState(""); // which section just saved
   const [qrModalParts, setQrModalParts] = useState(null); // array of parts to show QR labels for
+  const [invoiceParsing, setInvoiceParsing] = useState(false);
+  const [invoiceResult, setInvoiceResult] = useState(null); // { items: [...], matched: [...] }
+  const [invoiceError, setInvoiceError] = useState("");
   const [darkMode, setDarkMode] = useState(() => {
     try { return localStorage.getItem("bom_dark_mode") === "true"; } catch { return false; }
   });
@@ -1754,6 +1757,63 @@ function BOMManager({ user }) {
   };
 
   // ── Update quick-add form field for a product
+  // ── Parse invoice PDF using Claude AI
+  const parseInvoice = async (file) => {
+    if (!apiKeys.anthropic_api_key) {
+      setInvoiceError("Set your Anthropic API key in Settings → AI first.");
+      return;
+    }
+    setInvoiceParsing(true);
+    setInvoiceError("");
+    setInvoiceResult(null);
+    try {
+      // Read file as text (for text-based PDFs) or extract from PDF
+      const text = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsText(file);
+      });
+
+      const res = await fetch("/api/parse-invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceText: text.substring(0, 30000), apiKey: apiKeys.anthropic_api_key }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "API call failed");
+      if (!data.items?.length) throw new Error("No line items found in invoice");
+
+      // Match items to existing parts by MPN
+      const matched = data.items.map((item) => {
+        const mpnLower = (item.mpn || "").toLowerCase();
+        const match = parts.find(p => p.mpn && p.mpn.toLowerCase() === mpnLower);
+        return { ...item, matchedPart: match || null, apply: !!match };
+      });
+      setInvoiceResult({ items: matched, fileName: file.name });
+    } catch (e) {
+      setInvoiceError("Invoice parsing failed: " + e.message);
+    } finally {
+      setInvoiceParsing(false);
+    }
+  };
+
+  // ── Apply parsed invoice — update stock and costs
+  const applyInvoiceResults = async () => {
+    if (!invoiceResult) return;
+    const toApply = invoiceResult.items.filter(i => i.apply && i.matchedPart);
+    for (const item of toApply) {
+      const oldStock = parseInt(item.matchedPart.stockQty) || 0;
+      const newStock = oldStock + (parseInt(item.quantity) || 0);
+      await updatePart(item.matchedPart.id, "stockQty", String(newStock));
+      if (item.unitPrice > 0) {
+        await updatePart(item.matchedPart.id, "unitCost", String(item.unitPrice));
+      }
+    }
+    setInvoiceResult(null);
+    setInvoiceError("");
+  };
+
   const setQAField = (productId, field, value) =>
     setQuickAdd((prev) => ({ ...prev, [productId]: { ...(prev[productId]||{}), [field]: value } }));
 
@@ -3249,13 +3309,92 @@ function BOMManager({ user }) {
                 <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Order Tracker</h2>
                 <p style={{ color:"#86868b",fontSize:13 }}>Track orders across all suppliers. Mouser cart orders are logged automatically.</p>
               </div>
-              <button className="btn-primary" onClick={() => setOrderForm({
-                supplier: "Mouser", supplierColor: "#e8500a", poNumber: "", notes: "",
-                items: [{ mpn: "", qty: 1, unitPrice: "" }],
-              })}>
-                + Log Order Manually
-              </button>
+              <div style={{ display:"flex",gap:8 }}>
+                <button className="btn-primary" onClick={() => setOrderForm({
+                  supplier: "Mouser", supplierColor: "#e8500a", poNumber: "", notes: "",
+                  items: [{ mpn: "", qty: 1, unitPrice: "" }],
+                })}>
+                  + Log Order Manually
+                </button>
+                <label style={{ display:"inline-flex",alignItems:"center",gap:8,padding:"9px 18px",borderRadius:980,
+                  fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:"#5856d6",color:"#fff",
+                  fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",whiteSpace:"nowrap" }}>
+                  {invoiceParsing ? "Parsing…" : "📄 Upload Invoice (AI)"}
+                  <input type="file" accept=".pdf,.csv,.txt,.tsv" style={{ display:"none" }}
+                    onChange={(e) => { const f = e.target.files[0]; if (f) parseInvoice(f); e.target.value=""; }}
+                    disabled={invoiceParsing} />
+                </label>
+              </div>
             </div>
+
+            {/* Invoice parsing error */}
+            {invoiceError && (
+              <div style={{ background:"#fff2f2",border:"1px solid #ffccc7",borderRadius:10,padding:"14px 18px",marginBottom:16,fontSize:13,color:"#ff3b30",
+                display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                <span>{invoiceError}</span>
+                <button onClick={()=>setInvoiceError("")} style={{ background:"none",border:"none",cursor:"pointer",color:"#ff3b30",fontSize:16 }}>✕</button>
+              </div>
+            )}
+
+            {/* Invoice parse results — review and apply */}
+            {invoiceResult && (
+              <div style={{ background:"#fff",borderRadius:12,boxShadow:"0 2px 8px rgba(0,0,0,0.08)",marginBottom:20,overflow:"hidden",border:"1px solid #e5e5ea" }}>
+                <div style={{ background:"#5856d6",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                  <div>
+                    <div style={{ fontWeight:700,fontSize:14,color:"#fff",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                      AI Invoice Results — {invoiceResult.fileName}
+                    </div>
+                    <div style={{ fontSize:11,color:"rgba(255,255,255,0.7)",marginTop:2 }}>
+                      {invoiceResult.items.length} items found · {invoiceResult.items.filter(i=>i.matchedPart).length} matched to your parts
+                    </div>
+                  </div>
+                  <div style={{ display:"flex",gap:8 }}>
+                    <button onClick={applyInvoiceResults}
+                      style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:"#34c759",color:"#fff" }}>
+                      Apply {invoiceResult.items.filter(i=>i.apply&&i.matchedPart).length} Updates
+                    </button>
+                    <button onClick={()=>setInvoiceResult(null)}
+                      style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"1px solid rgba(255,255,255,0.3)",background:"transparent",color:"#fff" }}>
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                  <thead>
+                    <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
+                      <th style={{ padding:"10px 14px",textAlign:"center",width:40,fontSize:10,color:"#86868b" }}>USE</th>
+                      <th style={{ padding:"10px 14px",textAlign:"left",fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.06em" }}>MPN</th>
+                      <th style={{ padding:"10px 14px",textAlign:"left",fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.06em" }}>DESCRIPTION</th>
+                      <th style={{ padding:"10px 14px",textAlign:"right",fontSize:10,color:"#86868b",fontWeight:700 }}>QTY</th>
+                      <th style={{ padding:"10px 14px",textAlign:"right",fontSize:10,color:"#86868b",fontWeight:700 }}>UNIT PRICE</th>
+                      <th style={{ padding:"10px 14px",textAlign:"left",fontSize:10,color:"#86868b",fontWeight:700 }}>MATCHED PART</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoiceResult.items.map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom:"1px solid #f0f0f2",background:item.matchedPart?"transparent":"#fffbf0" }}>
+                        <td style={{ padding:"8px 14px",textAlign:"center" }}>
+                          <input type="checkbox" checked={item.apply} disabled={!item.matchedPart}
+                            onChange={()=>setInvoiceResult(prev=>({...prev,items:prev.items.map((it,i)=>i===idx?{...it,apply:!it.apply}:it)}))}
+                            style={{ width:15,height:15,cursor:"pointer",accentColor:"#5856d6" }} />
+                        </td>
+                        <td style={{ padding:"8px 14px",fontWeight:600,color:"#1d1d1f" }}>{item.mpn||"—"}</td>
+                        <td style={{ padding:"8px 14px",color:"#6e6e73",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{item.description||"—"}</td>
+                        <td style={{ padding:"8px 14px",textAlign:"right",fontWeight:600 }}>{item.quantity}</td>
+                        <td style={{ padding:"8px 14px",textAlign:"right",fontWeight:600,color:"#34c759" }}>
+                          {item.unitPrice > 0 ? `$${fmtPrice(item.unitPrice)}` : "—"}
+                        </td>
+                        <td style={{ padding:"8px 14px" }}>
+                          {item.matchedPart
+                            ? <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>✓ {item.matchedPart.mpn} (stock: {item.matchedPart.stockQty||0})</span>
+                            : <span style={{ fontSize:11,color:"#ff9500" }}>No match</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Manual order form */}
             {orderForm && (
