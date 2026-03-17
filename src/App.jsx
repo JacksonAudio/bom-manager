@@ -1038,7 +1038,7 @@ function BOMManager({ user }) {
   const [parts,       setParts]       = useState([]);
   const [products,    setProducts]    = useState([]);
   const [loading,     setLoading]     = useState(true);  // initial DB fetch in progress
-  const [activeView,  setActiveView]  = useState("bom");
+  const [activeView,  setActiveView]  = useState("dashboard");
   const [selProject,  setSelProject]  = useState("all");
   const [search,      setSearch]      = useState("");
   const [pricingSearch, setPricingSearch] = useState("");
@@ -2053,6 +2053,16 @@ function BOMManager({ user }) {
   const internalOrderCount = parts.filter(p => p.isInternal && (p.flaggedForOrder || (() => { const s=parseInt(p.stockQty),r=parseInt(p.reorderQty); return !isNaN(s)&&!isNaN(r)&&s<=r; })())).length;
   const poPartCount = Object.values(purchaseOrders).reduce((s,a)=>s+a.length,0) + internalOrderCount;
   const pricedCount = parts.filter((p) => p.pricingStatus === "done").length;
+
+  // Inventory valuation — total $ value of all stock on hand
+  const inventoryValue = parts.reduce((sum, p) => {
+    const stockQty = parseInt(p.stockQty) || 0;
+    if (stockQty <= 0) return sum;
+    const cost = priceAtQty(p);
+    return sum + (stockQty * cost);
+  }, 0);
+  const totalStockParts = parts.filter(p => (parseInt(p.stockQty) || 0) > 0).length;
+  const totalStockUnits = parts.reduce((s, p) => s + (parseInt(p.stockQty) || 0), 0);
   const hasAnyKey = nexarToken || apiKeys.mouser_api_key || dkToken || apiKeys.arrow_api_key;
 
   const priceAtQty = (part) => {
@@ -2106,6 +2116,7 @@ function BOMManager({ user }) {
         <div style={{ display:"flex", gap:20, alignItems:"center" }}>
           {[
             { label:"Parts Library", value:parts.length,   warn:false, nav:"bom" },
+            { label:"Inventory", value:`$${fmtDollar(inventoryValue)}`, warn:false, nav:"bom", isCurrency:true },
             { label:"Priced",   value:pricedCount,    warn:false, nav:"pricing" },
             { label:"To Order", value:poPartCount,    warn:poPartCount>0, nav:"purchasing" },
             { label:"Low Stock",value:lowStockParts.length, warn:lowStockParts.length>0, nav:"alerts" },
@@ -2146,6 +2157,7 @@ function BOMManager({ user }) {
       <nav style={{ display:"flex", padding:"0 28px", borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
         background:darkMode?"#1c1c1e":"#fff", gap:2 }}>
         {[
+          { id:"dashboard", icon:"🏠", label:"Dashboard" },
           { id:"bom",       icon:"🔩", label:`Parts Library (${parts.length})` },
           { id:"scan",      icon:"📷", label:"Scan" },
           { id:"import",    icon:"⬆", label:"Import BOM" },
@@ -2166,6 +2178,121 @@ function BOMManager({ user }) {
       </nav>
 
       <main style={{ flex:1, padding:"24px 28px", overflowY:"auto" }}>
+
+        {/* ══════════════════════════════════════
+            DASHBOARD — Overview & Key Metrics
+        ══════════════════════════════════════ */}
+        {activeView === "dashboard" && (
+          <div style={{ maxWidth:1000 }}>
+            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",marginBottom:4 }}>Dashboard</h2>
+            <p style={{ fontSize:14,color:"#86868b",marginBottom:24 }}>Overview of your inventory, orders, and production status.</p>
+
+            {/* ── Metric cards row */}
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:16,marginBottom:24 }}>
+              {[
+                { label:"Inventory Value", value:`$${fmtDollar(inventoryValue)}`, sub:`${totalStockParts} parts, ${totalStockUnits.toLocaleString()} units`, color:"#0071e3", nav:"bom" },
+                { label:"Low Stock Alerts", value:lowStockParts.length, sub:lowStockParts.length>0?`${lowStockParts.slice(0,3).map(p=>p.mpn||p.reference).join(", ")}${lowStockParts.length>3?" ...":""}`:"All parts stocked", color:lowStockParts.length>0?"#ff3b30":"#34c759", nav:"alerts" },
+                { label:"Parts to Order", value:poPartCount, sub:poPartCount>0?`across ${Object.keys(purchaseOrders).length} suppliers`:"No orders pending", color:poPartCount>0?"#ff9500":"#34c759", nav:"purchasing" },
+                { label:"Products", value:products.length, sub:`${pricedCount}/${parts.length} parts priced`, color:"#5856d6", nav:"projects" },
+              ].map((card) => (
+                <div key={card.label} onClick={()=>setActiveView(card.nav)}
+                  style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",
+                    cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",border:"1px solid #e5e5ea" }}
+                  onMouseOver={(e)=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.1)"}}
+                  onMouseOut={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.06)"}}>
+                  <div style={{ fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
+                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
+                  <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>{card.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Low stock table */}
+            {lowStockParts.length > 0 && (
+              <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+                  <div>
+                    <div style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Low Stock Parts</div>
+                    <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>Parts at or below reorder point</div>
+                  </div>
+                  <button className="btn-ghost btn-sm" onClick={()=>setActiveView("alerts")}>View All</button>
+                </div>
+                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                  <thead>
+                    <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
+                      {["MPN","Description","Stock","Reorder Point","Deficit"].map(h=>(
+                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#86868b",letterSpacing:"0.06em",textTransform:"uppercase",
+                          fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lowStockParts.slice(0,8).map((part)=>{
+                      const s=parseInt(part.stockQty)||0, r=parseInt(part.reorderQty)||0;
+                      return (
+                        <tr key={part.id} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                          <td style={{ padding:"10px 12px",fontWeight:600,color:"#0071e3" }}>{part.mpn||part.reference||"—"}</td>
+                          <td style={{ padding:"10px 12px",color:"#6e6e73" }}>{part.description||part.value||"—"}</td>
+                          <td style={{ padding:"10px 12px",fontWeight:700,color:"#ff3b30" }}>{s}</td>
+                          <td style={{ padding:"10px 12px" }}>{r}</td>
+                          <td style={{ padding:"10px 12px",fontWeight:700,color:"#ff3b30" }}>−{r - s}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* ── Top products by cost */}
+            {productCosts.length > 0 && (
+              <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+                  <div>
+                    <div style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Products</div>
+                    <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>BOM cost per unit</div>
+                  </div>
+                  <button className="btn-ghost btn-sm" onClick={()=>setActiveView("projects")}>Manage</button>
+                </div>
+                <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",gap:12 }}>
+                  {productCosts.map((prod) => (
+                    <div key={prod.id} style={{ padding:"14px 16px",borderRadius:10,border:"1px solid #e5e5ea",
+                      cursor:"pointer",transition:"background 0.15s" }}
+                      onClick={()=>setActiveView("projects")}
+                      onMouseOver={(e)=>e.currentTarget.style.background="#f5f5f7"}
+                      onMouseOut={(e)=>e.currentTarget.style.background="transparent"}>
+                      <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:6 }}>
+                        <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color }} />
+                        <div style={{ fontSize:14,fontWeight:600,color:"#1d1d1f" }}>{prod.name}</div>
+                      </div>
+                      <div style={{ fontSize:22,fontWeight:800,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>${fmtDollar(prod.total)}</div>
+                      <div style={{ fontSize:11,color:"#86868b",marginTop:2 }}>{prod.partCount} parts · {prod.costedCount} priced</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Build queue */}
+            {buildQueue.length > 0 && (
+              <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:"1px solid #e5e5ea" }}>
+                <div style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",marginBottom:14,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Build Queue</div>
+                <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
+                  {buildQueue.map((q) => (
+                    <div key={q.productId} style={{ padding:"12px 18px",borderRadius:10,border:"1px solid #e5e5ea",
+                      display:"flex",alignItems:"center",gap:10 }}>
+                      <div style={{ width:8,height:8,borderRadius:"50%",background:q.color }} />
+                      <div>
+                        <div style={{ fontSize:14,fontWeight:600,color:"#1d1d1f" }}>{q.name}</div>
+                        <div style={{ fontSize:12,color:"#86868b" }}>Qty: {q.qty}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ══════════════════════════════════════
             SCAN — QR/Barcode Scanner
@@ -2217,6 +2344,48 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "bom" && (
           <div>
+            {/* ── Inventory Valuation Summary */}
+            {parts.length > 0 && (
+              <div style={{ display:"flex",gap:20,marginBottom:16,padding:"16px 20px",
+                background:"#fff",borderRadius:12,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",
+                flexWrap:"wrap",alignItems:"center" }}>
+                <div>
+                  <div style={{ fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>Inventory Value</div>
+                  <div style={{ fontSize:24,fontWeight:800,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>
+                    ${fmtDollar(inventoryValue)}
+                  </div>
+                </div>
+                <div style={{ borderLeft:"1px solid #e5e5ea",paddingLeft:20 }}>
+                  <div style={{ fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>Parts in Stock</div>
+                  <div style={{ fontSize:20,fontWeight:700,color:"#1d1d1f" }}>{totalStockParts}</div>
+                </div>
+                <div style={{ borderLeft:"1px solid #e5e5ea",paddingLeft:20 }}>
+                  <div style={{ fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>Total Units</div>
+                  <div style={{ fontSize:20,fontWeight:700,color:"#1d1d1f" }}>{totalStockUnits.toLocaleString()}</div>
+                </div>
+                <div style={{ borderLeft:"1px solid #e5e5ea",paddingLeft:20 }}>
+                  <div style={{ fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>Low Stock</div>
+                  <div style={{ fontSize:20,fontWeight:700,color:lowStockParts.length>0?"#ff3b30":"#34c759" }}>{lowStockParts.length}</div>
+                </div>
+                <div style={{ marginLeft:"auto",textAlign:"right" }}>
+                  <button className="btn-ghost btn-sm" onClick={() => {
+                    const header = ["MPN","Reference","Value","Description","Manufacturer","Qty per Build","Stock","Reorder Point","Unit Cost","Stock Value","Product"].join(",");
+                    const rows = parts.map(p => {
+                      const stock = parseInt(p.stockQty)||0;
+                      const cost = priceAtQty(p);
+                      const prodName = products.find(x=>x.id===p.projectId)?.name || "";
+                      return [p.mpn,p.reference,p.value,`"${(p.description||"").replace(/"/g,"'")}"`,p.manufacturer,p.quantity,stock,p.reorderQty||"",cost?fmtPrice(cost):"",stock*cost?(stock*cost).toFixed(2):"",`"${prodName}"`].join(",");
+                    });
+                    const blob = new Blob([[header,...rows].join("\n")],{type:"text/csv"});
+                    const a = document.createElement("a"); a.href=URL.createObjectURL(blob);
+                    a.download=`inventory-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+                  }}>
+                    Export CSV
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* ── Toolbar */}
             <div style={{ display:"flex",gap:8,marginBottom:8,flexWrap:"wrap",alignItems:"center" }}>
               <div style={{ position:"relative",width:220 }}>
@@ -2285,7 +2454,7 @@ function BOMManager({ user }) {
                           }}
                         />
                       </th>
-                      {["MPN","Internal Part Number","Value","Description","Current Stock","Reorder Point",""].map((h,hi,arr)=>(
+                      {["MPN","Internal Part Number","Value","Description","Product","Current Stock","Reorder Point","Stock Value",""].map((h,hi,arr)=>(
                         <th key={hi} style={{ textAlign:"left",padding:"12px 14px",
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                           fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
@@ -2337,6 +2506,18 @@ function BOMManager({ user }) {
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,color:"#6e6e73" }} placeholder="" />
                           </td>
+                          <td style={{ padding:"6px 8px",width:110 }}>
+                            {(() => {
+                              const prod = products.find(x => x.id === part.projectId);
+                              if (!prod) return <span style={{ fontSize:11,color:"#aeaeb2" }}>—</span>;
+                              return (
+                                <span style={{ fontSize:11,fontWeight:600,color:"#1d1d1f",display:"inline-flex",alignItems:"center",gap:4 }}>
+                                  <span style={{ width:6,height:6,borderRadius:"50%",background:prod.color,flexShrink:0 }} />
+                                  {prod.name}
+                                </span>
+                              );
+                            })()}
+                          </td>
                           <td style={{ padding:"6px 8px",width:90 }}>
                             <input type="number" placeholder="0" value={part.stockQty}
                               onChange={(e)=>updatePart(part.id,"stockQty",e.target.value)}
@@ -2349,6 +2530,15 @@ function BOMManager({ user }) {
                               onChange={(e)=>updatePart(part.id,"reorderQty",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
                               style={inputStyle} min="0" />
+                          </td>
+                          <td style={{ padding:"6px 8px",width:90 }}>
+                            {(() => {
+                              const cost = priceAtQty(part);
+                              const val = sn * cost;
+                              return val > 0
+                                ? <span style={{ fontSize:13,color:"#34c759",fontWeight:600 }}>${fmtDollar(val)}</span>
+                                : <span style={{ fontSize:13,color:"#aeaeb2" }}>—</span>;
+                            })()}
                           </td>
                           <td style={{ padding:"6px 4px",width:56,whiteSpace:"nowrap" }}>
                             <button onClick={()=>setQrModalParts([part])} title="QR Label"
