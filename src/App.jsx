@@ -49,6 +49,9 @@ const DEFAULT_KEYS = {
   company_address: "",   // Your company address for POs
   distributor_names: "",  // JSON: { "raw_key": "Display Name", ... } — rename distributors
   anthropic_api_key: "",  // anthropic.com — Claude AI for invoice parsing
+  twilio_account_sid: "", // twilio.com — SMS notifications to builders
+  twilio_auth_token: "",  // twilio.com
+  twilio_phone_number: "", // twilio.com — your Twilio phone number (e.g. +1234567890)
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -1054,7 +1057,7 @@ function BOMManager({ user }) {
   const [dragOver,    setDragOver]    = useState(false);
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
-  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","ai","guide"]));
+  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","ai","sms","guide"]));
   const [buildQueue, setBuildQueue] = useState(() => { try { return JSON.parse(localStorage.getItem("bom_build_queue") || "[]"); } catch { return []; } });
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
@@ -4950,9 +4953,23 @@ function BOMManager({ user }) {
                   team_member_id: newBuildOrder.team_member_id,
                   status: "assigned",
                 });
-                // realtime will add the assignment to state
+                // SMS notify the assigned builder
+                const member = teamMembers.find(m => m.id === newBuildOrder.team_member_id);
+                const prod = products.find(p => p.id === newBuildOrder.product_id);
+                if (member?.phone && apiKeys.twilio_account_sid) {
+                  const dueStr = newBuildOrder.due_date ? ` Due: ${new Date(newBuildOrder.due_date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}` : "";
+                  fetch("/api/send-sms", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      to: member.phone,
+                      message: `New build assigned: ${bo.quantity}x ${prod?.name || "product"}. Priority: ${newBuildOrder.priority}.${dueStr}\n— Jackson Audio BOM Manager`,
+                      accountSid: apiKeys.twilio_account_sid,
+                      authToken: apiKeys.twilio_auth_token,
+                      fromNumber: apiKeys.twilio_phone_number,
+                    }),
+                  }).catch(e => console.error("SMS notify failed:", e));
+                }
               }
-              // realtime INSERT will add the build order to state — no local add needed
               setNewBuildOrder({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"" });
             } catch (e) { console.error("Create build order failed:", e); alert("Failed: " + e.message); }
             setProdBusy(false);
@@ -4998,9 +5015,11 @@ function BOMManager({ user }) {
                   setBuildAssignments(prev => prev.map(a => a.id === assignment.id ? { ...a, status: "completed", completed_at: now } : a));
                   if (assignment.started_at) buildDuration = (new Date(now) - new Date(assignment.started_at)) / 3600000;
                 }
-                // Send completion notification email
+                // Send completion notifications
                 const prod = products.find(p => p.id === bo.product_id);
                 const member = assignment ? teamMembers.find(m => m.id === assignment.team_member_id) : null;
+                const durationStr = buildDuration ? (buildDuration < 1 ? `${Math.round(buildDuration*60)}m` : `${buildDuration.toFixed(1)}h`) : "";
+                // Email the manager
                 if (apiKeys.notify_email) {
                   fetch("/api/build-complete-notify", {
                     method: "POST", headers: { "Content-Type": "application/json" },
@@ -5009,7 +5028,20 @@ function BOMManager({ user }) {
                       builderName: member?.name, duration: buildDuration,
                       notifyEmail: apiKeys.notify_email,
                     }),
-                  }).catch(e => console.error("Notification failed:", e));
+                  }).catch(e => console.error("Email notification failed:", e));
+                }
+                // Text the builder
+                if (member?.phone && apiKeys.twilio_account_sid) {
+                  fetch("/api/send-sms", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      to: member.phone,
+                      message: `Build complete! ${bo.quantity}x ${prod?.name || "product"} finished${durationStr ? ` in ${durationStr}` : ""}. Great work!\n— Jackson Audio`,
+                      accountSid: apiKeys.twilio_account_sid,
+                      authToken: apiKeys.twilio_auth_token,
+                      fromNumber: apiKeys.twilio_phone_number,
+                    }),
+                  }).catch(e => console.error("SMS notification failed:", e));
                 }
               } else {
                 // Auto-start if pending
@@ -5778,6 +5810,35 @@ function BOMManager({ user }) {
                   <input type="password" value={apiKeys.anthropic_api_key||""} onChange={e=>setApiKeys(k=>({...k,anthropic_api_key:e.target.value}))} placeholder="sk-ant-api03-..." style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
                 {sectionSaveBtn("ai", "AI Settings")}
+              </div>}
+            </div>
+
+            {/* ── SMS / Twilio */}
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("sms") ? s.delete("sms") : s.add("sms"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("sms") ? "▶" : "▼"}</span>
+                  SMS — Builder Notifications (Twilio)
+                </div>
+              </div>
+              {!collapsedSettings.has("sms") && <div style={{ padding:"16px 20px" }}>
+                <p style={{ fontSize:12,color:"#86868b",marginBottom:14 }}>
+                  Text builders when they get assigned a build order. Sign up at <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}>twilio.com</a> — free trial includes $15 credit.
+                </p>
+                <div className="key-input-row">
+                  <div><div className="key-label">Account SID</div><div className="key-hint">AC…</div></div>
+                  <input type="text" value={apiKeys.twilio_account_sid||""} onChange={e=>setApiKeys(k=>({...k,twilio_account_sid:e.target.value}))} placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                <div className="key-input-row">
+                  <div><div className="key-label">Auth Token</div><div className="key-hint">Secret token</div></div>
+                  <input type="password" value={apiKeys.twilio_auth_token||""} onChange={e=>setApiKeys(k=>({...k,twilio_auth_token:e.target.value}))} placeholder="••••••••" style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                <div className="key-input-row">
+                  <div><div className="key-label">Twilio Phone Number</div><div className="key-hint">+1XXXXXXXXXX</div></div>
+                  <input type="text" value={apiKeys.twilio_phone_number||""} onChange={e=>setApiKeys(k=>({...k,twilio_phone_number:e.target.value}))} placeholder="+15551234567" style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                {sectionSaveBtn("sms", "SMS Settings")}
               </div>}
             </div>
 
