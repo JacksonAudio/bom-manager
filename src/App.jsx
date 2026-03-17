@@ -4903,14 +4903,14 @@ function BOMManager({ user }) {
             if (!newTeamMember.name.trim()) return;
             setProdBusy(true);
             try {
-              const created = await createTeamMember({
+              await createTeamMember({
                 name: newTeamMember.name.trim(),
                 role: newTeamMember.role,
                 phone: newTeamMember.phone.trim() || null,
                 email: newTeamMember.email.trim() || null,
                 active: true,
               });
-              setTeamMembers(prev => [...prev, created]);
+              // realtime INSERT will add to state
               setNewTeamMember({ name:"", role:"assembler", phone:"", email:"" });
             } catch (e) { console.error("Create team member failed:", e); alert("Failed to add team member: " + e.message); }
             setProdBusy(false);
@@ -4945,14 +4945,14 @@ function BOMManager({ user }) {
                 completed_count: 0,
               }, user.id);
               if (newBuildOrder.team_member_id) {
-                const ba = await createBuildAssignment({
+                await createBuildAssignment({
                   build_order_id: bo.id,
                   team_member_id: newBuildOrder.team_member_id,
                   status: "assigned",
                 });
-                setBuildAssignments(prev => [ba, ...prev]);
+                // realtime will add the assignment to state
               }
-              setBuildOrders(prev => [bo, ...prev]);
+              // realtime INSERT will add the build order to state — no local add needed
               setNewBuildOrder({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"" });
             } catch (e) { console.error("Create build order failed:", e); alert("Failed: " + e.message); }
             setProdBusy(false);
