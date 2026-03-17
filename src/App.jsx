@@ -12,6 +12,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import AuthScreen from "./components/AuthScreen.jsx";
 import QRLabelModal from "./components/QRLabelModal.jsx";
 import ScannerView from "./components/ScannerView.jsx";
+import Scoreboard from "./components/Scoreboard.jsx";
 import {
   onAuthChange, signOut,
   fetchProducts, createProduct, deleteProduct,
@@ -1546,6 +1547,7 @@ function BOMManager({ user }) {
       color: row.color,
       createdBy: row.created_by,
       shopifyProductId: row.shopify_product_id || null,
+      buildMinutes: row.build_minutes || null,
     };
   }
 
@@ -2287,6 +2289,7 @@ function BOMManager({ user }) {
           { id:"orders",    icon:"📋", label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}` },
           { id:"demand",    icon:"📊", label:`Demand${shopifyDemand?.totalOrders?` (${shopifyDemand.totalOrders})`:""}` },
           { id:"production", icon:"\uD83C\uDFED", label:`Production${buildOrders.filter(b=>b.status!=="completed").length>0?` (${buildOrders.filter(b=>b.status!=="completed").length})`:""}` },
+          { id:"scoreboard", icon:"\uD83C\uDFC6", label:"Scoreboard" },
           { id:"projects",  icon:"📦", label:"Products" },
           { id:"alerts",    icon:"⚠",  label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}` },
           { id:"settings",  icon:"⚙",  label:"Settings" },
@@ -3907,6 +3910,21 @@ function BOMManager({ user }) {
         )}
 
         {/* ══════════════════════════════════════
+            SCOREBOARD
+        ══════════════════════════════════════ */}
+        {activeView === "scoreboard" && (
+          <div style={{ margin:"-24px -28px", minHeight:"calc(100vh - 120px)" }}>
+            <div style={{ padding:"12px 28px",display:"flex",justifyContent:"flex-end" }}>
+              <button onClick={() => window.open(window.location.origin + window.location.pathname + "#scoreboard", "_blank", "noopener")}
+                style={{ padding:"8px 18px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#f8d377",color:"#0a0a0f" }}>
+                Full Screen ↗
+              </button>
+            </div>
+            <Scoreboard teamMembers={teamMembers} buildOrders={buildOrders} buildAssignments={buildAssignments} products={products} />
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════
             PRODUCTS
         ══════════════════════════════════════ */}
         {activeView === "projects" && (
@@ -4023,6 +4041,21 @@ function BOMManager({ user }) {
                       }}>
                       {prodParts.some(p => p.pricingStatus === "loading") ? "Refreshing…" : `Refresh Prices (${prodParts.filter(p=>p.mpn).length})`}
                     </button>
+                    {/* Build Time input */}
+                    <div style={{ display:"flex",alignItems:"center",gap:4,marginLeft:8 }} onClick={e => e.stopPropagation()}>
+                      <span style={{ fontSize:10,color:"#86868b" }}>Build Time:</span>
+                      <input type="number" min="1" placeholder="min"
+                        value={prod.buildMinutes || ""}
+                        onChange={async (e) => {
+                          const val = e.target.value ? parseInt(e.target.value) : null;
+                          setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, buildMinutes: val } : p));
+                          try { await supabase.from("products").update({ build_minutes: val }).eq("id", prod.id); } catch (err) { console.error("Build time save failed:", err); }
+                        }}
+                        style={{ width:52,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",background:"#fff",color:"#1d1d1f" }} />
+                      <span style={{ fontSize:10,color:"#86868b" }}>
+                        {prod.buildMinutes ? (prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h ${prod.buildMinutes%60}m`) : "min"}
+                      </span>
+                    </div>
                   </div>
                   {/* ── Quick-add part form */}
                   <div style={{ padding:"12px 22px",borderTop:"1px solid #f0f0f2" }}>
