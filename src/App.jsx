@@ -1515,6 +1515,7 @@ function BOMManager({ user }) {
       isInternal:        row.is_internal         || false,
       createdBy:         row.created_by,
       updatedBy:         row.updated_by,
+      updatedAt:         row.updated_at || null,
     };
   }
 
@@ -2353,6 +2354,104 @@ function BOMManager({ user }) {
               </div>
             )}
 
+            {/* ── PO History Summary */}
+            {trackedOrders.length > 0 && (
+              <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+                  <div>
+                    <div style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>PO History</div>
+                    <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>Recent purchase orders</div>
+                  </div>
+                  <button className="btn-ghost btn-sm" onClick={()=>setActiveView("orders")}>View All</button>
+                </div>
+                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                  <thead>
+                    <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
+                      {["Supplier","PO #","Date","Items","Total","Status"].map(h=>(
+                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#86868b",letterSpacing:"0.06em",textTransform:"uppercase",
+                          fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trackedOrders.slice(0,6).map((order) => {
+                      const itemCount = (order.items || []).length;
+                      const totalValue = order.totalEstimate || (order.items || []).reduce((s,i) => s + (parseFloat(i.price)||0) * (parseInt(i.quantity)||0), 0);
+                      const dateStr = order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) : "—";
+                      const statusColors = { submitted:"#ff9500", shipped:"#0071e3", delivered:"#34c759", received:"#34c759", cancelled:"#ff3b30" };
+                      return (
+                        <tr key={order.id} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                          <td style={{ padding:"10px 12px",fontWeight:600 }}>
+                            <span style={{ color:order.supplierColor || "#1d1d1f" }}>{order.supplier || "—"}</span>
+                          </td>
+                          <td style={{ padding:"10px 12px",color:"#6e6e73",fontFamily:"monospace",fontSize:12 }}>{order.poNumber || "—"}</td>
+                          <td style={{ padding:"10px 12px",color:"#6e6e73" }}>{dateStr}</td>
+                          <td style={{ padding:"10px 12px",color:"#6e6e73" }}>{itemCount} item{itemCount !== 1 ? "s" : ""}</td>
+                          <td style={{ padding:"10px 12px",fontWeight:600,color:"#1d1d1f" }}>{totalValue > 0 ? `$${fmtDollar(totalValue)}` : "—"}</td>
+                          <td style={{ padding:"10px 12px" }}>
+                            <span style={{ display:"inline-block",padding:"2px 10px",borderRadius:980,fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",
+                              background:`${statusColors[order.status] || "#86868b"}18`,color:statusColors[order.status] || "#86868b" }}>
+                              {order.status || "unknown"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* ── Aging Inventory */}
+            {(() => {
+              const now = Date.now();
+              const AGING_DAYS = 90;
+              const agingParts = parts.filter(p => {
+                const stock = parseInt(p.stockQty) || 0;
+                if (stock <= 0) return false;
+                if (!p.updatedAt) return false;
+                const age = Math.floor((now - new Date(p.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
+                return age >= AGING_DAYS;
+              }).map(p => ({
+                ...p,
+                ageDays: Math.floor((now - new Date(p.updatedAt).getTime()) / (1000 * 60 * 60 * 24)),
+              })).sort((a,b) => b.ageDays - a.ageDays);
+
+              if (agingParts.length === 0) return null;
+              return (
+                <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+                    <div>
+                      <div style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Aging Inventory</div>
+                      <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>Parts with stock not updated in 90+ days</div>
+                    </div>
+                    <span style={{ fontSize:12,fontWeight:600,color:"#ff9500" }}>{agingParts.length} part{agingParts.length !== 1 ? "s" : ""}</span>
+                  </div>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                    <thead>
+                      <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
+                        {["MPN","Description","Stock","Age (days)","Last Updated"].map(h=>(
+                          <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#86868b",letterSpacing:"0.06em",textTransform:"uppercase",
+                            fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {agingParts.slice(0,10).map((p)=>(
+                        <tr key={p.id} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                          <td style={{ padding:"10px 12px",fontWeight:600,color:"#0071e3" }}>{p.mpn||p.reference||"—"}</td>
+                          <td style={{ padding:"10px 12px",color:"#6e6e73" }}>{p.description||p.value||"—"}</td>
+                          <td style={{ padding:"10px 12px",fontWeight:600 }}>{parseInt(p.stockQty)||0}</td>
+                          <td style={{ padding:"10px 12px",fontWeight:700,color:p.ageDays>=180?"#ff3b30":p.ageDays>=120?"#ff9500":"#86868b" }}>{p.ageDays}</td>
+                          <td style={{ padding:"10px 12px",color:"#86868b",fontSize:12 }}>{p.updatedAt ? new Date(p.updatedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+
             {/* ── Quick Actions */}
             <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:"1px solid #e5e5ea" }}>
               <div style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",marginBottom:14,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Quick Actions</div>
@@ -2783,13 +2882,26 @@ function BOMManager({ user }) {
                           </div>
                           <div style={{ flex:1,textAlign:"right" }}>
                             {effectiveStatus === "done" && bestDisplayPrice ? (
-                              <>
-                                <div style={{ fontSize:20,fontWeight:600,letterSpacing:"-0.3px",color:"#1d1d1f" }}>{"$"}{fmtPrice(bestDisplayPrice)}</div>
-                                <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>
-                                  <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#34c759",marginRight:4,verticalAlign:"middle" }}></span>
-                                  {filteredBestData?.displayName || filteredBest}
-                                </div>
-                              </>
+                              (() => {
+                                const basePrice = filteredBestData ? pAtQty(filteredBestData) : bestDisplayPrice;
+                                const bestCtry = filteredBestData ? getCountry(filteredBestData) : "";
+                                const bestOrigin = (bestCtry && bestCtry !== "US") ? bestCtry : "";
+                                const bestTariffRate = bestOrigin ? getTariffRate(bestOrigin, userTariffs) : 0;
+                                return <>
+                                  <div style={{ fontSize:20,fontWeight:600,letterSpacing:"-0.3px",color:"#1d1d1f" }}>{"$"}{fmtPrice(bestDisplayPrice)}</div>
+                                  {bestTariffRate > 0 ? (
+                                    <div style={{ fontSize:10,color:"#ff9500",marginTop:1 }}>
+                                      {"$"}{fmtPrice(basePrice)} + {bestTariffRate}% tariff = landed
+                                    </div>
+                                  ) : (
+                                    <div style={{ fontSize:10,color:"#34c759",marginTop:1 }}>Landed Cost (0% tariff)</div>
+                                  )}
+                                  <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>
+                                    <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#34c759",marginRight:4,verticalAlign:"middle" }}></span>
+                                    {filteredBestData?.displayName || filteredBest}
+                                  </div>
+                                </>;
+                              })()
                             ) : part.pricingStatus === "loading" ? (
                               <span style={{ fontSize:12,color:"#86868b" }}>Fetching…</span>
                             ) : part.pricingStatus === "error" ? (
@@ -2810,6 +2922,7 @@ function BOMManager({ user }) {
                           <div style={{ padding:"0 22px 18px",animation:"none" }}>
                             {/* Supplier cards */}
                             {sorted.length > 0 ? (
+                              <>
                               <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:14 }}>
                                 {sorted.map(([key, data], idx) => {
                                   const isBest = idx === 0;
@@ -2905,8 +3018,39 @@ function BOMManager({ user }) {
                                   );
                                 })}
                               </div>
+                              {/* Out-of-stock supplier note with alternatives link */}
+                              {(() => {
+                                const oosSuppliers = hasPricing ? Object.entries(pricingObj).filter(([k,d]) => k !== "_countryOfOrigin" && d.stock <= 0) : [];
+                                if (oosSuppliers.length === 0 || !part.mpn) return null;
+                                return (
+                                  <div style={{ padding:"8px 16px",fontSize:11,color:"#aeaeb2",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
+                                    <span style={{ color:"#ff3b30",fontWeight:500 }}>{oosSuppliers.length} supplier{oosSuppliers.length > 1 ? "s" : ""} out of stock</span>
+                                    <span>({oosSuppliers.map(([,d]) => d.displayName || "Unknown").join(", ")})</span>
+                                    <a href={`https://octopart.com/search?q=${encodeURIComponent(part.mpn)}&start=0`}
+                                      target="_blank" rel="noopener noreferrer"
+                                      onClick={e => e.stopPropagation()}
+                                      style={{ fontSize:11,color:"#0071e3",textDecoration:"none",fontWeight:600,cursor:"pointer",marginLeft:4 }}>
+                                      Search Alternatives
+                                    </a>
+                                  </div>
+                                );
+                              })()}
+                              </>
                             ) : effectiveStatus === "done" ? (
-                              <div style={{ padding:16,textAlign:"center",color:"#aeaeb2",fontSize:13 }}>No suppliers with stock{countryFilter === "us" ? " (US Only filter is on)" : " (international filter is on)"}</div>
+                              <div style={{ padding:16,textAlign:"center",color:"#aeaeb2",fontSize:13 }}>
+                                No suppliers with stock{countryFilter === "us" ? " (US Only filter is on)" : " (international filter is on)"}
+                                {part.mpn && (
+                                  <div style={{ marginTop:10 }}>
+                                    <span style={{ fontSize:12,color:"#ff9500",fontWeight:500 }}>Consider searching for alternative parts.</span>
+                                    <a href={`https://octopart.com/search?q=${encodeURIComponent(part.mpn)}&start=0`}
+                                      target="_blank" rel="noopener noreferrer"
+                                      onClick={e => e.stopPropagation()}
+                                      style={{ display:"inline-block",marginLeft:8,fontSize:12,color:"#0071e3",textDecoration:"none",fontWeight:600,cursor:"pointer" }}>
+                                      Search Alternatives on Octopart
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
                             ) : (
                               <div style={{ padding:16,textAlign:"center",color:"#aeaeb2",fontSize:13 }}>No pricing data yet</div>
                             )}
