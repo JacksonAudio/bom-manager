@@ -2835,20 +2835,24 @@ function BOMManager({ user }) {
               </div>
             </div>
 
-            {/* ── BOM History (collapsible) ── */}
-            {bomSnapshots.length > 0 && (
-              <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+            {/* ── BOM History (always visible) ── */}
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
                 <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                   onClick={() => setBomHistoryOpen(!bomHistoryOpen)}>
                   <div>
-                    <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>BOM History</div>
+                    <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>BOM Version History</div>
                     <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>{bomSnapshots.length} saved snapshot{bomSnapshots.length!==1?"s":""}</div>
                   </div>
                   <span style={{ fontSize:14,color:"#86868b",transform:bomHistoryOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s" }}>{"\u25BC"}</span>
                 </div>
                 {bomHistoryOpen && (
                   <div style={{ marginTop:16 }}>
-                    <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                    {bomSnapshots.length === 0 && (
+                      <div style={{ textAlign:"center",padding:"30px 20px",color:"#86868b",fontSize:13 }}>
+                        No snapshots saved yet. Click "Save BOM Snapshot" above to capture a version of your current BOM.
+                      </div>
+                    )}
+                    {bomSnapshots.length > 0 && <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                       <thead>
                         <tr style={{ borderBottom:"2px solid " + (darkMode?"#3a3a3e":"#e5e5ea") }}>
                           {["Date","Label","Parts","Inventory Value",""].map(h=>(
@@ -2880,7 +2884,7 @@ function BOMManager({ user }) {
                           );
                         })}
                       </tbody>
-                    </table>
+                    </table>}
 
                     {/* Comparison diff view */}
                     {bomCompareIdx !== null && bomSnapshots[bomCompareIdx] && (() => {
@@ -2951,8 +2955,7 @@ function BOMManager({ user }) {
                     })()}
                   </div>
                 )}
-              </div>
-            )}
+            </div>
           </div>
         )}
 
@@ -7127,7 +7130,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.21 — built 2026-03-18 12:50am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.22 — built 2026-03-18 1:05am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
