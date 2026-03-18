@@ -55,6 +55,7 @@ const DEFAULT_KEYS = {
   company_name:    "Jackson Audio",
   company_address: "",   // Your company address for POs
   distributor_names: "",  // JSON: { "raw_key": "Display Name", ... } — rename distributors
+  supplier_order_modes: "", // JSON: { "mouser": "api", "digikey": "api", "arrow": "rep", ... } — api|rep|manual
   anthropic_api_key: "",  // anthropic.com — Claude AI for invoice parsing
   twilio_account_sid: "", // twilio.com — SMS notifications to builders
   twilio_auth_token: "",  // twilio.com
@@ -434,6 +435,42 @@ async function mouserGetOrderOptions(orderApiKey, cartKey) {
   if (!res.ok) throw new Error(`Mouser Order Options ${res.status}`);
   return await res.json();
 }
+
+// ─────────────────────────────────────────────
+// DIGIKEY CART URL BUILDER
+// Builds a URL that opens DigiKey with parts pre-loaded into shopping cart
+// ─────────────────────────────────────────────
+function buildDigiKeyCartUrl(items) {
+  // items: [{ partNumber, quantity }]
+  // DigiKey URL format: https://www.digikey.com/ordering/shoppingcart?newproducts=PART1|QTY1,PART2|QTY2
+  const parts = items.map(i => `${encodeURIComponent(i.partNumber)}|${i.quantity}`).join(",");
+  return `https://www.digikey.com/ordering/shoppingcart?newproducts=${parts}`;
+}
+
+// ─────────────────────────────────────────────
+// SUPPLIER QUICK-ORDER URLS
+// Build URLs that open supplier websites with parts pre-loaded or for quick search
+// ─────────────────────────────────────────────
+const SUPPLIER_WEBSITE_URLS = {
+  mouser:  "https://www.mouser.com",
+  digikey: "https://www.digikey.com",
+  arrow:   "https://www.arrow.com",
+  lcsc:    "https://www.lcsc.com",
+  allied:  "https://www.alliedelec.com",
+  amazon:  "https://www.amazon.com",
+};
+
+function getSupplierOrderMode(supplierId, orderModesJson) {
+  let modes = {};
+  try { modes = JSON.parse(orderModesJson || "{}"); } catch {}
+  return modes[supplierId] || "manual";
+}
+
+const ORDER_MODE_CONFIG = {
+  api:    { label: "API",    color: "#34c759", bg: "rgba(52,199,89,0.12)", description: "Direct API ordering" },
+  rep:    { label: "Rep",    color: "#0071e3", bg: "rgba(0,113,227,0.10)", description: "Email PO to sales rep" },
+  manual: { label: "Manual", color: "#86868b", bg: "rgba(142,142,147,0.10)", description: "Order on website" },
+};
 
 // ─────────────────────────────────────────────
 // MOUSER KEYWORD SEARCH (for finding alternatives)
@@ -4142,6 +4179,13 @@ function BOMManager({ user }) {
                 const poTotal = items.reduce((s, d) => s + d.bestPrice * d.net, 0);
                 const totalUnits = items.reduce((s, d) => s + d.net, 0);
                 const poLines = items.map(d => ({ ...d.part, neededQty: d.net, unitCost: d.bestPrice, orderQty: d.net }));
+                const orderMode = getSupplierOrderMode(sid, apiKeys.supplier_order_modes);
+                const modeConf = ORDER_MODE_CONFIG[orderMode] || ORDER_MODE_CONFIG.manual;
+                let supplierEmails = {}; try { supplierEmails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
+                const repEmail = supplierEmails[sid] || "";
+                const repName = distNames[sid] || sup.name;
+                // Find last order date for this supplier from PO history
+                const lastOrder = poHistory.filter(po => (po.supplier||"").toLowerCase().includes(sid)).sort((a,b) => new Date(b.ordered_at||b.created_at) - new Date(a.ordered_at||a.created_at))[0];
                 return (
                   <div key={sid} style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:16 }}>
                     <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10 }}>
@@ -4149,11 +4193,17 @@ function BOMManager({ user }) {
                         <div style={{ width:32,height:32,background:sup.color,borderRadius:8,display:"flex",
                           alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:11,color:"#fff" }}>{sup.logo}</div>
                         <div>
-                          <div style={{ fontWeight:700,fontSize:14,color:"#1d1d1f" }}>{sup.name}</div>
+                          <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                            <span style={{ fontWeight:700,fontSize:14,color:"#1d1d1f" }}>{sup.name}</span>
+                            <span style={{ display:"inline-block",padding:"2px 8px",borderRadius:980,fontSize:9,fontWeight:700,
+                              letterSpacing:"0.04em",textTransform:"uppercase",background:modeConf.bg,color:modeConf.color }}>
+                              {modeConf.label}
+                            </span>
+                          </div>
                           <div style={{ fontSize:11,color:"#86868b" }}>{items.length} parts · {totalUnits.toLocaleString()} units · {"$"}{fmtDollar(poTotal)}</div>
                         </div>
                       </div>
-                      <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                      <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
                         <button onClick={()=>exportPOasCSV(sup,poLines,poNum)}
                           style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
                           CSV
@@ -4162,19 +4212,16 @@ function BOMManager({ user }) {
                           style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
                           Print PO
                         </button>
-                        {(() => {
-                          let emails = {};
-                          try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
-                          const email = emails[sid] || "";
-                          const draft = buildPOEmailDraft(sup.name, poLines, poNum, {name:apiKeys.company_name,address:apiKeys.company_address});
-                          return (
-                            <button onClick={() => { window.location.href = `mailto:${email}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`; }}
-                              style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
-                              Email PO
-                            </button>
-                          );
-                        })()}
-                        {sup.id === "mouser" && apiKeys.mouser_order_api_key && (
+                        <button onClick={() => {
+                            const draft = buildPOEmailDraft(sup.name, poLines, poNum, {name:apiKeys.company_name,address:apiKeys.company_address});
+                            window.location.href = `mailto:${repEmail}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
+                          }}
+                          style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
+                          Email PO
+                        </button>
+
+                        {/* ── Order Mode Action Button */}
+                        {orderMode === "api" && sup.id === "mouser" && apiKeys.mouser_order_api_key && (
                           <button disabled={mouserCartStatus?.loading}
                             onClick={async () => {
                               setMouserCartStatus({ loading: true });
@@ -4189,15 +4236,77 @@ function BOMManager({ user }) {
                                 addTrackedOrder({ supplier: "Mouser", supplierColor: "#e8500a", poNumber: poNum,
                                   items: items.map(d => ({ mpn: d.part.mpn, reference: d.part.reference, qty: d.net, unitPrice: d.bestPrice })),
                                   totalEstimate: poTotal, cartKey: result.cartKey, cartUrl: result.cartUrl });
+                                try { await createPORecord({ supplier: sup.name, po_number: poNum, status: "submitted", items: items.map(d => ({ mpn: d.part.mpn, qty: d.net, unitPrice: d.bestPrice })), total_value: poTotal, notes: "Sent to Mouser Cart via API", ordered_at: new Date().toISOString() }, user.id); } catch {}
                                 window.open(result.cartUrl, "_blank");
                               } catch (e) { setMouserCartStatus({ loading: false, error: e.message }); }
                             }}
-                            style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:sup.color,color:"#fff" }}>
-                            {mouserCartStatus?.loading ? "Sending…" : "Send to Mouser Cart"}
+                            style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#34c759",color:"#fff" }}>
+                            {mouserCartStatus?.loading ? "Sending..." : "Place Order via API"}
+                          </button>
+                        )}
+                        {orderMode === "api" && sup.id === "digikey" && (
+                          <button onClick={async () => {
+                              const dkItems = items.map(d => ({
+                                partNumber: d.part.pricing?.digikey?.supplierPartNumber || d.part.mpn,
+                                quantity: d.net,
+                              }));
+                              const cartUrl = buildDigiKeyCartUrl(dkItems);
+                              addTrackedOrder({ supplier: sup.name, supplierColor: sup.color, poNumber: poNum,
+                                items: items.map(d => ({ mpn: d.part.mpn, reference: d.part.reference, qty: d.net, unitPrice: d.bestPrice })),
+                                totalEstimate: poTotal, cartUrl });
+                              try { await createPORecord({ supplier: sup.name, po_number: poNum, status: "submitted", items: items.map(d => ({ mpn: d.part.mpn, qty: d.net, unitPrice: d.bestPrice })), total_value: poTotal, notes: "DigiKey cart URL opened", ordered_at: new Date().toISOString() }, user.id); } catch {}
+                              window.open(cartUrl, "_blank");
+                            }}
+                            style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#34c759",color:"#fff" }}>
+                            Place Order via API
+                          </button>
+                        )}
+                        {orderMode === "api" && sup.id !== "mouser" && sup.id !== "digikey" && (
+                          <button onClick={() => {
+                              const url = SUPPLIER_WEBSITE_URLS[sid] || sup.searchUrl?.(items[0]?.part?.mpn || "") || "#";
+                              window.open(url, "_blank");
+                            }}
+                            style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#34c759",color:"#fff" }}>
+                            Open {sup.name}
+                          </button>
+                        )}
+                        {orderMode === "rep" && (
+                          <button onClick={async () => {
+                              const draft = buildPOEmailDraft(repName, poLines, poNum, {name:apiKeys.company_name,address:apiKeys.company_address});
+                              window.location.href = `mailto:${repEmail}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
+                              addTrackedOrder({ supplier: sup.name, supplierColor: sup.color, poNumber: poNum,
+                                items: items.map(d => ({ mpn: d.part.mpn, reference: d.part.reference, qty: d.net, unitPrice: d.bestPrice })),
+                                totalEstimate: poTotal, notes: `Submitted to rep: ${repName} (${repEmail})` });
+                              try { await createPORecord({ supplier: sup.name, po_number: poNum, status: "submitted", items: items.map(d => ({ mpn: d.part.mpn, qty: d.net, unitPrice: d.bestPrice })), total_value: poTotal, notes: `Emailed to rep: ${repEmail}`, ordered_at: new Date().toISOString() }, user.id); } catch {}
+                            }}
+                            style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff" }}>
+                            Email PO to Rep
+                          </button>
+                        )}
+                        {orderMode === "manual" && (
+                          <button onClick={() => {
+                              const url = SUPPLIER_WEBSITE_URLS[sid] || sup.searchUrl?.(items[0]?.part?.mpn || "") || "#";
+                              window.open(url, "_blank");
+                            }}
+                            style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
+                            Open Supplier Website
                           </button>
                         )}
                       </div>
                     </div>
+
+                    {/* ── Rep Contact Info (for rep-managed suppliers) */}
+                    {orderMode === "rep" && (repEmail || lastOrder) && (
+                      <div style={{ padding:"8px 22px",background:"rgba(0,113,227,0.04)",borderBottom:"1px solid #f0f0f2",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",fontSize:11,color:"#6e6e73" }}>
+                        {repEmail && (
+                          <span>Rep: <strong style={{ color:"#0071e3" }}>{repName}</strong> &middot; <a href={`mailto:${repEmail}`} style={{ color:"#0071e3",textDecoration:"none" }}>{repEmail}</a></span>
+                        )}
+                        {lastOrder && (
+                          <span>Last ordered: {new Date(lastOrder.ordered_at || lastOrder.created_at).toLocaleDateString()}</span>
+                        )}
+                      </div>
+                    )}
+
                     {items.map((d, idx) => (
                       <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"12px 22px",
                         borderBottom:idx<items.length-1?"1px solid #f0f0f2":"none",gap:16 }}>
@@ -6388,6 +6497,8 @@ function BOMManager({ user }) {
               try { nameOverrides = JSON.parse(apiKeys.distributor_names || "{}"); } catch {}
               let emails = {};
               try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
+              let orderModes = {};
+              try { orderModes = JSON.parse(apiKeys.supplier_order_modes || "{}"); } catch {}
               return (
                 <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
                   <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
@@ -6399,14 +6510,18 @@ function BOMManager({ user }) {
                   </div>
                   {!collapsedSettings.has("distributors") && <div style={{ padding:"12px 20px" }}>
                     <div style={{ display:"flex",gap:8,marginBottom:6,fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.06em" }}>
-                      <div style={{ width:140 }}>Raw Key</div>
+                      <div style={{ width:120 }}>Raw Key</div>
                       <div style={{ flex:1 }}>Display Name</div>
                       <div style={{ flex:1 }}>Sales Email</div>
+                      <div style={{ width:90 }}>Order Mode</div>
                     </div>
                     <div style={{ maxHeight:400,overflowY:"auto" }}>
-                      {distKeys.map(key => (
+                      {distKeys.map(key => {
+                        const curMode = orderModes[key] || "manual";
+                        const mc = ORDER_MODE_CONFIG[curMode] || ORDER_MODE_CONFIG.manual;
+                        return (
                         <div key={key} style={{ display:"flex",gap:8,alignItems:"center",paddingTop:3,paddingBottom:3,borderBottom:"1px solid #f0f0f2" }}>
-                          <div style={{ width:140,fontSize:11,color:"#86868b",fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }} title={key}>{key}</div>
+                          <div style={{ width:120,fontSize:11,color:"#86868b",fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }} title={key}>{key}</div>
                           <input style={{ flex:1,padding:"4px 8px",border:"1px solid #d2d2d7",borderRadius:5,fontSize:12,boxSizing:"border-box" }}
                             value={nameOverrides[key] ?? distMap[key] ?? ""}
                             onChange={e => {
@@ -6421,9 +6536,25 @@ function BOMManager({ user }) {
                               setApiKeys(k => ({ ...k, supplier_emails: JSON.stringify(updated) }));
                             }}
                             placeholder={`orders@${key}.com`} />
+                          <select style={{ width:90,padding:"4px 6px",border:"1px solid #d2d2d7",borderRadius:5,fontSize:11,fontFamily:"inherit",boxSizing:"border-box",
+                              color:mc.color,fontWeight:600,background:mc.bg,cursor:"pointer" }}
+                            value={curMode}
+                            onChange={e => {
+                              const updated = { ...orderModes, [key]: e.target.value };
+                              setApiKeys(k => ({ ...k, supplier_order_modes: JSON.stringify(updated) }));
+                            }}>
+                            <option value="manual">Manual</option>
+                            <option value="api">API</option>
+                            <option value="rep">Rep</option>
+                          </select>
                         </div>
-                      ))}
+                      );})}
                     </div>
+                    <p style={{ fontSize:11,color:"#86868b",marginTop:8 }}>
+                      Order Mode: <strong style={{ color:"#34c759" }}>API</strong> = direct API ordering &middot;
+                      <strong style={{ color:"#0071e3" }}> Rep</strong> = email PO to sales rep &middot;
+                      <strong style={{ color:"#86868b" }}> Manual</strong> = order on supplier website
+                    </p>
                     {sectionSaveBtn("distributors", "Distributors")}
                   </div>}
                 </div>
@@ -7249,7 +7380,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.32 — built 2026-03-18 2:35am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.33 — built 2026-03-18 2:45am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
