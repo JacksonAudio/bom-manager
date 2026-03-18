@@ -378,3 +378,50 @@ export function subscribeToBuildAssignments(callback) {
     )
     .subscribe()
 }
+
+// ─────────────────────────────────────────────
+// PRICE HISTORY
+// ─────────────────────────────────────────────
+
+// Record a price point — skips if the latest price for this part+supplier is the same
+export async function recordPrice(partId, unitPrice, supplier, source) {
+  if (!partId || unitPrice == null || unitPrice <= 0) return
+  const price = parseFloat(unitPrice)
+  if (isNaN(price) || price <= 0) return
+
+  // Check last recorded price for this part+supplier to avoid duplicates
+  const { data: latest } = await supabase
+    .from('price_history')
+    .select('unit_price')
+    .eq('part_id', partId)
+    .eq('supplier', supplier || '')
+    .order('recorded_at', { ascending: false })
+    .limit(1)
+  if (latest && latest.length > 0 && parseFloat(latest[0].unit_price) === price) return
+
+  const { error } = await supabase
+    .from('price_history')
+    .insert({ part_id: partId, unit_price: price, supplier: supplier || '', source: source || 'manual' })
+  if (error) console.error('[db:recordPrice]', error.message)
+}
+
+// Fetch all price history for a single part, newest first
+export async function fetchPriceHistory(partId) {
+  const { data, error } = await supabase
+    .from('price_history')
+    .select('*')
+    .eq('part_id', partId)
+    .order('recorded_at', { ascending: false })
+  check(error, 'fetchPriceHistory')
+  return data
+}
+
+// Fetch all price history (for product-level rollups)
+export async function fetchAllPriceHistory() {
+  const { data, error } = await supabase
+    .from('price_history')
+    .select('*')
+    .order('recorded_at', { ascending: false })
+  check(error, 'fetchAllPriceHistory')
+  return data
+}

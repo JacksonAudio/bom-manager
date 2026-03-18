@@ -24,6 +24,7 @@ import {
   fetchBuildOrders, createBuildOrder, updateBuildOrder, deleteBuildOrder,
   fetchBuildAssignments, createBuildAssignment, updateBuildAssignment,
   subscribeToTeamMembers, subscribeToBuildOrders, subscribeToBuildAssignments,
+  recordPrice, fetchPriceHistory, fetchAllPriceHistory,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -1094,6 +1095,8 @@ function BOMManager({ user }) {
   const [invoiceParsing, setInvoiceParsing] = useState(false);
   const [invoiceResult, setInvoiceResult] = useState(null); // { items: [...], matched: [...] }
   const [invoiceError, setInvoiceError] = useState("");
+  const [allPriceHistory, setAllPriceHistory] = useState([]); // price_history rows for all parts
+  const [partPriceHistoryCache, setPartPriceHistoryCache] = useState({}); // { [partId]: [...rows] }
   const [darkMode, setDarkMode] = useState(() => {
     try { return localStorage.getItem("bom_dark_mode") === "true"; } catch { return false; }
   });
@@ -1235,6 +1238,9 @@ function BOMManager({ user }) {
             SUPPLIERS.forEach(s => { if (shipObj[s.id] !== undefined) s.shipping = shipObj[s.id]; });
           } catch {}
         }
+
+        // Load price history for product cost trends
+        fetchAllPriceHistory().then(ph => setAllPriceHistory(ph || [])).catch(() => {});
 
         // Pre-fetch exchange rates so they're cached for pricing
         fetchExchangeRates().catch(() => {});
@@ -1468,6 +1474,12 @@ function BOMManager({ user }) {
         ...p, pricing, pricingStatus: "done", bestSupplier: best,
         unitCost: newUnitCost, preferredSupplier: newPref,
       } : p));
+
+      // Record best price to price history
+      if (bestPrice && bestPrice > 0 && best) {
+        const bestSupplierName = pricing[best]?.displayName || best;
+        recordPrice(partId, bestPrice, bestSupplierName, "pricing").catch(e => console.error("[recordPrice:pricing]", e));
+      }
 
       // Persist to DB (so team sees cached pricing on next load)
       recentLocalWrites.current.add(partId);
@@ -1891,6 +1903,7 @@ function BOMManager({ user }) {
         await updatePart(item.matchedPart.id, "stockQty", String(newStock));
         if (item.unitPrice > 0) {
           await updatePart(item.matchedPart.id, "unitCost", String(item.unitPrice));
+          recordPrice(item.matchedPart.id, item.unitPrice, item.supplier || "", "invoice").catch(e => console.error("[recordPrice:invoice]", e));
         }
         updated++;
       } else {
@@ -1916,8 +1929,11 @@ function BOMManager({ user }) {
           product_id: null,
         };
         try {
-          await createPart(newPart, user.id);
+          const createdPart = await createPart(newPart, user.id);
           created++;
+          if (item.unitPrice > 0 && createdPart?.id) {
+            recordPrice(createdPart.id, item.unitPrice, item.supplier || "", "invoice").catch(e => console.error("[recordPrice:invoice-new]", e));
+          }
         } catch (e) { console.error("Create part from invoice failed:", e); }
       }
     }
@@ -2450,6 +2466,66 @@ function BOMManager({ user }) {
                 </div>
               </div>
             )}
+
+            {/* ── Product Cost Trends */}
+            {productCosts.length > 0 && allPriceHistory.length > 0 && (() => {
+              // Build earliest price per part from price history
+              const earliestByPart = {};
+              for (const row of allPriceHistory) {
+                const pid = row.part_id;
+                if (!earliestByPart[pid] || new Date(row.recorded_at) < new Date(earliestByPart[pid].recorded_at)) {
+                  earliestByPart[pid] = row;
+                }
+              }
+              const trends = productCosts.map(prod => {
+                const pp = parts.filter(p => p.projectId === prod.id);
+                const currentCost = prod.total;
+                let earliestCost = 0;
+                let hasHistory = false;
+                for (const p of pp) {
+                  const earliest = earliestByPart[p.id];
+                  if (earliest) {
+                    earliestCost += parseFloat(earliest.unit_price) * p.quantity;
+                    hasHistory = true;
+                  } else {
+                    earliestCost += (parseFloat(p.unitCost) || 0) * p.quantity;
+                  }
+                }
+                const pctChange = earliestCost > 0 ? ((currentCost - earliestCost) / earliestCost) * 100 : 0;
+                return { ...prod, currentCost, earliestCost, pctChange, hasHistory };
+              }).filter(t => t.hasHistory);
+              if (trends.length === 0) return null;
+              return (
+                <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
+                  <div style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",marginBottom:4,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Product Cost Trends</div>
+                  <div style={{ fontSize:12,color:"#86868b",marginBottom:14 }}>Current BOM cost vs earliest recorded prices</div>
+                  <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
+                    {trends.map(t => (
+                      <div key={t.id} style={{ padding:"12px 16px",borderRadius:10,border:"1px solid #e5e5ea",minWidth:200,flex:1,maxWidth:300 }}>
+                        <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:6 }}>
+                          <div style={{ width:8,height:8,borderRadius:"50%",background:t.color }} />
+                          <span style={{ fontSize:13,fontWeight:600,color:"#1d1d1f" }}>{t.name}</span>
+                        </div>
+                        <div style={{ fontSize:18,fontWeight:700,color:"#1d1d1f" }}>
+                          ${fmtDollar(t.currentCost)}
+                          {t.pctChange !== 0 && (
+                            <span style={{ fontSize:12,fontWeight:600,marginLeft:8,
+                              color:t.pctChange > 0 ? "#ff3b30" : "#34c759" }}>
+                              {t.pctChange > 0 ? "\u2191" : "\u2193"} {Math.abs(t.pctChange).toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                        {t.pctChange !== 0 && (
+                          <div style={{ fontSize:11,color:"#86868b",marginTop:2 }}>
+                            from ${fmtDollar(t.earliestCost)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ── Build queue */}
             {buildQueue.length > 0 && (
@@ -3273,6 +3349,109 @@ function BOMManager({ user }) {
                                 </div>
                               </div>
                             )}
+
+                            {/* ── Price History ── */}
+                            {(() => {
+                              const history = partPriceHistoryCache[part.id];
+                              const loadHistory = () => {
+                                fetchPriceHistory(part.id).then(rows => {
+                                  setPartPriceHistoryCache(prev => ({ ...prev, [part.id]: rows || [] }));
+                                }).catch(e => console.error("[priceHistory]", e));
+                              };
+                              if (!history) {
+                                // Auto-load when expanded
+                                loadHistory();
+                                return (
+                                  <div style={{ padding:"12px 16px",background:"#f9f9fb",borderRadius:12,marginBottom:14,fontSize:12,color:"#86868b" }}>
+                                    Loading price history...
+                                  </div>
+                                );
+                              }
+                              if (history.length === 0) return (
+                                <div style={{ padding:"12px 16px",background:"#f9f9fb",borderRadius:12,marginBottom:14,fontSize:12,color:"#aeaeb2" }}>
+                                  No price history recorded yet
+                                </div>
+                              );
+                              const prices = history.map(h => parseFloat(h.unit_price));
+                              const minP = Math.min(...prices);
+                              const maxP = Math.max(...prices);
+                              const avgP = prices.reduce((s,v)=>s+v,0) / prices.length;
+                              const latest = prices[0];
+                              const previous = prices.length > 1 ? prices[1] : null;
+                              const trendUp = previous !== null && latest > previous;
+                              const trendDown = previous !== null && latest < previous;
+                              // Sparkline — colored bars for last N prices (reversed so oldest first)
+                              const sparkData = prices.slice(0, 12).reverse();
+                              const sparkMin = Math.min(...sparkData);
+                              const sparkMax = Math.max(...sparkData);
+                              const sparkRange = sparkMax - sparkMin || 1;
+                              return (
+                                <div style={{ padding:"14px 16px",background:"#f9f9fb",borderRadius:12,marginBottom:14,border:"1px solid #e5e5ea" }}>
+                                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
+                                    <div style={{ fontSize:12,fontWeight:700,color:"#1d1d1f",letterSpacing:"0.3px" }}>
+                                      Price History
+                                      {trendUp && <span style={{ color:"#ff3b30",marginLeft:6,fontSize:13 }}>{"\u2191"}</span>}
+                                      {trendDown && <span style={{ color:"#34c759",marginLeft:6,fontSize:13 }}>{"\u2193"}</span>}
+                                      {previous !== null && latest !== previous && (
+                                        <span style={{ fontSize:10,color:trendUp?"#ff3b30":"#34c759",marginLeft:4,fontWeight:500 }}>
+                                          {((Math.abs(latest - previous) / previous) * 100).toFixed(1)}%
+                                        </span>
+                                      )}
+                                    </div>
+                                    <button onClick={(e)=>{e.stopPropagation();loadHistory();}}
+                                      style={{ fontSize:10,color:"#0071e3",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:500 }}>
+                                      Refresh
+                                    </button>
+                                  </div>
+                                  {/* Stats row */}
+                                  <div style={{ display:"flex",gap:16,marginBottom:10,fontSize:11 }}>
+                                    <div><span style={{ color:"#86868b" }}>Min: </span><span style={{ fontWeight:600,color:"#34c759" }}>${fmtPrice(minP)}</span></div>
+                                    <div><span style={{ color:"#86868b" }}>Max: </span><span style={{ fontWeight:600,color:"#ff3b30" }}>${fmtPrice(maxP)}</span></div>
+                                    <div><span style={{ color:"#86868b" }}>Avg: </span><span style={{ fontWeight:600,color:"#1d1d1f" }}>${fmtPrice(avgP)}</span></div>
+                                    <div><span style={{ color:"#86868b" }}>Records: </span><span style={{ fontWeight:600,color:"#1d1d1f" }}>{history.length}</span></div>
+                                  </div>
+                                  {/* Sparkline bar chart */}
+                                  {sparkData.length >= 3 && (
+                                    <div style={{ display:"flex",alignItems:"flex-end",gap:2,height:32,marginBottom:10 }}>
+                                      {sparkData.map((v, i) => {
+                                        const pct = ((v - sparkMin) / sparkRange) * 100;
+                                        const h = Math.max(4, 4 + (pct / 100) * 28);
+                                        const isLast = i === sparkData.length - 1;
+                                        return <div key={i} style={{ flex:1,height:h,borderRadius:2,background:isLast?"#0071e3":"#d2d2d7",transition:"height 0.2s" }}
+                                          title={`$${fmtPrice(v)}`} />;
+                                      })}
+                                    </div>
+                                  )}
+                                  {/* History table */}
+                                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
+                                    <thead>
+                                      <tr style={{ borderBottom:"1px solid #e5e5ea" }}>
+                                        {["Date","Price","Supplier","Source"].map(h=>(
+                                          <th key={h} style={{ textAlign:"left",padding:"5px 8px",fontSize:9,fontWeight:700,color:"#86868b",letterSpacing:"0.05em",textTransform:"uppercase" }}>{h}</th>
+                                        ))}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {history.slice(0, 10).map((row, ri) => (
+                                        <tr key={row.id || ri} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                                          <td style={{ padding:"5px 8px",color:"#6e6e73" }}>{new Date(row.recorded_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</td>
+                                          <td style={{ padding:"5px 8px",fontWeight:600,color:"#1d1d1f" }}>${fmtPrice(row.unit_price)}</td>
+                                          <td style={{ padding:"5px 8px",color:"#6e6e73" }}>{row.supplier || "—"}</td>
+                                          <td style={{ padding:"5px 8px" }}>
+                                            <span style={{ display:"inline-block",padding:"1px 6px",borderRadius:4,fontSize:9,fontWeight:600,
+                                              background:row.source==="invoice"?"rgba(255,149,0,0.1)":row.source==="pricing"?"rgba(0,113,227,0.08)":"rgba(134,134,139,0.1)",
+                                              color:row.source==="invoice"?"#ff9500":row.source==="pricing"?"#0071e3":"#86868b" }}>
+                                              {row.source}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                  {history.length > 10 && <div style={{ fontSize:10,color:"#aeaeb2",marginTop:6,textAlign:"center" }}>Showing 10 of {history.length} records</div>}
+                                </div>
+                              );
+                            })()}
 
                             {/* Inline edit */}
                             <div style={{ padding:"14px 16px",background:"#f5f5f7",borderRadius:12,display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end" }}>
@@ -5975,7 +6154,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.04 — built 2026-03-17 10:18pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.05 — built 2026-03-17 10:25pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
