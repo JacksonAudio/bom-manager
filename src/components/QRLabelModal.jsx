@@ -70,9 +70,9 @@ export default function QRLabelModal({ parts, products, onClose }) {
         ${img ? `<img src="${img}" style="width:${sz.qr}px;height:${sz.qr}px;flex-shrink:0" />` : ''}
         <div style="overflow:hidden;min-width:0;line-height:1.3">
           <div style="font-size:${sz.font}px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${part.mpn || part.reference || '—'}</div>
+          ${part.manufacturer ? `<div style="font-size:${subFont}px;color:#888">${part.manufacturer}</div>` : ''}
           ${part.value ? `<div style="font-size:${subFont}px;color:#333">${part.value}</div>` : ''}
           ${part.description ? `<div style="font-size:${subFont}px;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${part.description}</div>` : ''}
-          ${part.manufacturer ? `<div style="font-size:${subFont}px;color:#888">${part.manufacturer}</div>` : ''}
           ${prodName ? `<div style="font-size:${subFont}px;color:#0071e3">${prodName}</div>` : ''}
         </div>
       </div>`
@@ -170,6 +170,9 @@ export default function QRLabelModal({ parts, products, onClose }) {
                     overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
                     {part.mpn || part.reference || '—'}
                   </div>
+                  {part.manufacturer && (
+                    <div style={{ fontSize: labelSize === '5167' ? 7 : 9,color:'#aeaeb2',marginTop:1 }}>{part.manufacturer}</div>
+                  )}
                   {part.value && (
                     <div style={{ fontSize: labelSize === '5167' ? 7 : 10,color:'#1d1d1f',marginTop:1 }}>{part.value}</div>
                   )}
@@ -177,9 +180,6 @@ export default function QRLabelModal({ parts, products, onClose }) {
                     <div style={{ fontSize: labelSize === '5167' ? 7 : 9,color:'#86868b',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
                       {part.description}
                     </div>
-                  )}
-                  {part.manufacturer && labelSize !== '5167' && (
-                    <div style={{ fontSize:9,color:'#aeaeb2',marginTop:1 }}>{part.manufacturer}</div>
                   )}
                   {getProductName(part.projectId) && labelSize !== '5167' && (
                     <div style={{ fontSize:9,color:'#0071e3',marginTop:1 }}>{getProductName(part.projectId)}</div>
