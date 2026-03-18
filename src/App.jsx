@@ -3331,7 +3331,7 @@ function BOMManager({ user }) {
                           }}
                         />
                       </th>
-                      {["MPN","Internal Part Number","Value","Description","Product","Current Stock","Reorder Point","Stock Value",""].map((h,hi,arr)=>(
+                      {["MPN","Value","Description","Manufacturer","Product","Current Stock","Reorder Point","Stock Value",""].map((h,hi,arr)=>(
                         <th key={hi} style={{ textAlign:"left",padding:"12px 14px",
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                           fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
@@ -3366,12 +3366,6 @@ function BOMManager({ user }) {
                               style={{ ...inputStyle,color:"#0071e3",fontWeight:600 }} placeholder="—" />
                           </td>
                           <td style={{ padding:"6px 8px" }}>
-                            <input type="text" value={part.reference||""}
-                              onChange={(e)=>updatePart(part.id,"reference",e.target.value)}
-                              onFocus={focusIn} onBlur={focusOut}
-                              style={inputStyle} placeholder="" />
-                          </td>
-                          <td style={{ padding:"6px 8px" }}>
                             <input type="text" value={part.value||""}
                               onChange={(e)=>updatePart(part.id,"value",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
@@ -3382,6 +3376,12 @@ function BOMManager({ user }) {
                               onChange={(e)=>updatePart(part.id,"description",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,color:"#6e6e73" }} placeholder="" />
+                          </td>
+                          <td style={{ padding:"6px 8px" }}>
+                            <input type="text" value={part.manufacturer||""}
+                              onChange={(e)=>updatePart(part.id,"manufacturer",e.target.value)}
+                              onFocus={focusIn} onBlur={focusOut}
+                              style={{ ...inputStyle,color:"#86868b" }} placeholder="" />
                           </td>
                           <td style={{ padding:"6px 8px",width:110 }}>
                             {(() => {
@@ -7380,7 +7380,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.39 — built 2026-03-18 3:08am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.40 — built 2026-03-18 3:12am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
