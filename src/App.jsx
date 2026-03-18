@@ -57,6 +57,8 @@ const DEFAULT_KEYS = {
   labor_rate_hourly: "25", // $/hr labor rate for profit analysis
   ad_spend_pct: "35",     // % of sales price spent on ads (Facebook, Google, etc.)
   shipping_cost_per_unit: "8", // avg shipping cost per unit sold
+  fb_access_token: "",    // Facebook Marketing API — long-lived access token
+  fb_ad_account_id: "",   // Facebook Ad Account ID (act_XXXXXXXXX)
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -1053,6 +1055,7 @@ function BOMManager({ user }) {
   const [loading,     setLoading]     = useState(true);  // initial DB fetch in progress
   const [activeView,  setActiveView]  = useState("dashboard");
   const [selProject,  setSelProject]  = useState("all");
+  const [selBrand,    setSelBrand]    = useState("all");
   const [search,      setSearch]      = useState("");
   const [pricingSearch, setPricingSearch] = useState("");
   const [pasteText,   setPasteText]   = useState("");
@@ -1062,7 +1065,7 @@ function BOMManager({ user }) {
   const [dragOver,    setDragOver]    = useState(false);
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
-  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","ai","sms","guide"]));
+  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","ai","sms","facebook","guide"]));
   const [buildQueue, setBuildQueue] = useState(() => { try { return JSON.parse(localStorage.getItem("bom_build_queue") || "[]"); } catch { return []; } });
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
@@ -1565,6 +1568,7 @@ function BOMManager({ user }) {
       shopifyProductId: row.shopify_product_id || null,
       buildMinutes: row.build_minutes || null,
       salesPrice: row.sales_price || null,
+      brand: row.brand || "Jackson Audio",
     };
   }
 
@@ -4215,6 +4219,14 @@ function BOMManager({ user }) {
                   style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff" }}>
                   + New Product
                 </button>
+                <span style={{ marginLeft:"auto",fontSize:12,color:"#86868b" }}>Filter:</span>
+                <select value={selBrand||"all"} onChange={e=>setSelBrand(e.target.value)}
+                  style={{ padding:"5px 10px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7" }}>
+                  <option value="all">All Brands</option>
+                  {[...new Set(products.map(p=>p.brand||"Jackson Audio"))].sort().map(b=>
+                    <option key={b} value={b}>{b}</option>
+                  )}
+                </select>
               </div>
             </div>
 
@@ -4226,7 +4238,7 @@ function BOMManager({ user }) {
 
             {/* Product list */}
             <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden" }}>
-            {productCosts.map((prod, prodIdx) => {
+            {productCosts.filter(p => selBrand === "all" || (p.brand || "Jackson Audio") === selBrand).map((prod, prodIdx) => {
               const cov = prod.partCount>0 ? Math.round(prod.costedCount/prod.partCount*100) : 0;
               const prodParts = parts.filter((p) => p.projectId === prod.id);
               const qa = quickAdd[prod.id] || {};
@@ -4247,6 +4259,7 @@ function BOMManager({ user }) {
                         {prod.name}
                       </div>
                       <div style={{ fontSize:12,color:"#86868b",marginTop:1 }}>
+                        {prod.brand && prod.brand !== "Jackson Audio" && <span style={{ color:"#5856d6",fontWeight:600,marginRight:6 }}>{prod.brand}</span>}
                         {prod.partCount} part{prod.partCount!==1?"s":""}
                         {cov > 0 && <span style={{ marginLeft:8 }}>{cov}% costed</span>}
                       </div>
@@ -4286,8 +4299,21 @@ function BOMManager({ user }) {
                   </div>
 
                   {isOpen && (<div onClick={e => e.stopPropagation()}>
-                  {/* Shopify mapping + Refresh button */}
+                  {/* Brand + Shopify mapping + Refresh button */}
                   <div style={{ padding:"0 22px 12px",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                      <span style={{ fontSize:10,color:"#86868b" }}>Brand:</span>
+                      <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:"#1d1d1f",minWidth:120 }}
+                        value={prod.brand || "Jackson Audio"}
+                        onChange={async (e) => {
+                          const val = e.target.value;
+                          setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, brand: val } : p));
+                          try { await supabase.from("products").update({ brand: val }).eq("id", prod.id); } catch (err) { console.error("Brand save failed:", err); }
+                        }}>
+                        <option value="Jackson Audio">Jackson Audio</option>
+                        <option value="Fulltone USA">Fulltone USA</option>
+                      </select>
+                    </div>
                     {shopifyProducts.length > 0 && (
                       <div style={{ display:"flex",alignItems:"center",gap:6 }} onClick={e => e.stopPropagation()}>
                         <span style={{ fontSize:10,color:"#86868b" }}>Shopify:</span>
@@ -6149,6 +6175,33 @@ function BOMManager({ user }) {
               </div>}
             </div>
 
+            {/* ── Facebook Ads */}
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("facebook") ? s.delete("facebook") : s.add("facebook"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("facebook") ? "▶" : "▼"}</span>
+                  Facebook / Meta — Ad Spend Tracking
+                </div>
+              </div>
+              {!collapsedSettings.has("facebook") && <div style={{ padding:"16px 20px" }}>
+                <p style={{ fontSize:12,color:"#86868b",marginBottom:14 }}>
+                  Pull actual ad spend per campaign from Facebook. Get your access token from the
+                  <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}> Graph API Explorer</a>.
+                  Your Ad Account ID is in Facebook Ads Manager → Settings (format: act_XXXXXXXXX).
+                </p>
+                <div className="key-input-row">
+                  <div><div className="key-label">Access Token</div><div className="key-hint">Long-lived token from Graph API Explorer</div></div>
+                  <input type="password" value={apiKeys.fb_access_token||""} onChange={e=>setApiKeys(k=>({...k,fb_access_token:e.target.value}))} placeholder="EAAxxxxxxx..." style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                <div className="key-input-row">
+                  <div><div className="key-label">Ad Account ID</div><div className="key-hint">act_XXXXXXXXX</div></div>
+                  <input type="text" value={apiKeys.fb_ad_account_id||""} onChange={e=>setApiKeys(k=>({...k,fb_ad_account_id:e.target.value}))} placeholder="act_123456789" style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                {sectionSaveBtn("facebook", "Facebook Settings")}
+              </div>}
+            </div>
+
             {/* Key acquisition guide */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
@@ -6366,9 +6419,9 @@ function BOMManager({ user }) {
 
             {/* Profit Table */}
             <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:12,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",overflow:"hidden" }}>
-              <div style={{ overflowX:"auto" }}>
+              <div style={{ overflowX:"auto",maxHeight:"70vh",overflowY:"auto" }}>
                 <table style={{ width:"100%",borderCollapse:"collapse",minWidth:hasShopifyPrices?1600:1100 }}>
-                  <thead>
+                  <thead style={{ position:"sticky",top:0,zIndex:10 }}>
                     <tr>
                       <th style={thStyle}>Product</th>
                       <th style={{ ...thStyle,textAlign:"right" }}>BOM Cost</th>
@@ -6530,7 +6583,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.12 — built 2026-03-17 11:05pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.13 — built 2026-03-17 11:20pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
