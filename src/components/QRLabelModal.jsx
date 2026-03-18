@@ -7,8 +7,8 @@ import { useState, useEffect } from 'react'
 import QRCode from 'qrcode'
 
 export default function QRLabelModal({ parts, products, onClose }) {
-  const [qrImages, setQrImages] = useState({}) // { [partId]: dataURL }
-  const [labelSize, setLabelSize] = useState('medium') // small | medium | large
+  const [qrImages, setQrImages] = useState({})
+  const [labelSize, setLabelSize] = useState('medium')
 
   const sizes = {
     small:  { qr: 80,  font: 10, pad: 8,  cols: 4 },
@@ -17,7 +17,6 @@ export default function QRLabelModal({ parts, products, onClose }) {
   }
   const sz = sizes[labelSize]
 
-  // Generate QR codes for all parts
   useEffect(() => {
     let cancelled = false
     async function gen() {
@@ -45,6 +44,36 @@ export default function QRLabelModal({ parts, products, onClose }) {
     return prod ? prod.name : null
   }
 
+  const handlePrint = () => {
+    // Open a new window with just the labels for clean printing
+    const printWin = window.open('', '_blank', 'width=800,height=600')
+    const labelsHtml = parts.map(part => {
+      const img = qrImages[part.id] || ''
+      const prodName = getProductName(part.projectId)
+      return `
+        <div style="border:1px solid #ccc;border-radius:8px;padding:${sz.pad}px;display:flex;flex-direction:column;align-items:center;gap:6px;break-inside:avoid">
+          ${img ? `<img src="${img}" width="${sz.qr}" height="${sz.qr}" />` : '<div style="width:80px;height:80px;background:#eee"></div>'}
+          <div style="text-align:center;width:100%">
+            <div style="font-size:${sz.font}px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${part.mpn || part.reference || '—'}</div>
+            ${part.value ? `<div style="font-size:${sz.font - 2}px;color:#666;margin-top:2px">${part.value}</div>` : ''}
+            ${part.description ? `<div style="font-size:${sz.font - 3}px;color:#999;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${part.description}</div>` : ''}
+            ${prodName ? `<div style="font-size:${sz.font - 3}px;color:#0071e3;margin-top:2px">${prodName}</div>` : ''}
+          </div>
+        </div>`
+    }).join('')
+
+    printWin.document.write(`<!DOCTYPE html><html><head><title>QR Labels</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; padding: 16px; }
+        .grid { display: grid; grid-template-columns: repeat(${sz.cols}, 1fr); gap: 12px; }
+      </style></head><body>
+      <div class="grid">${labelsHtml}</div>
+      <script>window.onload = function() { window.print(); }</script>
+      </body></html>`)
+    printWin.document.close()
+  }
+
   return (
     <div style={{ position:'fixed',inset:0,zIndex:9999,display:'flex',alignItems:'center',
       justifyContent:'center',background:'rgba(0,0,0,0.5)',padding:20 }}
@@ -62,7 +91,7 @@ export default function QRLabelModal({ parts, products, onClose }) {
               QR Labels
             </div>
             <div style={{ fontSize:12,color:'#86868b',marginTop:2 }}>
-              {parts.length} label{parts.length !== 1 ? 's' : ''} — scan with the Scan tab to update stock
+              {parts.length} label{parts.length !== 1 ? 's' : ''} — scan with Scan In to update stock
             </div>
           </div>
           <div style={{ display:'flex',gap:8,alignItems:'center' }}>
@@ -72,9 +101,11 @@ export default function QRLabelModal({ parts, products, onClose }) {
               <option value="medium">Medium</option>
               <option value="large">Large</option>
             </select>
-            <button onClick={() => window.print()}
+            <button onClick={handlePrint}
+              disabled={Object.keys(qrImages).length === 0}
               style={{ padding:'8px 18px',borderRadius:980,fontSize:13,fontWeight:600,cursor:'pointer',
                 border:'none',background:'#0071e3',color:'#fff',
+                opacity: Object.keys(qrImages).length === 0 ? 0.4 : 1,
                 fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
               Print Labels
             </button>
@@ -86,8 +117,8 @@ export default function QRLabelModal({ parts, products, onClose }) {
           </div>
         </div>
 
-        {/* Labels grid */}
-        <div id="qr-labels-printarea" style={{ flex:1,overflowY:'auto',padding:24 }}>
+        {/* Labels grid preview */}
+        <div style={{ flex:1,overflowY:'auto',padding:24 }}>
           <div style={{ display:'grid',gridTemplateColumns:`repeat(${sz.cols}, 1fr)`,gap:16 }}>
             {parts.map(part => (
               <div key={part.id} style={{ border:'1px solid #e5e5ea',borderRadius:10,padding:sz.pad,
@@ -126,18 +157,6 @@ export default function QRLabelModal({ parts, products, onClose }) {
           </div>
         </div>
       </div>
-
-      {/* Print styles */}
-      <style>{`
-        @media print {
-          body > #root { display: none !important; }
-          body > div:last-child { position: static !important; background: none !important; padding: 0 !important; }
-          body > div:last-child > div { max-height: none !important; box-shadow: none !important; border-radius: 0 !important; }
-          body > div:last-child > div > div:first-child { display: none !important; }
-          #qr-labels-printarea { padding: 0 !important; }
-          #qr-labels-printarea div { border-color: #ccc !important; }
-        }
-      `}</style>
     </div>
   )
 }
