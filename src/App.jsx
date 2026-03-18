@@ -5851,8 +5851,10 @@ function BOMManager({ user }) {
                 // SMS notify the assigned builder
                 const member = teamMembers.find(m => m.id === newBuildOrder.team_member_id);
                 const prod = products.find(p => p.id === newBuildOrder.product_id);
+                console.log("[SMS] member:", member?.name, "phone:", member?.phone, "twilio_sid:", apiKeys.twilio_account_sid ? "SET" : "EMPTY");
                 if (member?.phone && apiKeys.twilio_account_sid) {
                   const dueStr = newBuildOrder.due_date ? ` Due: ${new Date(newBuildOrder.due_date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}` : "";
+                  console.log("[SMS] Sending to", member.phone, "from", apiKeys.twilio_phone_number);
                   fetch("/api/send-sms", {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -5862,7 +5864,9 @@ function BOMManager({ user }) {
                       authToken: apiKeys.twilio_auth_token,
                       fromNumber: apiKeys.twilio_phone_number,
                     }),
-                  }).catch(e => console.error("SMS notify failed:", e));
+                  }).then(r => r.json()).then(d => console.log("[SMS] Response:", d)).catch(e => console.error("[SMS] Failed:", e));
+                } else {
+                  console.warn("[SMS] Skipped — phone:", member?.phone, "twilio_sid:", apiKeys.twilio_account_sid);
                 }
               }
               setNewBuildOrder({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"" });
@@ -7221,7 +7225,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.25 — built 2026-03-18 1:20am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.26 — built 2026-03-18 1:35am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
