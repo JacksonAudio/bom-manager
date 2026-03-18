@@ -13,6 +13,8 @@ import AuthScreen from "./components/AuthScreen.jsx";
 import QRLabelModal from "./components/QRLabelModal.jsx";
 import ScannerView from "./components/ScannerView.jsx";
 import Scoreboard from "./components/Scoreboard.jsx";
+import BuildView from "./components/BuildView.jsx";
+import InvoiceView from "./components/InvoiceView.jsx";
 import {
   onAuthChange, signOut,
   fetchProducts, createProduct, deleteProduct,
@@ -2373,6 +2375,12 @@ function BOMManager({ user }) {
   );
 
   // ─────────────────────────────────────────────
+  // MOBILE VIEWS — render standalone when hash matches
+  // ─────────────────────────────────────────────
+  if (window.location.hash === "#build") return <BuildView />;
+  if (window.location.hash === "#invoice") return <InvoiceView />;
+
+  // ─────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────
   return (
@@ -3880,7 +3888,21 @@ function BOMManager({ user }) {
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12 }}>
               <div>
                 <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Order Tracker</h2>
-                <p style={{ color:"#86868b",fontSize:13 }}>Track orders across all suppliers. Mouser cart orders are logged automatically.</p>
+                <p style={{ color:"#86868b",fontSize:13,marginBottom:8 }}>Track orders across all suppliers. Mouser cart orders are logged automatically.</p>
+                <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+                  <span style={{ fontSize:12,color:"#86868b" }}>Mobile Invoice Scanner:</span>
+                  <code style={{ fontSize:11,color:darkMode?"#f8d377":"#5856d6",background:darkMode?"#1c1c1e":"#f0f0f2",padding:"3px 8px",borderRadius:5,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
+                    {window.location.origin + window.location.pathname + "#invoice"}
+                  </code>
+                  <button onClick={() => { navigator.clipboard.writeText(window.location.origin + window.location.pathname + "#invoice"); }}
+                    style={{ padding:"4px 10px",borderRadius:980,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:darkMode?"#3a3a3e":"#e5e5ea",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                    Copy Link
+                  </button>
+                  <button onClick={() => window.open(window.location.origin + window.location.pathname + "#invoice", "_blank", "noopener")}
+                    style={{ padding:"4px 10px",borderRadius:980,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#f8d377",color:"#0a0a0f" }}>
+                    Open &#8599;
+                  </button>
+                </div>
               </div>
               <div style={{ display:"flex",gap:8 }}>
                 <button className="btn-primary" onClick={() => setOrderForm({
@@ -5494,7 +5516,23 @@ function BOMManager({ user }) {
           return (
           <div style={{ maxWidth:1000 }}>
             <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>Production Floor</h2>
-            <p style={{ fontSize:14,color:"#86868b",marginBottom:24 }}>Manage build orders, team assignments, and track production progress.</p>
+            <p style={{ fontSize:14,color:"#86868b",marginBottom:12 }}>Manage build orders, team assignments, and track production progress.</p>
+
+            {/* ── Mobile Builder App link ── */}
+            <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:24,flexWrap:"wrap" }}>
+              <span style={{ fontSize:13,color:"#86868b" }}>Mobile Builder App:</span>
+              <code style={{ fontSize:12,color:darkMode?"#f8d377":"#5856d6",background:darkMode?"#1c1c1e":"#f0f0f2",padding:"4px 10px",borderRadius:6,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
+                {window.location.origin + window.location.pathname + "#build"}
+              </code>
+              <button onClick={() => { navigator.clipboard.writeText(window.location.origin + window.location.pathname + "#build"); }}
+                style={{ padding:"5px 12px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:darkMode?"#3a3a3e":"#e5e5ea",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                Copy Link
+              </button>
+              <button onClick={() => window.open(window.location.origin + window.location.pathname + "#build", "_blank", "noopener")}
+                style={{ padding:"5px 12px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#f8d377",color:"#0a0a0f" }}>
+                Open &#8599;
+              </button>
+            </div>
 
             {/* ── Summary cards ── */}
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:16,marginBottom:28 }}>
@@ -6667,7 +6705,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.17 — built 2026-03-18 12:08am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.18 — built 2026-03-18 12:15am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
