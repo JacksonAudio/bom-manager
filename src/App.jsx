@@ -3643,7 +3643,7 @@ function BOMManager({ user }) {
                     {invoiceResult.items.map((item, idx) => (
                       <tr key={idx} style={{ borderBottom:"1px solid #f0f0f2",background:item.matchedPart?"transparent":"#fffbf0" }}>
                         <td style={{ padding:"8px 14px",textAlign:"center" }}>
-                          <input type="checkbox" checked={item.apply} disabled={!item.matchedPart}
+                          <input type="checkbox" checked={item.apply}
                             onChange={()=>setInvoiceResult(prev=>({...prev,items:prev.items.map((it,i)=>i===idx?{...it,apply:!it.apply}:it)}))}
                             style={{ width:15,height:15,cursor:"pointer",accentColor:"#5856d6" }} />
                         </td>
@@ -3656,7 +3656,16 @@ function BOMManager({ user }) {
                         <td style={{ padding:"8px 14px" }}>
                           {item.matchedPart
                             ? <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>✓ {item.matchedPart.mpn} (stock: {item.matchedPart.stockQty||0})</span>
-                            : <span style={{ fontSize:11,color:"#ff9500" }}>No match</span>}
+                            : <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #d2d2d7",color:"#1d1d1f" }}
+                                value={item.manualMatch || ""}
+                                onChange={(e) => {
+                                  const partId = e.target.value;
+                                  const matched = partId ? parts.find(p=>p.id===partId) : null;
+                                  setInvoiceResult(prev=>({...prev,items:prev.items.map((it,i)=>i===idx?{...it,matchedPart:matched,manualMatch:partId,apply:!!matched}:it)}));
+                                }}>
+                                <option value="">No match — assign manually</option>
+                                {parts.map(p=><option key={p.id} value={p.id}>{p.mpn||p.reference} {p.description?`(${p.description})`:""}</option>)}
+                              </select>}
                         </td>
                       </tr>
                     ))}
@@ -5931,7 +5940,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.02 — built 2026-03-17 10:05pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.03 — built 2026-03-17 10:12pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
