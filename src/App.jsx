@@ -4883,19 +4883,19 @@ function BOMManager({ user }) {
                         e.stopPropagation();
                         const prodPartsSnap = prodParts.map(p => ({ id:p.id, mpn:p.mpn, reference:p.reference, value:p.value, description:p.description,
                           quantity:p.quantity, stockQty:p.stockQty, unitCost:p.unitCost, projectId:p.projectId, manufacturer:p.manufacturer }));
-                        const prodValue = prodPartsSnap.reduce((s, p) => s + (parseFloat(p.unitCost)||0) * (parseInt(p.stockQty)||0), 0);
+                        const bomCostPerUnit = prodParts.reduce((s, p) => s + priceAtQty(p) * (parseInt(p.quantity)||1), 0);
                         const snapshot = {
                           date: new Date().toISOString(),
                           product_id: prod.id,
                           products: [{ id: prod.id, name: prod.name }],
                           parts: prodPartsSnap,
-                          inventoryValue: prodValue,
+                          bomCost: bomCostPerUnit,
                         };
-                        const label = `${prod.name} — ${prodPartsSnap.length} parts, $${fmtDollar(prodValue)}`;
+                        const label = `${prod.name} — ${prodPartsSnap.length} parts, $${fmtDollar(bomCostPerUnit)}/unit`;
                         try {
                           const saved = await saveBomSnapshot(label, snapshot, user.id);
                           setBomSnapshots(prev => [saved, ...prev].slice(0, 50));
-                          alert(`Product snapshot saved: ${prod.name} (${prodPartsSnap.length} parts, $${fmtDollar(prodValue)})`);
+                          alert(`Product snapshot saved: ${prod.name} (${prodPartsSnap.length} parts, $${fmtDollar(bomCostPerUnit)}/unit)`);
                         } catch (err) {
                           alert("Snapshot save failed: " + err.message);
                         }
@@ -7221,7 +7221,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.23 — built 2026-03-18 1:15am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.24 — built 2026-03-18 1:00am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
