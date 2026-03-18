@@ -1907,7 +1907,7 @@ function BOMManager({ user }) {
         }
         updated++;
       } else {
-        // Create new part from invoice line item
+        // Create new part from invoice line item — only include known DB columns
         const newPart = {
           mpn: item.mpn || "",
           reference: item.mpn || "",
@@ -1918,15 +1918,10 @@ function BOMManager({ user }) {
           quantity: 1,
           unit_cost: item.unitPrice > 0 ? item.unitPrice : null,
           stock_qty: parseInt(item.quantity) || 0,
-          reorder_qty: null,
-          order_qty: null,
           preferred_supplier: item.supplier || "mouser",
           flagged_for_order: false,
-          pricing: null,
           pricing_status: "idle",
           pricing_error: "",
-          best_supplier: null,
-          product_id: null,
         };
         try {
           const createdPart = await createPart(newPart, user.id);
@@ -1940,9 +1935,9 @@ function BOMManager({ user }) {
     const msg = [];
     if (updated) msg.push(`${updated} part${updated!==1?"s":""} updated`);
     if (created) msg.push(`${created} new part${created!==1?"s":""} created`);
-    if (msg.length) alert(`Invoice applied: ${msg.join(", ")}`);
     setInvoiceResult(null);
-    setInvoiceError("");
+    if (msg.length) setInvoiceError("✓ " + msg.join(", "));
+    else setInvoiceError("");
   };
 
   const setQAField = (productId, field, value) =>
@@ -6154,7 +6149,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.05 — built 2026-03-17 10:25pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.06 — built 2026-03-17 10:35pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
