@@ -18,6 +18,9 @@ export default function BuildView({ standalone = false }) {
   const [error, setError] = useState("");
   const [incrementing, setIncrementing] = useState(null); // orderId being incremented
   const intervalRef = useRef(null);
+  const [pinMode, setPinMode] = useState(false); // show PIN entry instead of name tap
+  const [pinValue, setPinValue] = useState("");
+  const [pinError, setPinError] = useState("");
 
   const fetchAll = useCallback(async () => {
     try {
@@ -130,35 +133,107 @@ export default function BuildView({ standalone = false }) {
     );
   }
 
+  // Handle PIN submission
+  const handlePinSubmit = async () => {
+    if (pinValue.length < 4) { setPinError("Enter at least 4 digits"); return; }
+    setPinError("");
+    const match = teamMembers.find(m => m.active !== false && m.pin_code === pinValue);
+    if (match) {
+      setSelectedMember(match);
+      setPinValue("");
+      setPinMode(false);
+    } else {
+      // Also try DB lookup in case pin_code wasn't fetched
+      try {
+        const { data } = await supabase.from("team_members").select("*").eq("pin_code", pinValue).eq("active", true).single();
+        if (data) { setSelectedMember(data); setPinValue(""); setPinMode(false); }
+        else { setPinError("Invalid PIN"); setPinValue(""); }
+      } catch { setPinError("Invalid PIN"); setPinValue(""); }
+    }
+  };
+
   // ── Member selection screen
   if (!selectedMember) {
     return (
       <div style={styles.container}>
         <div style={{ padding: "24px 16px", maxWidth: 480, margin: "0 auto" }}>
-          <h1 style={styles.title}>Who are you?</h1>
+          <h1 style={styles.title}>{pinMode ? "Enter Your PIN" : "Who are you?"}</h1>
           <p style={{ color: "#86868b", fontFamily: FONT, fontSize: 14, marginBottom: 24, textAlign: "center" }}>
-            Tap your name to see your builds
+            {pinMode ? "Enter your 4-6 digit PIN to sign in" : "Tap your name or use PIN to sign in"}
           </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {teamMembers
-              .filter((t) => t.active !== false)
-              .map((member) => (
-                <button
-                  key={member.id}
-                  onClick={() => setSelectedMember(member)}
-                  style={styles.memberButton}
-                >
-                  <span style={{ fontSize: 22, fontWeight: 700 }}>{member.name}</span>
-                  {member.role && (
-                    <span style={{ fontSize: 13, color: "#86868b", marginTop: 2 }}>{member.role}</span>
-                  )}
-                </button>
-              ))}
-          </div>
-          {teamMembers.filter((t) => t.active !== false).length === 0 && (
-            <div style={{ textAlign: "center", color: "#86868b", fontFamily: FONT, fontSize: 15, marginTop: 40 }}>
-              No team members found.
+
+          {pinMode ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                {[0,1,2,3,4,5].map(i => (
+                  <div key={i} style={{ width: 44, height: 52, borderRadius: 10, border: "2px solid " + (pinValue.length > i ? "#0071e3" : "#3a3a3e"),
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700,
+                    color: "#f5f5f7", fontFamily: FONT, background: "#1c1c1e" }}>
+                    {pinValue.length > i ? "\u2022" : ""}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 72px)", gap: 10, justifyContent: "center" }}>
+                {[1,2,3,4,5,6,7,8,9,null,0,"del"].map((d, i) => {
+                  if (d === null) return <div key={i} />;
+                  return (
+                    <button key={i} onClick={() => {
+                      if (d === "del") { setPinValue(v => v.slice(0, -1)); setPinError(""); }
+                      else if (pinValue.length < 6) { setPinValue(v => v + d); setPinError(""); }
+                    }}
+                    style={{ width: 72, height: 56, borderRadius: 12, border: "1px solid #3a3a3e", background: "#1c1c1e",
+                      color: "#f5f5f7", fontSize: d === "del" ? 16 : 24, fontWeight: 600, fontFamily: FONT, cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {d === "del" ? "\u232B" : d}
+                    </button>
+                  );
+                })}
+              </div>
+              {pinError && <div style={{ color: "#ff453a", fontSize: 14, fontFamily: FONT, fontWeight: 600 }}>{pinError}</div>}
+              <button onClick={handlePinSubmit}
+                disabled={pinValue.length < 4}
+                style={{ padding: "14px 48px", borderRadius: 980, border: "none", background: pinValue.length >= 4 ? "#0071e3" : "#2c2c2e",
+                  color: "#fff", fontSize: 16, fontWeight: 700, fontFamily: FONT, cursor: pinValue.length >= 4 ? "pointer" : "default",
+                  opacity: pinValue.length >= 4 ? 1 : 0.5, marginTop: 8 }}>
+                Sign In
+              </button>
+              <button onClick={() => { setPinMode(false); setPinValue(""); setPinError(""); }}
+                style={{ background: "none", border: "none", color: "#0071e3", fontSize: 14, fontFamily: FONT, cursor: "pointer", fontWeight: 600 }}>
+                Use Name Instead
+              </button>
             </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {teamMembers
+                  .filter((t) => t.active !== false)
+                  .map((member) => (
+                    <button
+                      key={member.id}
+                      onClick={() => setSelectedMember(member)}
+                      style={styles.memberButton}
+                    >
+                      <span style={{ fontSize: 22, fontWeight: 700 }}>{member.name}</span>
+                      {member.role && (
+                        <span style={{ fontSize: 13, color: "#86868b", marginTop: 2 }}>{member.role}</span>
+                      )}
+                    </button>
+                  ))}
+              </div>
+              {teamMembers.filter((t) => t.active !== false).length === 0 && (
+                <div style={{ textAlign: "center", color: "#86868b", fontFamily: FONT, fontSize: 15, marginTop: 40 }}>
+                  No team members found.
+                </div>
+              )}
+              {teamMembers.some(m => m.pin_code) && (
+                <button onClick={() => setPinMode(true)}
+                  style={{ display: "block", margin: "24px auto 0", padding: "12px 32px", borderRadius: 980,
+                    border: "1px solid #3a3a3e", background: "transparent", color: "#0071e3", fontSize: 14,
+                    fontWeight: 600, fontFamily: FONT, cursor: "pointer" }}>
+                  Use PIN Instead
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -27,6 +27,8 @@ import {
   fetchBuildAssignments, createBuildAssignment, updateBuildAssignment,
   subscribeToTeamMembers, subscribeToBuildOrders, subscribeToBuildAssignments,
   recordPrice, fetchPriceHistory, fetchAllPriceHistory,
+  saveBomSnapshot, fetchBomSnapshots,
+  fetchPOHistory, createPORecord, updatePORecord,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -1099,10 +1101,14 @@ function BOMManager({ user }) {
   const [shopifySalesPrices, setShopifySalesPrices] = useState(null); // { products: [{ shopifyProductId, title, avgPrice, minPrice, maxPrice, unitsSold, totalRevenue }] }
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
   const [mouserCartStatus, setMouserCartStatus] = useState(null); // { loading, error, cartUrl, cartKey, items }
-  // Local order tracker — persists to localStorage
+  // Local order tracker — persists to localStorage (fallback) + DB
   const [trackedOrders, setTrackedOrders] = useState(() => {
     try { return JSON.parse(localStorage.getItem("bom_tracked_orders") || "[]"); } catch { return []; }
   });
+  const [poHistory, setPoHistory] = useState([]); // DB-backed PO history
+  const [bomSnapshots, setBomSnapshots] = useState([]); // DB-backed BOM snapshots
+  const [bomHistoryOpen, setBomHistoryOpen] = useState(false); // collapsible BOM history section
+  const [bomCompareIdx, setBomCompareIdx] = useState(null); // index of snapshot being compared
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [orderForm, setOrderForm] = useState(null); // { supplier, poNumber, items, notes }
   const [supplierSort, setSupplierSort] = useState("spend"); // spend | leadtime | orders
@@ -1125,7 +1131,7 @@ function BOMManager({ user }) {
   const [buildAssignments, setBuildAssignments]  = useState([]);
   const [prodTeamCollapsed, setProdTeamCollapsed] = useState(true);
   const [prodCompletedCollapsed, setProdCompletedCollapsed] = useState(true);
-  const [newTeamMember,    setNewTeamMember]     = useState({ name:"", role:"assembler", phone:"", email:"" });
+  const [newTeamMember,    setNewTeamMember]     = useState({ name:"", role:"assembler", phone:"", email:"", pin_code:"" });
   const [newBuildOrder,    setNewBuildOrder]     = useState({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"" });
   const [prodBusy,         setProdBusy]          = useState(false);
 
@@ -1260,6 +1266,37 @@ function BOMManager({ user }) {
 
         // Load price history for product cost trends
         fetchAllPriceHistory().then(ph => setAllPriceHistory(ph || [])).catch(() => {});
+
+        // Load PO history from DB
+        fetchPOHistory().then(poRows => {
+          setPoHistory(poRows || []);
+          // Merge DB records with localStorage for backward compat
+          if (poRows && poRows.length > 0) {
+            const localOrders = JSON.parse(localStorage.getItem("bom_tracked_orders") || "[]");
+            const dbIds = new Set(poRows.map(r => r.id));
+            // Convert DB rows to tracked order format and merge
+            const dbOrders = poRows.map(r => ({
+              id: r.id,
+              createdAt: r.ordered_at || r.created_at,
+              supplier: r.supplier || "",
+              supplierColor: SUPPLIERS.find(s => s.id === (r.supplier||"").toLowerCase() || s.name === r.supplier)?.color || "#8e8e93",
+              poNumber: r.po_number || "",
+              status: r.status || "submitted",
+              items: r.items || [],
+              totalEstimate: r.total_value || 0,
+              notes: r.notes || "",
+              receivedAt: r.received_at,
+              dbRecord: true, // flag to identify DB-backed records
+            }));
+            // Keep localStorage orders that aren't in DB
+            const localOnly = localOrders.filter(lo => !dbIds.has(lo.id) && !dbOrders.some(db => db.poNumber && db.poNumber === lo.poNumber && db.supplier === lo.supplier));
+            const merged = [...dbOrders, ...localOnly].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            setTrackedOrders(merged);
+          }
+        }).catch(() => {});
+
+        // Load BOM snapshots from DB
+        fetchBomSnapshots().then(snaps => setBomSnapshots(snaps || [])).catch(() => {});
 
         // Pre-fetch exchange rates so they're cached for pricing
         fetchExchangeRates().catch(() => {});
@@ -2768,8 +2805,8 @@ function BOMManager({ user }) {
                 }}>
                   Export Full Report (CSV)
                 </button>
-                <button className="btn-ghost" onClick={() => {
-                  // Save BOM snapshot for versioning
+                <button className="btn-ghost" onClick={async () => {
+                  // Save BOM snapshot to database
                   const snapshot = {
                     date: new Date().toISOString(),
                     products: products.map(p => ({ id:p.id, name:p.name })),
@@ -2777,18 +2814,145 @@ function BOMManager({ user }) {
                       quantity:p.quantity, stockQty:p.stockQty, unitCost:p.unitCost, projectId:p.projectId, manufacturer:p.manufacturer })),
                     inventoryValue,
                   };
+                  const label = `Snapshot — ${parts.length} parts, $${fmtDollar(inventoryValue)}`;
                   try {
-                    const snapshots = JSON.parse(localStorage.getItem("bom_snapshots") || "[]");
-                    snapshots.push(snapshot);
-                    if (snapshots.length > 20) snapshots.shift(); // keep last 20
-                    localStorage.setItem("bom_snapshots", JSON.stringify(snapshots));
-                    alert(`BOM snapshot saved (${snapshot.parts.length} parts, $${fmtDollar(inventoryValue)} inventory)`);
-                  } catch (e) { alert("Snapshot save failed: " + e.message); }
+                    const saved = await saveBomSnapshot(label, snapshot, user.id);
+                    setBomSnapshots(prev => [saved, ...prev].slice(0, 50));
+                    alert(`BOM snapshot saved to database (${snapshot.parts.length} parts, $${fmtDollar(inventoryValue)} inventory)`);
+                  } catch (e) {
+                    // Fallback to localStorage
+                    try {
+                      const snapshots = JSON.parse(localStorage.getItem("bom_snapshots") || "[]");
+                      snapshots.push(snapshot);
+                      if (snapshots.length > 20) snapshots.shift();
+                      localStorage.setItem("bom_snapshots", JSON.stringify(snapshots));
+                      alert(`BOM snapshot saved locally (${snapshot.parts.length} parts, $${fmtDollar(inventoryValue)} inventory)\nDB save failed: ${e.message}`);
+                    } catch (e2) { alert("Snapshot save failed: " + e2.message); }
+                  }
                 }}>
                   Save BOM Snapshot
                 </button>
               </div>
             </div>
+
+            {/* ── BOM History (collapsible) ── */}
+            {bomSnapshots.length > 0 && (
+              <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                  onClick={() => setBomHistoryOpen(!bomHistoryOpen)}>
+                  <div>
+                    <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>BOM History</div>
+                    <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>{bomSnapshots.length} saved snapshot{bomSnapshots.length!==1?"s":""}</div>
+                  </div>
+                  <span style={{ fontSize:14,color:"#86868b",transform:bomHistoryOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s" }}>{"\u25BC"}</span>
+                </div>
+                {bomHistoryOpen && (
+                  <div style={{ marginTop:16 }}>
+                    <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                      <thead>
+                        <tr style={{ borderBottom:"2px solid " + (darkMode?"#3a3a3e":"#e5e5ea") }}>
+                          {["Date","Label","Parts","Inventory Value",""].map(h=>(
+                            <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#86868b",letterSpacing:"0.06em",textTransform:"uppercase",
+                              fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bomSnapshots.map((snap, idx) => {
+                          const s = snap.snapshot || {};
+                          const snapParts = s.parts || [];
+                          const snapValue = s.inventoryValue || snapParts.reduce((sum, p) => sum + (parseFloat(p.unitCost)||0) * (parseInt(p.stockQty)||0), 0);
+                          const dateStr = new Date(snap.created_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric", hour:"numeric", minute:"2-digit" });
+                          const isComparing = bomCompareIdx === idx;
+                          return (
+                            <tr key={snap.id} style={{ borderBottom:"1px solid " + (darkMode?"#2c2c2e":"#f0f0f2") }}>
+                              <td style={{ padding:"10px 12px",fontSize:12,color:darkMode?"#e2e8f0":"#1d1d1f" }}>{dateStr}</td>
+                              <td style={{ padding:"10px 12px",fontSize:12,color:darkMode?"#e2e8f0":"#1d1d1f",fontWeight:600 }}>{snap.label || "Untitled"}</td>
+                              <td style={{ padding:"10px 12px",fontSize:12,color:"#86868b" }}>{snapParts.length}</td>
+                              <td style={{ padding:"10px 12px",fontSize:12,color:"#34c759",fontWeight:600 }}>${fmtDollar(snapValue)}</td>
+                              <td style={{ padding:"10px 12px",textAlign:"right" }}>
+                                <button className="btn-ghost btn-sm" style={{ fontSize:11 }}
+                                  onClick={() => setBomCompareIdx(isComparing ? null : idx)}>
+                                  {isComparing ? "Close" : "Compare"}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+
+                    {/* Comparison diff view */}
+                    {bomCompareIdx !== null && bomSnapshots[bomCompareIdx] && (() => {
+                      const snap = bomSnapshots[bomCompareIdx].snapshot || {};
+                      const snapParts = snap.parts || [];
+                      const currentMpns = new Set(parts.map(p => p.mpn).filter(Boolean));
+                      const snapMpns = new Set(snapParts.map(p => p.mpn).filter(Boolean));
+                      const added = parts.filter(p => p.mpn && !snapMpns.has(p.mpn));
+                      const removed = snapParts.filter(p => p.mpn && !currentMpns.has(p.mpn));
+                      const changed = [];
+                      for (const cp of parts) {
+                        if (!cp.mpn) continue;
+                        const sp = snapParts.find(s => s.mpn === cp.mpn);
+                        if (!sp) continue;
+                        const qtyDiff = (parseInt(cp.quantity)||0) !== (parseInt(sp.quantity)||0);
+                        const stockDiff = (parseInt(cp.stockQty)||0) !== (parseInt(sp.stockQty)||0);
+                        const priceDiff = (parseFloat(cp.unitCost)||0).toFixed(4) !== (parseFloat(sp.unitCost)||0).toFixed(4);
+                        if (qtyDiff || stockDiff || priceDiff) {
+                          changed.push({ mpn: cp.mpn,
+                            oldQty: sp.quantity, newQty: cp.quantity,
+                            oldStock: sp.stockQty, newStock: cp.stockQty,
+                            oldPrice: sp.unitCost, newPrice: cp.unitCost,
+                            qtyDiff, stockDiff, priceDiff });
+                        }
+                      }
+                      return (
+                        <div style={{ marginTop:16,padding:16,background:darkMode?"#2c2c2e":"#f9f9fb",borderRadius:10,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                          <div style={{ fontWeight:700,fontSize:14,marginBottom:12,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                            Changes since "{bomSnapshots[bomCompareIdx].label || "Snapshot"}"
+                          </div>
+                          {added.length === 0 && removed.length === 0 && changed.length === 0 && (
+                            <div style={{ fontSize:13,color:"#86868b" }}>No differences found.</div>
+                          )}
+                          {added.length > 0 && (
+                            <div style={{ marginBottom:12 }}>
+                              <div style={{ fontSize:11,fontWeight:700,color:"#34c759",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Added ({added.length})</div>
+                              {added.slice(0, 20).map(p => (
+                                <div key={p.id} style={{ fontSize:12,color:darkMode?"#e2e8f0":"#1d1d1f",padding:"3px 0" }}>+ {p.mpn} {p.value ? `(${p.value})` : ""}</div>
+                              ))}
+                              {added.length > 20 && <div style={{ fontSize:11,color:"#86868b" }}>...and {added.length - 20} more</div>}
+                            </div>
+                          )}
+                          {removed.length > 0 && (
+                            <div style={{ marginBottom:12 }}>
+                              <div style={{ fontSize:11,fontWeight:700,color:"#ff3b30",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Removed ({removed.length})</div>
+                              {removed.slice(0, 20).map(p => (
+                                <div key={p.id || p.mpn} style={{ fontSize:12,color:darkMode?"#e2e8f0":"#1d1d1f",padding:"3px 0" }}>- {p.mpn} {p.value ? `(${p.value})` : ""}</div>
+                              ))}
+                              {removed.length > 20 && <div style={{ fontSize:11,color:"#86868b" }}>...and {removed.length - 20} more</div>}
+                            </div>
+                          )}
+                          {changed.length > 0 && (
+                            <div>
+                              <div style={{ fontSize:11,fontWeight:700,color:"#ff9500",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Changed ({changed.length})</div>
+                              {changed.slice(0, 30).map(c => (
+                                <div key={c.mpn} style={{ fontSize:12,color:darkMode?"#e2e8f0":"#1d1d1f",padding:"3px 0" }}>
+                                  {c.mpn}:
+                                  {c.qtyDiff && <span style={{ color:"#0071e3" }}> qty {c.oldQty}{"\u2192"}{c.newQty}</span>}
+                                  {c.stockDiff && <span style={{ color:"#ff9500" }}> stock {c.oldStock}{"\u2192"}{c.newStock}</span>}
+                                  {c.priceDiff && <span style={{ color:"#5856d6" }}> price ${parseFloat(c.oldPrice||0).toFixed(4)}{"\u2192"}${parseFloat(c.newPrice||0).toFixed(4)}</span>}
+                                </div>
+                              ))}
+                              {changed.length > 30 && <div style={{ fontSize:11,color:"#86868b" }}>...and {changed.length - 30} more</div>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -4094,9 +4258,22 @@ function BOMManager({ user }) {
                     + Add Line
                   </button>
                   <div style={{ display:"flex",gap:8,marginTop:14 }}>
-                    <button className="btn-primary" onClick={() => {
+                    <button className="btn-primary" onClick={async () => {
                       const total = orderForm.items.reduce((s, i) => s + (parseFloat(i.unitPrice)||0) * (i.qty||0), 0);
-                      addTrackedOrder({ ...orderForm, totalEstimate: total, items: orderForm.items.filter(i => i.mpn) });
+                      const filteredItems = orderForm.items.filter(i => i.mpn);
+                      const newOrder = addTrackedOrder({ ...orderForm, totalEstimate: total, items: filteredItems });
+                      // Also save to po_history table
+                      try {
+                        await createPORecord({
+                          supplier: orderForm.supplier || "Mouser",
+                          po_number: orderForm.poNumber || "",
+                          status: "submitted",
+                          items: filteredItems,
+                          total_value: total,
+                          notes: orderForm.notes || "",
+                          ordered_at: new Date().toISOString(),
+                        }, user.id);
+                      } catch (e) { console.warn("[PO History] DB save failed:", e.message); }
                       setOrderForm(null);
                     }}>Save Order</button>
                     <button className="btn-ghost" onClick={() => setOrderForm(null)}>Cancel</button>
@@ -5564,10 +5741,11 @@ function BOMManager({ user }) {
                 role: newTeamMember.role,
                 phone: newTeamMember.phone.trim() || null,
                 email: newTeamMember.email.trim() || null,
+                pin_code: newTeamMember.pin_code.trim() || null,
                 active: true,
               });
               // realtime INSERT will add to state
-              setNewTeamMember({ name:"", role:"assembler", phone:"", email:"" });
+              setNewTeamMember({ name:"", role:"assembler", phone:"", email:"", pin_code:"" });
             } catch (e) { console.error("Create team member failed:", e); alert("Failed to add team member: " + e.message); }
             setProdBusy(false);
           };
@@ -5826,6 +6004,11 @@ function BOMManager({ user }) {
                       <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Email</label>
                       <input style={inputStyle} placeholder="Email address" value={newTeamMember.email} onChange={e => setNewTeamMember({...newTeamMember, email:e.target.value})} />
                     </div>
+                    <div style={{ flex:"0 0 100px" }}>
+                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>PIN</label>
+                      <input style={inputStyle} placeholder="4-6 digits" value={newTeamMember.pin_code} maxLength={6}
+                        onChange={e => setNewTeamMember({...newTeamMember, pin_code:e.target.value.replace(/\D/g,"")})} />
+                    </div>
                     <button className="btn-primary btn-sm" disabled={!newTeamMember.name.trim() || prodBusy} onClick={handleCreateTeamMember}
                       style={{ height:37,whiteSpace:"nowrap" }}>+ Add Member</button>
                   </div>
@@ -5838,6 +6021,21 @@ function BOMManager({ user }) {
                           <div style={{ fontSize:12,color:"#86868b",textTransform:"capitalize",minWidth:80 }}>{member.role || "—"}</div>
                           <div style={{ fontSize:12,color:"#86868b",minWidth:110 }}>{member.phone || "—"}</div>
                           <div style={{ fontSize:12,color:"#86868b",minWidth:160 }}>{member.email || "—"}</div>
+                          <div style={{ minWidth:80 }}>
+                            <input style={{ width:70,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
+                              fontSize:11,background:darkMode?"#2c2c2e":"#f9f9fb",color:darkMode?"#f5f5f7":"#1d1d1f",textAlign:"center" }}
+                              placeholder="PIN" maxLength={6} defaultValue={member.pin_code || ""}
+                              onChange={e => {
+                                const val = e.target.value.replace(/\D/g,"");
+                                e.target.value = val;
+                              }}
+                              onBlur={async (e) => {
+                                const val = e.target.value.replace(/\D/g,"");
+                                if (val !== (member.pin_code || "")) {
+                                  try { await updateTeamMember(member.id, { pin_code: val || null }); } catch {}
+                                }
+                              }} />
+                          </div>
                           <button className="btn-ghost btn-sm" onClick={() => handleToggleActive(member)}
                             style={{ fontSize:11,color:member.active!==false?"#34c759":"#86868b" }}>
                             {member.active !== false ? "Active" : "Inactive"}
@@ -6929,7 +7127,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.20 — built 2026-03-18 12:35am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.21 — built 2026-03-18 12:50am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>

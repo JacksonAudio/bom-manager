@@ -416,6 +416,83 @@ export async function fetchPriceHistory(partId) {
   return data
 }
 
+// ─────────────────────────────────────────────
+// BOM SNAPSHOTS
+// ─────────────────────────────────────────────
+
+// Save a BOM snapshot to the database
+export async function saveBomSnapshot(label, snapshot, userId) {
+  const { data, error } = await supabase
+    .from('bom_snapshots')
+    .insert({ label, snapshot, created_by: userId })
+    .select()
+    .single()
+  check(error, 'saveBomSnapshot')
+  return data
+}
+
+// Fetch all BOM snapshots, newest first, limit 50
+export async function fetchBomSnapshots() {
+  const { data, error } = await supabase
+    .from('bom_snapshots')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(50)
+  check(error, 'fetchBomSnapshots')
+  return data
+}
+
+// ─────────────────────────────────────────────
+// PO HISTORY
+// ─────────────────────────────────────────────
+
+// Fetch all PO history records, newest first
+export async function fetchPOHistory() {
+  const { data, error } = await supabase
+    .from('po_history')
+    .select('*')
+    .order('created_at', { ascending: false })
+  check(error, 'fetchPOHistory')
+  return data
+}
+
+// Create a new PO history record
+export async function createPORecord(fields, userId) {
+  const { data, error } = await supabase
+    .from('po_history')
+    .insert({ ...fields, created_by: userId })
+    .select()
+    .single()
+  check(error, 'createPORecord')
+  return data
+}
+
+// Update a PO history record
+export async function updatePORecord(id, fields) {
+  const { error } = await supabase
+    .from('po_history')
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  check(error, 'updatePORecord')
+}
+
+// ─────────────────────────────────────────────
+// TEAM MEMBER PIN LOOKUP
+// ─────────────────────────────────────────────
+
+// Look up a team member by their PIN code
+export async function findTeamMemberByPin(pinCode) {
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('*')
+    .eq('pin_code', pinCode)
+    .eq('active', true)
+    .single()
+  if (error && error.code === 'PGRST116') return null // no match
+  check(error, 'findTeamMemberByPin')
+  return data
+}
+
 // Fetch all price history (for product-level rollups)
 export async function fetchAllPriceHistory() {
   const { data, error } = await supabase
