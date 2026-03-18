@@ -59,8 +59,10 @@ const DEFAULT_KEYS = {
   labor_rate_hourly: "25", // $/hr labor rate for profit analysis
   ad_spend_pct: "35",     // % of sales price spent on ads (Facebook, Google, etc.)
   shipping_cost_per_unit: "8", // avg shipping cost per unit sold
-  fb_access_token: "",    // Facebook Marketing API — long-lived access token
-  fb_ad_account_id: "",   // Facebook Ad Account ID (act_XXXXXXXXX)
+  fb_ja_access_token: "",    // Facebook — Jackson Audio access token
+  fb_ja_ad_account_id: "",   // Facebook — Jackson Audio ad account (act_XXX)
+  fb_ft_access_token: "",    // Facebook — Fulltone USA access token
+  fb_ft_ad_account_id: "",   // Facebook — Fulltone USA ad account (act_XXX)
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -6312,13 +6314,23 @@ function BOMManager({ user }) {
                   <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}> Graph API Explorer</a>.
                   Your Ad Account ID is in Facebook Ads Manager → Settings (format: act_XXXXXXXXX).
                 </p>
+                <div style={{ fontWeight:700,fontSize:13,color:"#0071e3",marginBottom:10,marginTop:16 }}>Jackson Audio</div>
                 <div className="key-input-row">
-                  <div><div className="key-label">Access Token</div><div className="key-hint">Long-lived token from Graph API Explorer</div></div>
-                  <input type="password" value={apiKeys.fb_access_token||""} onChange={e=>setApiKeys(k=>({...k,fb_access_token:e.target.value}))} placeholder="EAAxxxxxxx..." style={{ padding:"8px 12px",borderRadius:8 }} />
+                  <div><div className="key-label">Access Token</div><div className="key-hint">Jackson Audio Facebook token</div></div>
+                  <input type="password" value={apiKeys.fb_ja_access_token||""} onChange={e=>setApiKeys(k=>({...k,fb_ja_access_token:e.target.value}))} placeholder="EAAxxxxxxx..." style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
                 <div className="key-input-row">
                   <div><div className="key-label">Ad Account ID</div><div className="key-hint">act_XXXXXXXXX</div></div>
-                  <input type="text" value={apiKeys.fb_ad_account_id||""} onChange={e=>setApiKeys(k=>({...k,fb_ad_account_id:e.target.value}))} placeholder="act_123456789" style={{ padding:"8px 12px",borderRadius:8 }} />
+                  <input type="text" value={apiKeys.fb_ja_ad_account_id||""} onChange={e=>setApiKeys(k=>({...k,fb_ja_ad_account_id:e.target.value}))} placeholder="act_123456789" style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                <div style={{ fontWeight:700,fontSize:13,color:"#5856d6",marginBottom:10,marginTop:20 }}>Fulltone USA</div>
+                <div className="key-input-row">
+                  <div><div className="key-label">Access Token</div><div className="key-hint">Fulltone USA Facebook token</div></div>
+                  <input type="password" value={apiKeys.fb_ft_access_token||""} onChange={e=>setApiKeys(k=>({...k,fb_ft_access_token:e.target.value}))} placeholder="EAAxxxxxxx..." style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                <div className="key-input-row">
+                  <div><div className="key-label">Ad Account ID</div><div className="key-hint">act_XXXXXXXXX</div></div>
+                  <input type="text" value={apiKeys.fb_ft_ad_account_id||""} onChange={e=>setApiKeys(k=>({...k,fb_ft_ad_account_id:e.target.value}))} placeholder="act_123456789" style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
                 {sectionSaveBtn("facebook", "Facebook Settings")}
               </div>}
@@ -6705,7 +6717,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.18 — built 2026-03-18 12:15am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.19 — built 2026-03-18 12:25am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
