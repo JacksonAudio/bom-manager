@@ -2241,15 +2241,6 @@ function BOMManager({ user }) {
   const poPartCount = Object.values(purchaseOrders).reduce((s,a)=>s+a.length,0) + internalOrderCount;
   const pricedCount = parts.filter((p) => p.pricingStatus === "done").length;
 
-  // Inventory valuation — total $ value of all stock on hand
-  const inventoryValue = parts.reduce((sum, p) => {
-    const stockQty = parseInt(p.stockQty) || 0;
-    if (stockQty <= 0) return sum;
-    const cost = priceAtQty(p);
-    return sum + (stockQty * cost);
-  }, 0);
-  const totalStockParts = parts.filter(p => (parseInt(p.stockQty) || 0) > 0).length;
-  const totalStockUnits = parts.reduce((s, p) => s + (parseInt(p.stockQty) || 0), 0);
   const hasAnyKey = nexarToken || apiKeys.mouser_api_key || dkToken || apiKeys.arrow_api_key;
 
   const priceAtQty = (part) => {
@@ -2263,6 +2254,16 @@ function BOMManager({ user }) {
     entries.sort((a,b) => (calc(a[1])||Infinity) - (calc(b[1])||Infinity));
     return calc(entries[0][1]);
   };
+
+  // Inventory valuation — total $ value of all stock on hand
+  const inventoryValue = parts.reduce((sum, p) => {
+    const stockQty = parseInt(p.stockQty) || 0;
+    if (stockQty <= 0) return sum;
+    const cost = priceAtQty(p);
+    return sum + (stockQty * cost);
+  }, 0);
+  const totalStockParts = parts.filter(p => (parseInt(p.stockQty) || 0) > 0).length;
+  const totalStockUnits = parts.reduce((s, p) => s + (parseInt(p.stockQty) || 0), 0);
 
   const productCosts = products.map((prod) => {
     const pp = parts.filter((p) => p.projectId === prod.id);
@@ -6149,7 +6150,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.06 — built 2026-03-17 10:35pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.07 — built 2026-03-17 10:28pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
