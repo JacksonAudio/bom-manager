@@ -52,22 +52,28 @@ export default function QRLabelModal({ parts, products, onClose }) {
       const prodName = getProductName(part.projectId)
       const isSmall = labelSize === '5167'
 
+      const details = [part.value, part.description, part.manufacturer, prodName].filter(Boolean)
+
       if (isSmall) {
-        // Tiny label — QR left, text right, single line
         return `<div class="label" style="display:flex;align-items:center;gap:3px;overflow:hidden">
           ${img ? `<img src="${img}" style="width:${sz.qr}px;height:${sz.qr}px;flex-shrink:0" />` : ''}
-          <div style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:${sz.font}px;font-weight:700">${part.mpn || part.reference || '—'}</div>
+          <div style="overflow:hidden;min-width:0;line-height:1.2">
+            <div style="font-size:${sz.font}px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${part.mpn || part.reference || '—'}</div>
+            <div style="font-size:${sz.font - 1}px;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${details.join(' · ')}</div>
+          </div>
         </div>`
       }
 
-      // Normal label — QR left, text right
-      return `<div class="label" style="display:flex;align-items:center;gap:${labelSize === '5163' ? 10 : 6}px;overflow:hidden">
+      const gap = labelSize === '5163' ? 8 : 5
+      const subFont = Math.max(sz.font - 2, 5)
+      return `<div class="label" style="display:flex;align-items:center;gap:${gap}px;overflow:hidden">
         ${img ? `<img src="${img}" style="width:${sz.qr}px;height:${sz.qr}px;flex-shrink:0" />` : ''}
-        <div style="overflow:hidden;min-width:0">
+        <div style="overflow:hidden;min-width:0;line-height:1.3">
           <div style="font-size:${sz.font}px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${part.mpn || part.reference || '—'}</div>
-          ${part.value ? `<div style="font-size:${Math.max(sz.font - 2, 5)}px;color:#444;margin-top:1px">${part.value}</div>` : ''}
-          ${part.description && labelSize !== '5167' ? `<div style="font-size:${Math.max(sz.font - 2, 5)}px;color:#888;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${part.description}</div>` : ''}
-          ${prodName && labelSize === '5163' ? `<div style="font-size:${sz.font - 2}px;color:#0071e3;margin-top:1px">${prodName}</div>` : ''}
+          ${part.value ? `<div style="font-size:${subFont}px;color:#333">${part.value}</div>` : ''}
+          ${part.description ? `<div style="font-size:${subFont}px;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${part.description}</div>` : ''}
+          ${part.manufacturer ? `<div style="font-size:${subFont}px;color:#888">${part.manufacturer}</div>` : ''}
+          ${prodName ? `<div style="font-size:${subFont}px;color:#0071e3">${prodName}</div>` : ''}
         </div>
       </div>`
     }).join('')
@@ -159,18 +165,24 @@ export default function QRLabelModal({ parts, products, onClose }) {
                 ) : (
                   <div style={{ width:sz.qr > 60 ? 50 : 28,height:sz.qr > 60 ? 50 : 28,background:'#f0f0f2',borderRadius:4,flexShrink:0 }} />
                 )}
-                <div style={{ overflow:'hidden',minWidth:0 }}>
+                <div style={{ overflow:'hidden',minWidth:0,lineHeight:1.3 }}>
                   <div style={{ fontSize: labelSize === '5167' ? 9 : 12, fontWeight:700,color:'#1d1d1f',
                     overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
                     {part.mpn || part.reference || '—'}
                   </div>
-                  {labelSize !== '5167' && part.value && (
-                    <div style={{ fontSize:10,color:'#86868b',marginTop:1 }}>{part.value}</div>
+                  {part.value && (
+                    <div style={{ fontSize: labelSize === '5167' ? 7 : 10,color:'#1d1d1f',marginTop:1 }}>{part.value}</div>
                   )}
-                  {labelSize === '5163' && part.description && (
-                    <div style={{ fontSize:9,color:'#aeaeb2',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
+                  {part.description && (
+                    <div style={{ fontSize: labelSize === '5167' ? 7 : 9,color:'#86868b',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
                       {part.description}
                     </div>
+                  )}
+                  {part.manufacturer && labelSize !== '5167' && (
+                    <div style={{ fontSize:9,color:'#aeaeb2',marginTop:1 }}>{part.manufacturer}</div>
+                  )}
+                  {getProductName(part.projectId) && labelSize !== '5167' && (
+                    <div style={{ fontSize:9,color:'#0071e3',marginTop:1 }}>{getProductName(part.projectId)}</div>
                   )}
                 </div>
               </div>
