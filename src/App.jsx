@@ -4255,18 +4255,12 @@ function BOMManager({ user }) {
                   </button>
                 </div>
               </div>
-              <div style={{ display:"flex",gap:8 }}>
-                <button className="btn-primary" onClick={() => setOrderForm({
-                  supplier: "Mouser", supplierColor: "#e8500a", poNumber: "", notes: "",
-                  items: [{ mpn: "", qty: 1, unitPrice: "" }],
-                })}>
-                  + Log Order Manually
-                </button>
-                <button className="btn-ghost" onClick={() => setActiveView("scan")}
-                  style={{ fontWeight:600 }}>
-                  Scan / Upload Invoice
-                </button>
-              </div>
+              <button className="btn-primary" onClick={() => setOrderForm({
+                supplier: "Mouser", supplierColor: "#e8500a", poNumber: "", notes: "",
+                items: [{ mpn: "", qty: 1, unitPrice: "" }],
+              })}>
+                + Log Order Manually
+              </button>
             </div>
 
             {/* Manual order form */}
@@ -7255,7 +7249,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.29 — built 2026-03-18 2:20am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.30 — built 2026-03-18 2:22am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
