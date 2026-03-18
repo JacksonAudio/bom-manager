@@ -820,13 +820,16 @@ const CSS = `
   ::-webkit-scrollbar-track { background: #f5f5f7; }
   ::-webkit-scrollbar-thumb { background: #d2d2d7; border-radius: 3px; }
 
-  .nav-btn { background: none; border: none; border-right: 1px solid #e5e5ea; border-bottom: 1px solid #e5e5ea;
-    cursor: pointer; padding: 10px 8px;
+  .nav-btn { background: none; border: none; border-right: 1px solid #e5e5ea;
+    cursor: pointer; padding: 0; height: 36px;
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
-    font-size: 11px; font-weight: 500; color: #86868b; transition: all 0.15s;
-    text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    font-size: 12px; font-weight: 500; color: #86868b; transition: all 0.15s;
+    text-align: center; display: flex; align-items: center; justify-content: center; }
+  .nav-btn:nth-child(7) { border-right: none; }
+  .nav-btn:last-child { border-right: none; }
+  .nav-btn:nth-child(n+8) { border-top: 1px solid #e5e5ea; }
   .nav-btn:hover { color: #1d1d1f; background: rgba(0,0,0,0.03); }
-  .nav-btn.active { color: #0071e3; font-weight: 700; background: rgba(0,113,227,0.05); border-bottom: 2px solid #0071e3; }
+  .nav-btn.active { color: #0071e3; font-weight: 700; background: rgba(0,113,227,0.06); }
 
   .supplier-pill { display: inline-flex; align-items: center; gap: 4px;
     padding: 3px 9px; border-radius: 4px; border: none;
@@ -906,9 +909,10 @@ const CSS = `
   .dark ::-webkit-scrollbar-track { background: #1a1a1e; }
   .dark ::-webkit-scrollbar-thumb { background: #3a3a3e; }
 
-  .dark .nav-btn { color: #98989d; border-right-color: #3a3a3e; border-bottom-color: #3a3a3e; }
+  .dark .nav-btn { color: #98989d; border-right-color: #3a3a3e; }
+  .dark .nav-btn:nth-child(n+8) { border-top-color: #3a3a3e; }
   .dark .nav-btn:hover { color: #f5f5f7; background: rgba(255,255,255,0.05); }
-  .dark .nav-btn.active { color: #64d2ff; border-bottom-color: #64d2ff; background: rgba(100,210,255,0.08); }
+  .dark .nav-btn.active { color: #64d2ff; background: rgba(100,210,255,0.08); }
 
   /* Override ALL inline backgrounds inside .dark */
   /* Standalone inputs — visible borders */
@@ -2430,7 +2434,7 @@ function BOMManager({ user }) {
       </header>
 
       {/* ── NAV ── */}
-      <nav style={{ display:"grid", gridTemplateColumns:"repeat(13, 1fr)", padding:"0",
+      <nav style={{ display:"grid", gridTemplateColumns:"repeat(7, 1fr)", padding:"0",
         borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
         background:darkMode?"#1c1c1e":"#fff" }}>
         {[
@@ -6663,7 +6667,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.16 — built 2026-03-17 11:45pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.17 — built 2026-03-18 12:08am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
