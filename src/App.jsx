@@ -4259,7 +4259,7 @@ function BOMManager({ user }) {
                 supplier: "Mouser", supplierColor: "#e8500a", poNumber: "", notes: "",
                 items: [{ mpn: "", qty: 1, unitPrice: "" }],
               })}>
-                + Log Order Manually
+                + Log Existing Order
               </button>
             </div>
 
@@ -7249,7 +7249,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.30 — built 2026-03-18 2:22am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.31 — built 2026-03-18 2:25am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
