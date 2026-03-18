@@ -1878,18 +1878,53 @@ function BOMManager({ user }) {
     }
   };
 
-  // ── Apply parsed invoice — update stock and costs
+  // ── Apply parsed invoice — update existing parts OR create new ones
   const applyInvoiceResults = async () => {
     if (!invoiceResult) return;
-    const toApply = invoiceResult.items.filter(i => i.apply && i.matchedPart);
+    const toApply = invoiceResult.items.filter(i => i.apply);
+    let created = 0, updated = 0;
     for (const item of toApply) {
-      const oldStock = parseInt(item.matchedPart.stockQty) || 0;
-      const newStock = oldStock + (parseInt(item.quantity) || 0);
-      await updatePart(item.matchedPart.id, "stockQty", String(newStock));
-      if (item.unitPrice > 0) {
-        await updatePart(item.matchedPart.id, "unitCost", String(item.unitPrice));
+      if (item.matchedPart) {
+        // Update existing part — add to stock and update cost
+        const oldStock = parseInt(item.matchedPart.stockQty) || 0;
+        const newStock = oldStock + (parseInt(item.quantity) || 0);
+        await updatePart(item.matchedPart.id, "stockQty", String(newStock));
+        if (item.unitPrice > 0) {
+          await updatePart(item.matchedPart.id, "unitCost", String(item.unitPrice));
+        }
+        updated++;
+      } else {
+        // Create new part from invoice line item
+        const newPart = {
+          mpn: item.mpn || "",
+          reference: item.mpn || "",
+          description: item.description || "",
+          value: "",
+          footprint: "",
+          manufacturer: "",
+          quantity: 1,
+          unit_cost: item.unitPrice > 0 ? item.unitPrice : null,
+          stock_qty: parseInt(item.quantity) || 0,
+          reorder_qty: null,
+          order_qty: null,
+          preferred_supplier: item.supplier || "mouser",
+          flagged_for_order: false,
+          pricing: null,
+          pricing_status: "idle",
+          pricing_error: "",
+          best_supplier: null,
+          product_id: null,
+        };
+        try {
+          await createPart(newPart, user.id);
+          created++;
+        } catch (e) { console.error("Create part from invoice failed:", e); }
       }
     }
+    const msg = [];
+    if (updated) msg.push(`${updated} part${updated!==1?"s":""} updated`);
+    if (created) msg.push(`${created} new part${created!==1?"s":""} created`);
+    if (msg.length) alert(`Invoice applied: ${msg.join(", ")}`);
     setInvoiceResult(null);
     setInvoiceError("");
   };
@@ -3620,7 +3655,7 @@ function BOMManager({ user }) {
                   <div style={{ display:"flex",gap:8 }}>
                     <button onClick={applyInvoiceResults}
                       style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:"#34c759",color:"#fff" }}>
-                      Apply {invoiceResult.items.filter(i=>i.apply&&i.matchedPart).length} Updates
+                      Apply {invoiceResult.items.filter(i=>i.apply).length} Items
                     </button>
                     <button onClick={()=>setInvoiceResult(null)}
                       style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"1px solid rgba(255,255,255,0.3)",background:"transparent",color:"#fff" }}>
@@ -5940,7 +5975,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.03 — built 2026-03-17 10:12pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.04 — built 2026-03-17 10:18pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
