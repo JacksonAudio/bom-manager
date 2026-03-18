@@ -55,6 +55,8 @@ const DEFAULT_KEYS = {
   twilio_auth_token: "",  // twilio.com
   twilio_phone_number: "", // twilio.com — your Twilio phone number (e.g. +1234567890)
   labor_rate_hourly: "25", // $/hr labor rate for profit analysis
+  ad_spend_pct: "35",     // % of sales price spent on ads (Facebook, Google, etc.)
+  shipping_cost_per_unit: "8", // avg shipping cost per unit sold
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -6182,6 +6184,8 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "admin" && (() => {
           const laborRate = parseFloat(apiKeys.labor_rate_hourly) || 25;
+          const adSpendPct = parseFloat(apiKeys.ad_spend_pct) || 0;
+          const shippingPerUnit = parseFloat(apiKeys.shipping_cost_per_unit) || 0;
           const hasShopifyPrices = shopifySalesPrices?.products?.length > 0;
           // Build a lookup from shopify product id to price data
           const shopifyPriceLookup = {};
@@ -6195,10 +6199,12 @@ function BOMManager({ user }) {
             const bomCost = prod.total || 0;
             const buildMins = prod.buildMinutes ? parseFloat(prod.buildMinutes) : 0;
             const laborCost = (buildMins / 60) * laborRate;
-            const totalCost = bomCost + laborCost;
-            const profit = salesPrice != null ? salesPrice - totalCost : null;
+            const totalCost = bomCost + laborCost + shippingPerUnit;
+            const adCostMSRP = salesPrice != null ? salesPrice * (adSpendPct / 100) : 0;
+            const allInCostMSRP = totalCost + adCostMSRP;
+            const profit = salesPrice != null ? salesPrice - allInCostMSRP : null;
             const marginPct = salesPrice && salesPrice > 0 ? (profit / salesPrice) * 100 : null;
-            const markupPct = totalCost > 0 && profit != null ? (profit / totalCost) * 100 : null;
+            const markupPct = allInCostMSRP > 0 && profit != null ? (profit / allInCostMSRP) * 100 : null;
             // Shopify actual prices
             const spData = prod.shopifyProductId ? shopifyPriceLookup[prod.shopifyProductId] : null;
             // Also try matching by product name if no shopifyProductId match
@@ -6209,15 +6215,18 @@ function BOMManager({ user }) {
             const avgActual = sp ? sp.avgPrice : null;
             const minActual = sp ? sp.minPrice : null;
             const maxActual = sp ? sp.maxPrice : null;
-            const profitAvg = avgActual != null ? avgActual - totalCost : null;
+            const adCostAvg = avgActual != null ? avgActual * (adSpendPct / 100) : 0;
+            const profitAvg = avgActual != null ? avgActual - totalCost - adCostAvg : null;
             const marginAvg = avgActual && avgActual > 0 ? (profitAvg / avgActual) * 100 : null;
-            const profitMin = minActual != null ? minActual - totalCost : null;
+            const adCostMin = minActual != null ? minActual * (adSpendPct / 100) : 0;
+            const profitMin = minActual != null ? minActual - totalCost - adCostMin : null;
             const marginMin = minActual && minActual > 0 ? (profitMin / minActual) * 100 : null;
-            const profitMax = maxActual != null ? maxActual - totalCost : null;
+            const adCostMax = maxActual != null ? maxActual * (adSpendPct / 100) : 0;
+            const profitMax = maxActual != null ? maxActual - totalCost - adCostMax : null;
             const marginMax = maxActual && maxActual > 0 ? (profitMax / maxActual) * 100 : null;
             const unitsSold = sp ? sp.unitsSold : null;
             const totalRevenue = sp ? sp.totalRevenue : null;
-            return { ...prod, salesPrice, bomCost, buildMins, laborCost, totalCost, profit, marginPct, markupPct,
+            return { ...prod, salesPrice, bomCost, buildMins, laborCost, totalCost, adCostMSRP, allInCostMSRP, profit, marginPct, markupPct,
               avgActual, minActual, maxActual, profitAvg, marginAvg, profitMin, marginMin, profitMax, marginMax, unitsSold, totalRevenue };
           });
           const withMargin = rows.filter(r => r.marginPct != null);
@@ -6314,6 +6323,29 @@ function BOMManager({ user }) {
                     } catch (e) { alert("Save failed: " + e.message); }
                   }}>Save</button>
               </div>
+              {/* Ad Spend % */}
+              <div style={{ display:"flex",alignItems:"center",gap:8,background:darkMode?"#1c1c1e":"#fff",
+                border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
+                <label style={{ fontSize:13,fontWeight:600 }}>Ad Spend:</label>
+                <input type="number" step="1" min="0" max="100"
+                  value={apiKeys.ad_spend_pct || "0"}
+                  onChange={(e) => setApiKeys(k => ({ ...k, ad_spend_pct: e.target.value }))}
+                  style={{ width:60,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
+                    fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                <span style={{ fontSize:12,color:"#86868b" }}>% of sale</span>
+              </div>
+              {/* Shipping Cost */}
+              <div style={{ display:"flex",alignItems:"center",gap:8,background:darkMode?"#1c1c1e":"#fff",
+                border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
+                <label style={{ fontSize:13,fontWeight:600 }}>Shipping:</label>
+                <span style={{ fontSize:13,color:"#86868b" }}>$</span>
+                <input type="number" step="0.50" min="0"
+                  value={apiKeys.shipping_cost_per_unit || "0"}
+                  onChange={(e) => setApiKeys(k => ({ ...k, shipping_cost_per_unit: e.target.value }))}
+                  style={{ width:70,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
+                    fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                <span style={{ fontSize:12,color:"#86868b" }}>/unit</span>
+              </div>
               {/* Fetch Shopify Prices */}
               <button className="btn-primary" style={{ fontSize:12,padding:"10px 18px",display:"flex",alignItems:"center",gap:6 }}
                 onClick={fetchShopifySalesPrices}
@@ -6335,13 +6367,15 @@ function BOMManager({ user }) {
             {/* Profit Table */}
             <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:12,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",overflow:"hidden" }}>
               <div style={{ overflowX:"auto" }}>
-                <table style={{ width:"100%",borderCollapse:"collapse",minWidth:hasShopifyPrices?1400:900 }}>
+                <table style={{ width:"100%",borderCollapse:"collapse",minWidth:hasShopifyPrices?1600:1100 }}>
                   <thead>
                     <tr>
                       <th style={thStyle}>Product</th>
                       <th style={{ ...thStyle,textAlign:"right" }}>BOM Cost</th>
                       <th style={{ ...thStyle,textAlign:"right" }}>Labor</th>
-                      <th style={{ ...thStyle,textAlign:"right" }}>Total Cost</th>
+                      <th style={{ ...thStyle,textAlign:"right" }}>Shipping</th>
+                      <th style={{ ...thStyle,textAlign:"right" }}>Ad Spend</th>
+                      <th style={{ ...thStyle,textAlign:"right" }}>All-In Cost</th>
                       <th style={{ ...thStyle,textAlign:"right",...thGroupBorder }}>MSRP</th>
                       <th style={{ ...thStyle,textAlign:"right" }}>Profit</th>
                       <th style={{ ...thStyle,textAlign:"right" }}>Margin</th>
@@ -6369,7 +6403,9 @@ function BOMManager({ user }) {
                         </td>
                         <td style={{ ...tdStyle,textAlign:"right" }}>${fmtDollar(r.bomCost)}</td>
                         <td style={{ ...tdStyle,textAlign:"right",color:"#86868b" }}>{r.buildMins ? `${r.buildMins}m / $${fmtDollar(r.laborCost)}` : "—"}</td>
-                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600 }}>${fmtDollar(r.totalCost)}</td>
+                        <td style={{ ...tdStyle,textAlign:"right",color:"#86868b" }}>{shippingPerUnit > 0 ? `$${fmtDollar(shippingPerUnit)}` : "—"}</td>
+                        <td style={{ ...tdStyle,textAlign:"right",color:"#ff9500" }}>{r.salesPrice && adSpendPct > 0 ? `${adSpendPct}% / $${fmtDollar(r.adCostMSRP)}` : adSpendPct > 0 ? `${adSpendPct}%` : "—"}</td>
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:700 }}>${fmtDollar(r.allInCostMSRP || r.totalCost)}</td>
                         {/* MSRP group */}
                         <td style={{ ...tdStyle,textAlign:"right",...tdGroupBorder }}>
                           <div style={{ display:"flex",alignItems:"center",justifyContent:"flex-end",gap:2 }}>
@@ -6494,7 +6530,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.11 — built 2026-03-17 10:55pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.12 — built 2026-03-17 11:05pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
