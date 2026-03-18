@@ -288,7 +288,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
                         <span style={{
                           fontSize: standalone ? 32 : 22,
                           fontWeight: 700,
-                          color: isLeader ? T.accent :"#ffffff",
+                          color: isLeader ? T.accent : T.white,
                         }}>
                           {builder.name}
                         </span>
