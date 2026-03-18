@@ -1103,6 +1103,8 @@ function BOMManager({ user }) {
   const [invoiceParsing, setInvoiceParsing] = useState(false);
   const [invoiceResult, setInvoiceResult] = useState(null); // { items: [...], matched: [...] }
   const [invoiceError, setInvoiceError] = useState("");
+  const [invoiceScanning, setInvoiceScanning] = useState(false);
+  const invoiceCamRef = useRef(null);
   const [allPriceHistory, setAllPriceHistory] = useState([]); // price_history rows for all parts
   const [partPriceHistoryCache, setPartPriceHistoryCache] = useState({}); // { [partId]: [...rows] }
   const [darkMode, setDarkMode] = useState(() => {
@@ -1840,8 +1842,53 @@ function BOMManager({ user }) {
     }
   };
 
-  // ── Update quick-add form field for a product
-  // ── Parse invoice PDF using Claude AI
+  // ── Capture invoice from camera
+  const captureInvoiceFromCamera = async () => {
+    if (!apiKeys.anthropic_api_key) {
+      setInvoiceError("Set your Anthropic API key in Settings → AI first.");
+      return;
+    }
+    setInvoiceScanning(true);
+    setInvoiceError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } });
+      const video = invoiceCamRef.current;
+      video.srcObject = stream;
+      await video.play();
+    } catch (e) {
+      setInvoiceError("Camera access denied or not available.");
+      setInvoiceScanning(false);
+    }
+  };
+
+  const snapInvoicePhoto = async () => {
+    const video = invoiceCamRef.current;
+    if (!video || !video.srcObject) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    // Stop camera
+    video.srcObject.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+    setInvoiceScanning(false);
+    // Convert to blob and parse
+    canvas.toBlob(async (blob) => {
+      const file = new File([blob], "invoice-scan.jpg", { type: "image/jpeg" });
+      parseInvoice(file);
+    }, "image/jpeg", 0.92);
+  };
+
+  const cancelInvoiceScan = () => {
+    const video = invoiceCamRef.current;
+    if (video?.srcObject) {
+      video.srcObject.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
+    }
+    setInvoiceScanning(false);
+  };
+
+  // ── Parse invoice file using Claude AI
   const parseInvoice = async (file) => {
     if (!apiKeys.anthropic_api_key) {
       setInvoiceError("Set your Anthropic API key in Settings → AI first.");
@@ -3846,8 +3893,39 @@ function BOMManager({ user }) {
                     onChange={(e) => { const f = e.target.files[0]; if (f) parseInvoice(f); e.target.value=""; }}
                     disabled={invoiceParsing} />
                 </label>
+                <button onClick={captureInvoiceFromCamera}
+                  disabled={invoiceParsing || invoiceScanning}
+                  style={{ padding:"9px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",
+                    border:"none",background:"#34c759",color:"#fff",
+                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                    whiteSpace:"nowrap",opacity:(invoiceParsing||invoiceScanning)?0.5:1 }}>
+                  📷 Scan Invoice
+                </button>
               </div>
             </div>
+
+            {/* Camera viewfinder for invoice scanning */}
+            {invoiceScanning && (
+              <div style={{ marginBottom:20,borderRadius:16,overflow:"hidden",background:"#000",
+                boxShadow:"0 4px 20px rgba(0,0,0,0.15)",position:"relative" }}>
+                <video ref={invoiceCamRef} style={{ width:"100%",maxHeight:400,objectFit:"cover" }} playsInline muted />
+                <div style={{ position:"absolute",bottom:16,left:"50%",transform:"translateX(-50%)",display:"flex",gap:12 }}>
+                  <button onClick={snapInvoicePhoto}
+                    style={{ width:64,height:64,borderRadius:"50%",border:"4px solid #fff",background:"rgba(255,255,255,0.3)",
+                      cursor:"pointer",fontSize:24,display:"flex",alignItems:"center",justifyContent:"center",
+                      boxShadow:"0 2px 12px rgba(0,0,0,0.3)" }}
+                    onMouseDown={e=>e.currentTarget.style.background="rgba(255,255,255,0.6)"}
+                    onMouseUp={e=>e.currentTarget.style.background="rgba(255,255,255,0.3)"}>
+                    📸
+                  </button>
+                  <button onClick={cancelInvoiceScan}
+                    style={{ padding:"12px 24px",borderRadius:980,border:"none",background:"rgba(255,59,48,0.9)",
+                      color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer" }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Invoice parsing error */}
             {invoiceError && (
@@ -6585,7 +6663,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.15 — built 2026-03-17 11:38pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.16 — built 2026-03-17 11:45pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
