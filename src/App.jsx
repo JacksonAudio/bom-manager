@@ -1071,6 +1071,7 @@ function BOMManager({ user }) {
   const [search,      setSearch]      = useState("");
   const [pricingSearch, setPricingSearch] = useState("");
   const [pasteText,   setPasteText]   = useState("");
+  const [showImport,  setShowImport]  = useState(false);
   const [newProjName, setNewProjName] = useState("");
   const [importError, setImportError] = useState("");
   const [importOk,    setImportOk]    = useState("");
@@ -2499,7 +2500,6 @@ function BOMManager({ user }) {
           { id:"dashboard", label:"Dashboard" },
           { id:"bom",       label:`Parts (${parts.length})` },
           { id:"scan",      label:"Scan" },
-          { id:"import",    label:"Import" },
           { id:"pricing",   label:`Pricing${pricedCount>0?` (${pricedCount}/${parts.length})`:""}` },
           { id:"purchasing",label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}` },
           { id:"suppliers", label:"Suppliers" },
@@ -2818,7 +2818,7 @@ function BOMManager({ user }) {
             <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:"1px solid #e5e5ea" }}>
               <div style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",marginBottom:14,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Quick Actions</div>
               <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
-                <button className="btn-primary" onClick={()=>setActiveView("import")}>Import BOM</button>
+                <button className="btn-primary" onClick={()=>{setActiveView("bom");setShowImport(true);}}>Import BOM</button>
                 <button className="btn-primary" style={{ background:"#5856d6" }} onClick={()=>setActiveView("scan")}>Scan Parts</button>
                 <button className="btn-ghost" onClick={()=>setActiveView("purchasing")}>View Purchase Orders</button>
                 <button className="btn-ghost" onClick={() => {
@@ -3100,8 +3100,36 @@ function BOMManager({ user }) {
                 {products.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
               <span style={{ color:"#aeaeb2",fontSize:12,marginLeft:"auto" }}>{visibleParts.length}/{parts.length} parts</span>
-              <button className="btn-ghost btn-sm" onClick={()=>setActiveView("import")}>+ Import</button>
+              <button className="btn-ghost btn-sm" onClick={()=>setShowImport(!showImport)}>{showImport ? "Close Import" : "+ Import"}</button>
             </div>
+
+            {/* ── Inline Import Section */}
+            {showImport && (
+              <div style={{ marginBottom:12,padding:"16px 20px",background:"#fff",borderRadius:10,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div style={{ fontSize:14,fontWeight:700,marginBottom:8 }}>Import Bill of Materials</div>
+                <p style={{ color:"#86868b",fontSize:12,marginBottom:12 }}>CSV/TSV from KiCad, Altium, Eagle, or paste directly.</p>
+                <div className={`drop-zone ${dragOver?"drag-over":""}`}
+                  onDragOver={(e)=>{e.preventDefault();setDragOver(true);}}
+                  onDragLeave={()=>setDragOver(false)}
+                  onDrop={handleDrop}
+                  onClick={()=>fileRef.current.click()}
+                  style={{ padding:"24px 16px",marginBottom:10 }}>
+                  <div style={{ fontWeight:700,fontSize:13,marginBottom:4 }}>Drop BOM file here</div>
+                  <div style={{ color:"#aeaeb2",fontSize:11 }}>CSV · TSV · TXT — or click to browse</div>
+                  <input ref={fileRef} type="file" accept=".csv,.tsv,.txt" style={{ display:"none" }} onChange={handleFilePick} />
+                </div>
+                <textarea placeholder="Or paste BOM text here…" value={pasteText} onChange={(e)=>setPasteText(e.target.value)}
+                  style={{ width:"100%",minHeight:60,padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",marginBottom:8 }} />
+                {pasteText.trim() && (
+                  <div style={{ display:"flex",gap:8 }}>
+                    <button className="btn-primary" style={{ fontSize:12 }} onClick={()=>handleImport(pasteText)}>Parse & Import</button>
+                    <button className="btn-ghost" style={{ fontSize:12 }} onClick={()=>setPasteText("")}>Clear</button>
+                  </div>
+                )}
+                {importError && <div style={{ marginTop:8,color:"#ff3b30",fontSize:12 }}>{importError}</div>}
+                {importOk && <div style={{ marginTop:8,color:"#34c759",fontSize:12 }}>{importOk}</div>}
+              </div>
+            )}
 
             {/* ── Bulk-action bar — only visible when parts are selected */}
             {selectedParts.size > 0 && (
@@ -7227,7 +7255,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.27 — built 2026-03-18 1:50am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.28 — built 2026-03-18 2:05am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>

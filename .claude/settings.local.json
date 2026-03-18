@@ -33,7 +33,8 @@
       "Bash(gh auth:*)",
       "Bash(curl:*)",
       "Bash(/tmp/gh/gh_2.88.1_macOS_amd64/bin/gh auth:*)",
-      "Read(//Users/BradJackson/.config/gh/**)"
+      "Read(//Users/BradJackson/.config/gh/**)",
+      "mcp__mcp-registry__search_mcp_registry"
     ]
   }
 }
