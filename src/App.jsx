@@ -3296,7 +3296,7 @@ function BOMManager({ user }) {
                   🗑 Delete Selected
                 </button>
                 <button
-                  onClick={() => setQrModalParts(parts.filter(p => selectedParts.has(p.id)))}
+                  onClick={() => { const sel = parts.filter(p => selectedParts.has(p.id)); console.log("[QR] Opening labels for", sel.length, "parts"); setQrModalParts(sel); }}
                   style={{ background:"#5856d6",color:"#fff",border:"none",borderRadius:6,
                     padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",
                     fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",display:"flex",alignItems:"center",gap:7 }}>
@@ -3418,7 +3418,7 @@ function BOMManager({ user }) {
                             })()}
                           </td>
                           <td style={{ padding:"6px 4px",width:56,whiteSpace:"nowrap" }}>
-                            <button onClick={()=>setQrModalParts([part])} title="QR Label"
+                            <button onClick={()=>{console.log("[QR] Opening label for",part.mpn);setQrModalParts([part]);}} title="QR Label"
                               style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:13,padding:"2px 4px",borderRadius:4,transition:"color 0.15s" }}
                               onMouseOver={(e)=>e.target.style.color="#0071e3"}
                               onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>⊞</button>
@@ -7380,7 +7380,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.34 — built 2026-03-18 2:48am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.35 — built 2026-03-18 2:55am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
