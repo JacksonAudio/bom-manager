@@ -2383,7 +2383,7 @@ function BOMManager({ user }) {
       </header>
 
       {/* ── NAV ── */}
-      <nav style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(110px, 1fr))", padding:"0",
+      <nav style={{ display:"grid", gridTemplateColumns:"repeat(13, 1fr)", padding:"0",
         borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
         background:darkMode?"#1c1c1e":"#fff" }}>
         {[
@@ -6585,7 +6585,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.14 — built 2026-03-17 11:30pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.15 — built 2026-03-17 11:38pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
