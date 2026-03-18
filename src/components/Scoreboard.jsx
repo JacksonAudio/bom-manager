@@ -198,7 +198,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
   if (!loaded) {
     return (
       <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ color: T.accent, fontFamily: "'Space Grotesk', sans-serif", fontSize: 24 }}>Loading Scoreboard...</div>
+        <div style={{ color: T.accent, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif", fontSize: 24 }}>Loading Scoreboard...</div>
       </div>
     );
   }
@@ -206,7 +206,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
   return (
     <div style={{
       background: T.bg, minHeight: "100vh", color: T.text,
-      fontFamily: "'Space Grotesk', sans-serif", padding: standalone ? "24px 32px" : "20px 24px",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif", padding: standalone ? "24px 32px" : "20px 24px",
       display: "flex", flexDirection: "column", overflow: "hidden",
       animation: "scoreboardFadeIn 0.8s ease-out", transition: "background 0.3s, color 0.3s",
     }}>
