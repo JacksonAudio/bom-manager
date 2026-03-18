@@ -1105,6 +1105,7 @@ function BOMManager({ user }) {
   });
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [orderForm, setOrderForm] = useState(null); // { supplier, poNumber, items, notes }
+  const [supplierSort, setSupplierSort] = useState("spend"); // spend | leadtime | orders
   const [settingsSaving, setSettingsSaving] = useState(""); // which section is saving
   const [settingsSaved, setSettingsSaved] = useState(""); // which section just saved
   const [qrModalParts, setQrModalParts] = useState(null); // array of parts to show QR labels for
@@ -2454,6 +2455,7 @@ function BOMManager({ user }) {
           { id:"import",    label:"Import" },
           { id:"pricing",   label:`Pricing${pricedCount>0?` (${pricedCount}/${parts.length})`:""}` },
           { id:"purchasing",label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}` },
+          { id:"suppliers", label:"Suppliers" },
           { id:"orders",    label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}` },
           { id:"demand",    label:`Demand${shopifyDemand?.totalOrders?` (${shopifyDemand.totalOrders})`:""}` },
           { id:"production",label:`Production${buildOrders.filter(b=>b.status!=="completed").length>0?` (${buildOrders.filter(b=>b.status!=="completed").length})`:""}` },
@@ -4294,6 +4296,216 @@ function BOMManager({ user }) {
             )}
           </div>
         )}
+
+        {/* ══════════════════════════════════════
+            SUPPLIER SCORECARDS
+        ══════════════════════════════════════ */}
+        {activeView === "suppliers" && (() => {
+          // Build supplier list from all sources
+          const supplierMap = {};
+          SUPPLIERS.forEach(s => { supplierMap[s.name] = { name: s.name, color: s.color, bg: s.bg, id: s.id }; });
+          trackedOrders.forEach(o => {
+            if (o.supplier && !supplierMap[o.supplier]) {
+              supplierMap[o.supplier] = { name: o.supplier, color: o.supplierColor || "#888", bg: "rgba(136,136,136,0.06)", id: o.supplier.toLowerCase().replace(/\s+/g,"") };
+            }
+          });
+          parts.forEach(p => {
+            if (p.preferredSupplier) {
+              const s = SUPPLIERS.find(x => x.id === p.preferredSupplier);
+              if (s && !supplierMap[s.name]) supplierMap[s.name] = { name: s.name, color: s.color, bg: s.bg, id: s.id };
+            }
+          });
+
+          const allSuppliers = Object.values(supplierMap).map(sup => {
+            // Orders for this supplier
+            const orders = trackedOrders.filter(o => o.supplier === sup.name || o.supplier === sup.id ||
+              (SUPPLIERS.find(s => s.id === sup.id)?.name === o.supplier));
+            const orderCount = orders.length;
+            const totalSpend = orders.reduce((sum, o) => {
+              const orderTotal = o.totalEstimate || (o.items || []).reduce((s2, it) => s2 + (it.qty || 0) * (it.unitPrice || 0), 0);
+              return sum + orderTotal;
+            }, 0);
+
+            // Lead time — from createdAt to receivedAt/deliveredAt
+            const deliveredOrders = orders.filter(o => (o.receivedAt || o.deliveredAt) && o.createdAt);
+            const leadTimes = deliveredOrders.map(o => {
+              const start = new Date(o.createdAt);
+              const end = new Date(o.receivedAt || o.deliveredAt);
+              return Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+            }).filter(d => d >= 0 && d < 365);
+            const avgLeadTime = leadTimes.length > 0 ? Math.round(leadTimes.reduce((a,b)=>a+b,0) / leadTimes.length * 10) / 10 : null;
+
+            // On-time rate — delivered vs total
+            const deliveredCount = orders.filter(o => o.status === "delivered" || o.status === "received" || o.receivedAt || o.deliveredAt).length;
+            const onTimeRate = orderCount > 0 ? Math.round(deliveredCount / orderCount * 100) : null;
+
+            // Parts supplied — where this is preferred supplier
+            const partsSupplied = parts.filter(p => p.preferredSupplier === sup.id).length;
+
+            // Price competitiveness — how often cheapest among parts they supply
+            let cheapestCount = 0, comparedCount = 0;
+            parts.forEach(p => {
+              if (p.preferredSupplier !== sup.id || !p.pricing) return;
+              const myPrice = p.pricing[sup.id]?.unitPrice;
+              if (!myPrice || myPrice <= 0) return;
+              comparedCount++;
+              const otherPrices = Object.entries(p.pricing)
+                .filter(([k, v]) => k !== sup.id && v.unitPrice > 0)
+                .map(([, v]) => v.unitPrice);
+              if (otherPrices.length === 0 || myPrice <= Math.min(...otherPrices)) cheapestCount++;
+            });
+            const priceCompetitiveness = comparedCount > 0 ? Math.round(cheapestCount / comparedCount * 100) : null;
+
+            // Stock availability — avg stock across parts they supply
+            let stockTotal = 0, stockCount = 0;
+            parts.forEach(p => {
+              if (p.preferredSupplier !== sup.id || !p.pricing?.[sup.id]) return;
+              const s = p.pricing[sup.id].stock;
+              if (s != null && s >= 0) { stockTotal += s; stockCount++; }
+            });
+            const avgStock = stockCount > 0 ? Math.round(stockTotal / stockCount) : null;
+
+            return { ...sup, orderCount, totalSpend, avgLeadTime, onTimeRate, partsSupplied, priceCompetitiveness, avgStock, deliveredCount };
+          }).filter(s => s.orderCount > 0 || s.partsSupplied > 0);
+
+          // Sort
+          const sorted = [...allSuppliers].sort((a, b) => {
+            if (supplierSort === "spend") return b.totalSpend - a.totalSpend;
+            if (supplierSort === "leadtime") return (a.avgLeadTime ?? 999) - (b.avgLeadTime ?? 999);
+            if (supplierSort === "orders") return b.orderCount - a.orderCount;
+            return 0;
+          });
+
+          // Summary
+          const totalOrders = trackedOrders.length;
+          const allLeadTimes = allSuppliers.filter(s => s.avgLeadTime != null).map(s => s.avgLeadTime);
+          const overallAvgLead = allLeadTimes.length > 0 ? Math.round(allLeadTimes.reduce((a,b)=>a+b,0) / allLeadTimes.length * 10) / 10 : null;
+          const bestSupplier = allSuppliers.filter(s => s.orderCount >= 3 && s.avgLeadTime != null).sort((a,b) => a.avgLeadTime - b.avgLeadTime)[0];
+
+          const cardBg = darkMode ? "#2c2c2e" : "#fff";
+          const textPrimary = darkMode ? "#f5f5f7" : "#1d1d1f";
+          const textSecondary = darkMode ? "#98989d" : "#86868b";
+          const borderColor = darkMode ? "#3a3a3e" : "#e5e5ea";
+          const ratingColor = (val, goodBelow, badAbove) => {
+            if (val == null) return textSecondary;
+            if (typeof goodBelow === "number") return val <= goodBelow ? "#34c759" : val >= badAbove ? "#ff3b30" : "#ff9500";
+            return val >= goodBelow ? "#34c759" : val <= badAbove ? "#ff3b30" : "#ff9500";
+          };
+          const pctColor = (val) => val == null ? textSecondary : val >= 80 ? "#34c759" : val >= 50 ? "#ff9500" : "#ff3b30";
+
+          return (
+            <div style={{ maxWidth:1100 }}>
+              <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Supplier Scorecards</h2>
+              <p style={{ fontSize:14,color:textSecondary,marginBottom:24 }}>Performance metrics and analytics for all suppliers.</p>
+
+              {/* Summary stats */}
+              <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:16,marginBottom:28 }}>
+                {[
+                  { label:"Total Suppliers", value:allSuppliers.length, color:"#5856d6" },
+                  { label:"Total Orders", value:totalOrders, color:"#0071e3" },
+                  { label:"Avg Lead Time", value:overallAvgLead != null ? `${overallAvgLead} days` : "—", color:"#ff9500" },
+                  { label:"Best Supplier", value:bestSupplier ? bestSupplier.name.replace(/ Electronics/,"") : "—", sub:bestSupplier ? `${bestSupplier.avgLeadTime}d avg, ${bestSupplier.orderCount} orders` : "Need 3+ orders", color:"#34c759" },
+                ].map(card => (
+                  <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"18px 20px",boxShadow:darkMode?"none":"0 1px 4px rgba(0,0,0,0.06)",border:`1px solid ${borderColor}` }}>
+                    <div style={{ fontSize:11,fontWeight:600,color:textSecondary,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6 }}>{card.label}</div>
+                    <div style={{ fontSize:26,fontWeight:700,color:card.color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>{card.value}</div>
+                    {card.sub && <div style={{ fontSize:11,color:textSecondary,marginTop:2 }}>{card.sub}</div>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Sort controls */}
+              <div style={{ display:"flex",gap:8,marginBottom:20,alignItems:"center" }}>
+                <span style={{ fontSize:12,fontWeight:600,color:textSecondary }}>Sort by:</span>
+                {[{k:"spend",l:"Total Spend"},{k:"leadtime",l:"Lead Time"},{k:"orders",l:"Order Count"}].map(opt => (
+                  <button key={opt.k} onClick={() => setSupplierSort(opt.k)}
+                    style={{ padding:"6px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                      border:`1px solid ${borderColor}`,
+                      background:supplierSort===opt.k ? (darkMode?"#3a3a3e":"#1d1d1f") : "transparent",
+                      color:supplierSort===opt.k ? "#fff" : textSecondary }}>
+                    {opt.l}
+                  </button>
+                ))}
+              </div>
+
+              {/* Supplier cards grid */}
+              {sorted.length === 0 ? (
+                <div style={{ textAlign:"center",padding:60,color:textSecondary }}>
+                  <div style={{ fontSize:48,marginBottom:16 }}>📊</div>
+                  <div style={{ fontSize:16,fontWeight:600,marginBottom:8 }}>No supplier data yet</div>
+                  <div style={{ fontSize:13 }}>Place orders and set preferred suppliers to see scorecards here.</div>
+                </div>
+              ) : (
+                <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))",gap:20 }}>
+                  {sorted.map(sup => (
+                    <div key={sup.name} style={{ background:cardBg,borderRadius:14,padding:"22px 24px",boxShadow:darkMode?"none":"0 2px 8px rgba(0,0,0,0.06)",border:`1px solid ${borderColor}`,position:"relative",overflow:"hidden" }}>
+                      {/* Color accent bar */}
+                      <div style={{ position:"absolute",top:0,left:0,right:0,height:4,background:sup.color }} />
+
+                      {/* Supplier name */}
+                      <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:16,marginTop:4 }}>
+                        <div style={{ width:36,height:36,borderRadius:10,background:sup.color,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,fontFamily:"inherit" }}>
+                          {(SUPPLIERS.find(s=>s.id===sup.id)?.logo) || sup.name.charAt(0)}
+                        </div>
+                        <div>
+                          <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>{sup.name}</div>
+                          <div style={{ fontSize:11,color:textSecondary }}>{sup.orderCount} order{sup.orderCount!==1?"s":""} · {sup.partsSupplied} part{sup.partsSupplied!==1?"s":""}</div>
+                        </div>
+                      </div>
+
+                      {/* Metrics grid */}
+                      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px 16px" }}>
+                        {/* Total Spend */}
+                        <div>
+                          <div style={{ fontSize:10,fontWeight:600,color:textSecondary,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:3 }}>Total Spend</div>
+                          <div style={{ fontSize:18,fontWeight:700,color:textPrimary }}>${sup.totalSpend >= 1000 ? (sup.totalSpend/1000).toFixed(1)+"k" : sup.totalSpend.toFixed(2)}</div>
+                        </div>
+
+                        {/* Order Count */}
+                        <div>
+                          <div style={{ fontSize:10,fontWeight:600,color:textSecondary,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:3 }}>Orders</div>
+                          <div style={{ fontSize:18,fontWeight:700,color:textPrimary }}>{sup.orderCount}</div>
+                        </div>
+
+                        {/* Avg Lead Time */}
+                        <div>
+                          <div style={{ fontSize:10,fontWeight:600,color:textSecondary,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:3 }}>Avg Lead Time</div>
+                          <div style={{ fontSize:18,fontWeight:700,color:sup.avgLeadTime != null ? ratingColor(sup.avgLeadTime, 5, 14) : textSecondary }}>
+                            {sup.avgLeadTime != null ? `${sup.avgLeadTime}d` : "—"}
+                          </div>
+                        </div>
+
+                        {/* On-Time Rate */}
+                        <div>
+                          <div style={{ fontSize:10,fontWeight:600,color:textSecondary,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:3 }}>Delivery Rate</div>
+                          <div style={{ fontSize:18,fontWeight:700,color:pctColor(sup.onTimeRate) }}>
+                            {sup.onTimeRate != null ? `${sup.onTimeRate}%` : "—"}
+                          </div>
+                        </div>
+
+                        {/* Price Competitiveness */}
+                        <div>
+                          <div style={{ fontSize:10,fontWeight:600,color:textSecondary,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:3 }}>Best Price Rate</div>
+                          <div style={{ fontSize:18,fontWeight:700,color:pctColor(sup.priceCompetitiveness) }}>
+                            {sup.priceCompetitiveness != null ? `${sup.priceCompetitiveness}%` : "—"}
+                          </div>
+                        </div>
+
+                        {/* Stock Availability */}
+                        <div>
+                          <div style={{ fontSize:10,fontWeight:600,color:textSecondary,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:3 }}>Avg Stock</div>
+                          <div style={{ fontSize:18,fontWeight:700,color:sup.avgStock != null ? (sup.avgStock > 100 ? "#34c759" : sup.avgStock > 10 ? "#ff9500" : "#ff3b30") : textSecondary }}>
+                            {sup.avgStock != null ? sup.avgStock.toLocaleString() : "—"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ══════════════════════════════════════
             SCOREBOARD
@@ -6717,7 +6929,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.19 — built 2026-03-18 12:25am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.20 — built 2026-03-18 12:35am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
