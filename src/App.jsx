@@ -2997,7 +2997,120 @@ function BOMManager({ user }) {
             SCAN — QR/Barcode Scanner
         ══════════════════════════════════════ */}
         {activeView === "scan" && (
-          <ScannerView parts={parts} products={products} updatePart={updatePart} darkMode={darkMode} />
+          <div>
+            <ScannerView parts={parts} products={products} updatePart={updatePart} darkMode={darkMode} />
+
+            {/* ── Invoice Scanning Section */}
+            <div style={{ maxWidth:600,margin:"20px auto 0" }}>
+              <div style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",paddingTop:24,marginTop:8 }}>
+                <h3 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",
+                  fontSize:20,fontWeight:700,letterSpacing:"-0.3px",color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>
+                  Invoice Scanner
+                </h3>
+                <p style={{ fontSize:13,color:"#86868b",marginBottom:16 }}>
+                  Upload or photograph a supplier invoice — AI extracts all parts, quantities, and prices.
+                </p>
+                <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:16 }}>
+                  <label style={{ display:"inline-flex",alignItems:"center",gap:8,padding:"10px 20px",borderRadius:980,
+                    fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:"#5856d6",color:"#fff",
+                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                    {invoiceParsing ? "Parsing…" : "Upload Invoice"}
+                    <input type="file" accept=".pdf,.csv,.txt,.tsv,.png,.jpg,.jpeg,.gif,.webp,image/*" style={{ display:"none" }}
+                      onChange={(e) => { const f = e.target.files[0]; if (f) parseInvoice(f); e.target.value=""; }}
+                      disabled={invoiceParsing} />
+                  </label>
+                  <button onClick={captureInvoiceFromCamera}
+                    disabled={invoiceParsing || invoiceScanning}
+                    style={{ padding:"10px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",
+                      border:"none",background:"#34c759",color:"#fff",
+                      fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                      opacity:(invoiceParsing||invoiceScanning)?0.5:1 }}>
+                    Scan Invoice
+                  </button>
+                </div>
+
+                {/* Camera viewfinder */}
+                {invoiceScanning && (
+                  <div style={{ marginBottom:16,borderRadius:16,overflow:"hidden",background:"#000",position:"relative" }}>
+                    <video ref={invoiceCamRef} style={{ width:"100%",maxHeight:300,objectFit:"cover" }} playsInline muted />
+                    <div style={{ position:"absolute",bottom:12,left:"50%",transform:"translateX(-50%)",display:"flex",gap:10 }}>
+                      <button onClick={snapInvoicePhoto}
+                        style={{ width:56,height:56,borderRadius:"50%",border:"3px solid #fff",background:"rgba(255,255,255,0.3)",
+                          cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center" }}>
+                        📸
+                      </button>
+                      <button onClick={cancelInvoiceScan}
+                        style={{ padding:"10px 20px",borderRadius:980,border:"none",background:"rgba(255,59,48,0.9)",
+                          color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer" }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error/success */}
+                {invoiceError && (
+                  <div style={{ background:darkMode?"#3a1c1c":"#fff2f2",border:`1px solid ${darkMode?"#ff453a":"#ffccc7"}`,borderRadius:10,
+                    padding:"12px 16px",marginBottom:12,fontSize:12,color:"#ff3b30",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                    <span>{invoiceError}</span>
+                    <button onClick={()=>setInvoiceError("")} style={{ background:"none",border:"none",cursor:"pointer",color:"#ff3b30",fontSize:14 }}>✕</button>
+                  </div>
+                )}
+
+                {/* Results */}
+                {invoiceResult && (
+                  <div style={{ background:darkMode?"#1c1c1e":"#fff",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:12,overflow:"hidden",marginBottom:16 }}>
+                    <div style={{ background:"#5856d6",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                      <div>
+                        <div style={{ fontWeight:700,fontSize:13,color:"#fff" }}>{invoiceResult.fileName}</div>
+                        <div style={{ fontSize:11,color:"rgba(255,255,255,0.7)",marginTop:2 }}>
+                          {invoiceResult.items.length} items · {invoiceResult.items.filter(i=>i.matchedPart).length} matched
+                        </div>
+                      </div>
+                      <div style={{ display:"flex",gap:8 }}>
+                        <button onClick={applyInvoiceResults}
+                          style={{ padding:"6px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:"#34c759",color:"#fff" }}>
+                          Apply {invoiceResult.items.filter(i=>i.apply).length}
+                        </button>
+                        <button onClick={()=>setInvoiceResult(null)}
+                          style={{ padding:"6px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid rgba(255,255,255,0.3)",background:"transparent",color:"#fff" }}>
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                    {invoiceResult.items.map((item, idx) => (
+                      <div key={idx} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 16px",
+                        borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",fontSize:13 }}>
+                        <input type="checkbox" checked={item.apply}
+                          onChange={()=>setInvoiceResult(prev=>({...prev,items:prev.items.map((it,i)=>i===idx?{...it,apply:!it.apply}:it)}))}
+                          style={{ width:16,height:16,cursor:"pointer",accentColor:"#5856d6",flexShrink:0 }} />
+                        <div style={{ flex:1,minWidth:0 }}>
+                          <div style={{ fontWeight:600 }}>{item.mpn||"—"}</div>
+                          <div style={{ fontSize:11,color:"#86868b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{item.description||""}</div>
+                        </div>
+                        <div style={{ fontWeight:600,minWidth:40,textAlign:"right" }}>×{item.quantity}</div>
+                        {item.unitPrice > 0 && <div style={{ color:"#34c759",fontWeight:600,minWidth:60,textAlign:"right" }}>${fmtPrice(item.unitPrice)}</div>}
+                        <div style={{ fontSize:11,minWidth:70 }}>
+                          {item.matchedPart
+                            ? <span style={{ color:"#34c759" }}>✓ Matched</span>
+                            : <select style={{ fontSize:10,padding:"2px 4px",borderRadius:4,border:"1px solid #d2d2d7" }}
+                                value={item.manualMatch || ""}
+                                onChange={(e) => {
+                                  const partId = e.target.value;
+                                  const matched = partId ? parts.find(p=>p.id===partId) : null;
+                                  setInvoiceResult(prev=>({...prev,items:prev.items.map((it,i)=>i===idx?{...it,matchedPart:matched,manualMatch:partId,apply:!!matched}:it)}));
+                                }}>
+                                <option value="">New part</option>
+                                {parts.map(p=><option key={p.id} value={p.id}>{p.mpn||p.reference}</option>)}
+                              </select>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* ══════════════════════════════════════
@@ -4149,125 +4262,12 @@ function BOMManager({ user }) {
                 })}>
                   + Log Order Manually
                 </button>
-                <label style={{ display:"inline-flex",alignItems:"center",gap:8,padding:"9px 18px",borderRadius:980,
-                  fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:"#5856d6",color:"#fff",
-                  fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",whiteSpace:"nowrap" }}>
-                  {invoiceParsing ? "Parsing…" : "📄 Upload Invoice (AI)"}
-                  <input type="file" accept=".pdf,.csv,.txt,.tsv,.png,.jpg,.jpeg,.gif,.webp,image/*" style={{ display:"none" }}
-                    onChange={(e) => { const f = e.target.files[0]; if (f) parseInvoice(f); e.target.value=""; }}
-                    disabled={invoiceParsing} />
-                </label>
-                <button onClick={captureInvoiceFromCamera}
-                  disabled={invoiceParsing || invoiceScanning}
-                  style={{ padding:"9px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",
-                    border:"none",background:"#34c759",color:"#fff",
-                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
-                    whiteSpace:"nowrap",opacity:(invoiceParsing||invoiceScanning)?0.5:1 }}>
-                  📷 Scan Invoice
+                <button className="btn-ghost" onClick={() => setActiveView("scan")}
+                  style={{ fontWeight:600 }}>
+                  Scan / Upload Invoice
                 </button>
               </div>
             </div>
-
-            {/* Camera viewfinder for invoice scanning */}
-            {invoiceScanning && (
-              <div style={{ marginBottom:20,borderRadius:16,overflow:"hidden",background:"#000",
-                boxShadow:"0 4px 20px rgba(0,0,0,0.15)",position:"relative" }}>
-                <video ref={invoiceCamRef} style={{ width:"100%",maxHeight:400,objectFit:"cover" }} playsInline muted />
-                <div style={{ position:"absolute",bottom:16,left:"50%",transform:"translateX(-50%)",display:"flex",gap:12 }}>
-                  <button onClick={snapInvoicePhoto}
-                    style={{ width:64,height:64,borderRadius:"50%",border:"4px solid #fff",background:"rgba(255,255,255,0.3)",
-                      cursor:"pointer",fontSize:24,display:"flex",alignItems:"center",justifyContent:"center",
-                      boxShadow:"0 2px 12px rgba(0,0,0,0.3)" }}
-                    onMouseDown={e=>e.currentTarget.style.background="rgba(255,255,255,0.6)"}
-                    onMouseUp={e=>e.currentTarget.style.background="rgba(255,255,255,0.3)"}>
-                    📸
-                  </button>
-                  <button onClick={cancelInvoiceScan}
-                    style={{ padding:"12px 24px",borderRadius:980,border:"none",background:"rgba(255,59,48,0.9)",
-                      color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer" }}>
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Invoice parsing error */}
-            {invoiceError && (
-              <div style={{ background:"#fff2f2",border:"1px solid #ffccc7",borderRadius:10,padding:"14px 18px",marginBottom:16,fontSize:13,color:"#ff3b30",
-                display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-                <span>{invoiceError}</span>
-                <button onClick={()=>setInvoiceError("")} style={{ background:"none",border:"none",cursor:"pointer",color:"#ff3b30",fontSize:16 }}>✕</button>
-              </div>
-            )}
-
-            {/* Invoice parse results — review and apply */}
-            {invoiceResult && (
-              <div style={{ background:"#fff",borderRadius:12,boxShadow:"0 2px 8px rgba(0,0,0,0.08)",marginBottom:20,overflow:"hidden",border:"1px solid #e5e5ea" }}>
-                <div style={{ background:"#5856d6",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-                  <div>
-                    <div style={{ fontWeight:700,fontSize:14,color:"#fff",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                      AI Invoice Results — {invoiceResult.fileName}
-                    </div>
-                    <div style={{ fontSize:11,color:"rgba(255,255,255,0.7)",marginTop:2 }}>
-                      {invoiceResult.items.length} items found · {invoiceResult.items.filter(i=>i.matchedPart).length} matched to your parts
-                    </div>
-                  </div>
-                  <div style={{ display:"flex",gap:8 }}>
-                    <button onClick={applyInvoiceResults}
-                      style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:"#34c759",color:"#fff" }}>
-                      Apply {invoiceResult.items.filter(i=>i.apply).length} Items
-                    </button>
-                    <button onClick={()=>setInvoiceResult(null)}
-                      style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"1px solid rgba(255,255,255,0.3)",background:"transparent",color:"#fff" }}>
-                      Dismiss
-                    </button>
-                  </div>
-                </div>
-                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
-                  <thead>
-                    <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
-                      <th style={{ padding:"10px 14px",textAlign:"center",width:40,fontSize:10,color:"#86868b" }}>USE</th>
-                      <th style={{ padding:"10px 14px",textAlign:"left",fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.06em" }}>MPN</th>
-                      <th style={{ padding:"10px 14px",textAlign:"left",fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.06em" }}>DESCRIPTION</th>
-                      <th style={{ padding:"10px 14px",textAlign:"right",fontSize:10,color:"#86868b",fontWeight:700 }}>QTY</th>
-                      <th style={{ padding:"10px 14px",textAlign:"right",fontSize:10,color:"#86868b",fontWeight:700 }}>UNIT PRICE</th>
-                      <th style={{ padding:"10px 14px",textAlign:"left",fontSize:10,color:"#86868b",fontWeight:700 }}>MATCHED PART</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoiceResult.items.map((item, idx) => (
-                      <tr key={idx} style={{ borderBottom:"1px solid #f0f0f2",background:item.matchedPart?"transparent":"#fffbf0" }}>
-                        <td style={{ padding:"8px 14px",textAlign:"center" }}>
-                          <input type="checkbox" checked={item.apply}
-                            onChange={()=>setInvoiceResult(prev=>({...prev,items:prev.items.map((it,i)=>i===idx?{...it,apply:!it.apply}:it)}))}
-                            style={{ width:15,height:15,cursor:"pointer",accentColor:"#5856d6" }} />
-                        </td>
-                        <td style={{ padding:"8px 14px",fontWeight:600,color:"#1d1d1f" }}>{item.mpn||"—"}</td>
-                        <td style={{ padding:"8px 14px",color:"#6e6e73",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{item.description||"—"}</td>
-                        <td style={{ padding:"8px 14px",textAlign:"right",fontWeight:600 }}>{item.quantity}</td>
-                        <td style={{ padding:"8px 14px",textAlign:"right",fontWeight:600,color:"#34c759" }}>
-                          {item.unitPrice > 0 ? `$${fmtPrice(item.unitPrice)}` : "—"}
-                        </td>
-                        <td style={{ padding:"8px 14px" }}>
-                          {item.matchedPart
-                            ? <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>✓ {item.matchedPart.mpn} (stock: {item.matchedPart.stockQty||0})</span>
-                            : <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #d2d2d7",color:"#1d1d1f" }}
-                                value={item.manualMatch || ""}
-                                onChange={(e) => {
-                                  const partId = e.target.value;
-                                  const matched = partId ? parts.find(p=>p.id===partId) : null;
-                                  setInvoiceResult(prev=>({...prev,items:prev.items.map((it,i)=>i===idx?{...it,matchedPart:matched,manualMatch:partId,apply:!!matched}:it)}));
-                                }}>
-                                <option value="">No match — assign manually</option>
-                                {parts.map(p=><option key={p.id} value={p.id}>{p.mpn||p.reference} {p.description?`(${p.description})`:""}</option>)}
-                              </select>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
 
             {/* Manual order form */}
             {orderForm && (
@@ -7255,7 +7255,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.28 — built 2026-03-18 2:05am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.29 — built 2026-03-18 2:20am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
