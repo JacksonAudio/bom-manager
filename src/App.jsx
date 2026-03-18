@@ -1082,6 +1082,7 @@ function BOMManager({ user }) {
   const [simUsOnly, setSimUsOnly] = useState(false); // simulation: US suppliers only
   const [shopifyDemand, setShopifyDemand] = useState(null); // { products, orders, syncedAt, loading, error }
   const [shopifyProducts, setShopifyProducts] = useState([]); // Shopify product list for mapping
+  const [shopifySalesPrices, setShopifySalesPrices] = useState(null); // { products: [{ shopifyProductId, title, avgPrice, minPrice, maxPrice, unitsSold, totalRevenue }] }
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
   const [mouserCartStatus, setMouserCartStatus] = useState(null); // { loading, error, cartUrl, cartKey, items }
   // Local order tracker — persists to localStorage
@@ -2207,6 +2208,37 @@ function BOMManager({ user }) {
     } catch (e) {
       console.error("[Shopify] sync failed:", e);
       setShopifyDemand(prev => ({ ...prev, loading: false, error: e.message }));
+    }
+  };
+
+  const fetchShopifySalesPrices = async () => {
+    const stores = getShopifyStores();
+    if (!stores.length) {
+      setShopifySalesPrices({ products: [], error: "No Shopify stores configured." });
+      return;
+    }
+    setShopifySalesPrices(prev => ({ ...(prev || {}), loading: true, error: null }));
+    try {
+      const allProducts = [];
+      const errors = [];
+      for (const store of stores) {
+        if (!store.domain || !store.clientId || !store.clientSecret) { errors.push(`${store.name || "?"}: missing credentials`); continue; }
+        const q = `domain=${encodeURIComponent(store.domain)}&client_id=${encodeURIComponent(store.clientId)}&client_secret=${encodeURIComponent(store.clientSecret)}`;
+        const res = await fetch(`/api/shopify-sales-prices?${q}`);
+        if (!res.ok) { const e = await res.json().catch(() => ({})); errors.push(`${store.name}: ${e.error || res.status}`); continue; }
+        const data = await res.json();
+        for (const p of (data.products || [])) { p.storeName = store.name; }
+        allProducts.push(...(data.products || []));
+      }
+      setShopifySalesPrices({
+        products: allProducts,
+        loading: false,
+        error: errors.length ? errors.join("; ") : null,
+        syncedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.error("[Shopify] sales prices fetch failed:", e);
+      setShopifySalesPrices(prev => ({ ...(prev || {}), loading: false, error: e.message }));
     }
   };
 
@@ -6150,6 +6182,14 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "admin" && (() => {
           const laborRate = parseFloat(apiKeys.labor_rate_hourly) || 25;
+          const hasShopifyPrices = shopifySalesPrices?.products?.length > 0;
+          // Build a lookup from shopify product id to price data
+          const shopifyPriceLookup = {};
+          if (hasShopifyPrices) {
+            for (const sp of shopifySalesPrices.products) {
+              shopifyPriceLookup[sp.shopifyProductId] = sp;
+            }
+          }
           const rows = productCosts.map((prod) => {
             const salesPrice = prod.salesPrice ? parseFloat(prod.salesPrice) : null;
             const bomCost = prod.total || 0;
@@ -6159,18 +6199,46 @@ function BOMManager({ user }) {
             const profit = salesPrice != null ? salesPrice - totalCost : null;
             const marginPct = salesPrice && salesPrice > 0 ? (profit / salesPrice) * 100 : null;
             const markupPct = totalCost > 0 && profit != null ? (profit / totalCost) * 100 : null;
-            return { ...prod, salesPrice, bomCost, buildMins, laborCost, totalCost, profit, marginPct, markupPct };
+            // Shopify actual prices
+            const spData = prod.shopifyProductId ? shopifyPriceLookup[prod.shopifyProductId] : null;
+            // Also try matching by product name if no shopifyProductId match
+            const spByName = !spData && hasShopifyPrices ? shopifySalesPrices.products.find(sp =>
+              sp.title && prod.name && sp.title.toLowerCase().includes(prod.name.toLowerCase())
+            ) : null;
+            const sp = spData || spByName || null;
+            const avgActual = sp ? sp.avgPrice : null;
+            const minActual = sp ? sp.minPrice : null;
+            const maxActual = sp ? sp.maxPrice : null;
+            const profitAvg = avgActual != null ? avgActual - totalCost : null;
+            const marginAvg = avgActual && avgActual > 0 ? (profitAvg / avgActual) * 100 : null;
+            const profitMin = minActual != null ? minActual - totalCost : null;
+            const marginMin = minActual && minActual > 0 ? (profitMin / minActual) * 100 : null;
+            const profitMax = maxActual != null ? maxActual - totalCost : null;
+            const marginMax = maxActual && maxActual > 0 ? (profitMax / maxActual) * 100 : null;
+            const unitsSold = sp ? sp.unitsSold : null;
+            const totalRevenue = sp ? sp.totalRevenue : null;
+            return { ...prod, salesPrice, bomCost, buildMins, laborCost, totalCost, profit, marginPct, markupPct,
+              avgActual, minActual, maxActual, profitAvg, marginAvg, profitMin, marginMin, profitMax, marginMax, unitsSold, totalRevenue };
           });
           const withMargin = rows.filter(r => r.marginPct != null);
           const avgMargin = withMargin.length > 0 ? withMargin.reduce((s,r) => s + r.marginPct, 0) / withMargin.length : 0;
           const highest = withMargin.length > 0 ? withMargin.reduce((a,b) => a.marginPct > b.marginPct ? a : b) : null;
           const lowest = withMargin.length > 0 ? withMargin.reduce((a,b) => a.marginPct < b.marginPct ? a : b) : null;
           const marginColor = (m) => m == null ? "#86868b" : m < 20 ? "#ff3b30" : m < 40 ? "#ff9500" : "#34c759";
+          // Shopify channel margin summaries
+          const withAvgMargin = rows.filter(r => r.marginAvg != null);
+          const blendedMargin = withAvgMargin.length > 0 ? withAvgMargin.reduce((s,r) => s + r.marginAvg, 0) / withAvgMargin.length : null;
+          const withMinMargin = rows.filter(r => r.marginMin != null);
+          const dealerMargin = withMinMargin.length > 0 ? withMinMargin.reduce((s,r) => s + r.marginMin, 0) / withMinMargin.length : null;
+          const withMaxMargin = rows.filter(r => r.marginMax != null);
+          const directMargin = withMaxMargin.length > 0 ? withMaxMargin.reduce((s,r) => s + r.marginMax, 0) / withMaxMargin.length : null;
           const thStyle = { padding:"10px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em",
             borderBottom:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",background:darkMode?"#2c2c2e":"#fafafa",whiteSpace:"nowrap" };
           const tdStyle = { padding:"10px 12px",fontSize:13,borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2" };
           const cardStyle = { background:darkMode?"#1c1c1e":"#fff",borderRadius:12,padding:"16px 20px",flex:1,
             border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" };
+          const thGroupBorder = { borderLeft:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea" };
+          const tdGroupBorder = { borderLeft:darkMode?"2px solid #2c2c2e":"2px solid #f0f0f2" };
           // Debounced sales price save
           const saveSalesPrice = (() => {
             const timers = {};
@@ -6184,9 +6252,9 @@ function BOMManager({ user }) {
             };
           })();
           return (
-          <div style={{ maxWidth:1400 }}>
+          <div style={{ maxWidth:1800 }}>
             <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",marginBottom:4 }}>Profit Analysis</h2>
-            <p style={{ fontSize:14,color:"#86868b",marginBottom:24 }}>Margins, markup, and profitability across all products.</p>
+            <p style={{ fontSize:14,color:"#86868b",marginBottom:24 }}>Margins, markup, and profitability across all products{hasShopifyPrices ? " — with Shopify actual pricing data" : ""}.</p>
 
             {/* Summary Cards */}
             <div style={{ display:"flex",gap:16,marginBottom:24,flexWrap:"wrap" }}>
@@ -6195,7 +6263,7 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:28,fontWeight:700,color:"#0071e3" }}>{rows.length}</div>
               </div>
               <div style={cardStyle}>
-                <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Avg Margin</div>
+                <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Avg MSRP Margin</div>
                 <div style={{ fontSize:28,fontWeight:700,color:marginColor(avgMargin) }}>{avgMargin.toFixed(1)}%</div>
               </div>
               <div style={cardStyle}>
@@ -6208,40 +6276,84 @@ function BOMManager({ user }) {
               </div>
             </div>
 
-            {/* Labor Rate Config */}
-            <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:20,background:darkMode?"#1c1c1e":"#fff",
-              border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
-              <label style={{ fontSize:13,fontWeight:600 }}>Labor Rate:</label>
-              <span style={{ fontSize:13,color:"#86868b" }}>$</span>
-              <input type="number" step="0.50" min="0"
-                value={apiKeys.labor_rate_hourly || "25"}
-                onChange={(e) => setApiKeys(k => ({ ...k, labor_rate_hourly: e.target.value }))}
-                style={{ width:70,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
-                  fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
-              <span style={{ fontSize:12,color:"#86868b" }}>/hr</span>
-              <button className="btn-primary" style={{ fontSize:11,padding:"5px 14px" }}
-                onClick={async () => {
-                  try {
-                    await saveAllApiKeys(apiKeys, user.id);
-                  } catch (e) { alert("Save failed: " + e.message); }
-                }}>Save</button>
+            {/* Channel Margin Summary — only when Shopify data loaded */}
+            {hasShopifyPrices && (
+              <div style={{ display:"flex",gap:16,marginBottom:24,flexWrap:"wrap" }}>
+                <div style={{ ...cardStyle,borderColor:"#34c759" }}>
+                  <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Direct Margin (max price)</div>
+                  <div style={{ fontSize:28,fontWeight:700,color:marginColor(directMargin) }}>{directMargin != null ? `${directMargin.toFixed(1)}%` : "—"}</div>
+                </div>
+                <div style={{ ...cardStyle,borderColor:"#ff9500" }}>
+                  <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Dealer Margin (min price)</div>
+                  <div style={{ fontSize:28,fontWeight:700,color:marginColor(dealerMargin) }}>{dealerMargin != null ? `${dealerMargin.toFixed(1)}%` : "—"}</div>
+                </div>
+                <div style={{ ...cardStyle,borderColor:"#0071e3" }}>
+                  <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Blended Margin (avg price)</div>
+                  <div style={{ fontSize:28,fontWeight:700,color:marginColor(blendedMargin) }}>{blendedMargin != null ? `${blendedMargin.toFixed(1)}%` : "—"}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Controls row */}
+            <div style={{ display:"flex",alignItems:"center",gap:16,marginBottom:20,flexWrap:"wrap" }}>
+              {/* Labor Rate Config */}
+              <div style={{ display:"flex",alignItems:"center",gap:12,background:darkMode?"#1c1c1e":"#fff",
+                border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
+                <label style={{ fontSize:13,fontWeight:600 }}>Labor Rate:</label>
+                <span style={{ fontSize:13,color:"#86868b" }}>$</span>
+                <input type="number" step="0.50" min="0"
+                  value={apiKeys.labor_rate_hourly || "25"}
+                  onChange={(e) => setApiKeys(k => ({ ...k, labor_rate_hourly: e.target.value }))}
+                  style={{ width:70,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
+                    fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                <span style={{ fontSize:12,color:"#86868b" }}>/hr</span>
+                <button className="btn-primary" style={{ fontSize:11,padding:"5px 14px" }}
+                  onClick={async () => {
+                    try {
+                      await saveAllApiKeys(apiKeys, user.id);
+                    } catch (e) { alert("Save failed: " + e.message); }
+                  }}>Save</button>
+              </div>
+              {/* Fetch Shopify Prices */}
+              <button className="btn-primary" style={{ fontSize:12,padding:"10px 18px",display:"flex",alignItems:"center",gap:6 }}
+                onClick={fetchShopifySalesPrices}
+                disabled={shopifySalesPrices?.loading}>
+                {shopifySalesPrices?.loading ? <><span className="spinner" /> Fetching...</> : "Fetch Shopify Prices"}
+              </button>
+              {shopifySalesPrices?.syncedAt && (
+                <span style={{ fontSize:11,color:"#86868b" }}>
+                  Prices synced {new Date(shopifySalesPrices.syncedAt).toLocaleString()}
+                </span>
+              )}
             </div>
+            {shopifySalesPrices?.error && (
+              <div style={{ padding:"10px 14px",background:darkMode?"#3a2a2a":"#fff3f3",border:"1px solid #ff3b30",borderRadius:8,fontSize:12,color:"#ff3b30",marginBottom:16 }}>
+                {shopifySalesPrices.error}
+              </div>
+            )}
 
             {/* Profit Table */}
             <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:12,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",overflow:"hidden" }}>
               <div style={{ overflowX:"auto" }}>
-                <table style={{ width:"100%",borderCollapse:"collapse" }}>
+                <table style={{ width:"100%",borderCollapse:"collapse",minWidth:hasShopifyPrices?1400:900 }}>
                   <thead>
                     <tr>
                       <th style={thStyle}>Product</th>
-                      <th style={{ ...thStyle,textAlign:"right" }}>Sales Price</th>
                       <th style={{ ...thStyle,textAlign:"right" }}>BOM Cost</th>
-                      <th style={{ ...thStyle,textAlign:"right" }}>Labor (time)</th>
-                      <th style={{ ...thStyle,textAlign:"right" }}>Labor ($)</th>
+                      <th style={{ ...thStyle,textAlign:"right" }}>Labor</th>
                       <th style={{ ...thStyle,textAlign:"right" }}>Total Cost</th>
+                      <th style={{ ...thStyle,textAlign:"right",...thGroupBorder }}>MSRP</th>
                       <th style={{ ...thStyle,textAlign:"right" }}>Profit</th>
-                      <th style={{ ...thStyle,textAlign:"right" }}>Margin %</th>
-                      <th style={{ ...thStyle,textAlign:"right" }}>Markup %</th>
+                      <th style={{ ...thStyle,textAlign:"right" }}>Margin</th>
+                      {hasShopifyPrices && <>
+                        <th style={{ ...thStyle,textAlign:"right",...thGroupBorder }}>Avg Actual</th>
+                        <th style={{ ...thStyle,textAlign:"right" }}>Profit</th>
+                        <th style={{ ...thStyle,textAlign:"right" }}>Margin</th>
+                        <th style={{ ...thStyle,textAlign:"right",...thGroupBorder }}>Min (Dealer)</th>
+                        <th style={{ ...thStyle,textAlign:"right" }}>Profit</th>
+                        <th style={{ ...thStyle,textAlign:"right" }}>Margin</th>
+                        <th style={{ ...thStyle,textAlign:"right",...thGroupBorder }}>Units Sold</th>
+                      </>}
                     </tr>
                   </thead>
                   <tbody>
@@ -6255,7 +6367,11 @@ function BOMManager({ user }) {
                             {r.name}
                           </div>
                         </td>
-                        <td style={{ ...tdStyle,textAlign:"right" }}>
+                        <td style={{ ...tdStyle,textAlign:"right" }}>${fmtDollar(r.bomCost)}</td>
+                        <td style={{ ...tdStyle,textAlign:"right",color:"#86868b" }}>{r.buildMins ? `${r.buildMins}m / $${fmtDollar(r.laborCost)}` : "—"}</td>
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600 }}>${fmtDollar(r.totalCost)}</td>
+                        {/* MSRP group */}
+                        <td style={{ ...tdStyle,textAlign:"right",...tdGroupBorder }}>
                           <div style={{ display:"flex",alignItems:"center",justifyContent:"flex-end",gap:2 }}>
                             <span style={{ fontSize:12,color:"#86868b" }}>$</span>
                             <input type="number" step="0.01" min="0"
@@ -6270,19 +6386,38 @@ function BOMManager({ user }) {
                                 fontSize:13,textAlign:"right",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
                           </div>
                         </td>
-                        <td style={{ ...tdStyle,textAlign:"right" }}>${fmtDollar(r.bomCost)}</td>
-                        <td style={{ ...tdStyle,textAlign:"right",color:"#86868b" }}>{r.buildMins ? `${r.buildMins} min` : "—"}</td>
-                        <td style={{ ...tdStyle,textAlign:"right" }}>${fmtDollar(r.laborCost)}</td>
-                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600 }}>${fmtDollar(r.totalCost)}</td>
                         <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,color:r.profit!=null?(r.profit>=0?"#34c759":"#ff3b30"):"#86868b" }}>
                           {r.profit != null ? `$${fmtDollar(r.profit)}` : "—"}
                         </td>
                         <td style={{ ...tdStyle,textAlign:"right",fontWeight:700,color:marginColor(r.marginPct) }}>
                           {r.marginPct != null ? `${r.marginPct.toFixed(1)}%` : "—"}
                         </td>
-                        <td style={{ ...tdStyle,textAlign:"right",color:r.markupPct!=null?(r.markupPct>=0?"#1d1d1f":"#ff3b30"):"#86868b" }}>
-                          {r.markupPct != null ? `${r.markupPct.toFixed(1)}%` : "—"}
-                        </td>
+                        {/* Avg Actual group */}
+                        {hasShopifyPrices && <>
+                          <td style={{ ...tdStyle,textAlign:"right",...tdGroupBorder,color:r.avgActual!=null?(darkMode?"#f5f5f7":"#1d1d1f"):"#86868b" }}>
+                            {r.avgActual != null ? `$${fmtDollar(r.avgActual)}` : "—"}
+                          </td>
+                          <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,color:r.profitAvg!=null?(r.profitAvg>=0?"#34c759":"#ff3b30"):"#86868b" }}>
+                            {r.profitAvg != null ? `$${fmtDollar(r.profitAvg)}` : "—"}
+                          </td>
+                          <td style={{ ...tdStyle,textAlign:"right",fontWeight:700,color:marginColor(r.marginAvg) }}>
+                            {r.marginAvg != null ? `${r.marginAvg.toFixed(1)}%` : "—"}
+                          </td>
+                          {/* Min (Dealer) group */}
+                          <td style={{ ...tdStyle,textAlign:"right",...tdGroupBorder,color:r.minActual!=null?(darkMode?"#f5f5f7":"#1d1d1f"):"#86868b" }}>
+                            {r.minActual != null ? `$${fmtDollar(r.minActual)}` : "—"}
+                          </td>
+                          <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,color:r.profitMin!=null?(r.profitMin>=0?"#34c759":"#ff3b30"):"#86868b" }}>
+                            {r.profitMin != null ? `$${fmtDollar(r.profitMin)}` : "—"}
+                          </td>
+                          <td style={{ ...tdStyle,textAlign:"right",fontWeight:700,color:marginColor(r.marginMin) }}>
+                            {r.marginMin != null ? `${r.marginMin.toFixed(1)}%` : "—"}
+                          </td>
+                          {/* Units sold */}
+                          <td style={{ ...tdStyle,textAlign:"right",...tdGroupBorder,color:r.unitsSold!=null?(darkMode?"#f5f5f7":"#1d1d1f"):"#86868b" }}>
+                            {r.unitsSold != null ? r.unitsSold.toLocaleString() : "—"}
+                          </td>
+                        </>}
                       </tr>
                     ))}
                   </tbody>
@@ -6292,19 +6427,17 @@ function BOMManager({ user }) {
                         Averages / Totals
                       </td>
                       <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
-                        {withMargin.length > 0 ? `$${fmtDollar(withMargin.reduce((s,r)=>s+r.salesPrice,0)/withMargin.length)}` : "—"}
-                      </td>
-                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
                         ${fmtDollar(rows.reduce((s,r)=>s+r.bomCost,0)/rows.length)}
                       </td>
                       <td style={{ ...tdStyle,textAlign:"right",color:"#86868b",borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
                         {rows.filter(r=>r.buildMins).length > 0 ? `${(rows.reduce((s,r)=>s+r.buildMins,0)/rows.filter(r=>r.buildMins).length).toFixed(0)} min` : "—"}
                       </td>
                       <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
-                        ${fmtDollar(rows.reduce((s,r)=>s+r.laborCost,0)/rows.length)}
-                      </td>
-                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
                         ${fmtDollar(rows.reduce((s,r)=>s+r.totalCost,0)/rows.length)}
+                      </td>
+                      {/* MSRP avg */}
+                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",...tdGroupBorder }}>
+                        {withMargin.length > 0 ? `$${fmtDollar(withMargin.reduce((s,r)=>s+r.salesPrice,0)/withMargin.length)}` : "—"}
                       </td>
                       <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",
                         color:withMargin.length>0?(withMargin.reduce((s,r)=>s+r.profit,0)/withMargin.length>=0?"#34c759":"#ff3b30"):"#86868b" }}>
@@ -6314,9 +6447,36 @@ function BOMManager({ user }) {
                         color:marginColor(avgMargin) }}>
                         {withMargin.length > 0 ? `${avgMargin.toFixed(1)}%` : "—"}
                       </td>
-                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
-                        {withMargin.length > 0 ? `${(withMargin.reduce((s,r)=>s+r.markupPct,0)/withMargin.length).toFixed(1)}%` : "—"}
-                      </td>
+                      {hasShopifyPrices && <>
+                        {/* Avg actual averages */}
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",...tdGroupBorder }}>
+                          {withAvgMargin.length > 0 ? `$${fmtDollar(withAvgMargin.reduce((s,r)=>s+r.avgActual,0)/withAvgMargin.length)}` : "—"}
+                        </td>
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",
+                          color:withAvgMargin.length>0?(withAvgMargin.reduce((s,r)=>s+r.profitAvg,0)/withAvgMargin.length>=0?"#34c759":"#ff3b30"):"#86868b" }}>
+                          {withAvgMargin.length > 0 ? `$${fmtDollar(withAvgMargin.reduce((s,r)=>s+r.profitAvg,0)/withAvgMargin.length)}` : "—"}
+                        </td>
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:700,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",
+                          color:marginColor(blendedMargin) }}>
+                          {blendedMargin != null ? `${blendedMargin.toFixed(1)}%` : "—"}
+                        </td>
+                        {/* Min (dealer) averages */}
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",...tdGroupBorder }}>
+                          {withMinMargin.length > 0 ? `$${fmtDollar(withMinMargin.reduce((s,r)=>s+r.minActual,0)/withMinMargin.length)}` : "—"}
+                        </td>
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",
+                          color:withMinMargin.length>0?(withMinMargin.reduce((s,r)=>s+r.profitMin,0)/withMinMargin.length>=0?"#34c759":"#ff3b30"):"#86868b" }}>
+                          {withMinMargin.length > 0 ? `$${fmtDollar(withMinMargin.reduce((s,r)=>s+r.profitMin,0)/withMinMargin.length)}` : "—"}
+                        </td>
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:700,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",
+                          color:marginColor(dealerMargin) }}>
+                          {dealerMargin != null ? `${dealerMargin.toFixed(1)}%` : "—"}
+                        </td>
+                        {/* Total units */}
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",...tdGroupBorder }}>
+                          {rows.filter(r=>r.unitsSold!=null).reduce((s,r)=>s+(r.unitsSold||0),0).toLocaleString()}
+                        </td>
+                      </>}
                     </tr>
                   </tfoot>}
                 </table>
@@ -6334,7 +6494,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.10 — built 2026-03-17 10:45pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.11 — built 2026-03-17 10:55pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
