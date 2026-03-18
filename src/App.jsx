@@ -54,6 +54,7 @@ const DEFAULT_KEYS = {
   twilio_account_sid: "", // twilio.com — SMS notifications to builders
   twilio_auth_token: "",  // twilio.com
   twilio_phone_number: "", // twilio.com — your Twilio phone number (e.g. +1234567890)
+  labor_rate_hourly: "25", // $/hr labor rate for profit analysis
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -1560,6 +1561,7 @@ function BOMManager({ user }) {
       createdBy: row.created_by,
       shopifyProductId: row.shopify_product_id || null,
       buildMinutes: row.build_minutes || null,
+      salesPrice: row.sales_price || null,
     };
   }
 
@@ -2358,6 +2360,7 @@ function BOMManager({ user }) {
           { id:"projects",  label:"Products" },
           { id:"alerts",    label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}` },
           { id:"settings",  label:"Settings" },
+          { id:"admin",     label:"Admin" },
         ].map((tab) => (
           <button key={tab.id}
             className={`nav-btn ${activeView===tab.id?"active":""}`}
@@ -6141,6 +6144,187 @@ function BOMManager({ user }) {
             </div>
           </div>
         )}
+
+        {/* ══════════════════════════════════════
+            ADMIN — Profit Analysis
+        ══════════════════════════════════════ */}
+        {activeView === "admin" && (() => {
+          const laborRate = parseFloat(apiKeys.labor_rate_hourly) || 25;
+          const rows = productCosts.map((prod) => {
+            const salesPrice = prod.salesPrice ? parseFloat(prod.salesPrice) : null;
+            const bomCost = prod.total || 0;
+            const buildMins = prod.buildMinutes ? parseFloat(prod.buildMinutes) : 0;
+            const laborCost = (buildMins / 60) * laborRate;
+            const totalCost = bomCost + laborCost;
+            const profit = salesPrice != null ? salesPrice - totalCost : null;
+            const marginPct = salesPrice && salesPrice > 0 ? (profit / salesPrice) * 100 : null;
+            const markupPct = totalCost > 0 && profit != null ? (profit / totalCost) * 100 : null;
+            return { ...prod, salesPrice, bomCost, buildMins, laborCost, totalCost, profit, marginPct, markupPct };
+          });
+          const withMargin = rows.filter(r => r.marginPct != null);
+          const avgMargin = withMargin.length > 0 ? withMargin.reduce((s,r) => s + r.marginPct, 0) / withMargin.length : 0;
+          const highest = withMargin.length > 0 ? withMargin.reduce((a,b) => a.marginPct > b.marginPct ? a : b) : null;
+          const lowest = withMargin.length > 0 ? withMargin.reduce((a,b) => a.marginPct < b.marginPct ? a : b) : null;
+          const marginColor = (m) => m == null ? "#86868b" : m < 20 ? "#ff3b30" : m < 40 ? "#ff9500" : "#34c759";
+          const thStyle = { padding:"10px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em",
+            borderBottom:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",background:darkMode?"#2c2c2e":"#fafafa",whiteSpace:"nowrap" };
+          const tdStyle = { padding:"10px 12px",fontSize:13,borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2" };
+          const cardStyle = { background:darkMode?"#1c1c1e":"#fff",borderRadius:12,padding:"16px 20px",flex:1,
+            border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" };
+          // Debounced sales price save
+          const saveSalesPrice = (() => {
+            const timers = {};
+            return (productId, value) => {
+              clearTimeout(timers[productId]);
+              timers[productId] = setTimeout(async () => {
+                try {
+                  await supabase.from("products").update({ sales_price: value }).eq("id", productId);
+                } catch (e) { console.error("Failed to save sales price:", e); }
+              }, 500);
+            };
+          })();
+          return (
+          <div style={{ maxWidth:1400 }}>
+            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",marginBottom:4 }}>Profit Analysis</h2>
+            <p style={{ fontSize:14,color:"#86868b",marginBottom:24 }}>Margins, markup, and profitability across all products.</p>
+
+            {/* Summary Cards */}
+            <div style={{ display:"flex",gap:16,marginBottom:24,flexWrap:"wrap" }}>
+              <div style={cardStyle}>
+                <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Total Products</div>
+                <div style={{ fontSize:28,fontWeight:700,color:"#0071e3" }}>{rows.length}</div>
+              </div>
+              <div style={cardStyle}>
+                <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Avg Margin</div>
+                <div style={{ fontSize:28,fontWeight:700,color:marginColor(avgMargin) }}>{avgMargin.toFixed(1)}%</div>
+              </div>
+              <div style={cardStyle}>
+                <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Highest Margin</div>
+                <div style={{ fontSize:16,fontWeight:700,color:"#34c759" }}>{highest ? `${highest.name} (${highest.marginPct.toFixed(1)}%)` : "—"}</div>
+              </div>
+              <div style={cardStyle}>
+                <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Lowest Margin</div>
+                <div style={{ fontSize:16,fontWeight:700,color:"#ff3b30" }}>{lowest ? `${lowest.name} (${lowest.marginPct.toFixed(1)}%)` : "—"}</div>
+              </div>
+            </div>
+
+            {/* Labor Rate Config */}
+            <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:20,background:darkMode?"#1c1c1e":"#fff",
+              border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
+              <label style={{ fontSize:13,fontWeight:600 }}>Labor Rate:</label>
+              <span style={{ fontSize:13,color:"#86868b" }}>$</span>
+              <input type="number" step="0.50" min="0"
+                value={apiKeys.labor_rate_hourly || "25"}
+                onChange={(e) => setApiKeys(k => ({ ...k, labor_rate_hourly: e.target.value }))}
+                style={{ width:70,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
+                  fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+              <span style={{ fontSize:12,color:"#86868b" }}>/hr</span>
+              <button className="btn-primary" style={{ fontSize:11,padding:"5px 14px" }}
+                onClick={async () => {
+                  try {
+                    await saveAllApiKeys(apiKeys, user.id);
+                  } catch (e) { alert("Save failed: " + e.message); }
+                }}>Save</button>
+            </div>
+
+            {/* Profit Table */}
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:12,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",overflow:"hidden" }}>
+              <div style={{ overflowX:"auto" }}>
+                <table style={{ width:"100%",borderCollapse:"collapse" }}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>Product</th>
+                      <th style={{ ...thStyle,textAlign:"right" }}>Sales Price</th>
+                      <th style={{ ...thStyle,textAlign:"right" }}>BOM Cost</th>
+                      <th style={{ ...thStyle,textAlign:"right" }}>Labor (time)</th>
+                      <th style={{ ...thStyle,textAlign:"right" }}>Labor ($)</th>
+                      <th style={{ ...thStyle,textAlign:"right" }}>Total Cost</th>
+                      <th style={{ ...thStyle,textAlign:"right" }}>Profit</th>
+                      <th style={{ ...thStyle,textAlign:"right" }}>Margin %</th>
+                      <th style={{ ...thStyle,textAlign:"right" }}>Markup %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.id} style={{ transition:"background 0.15s" }}
+                        onMouseEnter={e=>e.currentTarget.style.background=darkMode?"#2c2c2e":"#f5f5f7"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        <td style={{ ...tdStyle,fontWeight:600 }}>
+                          <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                            {r.color && <div style={{ width:10,height:10,borderRadius:"50%",background:r.color,flexShrink:0 }} />}
+                            {r.name}
+                          </div>
+                        </td>
+                        <td style={{ ...tdStyle,textAlign:"right" }}>
+                          <div style={{ display:"flex",alignItems:"center",justifyContent:"flex-end",gap:2 }}>
+                            <span style={{ fontSize:12,color:"#86868b" }}>$</span>
+                            <input type="number" step="0.01" min="0"
+                              defaultValue={r.salesPrice || ""}
+                              placeholder="—"
+                              onChange={(e) => {
+                                const val = e.target.value ? parseFloat(e.target.value) : null;
+                                setProducts(prev => prev.map(p => p.id === r.id ? { ...p, salesPrice: val } : p));
+                                saveSalesPrice(r.id, val);
+                              }}
+                              style={{ width:85,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
+                                fontSize:13,textAlign:"right",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                          </div>
+                        </td>
+                        <td style={{ ...tdStyle,textAlign:"right" }}>${fmtDollar(r.bomCost)}</td>
+                        <td style={{ ...tdStyle,textAlign:"right",color:"#86868b" }}>{r.buildMins ? `${r.buildMins} min` : "—"}</td>
+                        <td style={{ ...tdStyle,textAlign:"right" }}>${fmtDollar(r.laborCost)}</td>
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600 }}>${fmtDollar(r.totalCost)}</td>
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,color:r.profit!=null?(r.profit>=0?"#34c759":"#ff3b30"):"#86868b" }}>
+                          {r.profit != null ? `$${fmtDollar(r.profit)}` : "—"}
+                        </td>
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:700,color:marginColor(r.marginPct) }}>
+                          {r.marginPct != null ? `${r.marginPct.toFixed(1)}%` : "—"}
+                        </td>
+                        <td style={{ ...tdStyle,textAlign:"right",color:r.markupPct!=null?(r.markupPct>=0?"#1d1d1f":"#ff3b30"):"#86868b" }}>
+                          {r.markupPct != null ? `${r.markupPct.toFixed(1)}%` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {rows.length > 0 && <tfoot>
+                    <tr style={{ background:darkMode?"#2c2c2e":"#fafafa" }}>
+                      <td style={{ ...tdStyle,fontWeight:700,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
+                        Averages / Totals
+                      </td>
+                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
+                        {withMargin.length > 0 ? `$${fmtDollar(withMargin.reduce((s,r)=>s+r.salesPrice,0)/withMargin.length)}` : "—"}
+                      </td>
+                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
+                        ${fmtDollar(rows.reduce((s,r)=>s+r.bomCost,0)/rows.length)}
+                      </td>
+                      <td style={{ ...tdStyle,textAlign:"right",color:"#86868b",borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
+                        {rows.filter(r=>r.buildMins).length > 0 ? `${(rows.reduce((s,r)=>s+r.buildMins,0)/rows.filter(r=>r.buildMins).length).toFixed(0)} min` : "—"}
+                      </td>
+                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
+                        ${fmtDollar(rows.reduce((s,r)=>s+r.laborCost,0)/rows.length)}
+                      </td>
+                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
+                        ${fmtDollar(rows.reduce((s,r)=>s+r.totalCost,0)/rows.length)}
+                      </td>
+                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",
+                        color:withMargin.length>0?(withMargin.reduce((s,r)=>s+r.profit,0)/withMargin.length>=0?"#34c759":"#ff3b30"):"#86868b" }}>
+                        {withMargin.length > 0 ? `$${fmtDollar(withMargin.reduce((s,r)=>s+r.profit,0)/withMargin.length)}` : "—"}
+                      </td>
+                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:700,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",
+                        color:marginColor(avgMargin) }}>
+                        {withMargin.length > 0 ? `${avgMargin.toFixed(1)}%` : "—"}
+                      </td>
+                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
+                        {withMargin.length > 0 ? `${(withMargin.reduce((s,r)=>s+r.markupPct,0)/withMargin.length).toFixed(1)}%` : "—"}
+                      </td>
+                    </tr>
+                  </tfoot>}
+                </table>
+              </div>
+            </div>
+          </div>
+          );
+        })()}
       </main>
 
       {/* QR Label Modal */}
@@ -6150,7 +6334,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.08 — built 2026-03-17 10:32pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.09 — built 2026-03-17 10:40pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
