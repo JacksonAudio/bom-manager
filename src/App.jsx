@@ -1078,7 +1078,7 @@ function BOMManager({ user }) {
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
   const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","ai","sms","facebook","guide"]));
-  const [buildQueue, setBuildQueue] = useState(() => { try { return JSON.parse(localStorage.getItem("bom_build_queue") || "[]"); } catch { return []; } });
+  const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
   const [keySaved,    setKeySaved]    = useState(false);
@@ -1102,10 +1102,8 @@ function BOMManager({ user }) {
   const [shopifySalesPrices, setShopifySalesPrices] = useState(null); // { products: [{ shopifyProductId, title, avgPrice, minPrice, maxPrice, unitsSold, totalRevenue }] }
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
   const [mouserCartStatus, setMouserCartStatus] = useState(null); // { loading, error, cartUrl, cartKey, items }
-  // Local order tracker — persists to localStorage (fallback) + DB
-  const [trackedOrders, setTrackedOrders] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("bom_tracked_orders") || "[]"); } catch { return []; }
-  });
+  // Order tracker — DB-backed via poHistory
+  const [trackedOrders, setTrackedOrders] = useState([]);
   const [poHistory, setPoHistory] = useState([]); // DB-backed PO history
   const [bomSnapshots, setBomSnapshots] = useState([]); // DB-backed BOM snapshots
   const [bomHistoryOpen, setBomHistoryOpen] = useState(false); // collapsible BOM history section
@@ -1162,10 +1160,9 @@ function BOMManager({ user }) {
     </div>
   );
 
-  // Persist tracked orders to localStorage
+  // Persist tracked orders
   const saveTrackedOrders = (orders) => {
     setTrackedOrders(orders);
-    try { localStorage.setItem("bom_tracked_orders", JSON.stringify(orders)); } catch {}
   };
 
   // Add a new tracked order
@@ -1230,8 +1227,12 @@ function BOMManager({ user }) {
   // ─────────────────────────────────────────────
   // DB BOOT — fetch initial data on mount
   // ─────────────────────────────────────────────
-  // Persist build queue to localStorage
-  useEffect(() => { localStorage.setItem("bom_build_queue", JSON.stringify(buildQueue)); }, [buildQueue]);
+  // Sync build queue to DB when it changes
+  useEffect(() => {
+    for (const q of buildQueue) {
+      supabase.from("products").update({ build_queue_qty: q.qty }).eq("id", q.productId).catch(() => {});
+    }
+  }, [buildQueue]);
 
   useEffect(() => {
     async function boot() {
@@ -1250,8 +1251,15 @@ function BOMManager({ user }) {
         setBuildAssignments(bas || []);
 
         // Normalize DB rows → UI shape (DB uses snake_case, UI uses camelCase)
-        setProducts(prods.map(dbProductToUI));
+        const uiProducts = prods.map(dbProductToUI);
+        setProducts(uiProducts);
         setParts(pts.map(dbPartToUI));
+
+        // Restore build queue from products
+        const restoredQueue = uiProducts
+          .filter(p => p.buildQueueQty && p.buildQueueQty > 0)
+          .map(p => ({ productId: p.id, name: p.name, qty: p.buildQueueQty, color: p.color }));
+        if (restoredQueue.length > 0) setBuildQueue(restoredQueue);
 
         // Merge fetched keys over defaults — store merged copy for auto-connect
         const mergedKeys = { ...DEFAULT_KEYS, ...keys };
@@ -1619,6 +1627,7 @@ function BOMManager({ user }) {
       buildMinutes: row.build_minutes || null,
       salesPrice: row.sales_price || null,
       brand: row.brand || "Jackson Audio",
+      buildQueueQty: row.build_queue_qty || null,
     };
   }
 
@@ -2843,14 +2852,7 @@ function BOMManager({ user }) {
                     setBomSnapshots(prev => [saved, ...prev].slice(0, 50));
                     alert(`BOM snapshot saved to database (${snapshot.parts.length} parts, $${fmtDollar(inventoryValue)} inventory)`);
                   } catch (e) {
-                    // Fallback to localStorage
-                    try {
-                      const snapshots = JSON.parse(localStorage.getItem("bom_snapshots") || "[]");
-                      snapshots.push(snapshot);
-                      if (snapshots.length > 20) snapshots.shift();
-                      localStorage.setItem("bom_snapshots", JSON.stringify(snapshots));
-                      alert(`BOM snapshot saved locally (${snapshot.parts.length} parts, $${fmtDollar(inventoryValue)} inventory)\nDB save failed: ${e.message}`);
-                    } catch (e2) { alert("Snapshot save failed: " + e2.message); }
+                    alert("Snapshot save failed: " + e.message);
                   }
                 }}>
                   Save BOM Snapshot
@@ -7225,7 +7227,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.26 — built 2026-03-18 1:35am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.27 — built 2026-03-18 1:50am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
