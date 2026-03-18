@@ -2499,7 +2499,7 @@ function BOMManager({ user }) {
         {[
           { id:"dashboard", label:"Dashboard" },
           { id:"bom",       label:`Parts (${parts.length})` },
-          { id:"scan",      label:"Scan" },
+          { id:"scan",      label:"Scan In" },
           { id:"pricing",   label:`Pricing${pricedCount>0?` (${pricedCount}/${parts.length})`:""}` },
           { id:"purchasing",label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}` },
           { id:"suppliers", label:"Suppliers" },
@@ -7249,7 +7249,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.31 — built 2026-03-18 2:25am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.32 — built 2026-03-18 2:35am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
