@@ -15,6 +15,7 @@ import ScannerView from "./components/ScannerView.jsx";
 import Scoreboard from "./components/Scoreboard.jsx";
 import BuildView from "./components/BuildView.jsx";
 import InvoiceView from "./components/InvoiceView.jsx";
+import PriceChart from "./components/PriceChart.jsx";
 import {
   onAuthChange, signOut,
   fetchProducts, createProduct, deleteProduct,
@@ -2666,6 +2667,27 @@ function BOMManager({ user }) {
               );
             })()}
 
+            {/* ── Inventory Value Over Time (from BOM snapshots) */}
+            {bomSnapshots.length >= 2 && (() => {
+              const chartData = bomSnapshots
+                .filter(s => s.snapshot && s.snapshot.inventoryValue != null)
+                .map(s => ({
+                  recorded_at: s.created_at,
+                  unit_price: s.snapshot.inventoryValue,
+                  supplier: s.snapshot.product_id ? (products.find(p => p.id === s.snapshot.product_id)?.name || "Product") : "All Products",
+                  source: `${(s.snapshot.parts || []).length} parts`,
+                }))
+                .sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
+              if (chartData.length < 2) return null;
+              return (
+                <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                  <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Inventory Value Over Time</div>
+                  <div style={{ fontSize:12,color:"#86868b",marginBottom:14 }}>Total inventory value from BOM snapshots</div>
+                  <PriceChart data={chartData} darkMode={darkMode} height={240} />
+                </div>
+              );
+            })()}
+
             {/* ── Build queue */}
             {buildQueue.length > 0 && (
               <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
@@ -2809,6 +2831,7 @@ function BOMManager({ user }) {
                   // Save BOM snapshot to database
                   const snapshot = {
                     date: new Date().toISOString(),
+                    product_id: null,
                     products: products.map(p => ({ id:p.id, name:p.name })),
                     parts: parts.map(p => ({ id:p.id, mpn:p.mpn, reference:p.reference, value:p.value, description:p.description,
                       quantity:p.quantity, stockQty:p.stockQty, unitCost:p.unitCost, projectId:p.projectId, manufacturer:p.manufacturer })),
@@ -2855,7 +2878,7 @@ function BOMManager({ user }) {
                     {bomSnapshots.length > 0 && <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                       <thead>
                         <tr style={{ borderBottom:"2px solid " + (darkMode?"#3a3a3e":"#e5e5ea") }}>
-                          {["Date","Label","Parts","Inventory Value",""].map(h=>(
+                          {["Date","Label","Scope","Parts","Inventory Value",""].map(h=>(
                             <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#86868b",letterSpacing:"0.06em",textTransform:"uppercase",
                               fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{h}</th>
                           ))}
@@ -2872,6 +2895,15 @@ function BOMManager({ user }) {
                             <tr key={snap.id} style={{ borderBottom:"1px solid " + (darkMode?"#2c2c2e":"#f0f0f2") }}>
                               <td style={{ padding:"10px 12px",fontSize:12,color:darkMode?"#e2e8f0":"#1d1d1f" }}>{dateStr}</td>
                               <td style={{ padding:"10px 12px",fontSize:12,color:darkMode?"#e2e8f0":"#1d1d1f",fontWeight:600 }}>{snap.label || "Untitled"}</td>
+                              <td style={{ padding:"10px 12px",fontSize:12 }}>
+                                {s.product_id
+                                  ? <span style={{ padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:600,background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>
+                                      {(s.products && s.products[0]?.name) || "Product"}
+                                    </span>
+                                  : <span style={{ padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:600,background:"rgba(0,113,227,0.08)",color:"#0071e3" }}>
+                                      All Products
+                                    </span>}
+                              </td>
                               <td style={{ padding:"10px 12px",fontSize:12,color:"#86868b" }}>{snapParts.length}</td>
                               <td style={{ padding:"10px 12px",fontSize:12,color:"#34c759",fontWeight:600 }}>${fmtDollar(snapValue)}</td>
                               <td style={{ padding:"10px 12px",textAlign:"right" }}>
@@ -3718,6 +3750,11 @@ function BOMManager({ user }) {
                                     </tbody>
                                   </table>
                                   {history.length > 10 && <div style={{ fontSize:10,color:"#aeaeb2",marginTop:6,textAlign:"center" }}>Showing 10 of {history.length} records</div>}
+                                  {history.length >= 2 && (
+                                    <div style={{ marginTop:14 }}>
+                                      <PriceChart data={history} darkMode={darkMode} title={`${part.mpn || part.reference || "Part"} — Price History`} height={180} />
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })()}
@@ -4840,6 +4877,30 @@ function BOMManager({ user }) {
                         for (const p of toFetch) { await fetchPartPricing(p.id); await new Promise(r => setTimeout(r, 300)); }
                       }}>
                       {prodParts.some(p => p.pricingStatus === "loading") ? "Refreshing…" : `Refresh Prices (${prodParts.filter(p=>p.mpn).length})`}
+                    </button>
+                    <button style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const prodPartsSnap = prodParts.map(p => ({ id:p.id, mpn:p.mpn, reference:p.reference, value:p.value, description:p.description,
+                          quantity:p.quantity, stockQty:p.stockQty, unitCost:p.unitCost, projectId:p.projectId, manufacturer:p.manufacturer }));
+                        const prodValue = prodPartsSnap.reduce((s, p) => s + (parseFloat(p.unitCost)||0) * (parseInt(p.stockQty)||0), 0);
+                        const snapshot = {
+                          date: new Date().toISOString(),
+                          product_id: prod.id,
+                          products: [{ id: prod.id, name: prod.name }],
+                          parts: prodPartsSnap,
+                          inventoryValue: prodValue,
+                        };
+                        const label = `${prod.name} — ${prodPartsSnap.length} parts, $${fmtDollar(prodValue)}`;
+                        try {
+                          const saved = await saveBomSnapshot(label, snapshot, user.id);
+                          setBomSnapshots(prev => [saved, ...prev].slice(0, 50));
+                          alert(`Product snapshot saved: ${prod.name} (${prodPartsSnap.length} parts, $${fmtDollar(prodValue)})`);
+                        } catch (err) {
+                          alert("Snapshot save failed: " + err.message);
+                        }
+                      }}>
+                      Save Product Snapshot
                     </button>
                     {/* Build Time input */}
                     <div style={{ display:"flex",alignItems:"center",gap:4,marginLeft:8 }} onClick={e => e.stopPropagation()}>
@@ -6971,6 +7032,7 @@ function BOMManager({ user }) {
                   <thead style={{ position:"sticky",top:0,zIndex:10 }}>
                     <tr>
                       <th style={thStyle}>Product</th>
+                      <th style={{ ...thStyle,textAlign:"center",width:80 }}>Trend</th>
                       <th style={{ ...thStyle,textAlign:"right" }}>BOM Cost</th>
                       <th style={{ ...thStyle,textAlign:"right" }}>Labor</th>
                       <th style={{ ...thStyle,textAlign:"right" }}>Shipping</th>
@@ -7000,6 +7062,34 @@ function BOMManager({ user }) {
                             {r.color && <div style={{ width:10,height:10,borderRadius:"50%",background:r.color,flexShrink:0 }} />}
                             {r.name}
                           </div>
+                        </td>
+                        <td style={{ ...tdStyle,textAlign:"center" }}>
+                          {(() => {
+                            const pp = parts.filter(p => p.projectId === r.id);
+                            const partIds = new Set(pp.map(p => p.id));
+                            const phForProd = allPriceHistory.filter(h => partIds.has(h.part_id));
+                            if (phForProd.length < 2) return <span style={{ fontSize:10,color:"#aeaeb2" }}>—</span>;
+                            // Aggregate by date: sum unit_price per day for this product's parts
+                            const byDate = {};
+                            for (const h of phForProd) {
+                              const day = h.recorded_at.slice(0, 10);
+                              if (!byDate[day]) byDate[day] = {};
+                              // Keep latest price per part per day
+                              if (!byDate[day][h.part_id] || h.recorded_at > byDate[day][h.part_id].recorded_at) {
+                                byDate[day][h.part_id] = h;
+                              }
+                            }
+                            const dates = Object.keys(byDate).sort();
+                            if (dates.length < 2) return <span style={{ fontSize:10,color:"#aeaeb2" }}>—</span>;
+                            const sparkData = dates.slice(-12).map(day => {
+                              const total = Object.values(byDate[day]).reduce((s, h) => {
+                                const part = pp.find(p => p.id === h.part_id);
+                                return s + (parseFloat(h.unit_price) || 0) * (part ? (parseInt(part.quantity) || 1) : 1);
+                              }, 0);
+                              return { recorded_at: day, unit_price: total };
+                            });
+                            return <PriceChart data={sparkData} sparkline width={70} height={24} darkMode={darkMode} />;
+                          })()}
                         </td>
                         <td style={{ ...tdStyle,textAlign:"right" }}>${fmtDollar(r.bomCost)}</td>
                         <td style={{ ...tdStyle,textAlign:"right",color:"#86868b" }}>{r.buildMins ? `${r.buildMins}m / $${fmtDollar(r.laborCost)}` : "—"}</td>
@@ -7062,6 +7152,7 @@ function BOMManager({ user }) {
                       <td style={{ ...tdStyle,fontWeight:700,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
                         Averages / Totals
                       </td>
+                      <td style={{ ...tdStyle,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }} />
                       <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
                         ${fmtDollar(rows.reduce((s,r)=>s+r.bomCost,0)/rows.length)}
                       </td>
@@ -7130,7 +7221,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.22 — built 2026-03-18 1:05am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.23 — built 2026-03-18 1:15am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
