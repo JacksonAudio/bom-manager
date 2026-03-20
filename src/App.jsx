@@ -1116,6 +1116,7 @@ function BOMManager({ user }) {
   const [dragOver,    setDragOver]    = useState(false);
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","ai","sms","facebook","guide"]));
   const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
@@ -1173,7 +1174,13 @@ function BOMManager({ user }) {
   const [newBuildOrder,    setNewBuildOrder]     = useState({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"" });
   const [prodBusy,         setProdBusy]          = useState(false);
 
+  const [pdPasteText, setPdPasteText] = useState(""); // product detail page paste text
+  const [pdDragOver, setPdDragOver] = useState(false); // product detail page drag state
+  const [pdImportError, setPdImportError] = useState("");
+  const [pdImportOk, setPdImportOk] = useState("");
+
   const fileRef = useRef();
+  const pdFileRef = useRef(); // product detail page file input ref
   const qtyTimers = useRef({}); // debounce timers for qty→price refresh
   const simTimer = useRef(null); // debounce timer for sim auto-run
   const recentLocalWrites = useRef(new Set()); // part IDs written locally — skip realtime for these
@@ -1649,6 +1656,39 @@ function BOMManager({ user }) {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => handleImport(ev.target.result, file.name);
+    reader.readAsText(file);
+  };
+
+  // ── Import into a specific product (product detail page)
+  const handleProductImport = useCallback(async (rawText, productId, filename = "") => {
+    setPdImportError(""); setPdImportOk("");
+    try {
+      const parsed = parseBOM(rawText);
+      if (!parsed.length) { setPdImportError("No parts found. Check header row."); return; }
+      // Set product_id on all parsed parts
+      const withProduct = parsed.map(p => ({ ...p, projectId: productId }));
+      // Filter duplicates by MPN against what's already in DB
+      const existingMPNs = new Set(parts.map((p) => p.mpn).filter(Boolean));
+      const fresh = withProduct.filter((p) => !p.mpn || !existingMPNs.has(p.mpn));
+      if (!fresh.length) { setPdImportError("All parts already exist in the library (matched by MPN)."); return; }
+      const dbRows = fresh.map((p) => uiPartToDB(p));
+      await upsertParts(dbRows, user.id);
+      setPdImportOk(`Imported ${fresh.length} parts${filename ? ` from "${filename}"` : ""} into this product.`);
+    } catch (e) { setPdImportError("Import error: " + e.message); }
+  }, [parts, user?.id]);
+
+  const handleProductDrop = useCallback((e, productId) => {
+    e.preventDefault(); setPdDragOver(false);
+    const file = e.dataTransfer.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => handleProductImport(ev.target.result, productId, file.name);
+    reader.readAsText(file);
+  }, [handleProductImport]);
+
+  const handleProductFilePick = (e, productId) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => handleProductImport(ev.target.result, productId, file.name);
     reader.readAsText(file);
   };
 
@@ -4908,16 +4948,16 @@ function BOMManager({ user }) {
         {/* ══════════════════════════════════════
             PRODUCTS
         ══════════════════════════════════════ */}
-        {activeView === "projects" && (
-          <div style={{ background:"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
+        {activeView === "projects" && !selectedProduct && (
+          <div style={{ background:darkMode?"#1c1c1e":"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
             {/* Header */}
             <div style={{ marginBottom:28 }}>
-              <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",marginBottom:4 }}>Products</h2>
-              <p style={{ fontSize:14,color:"#86868b" }}>Click any product to expand its BOM. Only Part Number and Quantity required.</p>
+              <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>Products</h2>
+              <p style={{ fontSize:14,color:"#86868b" }}>Click any product to view its BOM, add parts, and run simulations.</p>
               <div style={{ display:"flex",gap:10,marginTop:14,flexWrap:"wrap",alignItems:"center" }}>
                 <input type="text" placeholder="New product name…" value={newProjName}
                   onChange={(e)=>setNewProjName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addProduct()}
-                  style={{ padding:"8px 14px",borderRadius:980,fontSize:13,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:220 }} />
+                  style={{ padding:"8px 14px",borderRadius:980,fontSize:13,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:220,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
                 <button onClick={addProduct}
                   style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff" }}>
                   + New Product
@@ -4939,602 +4979,605 @@ function BOMManager({ user }) {
               </div>
             )}
 
-            {/* Product list */}
-            <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden" }}>
-            {productCosts.filter(p => selBrand === "all" || (p.brand || "Jackson Audio") === selBrand).map((prod, prodIdx) => {
-              const cov = prod.partCount>0 ? Math.round(prod.costedCount/prod.partCount*100) : 0;
-              const prodParts = parts.filter((p) => p.projectId === prod.id);
-              const qa = quickAdd[prod.id] || {};
-              const showOpt = qa.showOptional || false;
-              const isOpen = expandedProducts.has(prod.id);
-
-              return (
-                <div key={prod.id} style={{ borderBottom:prodIdx<productCosts.length-1?"1px solid #f0f0f2":"none" }}>
-
-                  {/* ── Product header row — matches Pricing page style */}
-                  <div style={{ display:"flex",alignItems:"center",padding:"14px 22px",cursor:"pointer",
-                    transition:"background 0.15s",background:isOpen?"rgba(0,0,0,0.02)":"transparent" }}
-                    onClick={() => setExpandedProducts(prev => { const s = new Set(prev); s.has(prod.id) ? s.delete(prod.id) : s.add(prod.id); return s; })}
-                    onMouseOver={e=>{if(!isOpen)e.currentTarget.style.background="rgba(0,0,0,0.02)"}}
-                    onMouseOut={e=>{if(!isOpen)e.currentTarget.style.background="transparent"}}>
-                    <div style={{ flex:1,minWidth:0 }}>
-                      <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f" }}>
-                        {prod.name}
-                      </div>
-                      <div style={{ fontSize:12,color:"#86868b",marginTop:1 }}>
-                        {prod.brand && prod.brand !== "Jackson Audio" && <span style={{ color:"#5856d6",fontWeight:600,marginRight:6 }}>{prod.brand}</span>}
-                        {prod.partCount} part{prod.partCount!==1?"s":""}
-                        {cov > 0 && <span style={{ marginLeft:8 }}>{cov}% costed</span>}
-                      </div>
+            {/* Product cards */}
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))",gap:14 }}>
+            {productCosts.filter(p => selBrand === "all" || (p.brand || "Jackson Audio") === selBrand).map((prod) => (
+              <div key={prod.id}
+                onClick={() => { setSelectedProduct(prod.id); setPdImportError(""); setPdImportOk(""); setPdPasteText(""); }}
+                style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:14,padding:"20px 22px",cursor:"pointer",
+                  boxShadow:"0 1px 4px rgba(0,0,0,0.08)",transition:"transform 0.15s, box-shadow 0.15s",
+                  display:"flex",flexDirection:"column",gap:10 }}
+                onMouseOver={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.12)";}}
+                onMouseOut={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.08)";}}>
+                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                  <span style={{ display:"inline-block",width:10,height:10,borderRadius:"50%",background:prod.color,flexShrink:0 }} />
+                  <div style={{ flex:1,minWidth:0 }}>
+                    <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
+                      {prod.name}
                     </div>
-                    <div style={{ flex:"0 0 auto",display:"flex",alignItems:"center",gap:6 }} onClick={e => e.stopPropagation()}>
-                      <input type="number" min="1" placeholder="Qty"
-                        value={buildQtyInputs[prod.id] || ""}
-                        onChange={e => setBuildQtyInputs(prev => ({ ...prev, [prod.id]: e.target.value }))}
-                        onKeyDown={e => { if (e.key === "Enter" && parseInt(buildQtyInputs[prod.id]) > 0) {
-                          const qty = parseInt(buildQtyInputs[prod.id]);
-                          setBuildQueue(prev => [...prev.filter(q => q.productId !== prod.id), { productId: prod.id, name: prod.name, qty, color: prod.color }]);
-                          setBuildQtyInputs(prev => ({ ...prev, [prod.id]: "" }));
-                        }}}
-                        style={{ width:64,padding:"5px 8px",borderRadius:6,fontSize:13,fontWeight:600,textAlign:"center",
-                          border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",background:"#fff",color:"#1d1d1f" }} />
-                      <button
-                        disabled={!parseInt(buildQtyInputs[prod.id])}
-                        onClick={() => {
-                          const qty = parseInt(buildQtyInputs[prod.id]);
-                          if (!qty) return;
-                          setBuildQueue(prev => [...prev.filter(q => q.productId !== prod.id), { productId: prod.id, name: prod.name, qty, color: prod.color }]);
-                          setBuildQtyInputs(prev => ({ ...prev, [prod.id]: "" }));
-                        }}
-                        style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
-                          border:"none",background:buildQueue.find(q=>q.productId===prod.id)?"#34c759":"#0071e3",color:"#fff",
-                          opacity:parseInt(buildQtyInputs[prod.id])?"1":"0.4",whiteSpace:"nowrap" }}>
-                        {buildQueue.find(q=>q.productId===prod.id) ? `✓ Queued (${buildQueue.find(q=>q.productId===prod.id).qty})` : "Order"}
-                      </button>
-                    </div>
-                    <div style={{ flex:"0 0 auto",textAlign:"right",minWidth:90 }}>
-                      <div style={{ fontSize:20,fontWeight:600,letterSpacing:"-0.3px",color:"#1d1d1f" }}>{"$"}{fmtDollar(prod.total)}</div>
-                      <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>
-                        <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:prod.color,marginRight:4,verticalAlign:"middle" }} />
-                        per unit
-                      </div>
-                    </div>
-                  </div>
-
-                  {isOpen && (<div onClick={e => e.stopPropagation()}>
-                  {/* Brand + Shopify mapping + Refresh button */}
-                  <div style={{ padding:"0 22px 12px",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
-                    <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                      <span style={{ fontSize:10,color:"#86868b" }}>Brand:</span>
-                      <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:"#1d1d1f",minWidth:120 }}
-                        value={prod.brand || "Jackson Audio"}
-                        onChange={async (e) => {
-                          const val = e.target.value;
-                          setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, brand: val } : p));
-                          try { await supabase.from("products").update({ brand: val }).eq("id", prod.id); } catch (err) { console.error("Brand save failed:", err); }
-                        }}>
-                        <option value="Jackson Audio">Jackson Audio</option>
-                        <option value="Fulltone USA">Fulltone USA</option>
-                      </select>
-                    </div>
-                    {shopifyProducts.length > 0 && (
-                      <div style={{ display:"flex",alignItems:"center",gap:6 }} onClick={e => e.stopPropagation()}>
-                        <span style={{ fontSize:10,color:"#86868b" }}>Shopify:</span>
-                        <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:"#1d1d1f",minWidth:120 }}
-                          value={prod.shopifyProductId || ""}
-                          onChange={async (e) => {
-                            const val = e.target.value || null;
-                            setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, shopifyProductId: val } : p));
-                            try { await supabase.from("products").update({ shopify_product_id: val }).eq("id", prod.id); } catch (err) { console.error("Shopify mapping save failed:", err); }
-                          }}>
-                          <option value="">— Not linked —</option>
-                          {shopifyProducts.map(sp => (
-                            <option key={sp.id} value={sp.id}>{sp.storeName ? `[${sp.storeName}] ` : ""}{sp.title}</option>
-                          ))}
-                        </select>
-                        {prod.shopifyProductId && <span style={{ fontSize:10,color:"#34c759" }}>✓</span>}
-                      </div>
-                    )}
-                    <button style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}
-                      disabled={!prodParts.some(p => p.mpn) || prodParts.some(p => p.pricingStatus === "loading")}
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        const toFetch = prodParts.filter(p => p.mpn);
-                        for (const p of toFetch) { await fetchPartPricing(p.id); await new Promise(r => setTimeout(r, 300)); }
-                      }}>
-                      {prodParts.some(p => p.pricingStatus === "loading") ? "Refreshing…" : `Refresh Prices (${prodParts.filter(p=>p.mpn).length})`}
-                    </button>
-                    <button style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        const prodPartsSnap = prodParts.map(p => ({ id:p.id, mpn:p.mpn, reference:p.reference, value:p.value, description:p.description,
-                          quantity:p.quantity, stockQty:p.stockQty, unitCost:p.unitCost, projectId:p.projectId, manufacturer:p.manufacturer }));
-                        const bomCostPerUnit = prodParts.reduce((s, p) => s + priceAtQty(p) * (parseInt(p.quantity)||1), 0);
-                        const snapshot = {
-                          date: new Date().toISOString(),
-                          product_id: prod.id,
-                          products: [{ id: prod.id, name: prod.name }],
-                          parts: prodPartsSnap,
-                          bomCost: bomCostPerUnit,
-                        };
-                        const label = `${prod.name} — ${prodPartsSnap.length} parts, $${fmtDollar(bomCostPerUnit)}/unit`;
-                        try {
-                          const saved = await saveBomSnapshot(label, snapshot, user.id);
-                          setBomSnapshots(prev => [saved, ...prev].slice(0, 50));
-                          alert(`Product snapshot saved: ${prod.name} (${prodPartsSnap.length} parts, $${fmtDollar(bomCostPerUnit)}/unit)`);
-                        } catch (err) {
-                          alert("Snapshot save failed: " + err.message);
-                        }
-                      }}>
-                      Save Product Snapshot
-                    </button>
-                    {/* Build Time input */}
-                    <div style={{ display:"flex",alignItems:"center",gap:4,marginLeft:8 }} onClick={e => e.stopPropagation()}>
-                      <span style={{ fontSize:10,color:"#86868b" }}>Build Time:</span>
-                      <input type="number" min="1" placeholder="min"
-                        value={prod.buildMinutes || ""}
-                        onChange={async (e) => {
-                          const val = e.target.value ? parseInt(e.target.value) : null;
-                          setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, buildMinutes: val } : p));
-                          try { await supabase.from("products").update({ build_minutes: val }).eq("id", prod.id); } catch (err) { console.error("Build time save failed:", err); }
-                        }}
-                        style={{ width:52,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",background:"#fff",color:"#1d1d1f" }} />
-                      <span style={{ fontSize:10,color:"#86868b" }}>
-                        {prod.buildMinutes ? (prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h ${prod.buildMinutes%60}m`) : "min"}
-                      </span>
-                    </div>
-                  </div>
-                  {/* ── Quick-add part form */}
-                  <div style={{ padding:"12px 22px",borderTop:"1px solid #f0f0f2" }}>
-                    <div style={{ fontSize:10,color:"#86868b",letterSpacing:"0.5px",fontWeight:500,marginBottom:10,textTransform:"uppercase" }}>
-                      Add part to {prod.name}
-                    </div>
-                    {qa._error && (
-                      <div style={{ background:"#fff2f2",border:"1px solid #ffccc7",borderRadius:8,padding:"8px 12px",
-                        marginBottom:10,fontSize:12,color:"#ff3b30" }}>{qa._error}</div>
-                    )}
-
-                    {/* Required row: Part Number + Qty + Add button */}
-                    <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
-                      <div style={{ flex:"1 1 200px",position:"relative" }}>
-                        <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Part Number <span style={{ color:"#ff3b30" }}>*</span></div>
-                        <input
-                          type="text"
-                          placeholder="e.g. LOP-300-24"
-                          value={qa.pn || ""}
-                          onChange={(e) => setQAField(prod.id, "pn", e.target.value)}
-                          onKeyDown={(e) => { if(e.key==="Enter") quickAddPart(prod.id); }}
-                          onFocus={() => setQAField(prod.id, "_focused", true)}
-                          onBlur={() => setTimeout(() => setQAField(prod.id, "_focused", false), 200)}
-                          style={{ padding:"8px 12px",borderRadius:6,width:"100%",
-                            fontSize:13,fontWeight:600 }}
-                        />
-                        {/* Autocomplete dropdown */}
-                        {qa._focused && qa.pn && qa.pn.trim().length >= 2 && (() => {
-                          const q = qa.pn.trim().toLowerCase();
-                          const matches = parts
-                            .filter(p => p.projectId !== prod.id && (
-                              (p.mpn && p.mpn.toLowerCase().includes(q)) ||
-                              (p.value && p.value.toLowerCase().includes(q)) ||
-                              (p.description && p.description.toLowerCase().includes(q))
-                            ))
-                            .slice(0, 8);
-                          if (matches.length === 0) return null;
-                          return (
-                            <div style={{ position:"absolute",top:"100%",left:0,right:0,zIndex:100,
-                              background:"#fff",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",
-                              border:"1px solid #e5e5ea",marginTop:4,maxHeight:240,overflowY:"auto" }}>
-                              <div style={{ padding:"6px 12px",fontSize:9,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,borderBottom:"1px solid #f0f0f2" }}>
-                                EXISTING PARTS
-                              </div>
-                              {matches.map(m => (
-                                <div key={m.id}
-                                  onMouseDown={(e) => {
-                                    e.preventDefault();
-                                    updatePart(m.id, "projectId", prod.id);
-                                    setQAField(prod.id, "pn", "");
-                                    setQAField(prod.id, "_focused", false);
-                                  }}
-                                  style={{ padding:"8px 12px",cursor:"pointer",borderBottom:"1px solid #f5f5f7",
-                                    transition:"background 0.1s" }}
-                                  onMouseOver={e=>e.currentTarget.style.background="#f5f5f7"}
-                                  onMouseOut={e=>e.currentTarget.style.background="transparent"}>
-                                  <div style={{ fontSize:13,fontWeight:600,color:"#1d1d1f" }}>{m.mpn || m.reference}</div>
-                                  <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>
-                                    {[m.value, m.description, m.manufacturer].filter(Boolean).join(" · ") || "No details"}
-                                    {m.projectId && (() => {
-                                      const p = products.find(x => x.id === m.projectId);
-                                      return p ? <span style={{ color:"#aeaeb2" }}> — {p.name}</span> : null;
-                                    })()}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      <div style={{ flex:"0 0 80px" }}>
-                        <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Qty <span style={{ color:"#ff3b30" }}>*</span></div>
-                        <input
-                          type="number"
-                          placeholder="1"
-                          min="1"
-                          value={qa.qty || ""}
-                          onChange={(e) => setQAField(prod.id, "qty", e.target.value)}
-                          onKeyDown={(e) => { if(e.key==="Enter") quickAddPart(prod.id); }}
-                          style={{ padding:"8px 10px",borderRadius:6,width:"100%",fontSize:13 }}
-                        />
-                      </div>
-
-                      <div style={{ flex:"0 0 auto",alignSelf:"flex-end" }}>
-                        <button
-                          disabled={!qa.pn?.trim()}
-                          onClick={() => quickAddPart(prod.id)}
-                          style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff",opacity:qa.pn?.trim()?"1":"0.4" }}>
-                          + Add Part
-                        </button>
-                      </div>
-
-                      {/* Toggle optional fields */}
-                      <div style={{ flex:"0 0 auto",alignSelf:"flex-end" }}>
-                        <button className="btn-ghost" style={{ fontSize:11 }}
-                          onClick={() => setQAField(prod.id, "showOptional", !showOpt)}>
-                          {showOpt ? "▲ Less" : "▼ More fields"}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Optional fields — shown when expanded */}
-                    {showOpt && (
-                      <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginTop:10 }}>
-                        <div style={{ flex:"1 1 160px" }}>
-                          <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Description</div>
-                          <input type="text" placeholder="e.g. 24V Power Supply"
-                            value={qa.desc || ""}
-                            onChange={(e) => setQAField(prod.id, "desc", e.target.value)}
-                            style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12 }} />
-                        </div>
-                        <div style={{ flex:"1 1 100px" }}>
-                          <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Value</div>
-                          <input type="text" placeholder="e.g. 10k"
-                            value={qa.value || ""}
-                            onChange={(e) => setQAField(prod.id, "value", e.target.value)}
-                            style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12 }} />
-                        </div>
-                        <div style={{ flex:"1 1 140px" }}>
-                          <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Manufacturer</div>
-                          <input type="text" placeholder="e.g. Mean Well"
-                            value={qa.mfr || ""}
-                            onChange={(e) => setQAField(prod.id, "mfr", e.target.value)}
-                            style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12 }} />
-                        </div>
-                        <div style={{ display:"flex",alignItems:"center",gap:6,paddingTop:14 }}>
-                          <input type="checkbox" checked={qa.isInternal || false}
-                            onChange={(e) => setQAField(prod.id, "isInternal", e.target.checked)}
-                            style={{ width:14,height:14,accentColor:"#5856d6",cursor:"pointer" }} />
-                          <span style={{ fontSize:11,color:"#5856d6",fontWeight:600 }}>In-House</span>
-                        </div>
-                      </div>
+                    {prod.brand && prod.brand !== "Jackson Audio" && (
+                      <span style={{ fontSize:10,fontWeight:700,color:"#5856d6",letterSpacing:"0.04em" }}>{prod.brand}</span>
                     )}
                   </div>
-
-                  {/* ── Parts list — clean row format */}
-                  {prodParts.length > 0 && (
-                    <div style={{ borderTop:"1px solid #f0f0f2" }}>
-                      {prodParts.map((part,i) => {
-                        const dynResult = (() => {
-                          const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
-                          if (!pr) return { price: parseFloat(part.unitCost) || 0, source: null, supplierId: null, supplierName: null, suppliers: [] };
-                          const isUS = (sid, d) => { const c = d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[sid] || ""; return !c || c === "US"; };
-                          const exclusiveEntry = Object.entries(pr).find(([, d]) => d.isCustom && d.exclusive);
-                          if (exclusiveEntry) {
-                            const [sid, data] = exclusiveEntry;
-                            const priceAt = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
-                            return { price: priceAt(data), source: isUS(sid, data) ? "USA" : "INTL", supplierId: sid, supplierName: data.displayName || sid, suppliers: [{ id: sid, name: data.displayName || sid, price: priceAt(data) }] };
-                          }
-                          let entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
-                          if (simUsOnly) entries = entries.filter(([sid, d]) => isUS(sid, d));
-                          if (!entries.length) return { price: parseFloat(part.unitCost) || 0, source: null, supplierId: null, supplierName: null, suppliers: [] };
-                          const priceAt = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
-                          entries.sort((a,b) => (priceAt(a[1])||Infinity) - (priceAt(b[1])||Infinity));
-                          const suppliers = entries.map(([sid, d]) => ({ id: sid, name: d.displayName || sid, price: priceAt(d) }));
-                          const forced = part.preferredSupplier && entries.find(([sid]) => sid === part.preferredSupplier);
-                          const [sid, data] = forced || entries[0];
-                          return { price: priceAt(data), source: isUS(sid, data) ? "USA" : "INTL", supplierId: sid, supplierName: data.displayName || sid, suppliers };
-                        })();
-                        const dynPrice = dynResult.price;
-                        const dynSource = dynResult.source;
-                        return (
-                          <div key={part.id} style={{ display:"flex",alignItems:"center",padding:"14px 22px",
-                            borderBottom:"1px solid #f0f0f2",background:"transparent",gap:16 }}>
-                            {/* Left: MPN + description */}
-                            <div style={{ flex:"1 1 200px",minWidth:0 }}>
-                              <div style={{ fontWeight:700,fontSize:15,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                                {part.mpn || part.reference || "—"}
-                              </div>
-                              <div style={{ fontSize:12,color:"#86868b",marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
-                                {[part.description, part.value, part.manufacturer].filter(Boolean).join(" — ") || "No description"}
-                              </div>
-                            </div>
-                            {/* Middle: Quantity */}
-                            <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:100 }}>
-                              <div style={{ fontSize:10,color:"#86868b",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase" }}>QUANTITY</div>
-                              <div style={{ fontSize:18,fontWeight:800,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{part.quantity}</div>
-                            </div>
-                            {/* Source badge */}
-                            <div style={{ flex:"0 0 auto",minWidth:60,textAlign:"center" }}>
-                              {part.isInternal
-                                ? <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>IN-HOUSE</span>
-                                : dynSource
-                                ? <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,
-                                    background:dynSource==="USA"?"rgba(52,199,89,0.1)":"rgba(255,149,0,0.1)",
-                                    color:dynSource==="USA"?"#248a3d":"#ff9500" }}>{dynSource}</span>
-                                : null}
-                            </div>
-                            {/* Right: Price + vendor */}
-                            <div style={{ flex:"0 0 auto",textAlign:"right",minWidth:100 }}>
-                              {dynPrice > 0
-                                ? <>
-                                    <div style={{ fontSize:18,fontWeight:800,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                                      ${fmtPrice(dynPrice)}
-                                    </div>
-                                    {dynResult.supplierName && (
-                                      <div style={{ fontSize:11,color:"#34c759",marginTop:2 }}>
-                                        <span style={{ display:"inline-block",width:6,height:6,borderRadius:3,background:"#34c759",marginRight:4,verticalAlign:"middle" }} />
-                                        {dynResult.supplierName}
-                                      </div>
-                                    )}
-                                  </>
-                                : <div style={{ fontSize:14,color:"#c7c7cc" }}>—</div>}
-                            </div>
-                            {/* Remove button */}
-                            <button onClick={()=>{if(window.confirm(`Remove "${part.mpn||part.reference}" from this product?`))updatePart(part.id,"projectId",null);}}
-                              title="Remove from product"
-                              style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:14,padding:"2px 6px",borderRadius:4,transition:"color 0.15s",flex:"0 0 auto" }}
-                              onMouseOver={(e)=>e.target.style.color="#ff9500"}
-                              onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>✕</button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {/* ── BOM Cost Simulator */}
-                  {prodParts.length > 0 && (
-                    <div style={{ padding:"14px 22px",borderTop:"1px solid #f0f0f2" }}>
-                      <div style={{ fontSize:10,color:"#86868b",letterSpacing:"0.5px",fontWeight:500,marginBottom:10,textTransform:"uppercase" }}>
-                        Production Run Simulator
-                      </div>
-                      <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:12 }}>
-                        <span style={{ fontSize:12,color:"#86868b" }}>If I build</span>
-                        <input type="number" min="1" placeholder="100"
-                          value={bomSim[prod.id]?.qty || ""}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const pid = prod.id;
-                            setBomSim(prev => ({ ...prev, [pid]: { ...prev[pid], qty: val } }));
-                            clearTimeout(simTimer.current);
-                            if (parseInt(val) > 0) simTimer.current = setTimeout(() => runBomSimulation(pid), 600);
-                          }}
-                          style={{ width:100,padding:"6px 10px",borderRadius:5,fontSize:14,fontWeight:700,textAlign:"center" }} />
-                        <span style={{ fontSize:12,color:"#86868b" }}>units of <strong style={{ color:"#1d1d1f" }}>{prod.name}</strong>…</span>
-                        <button className="btn-primary" style={{ fontSize:12 }}
-                          disabled={bomSim[prod.id]?.loading || !parseInt(bomSim[prod.id]?.qty)}
-                          onClick={() => runBomSimulation(prod.id)}>
-                          {bomSim[prod.id]?.loading ? <><span className="spinner" /> Calculating…</> : "Run Simulation"}
-                        </button>
-                        <label style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#86868b",cursor:"pointer",marginLeft:8 }}>
-                          <input type="checkbox" checked={simUsOnly} onChange={(e)=>{
-                            const v = e.target.checked;
-                            setSimUsOnly(v);
-                            if (bomSim[prod.id]?.results) runBomSimulation(prod.id, v);
-                          }} />
-                          US suppliers only
-                        </label>
-                      </div>
-
-                      {bomSim[prod.id]?.results && (() => {
-                        const results = bomSim[prod.id].results;
-                        // Use lowest qty in results as base (matches what was simulated)
-                        const baseResult = results.reduce((min, r) => !min || r.qty < min.qty ? r : min, null);
-                        if (!baseResult) return null;
-                        const baseQty = baseResult.qty;
-
-                        const cheapBase = baseResult.cheapest;
-                        const smartBase = baseResult.smart;
-                        const smartSavings = cheapBase.total - smartBase.total;
-
-                        // Find sweet spot across all qtys using smart strategy
-                        const smartResults = results.map(r => ({ qty: r.qty, ...r.smart }));
-                        const bestQty = smartResults.reduce((a, b) => a.perUnit < b.perUnit ? a : b);
-
-                        return (
-                          <div>
-                            {/* Strategy comparison at base qty */}
-                            <div style={{ display:"flex",gap:12,flexWrap:"wrap",marginBottom:16 }}>
-                              {/* Cheapest per part */}
-                              <div style={{ background:"#fff",borderRadius:8,padding:"12px 16px",minWidth:200,flex:1 }}>
-                                <div style={{ fontSize:10,color:"#ff9500",fontWeight:700,letterSpacing:"0.06em",marginBottom:4 }}>
-                                  CHEAPEST PER PART
-                                </div>
-                                <div style={{ fontSize:22,fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",color:"#1d1d1f" }}>
-                                  ${fmtPrice(cheapBase.perUnit)}<span style={{ fontSize:12,color:"#86868b",fontWeight:400 }}> / unit</span>
-                                </div>
-                                <div style={{ fontSize:11,color:"#86868b",marginTop:8 }}>
-                                  Parts: {"$"}{fmtDollar(cheapBase.partsCost)}
-                                </div>
-                                <div style={{ fontSize:11,color:"#86868b" }}>
-                                  Shipping: {"$"}{fmtDollar(cheapBase.shipping)} ({cheapBase.suppliers.length} vendor{cheapBase.suppliers.length!==1?"s":""})
-                                </div>
-                                <div style={{ fontSize:11,color:cheapBase.tariffTotal>0?"#ff3b30":"#86868b" }}>
-                                  Tariffs: {cheapBase.tariffTotal > 0 ? `$${fmtDollar(cheapBase.tariffTotal)}` : "$0.00"}
-                                </div>
-                                <div style={{ fontSize:12,color:"#1d1d1f",fontWeight:700,marginTop:4,borderTop:"1px solid #e5e5ea",paddingTop:4 }}>
-                                  Total: {"$"}{fmtDollar(cheapBase.total)}
-                                </div>
-                                {/* Per-vendor shipping */}
-                                <div style={{ fontSize:10,color:"#aeaeb2",marginTop:6 }}>
-                                  {cheapBase.shippingBreakdown.map(sb => (
-                                    <div key={sb.supplierId}>{sb.name}: {"$"}{fmtDollar(sb.cost)} shipping</div>
-                                  ))}
-                                </div>
-                                {/* Tariff detail — by part origin country */}
-                                {cheapBase.tariffBreakdown?.length > 0 && (
-                                  <div style={{ fontSize:10,color:"#ff3b30",marginTop:4 }}>
-                                    {cheapBase.tariffBreakdown.map((t,i) => (
-                                      <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{fmtDollar(t.goodsValue)} = {"$"}{fmtDollar(t.cost)}</div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Smart consolidated */}
-                              <div style={{ background:smartSavings>0?"rgba(52,199,89,0.06)":"#fff",
-                                border:smartSavings>0?"1px solid #34c759":"1px solid #e5e5ea",
-                                borderRadius:8,padding:"12px 16px",minWidth:200,flex:1 }}>
-                                <div style={{ fontSize:10,color:"#34c759",fontWeight:700,letterSpacing:"0.06em",marginBottom:4 }}>
-                                  SMART CONSOLIDATED {smartSavings > 0 ? "— RECOMMENDED" : ""}
-                                </div>
-                                <div style={{ fontSize:22,fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",color:"#34c759" }}>
-                                  ${fmtPrice(smartBase.perUnit)}<span style={{ fontSize:12,color:"#86868b",fontWeight:400 }}> / unit</span>
-                                </div>
-                                <div style={{ fontSize:11,color:"#86868b",marginTop:8 }}>
-                                  Parts: {"$"}{fmtDollar(smartBase.partsCost)}
-                                </div>
-                                <div style={{ fontSize:11,color:"#86868b" }}>
-                                  Shipping: {"$"}{fmtDollar(smartBase.shipping)} ({smartBase.suppliers.length} vendor{smartBase.suppliers.length!==1?"s":""})
-                                </div>
-                                <div style={{ fontSize:11,color:smartBase.tariffTotal>0?"#ff3b30":"#86868b" }}>
-                                  Tariffs: {smartBase.tariffTotal > 0 ? `$${fmtDollar(smartBase.tariffTotal)}` : "$0.00"}
-                                </div>
-                                <div style={{ fontSize:12,color:"#1d1d1f",fontWeight:700,marginTop:4,borderTop:"1px solid #e5e5ea",paddingTop:4 }}>
-                                  Total: {"$"}{fmtDollar(smartBase.total)}
-                                </div>
-                                {/* Per-vendor shipping */}
-                                <div style={{ fontSize:10,color:"#aeaeb2",marginTop:6 }}>
-                                  {smartBase.shippingBreakdown.map(sb => (
-                                    <div key={sb.supplierId}>{sb.name}: {"$"}{fmtDollar(sb.cost)} shipping</div>
-                                  ))}
-                                </div>
-                                {/* Tariff detail — by part origin country */}
-                                {smartBase.tariffBreakdown?.length > 0 && (
-                                  <div style={{ fontSize:10,color:"#ff3b30",marginTop:4 }}>
-                                    {smartBase.tariffBreakdown.map((t,i) => (
-                                      <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{fmtDollar(t.goodsValue)} = {"$"}{fmtDollar(t.cost)}</div>
-                                    ))}
-                                  </div>
-                                )}
-                                {smartSavings > 0 && (
-                                  <div style={{ fontSize:12,color:"#34c759",fontWeight:700,marginTop:6 }}>
-                                    Saves {"$"}{fmtDollar(smartSavings)} total vs cheapest-per-part
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Qty comparison table using smart strategy */}
-                            <div style={{ fontSize:10,color:"#5856d6",fontWeight:700,letterSpacing:"0.06em",marginBottom:6,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                              QUANTITY COMPARISON (Smart Consolidated)
-                            </div>
-                            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden" }}>
-                            <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
-                              <thead>
-                                <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
-                                  {["Units","Parts Cost","Shipping","Tariffs","Total","Per Unit","Vendors","vs Base"].map((h,hi,arr)=>(
-                                    <th key={hi} style={{ padding:"12px 14px",textAlign:hi>0?"right":"left",
-                                      fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
-                                      fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
-                                      borderRadius:hi===0?"8px 0 0 0":hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {results.map((r) => {
-                                  const s = r.smart;
-                                  const diff = smartBase.perUnit - s.perUnit;
-                                  const isBase = r.qty === baseQty;
-                                  const isBest = r.qty === bestQty.qty && r.qty !== baseQty;
-                                  return (
-                                    <tr key={r.qty} style={{
-                                      borderBottom:"1px solid #ededf0",
-                                      background: isBest ? "rgba(52,199,89,0.06)" : isBase ? "#f9f9fb" : "transparent"
-                                    }}>
-                                      <td style={{ padding:"12px 14px",fontWeight:isBase||isBest?700:400,
-                                        color:isBest?"#34c759":isBase?"#1d1d1f":"#6e6e73" }}>
-                                        {r.qty.toLocaleString()}{isBest?" (best value)":""}{isBase?" (base)":""}
-                                      </td>
-                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{"$"}{fmtDollar(s.partsCost)}</td>
-                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{"$"}{fmtDollar(s.shipping)}</td>
-                                      <td style={{ padding:"12px 14px",textAlign:"right",color:s.tariffTotal>0?"#ff3b30":"#c7c7cc" }}>
-                                        {s.tariffTotal > 0 ? `$${fmtDollar(s.tariffTotal)}` : "—"}
-                                      </td>
-                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#1d1d1f",fontWeight:600 }}>{"$"}{fmtDollar(s.total)}</td>
-                                      <td style={{ padding:"12px 14px",textAlign:"right",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
-                                        fontWeight:700,color:isBest?"#34c759":"#1d1d1f" }}>{"$"}{fmtPrice(s.perUnit)}</td>
-                                      <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>
-                                        {s.suppliers.length}
-                                      </td>
-                                      <td style={{ padding:"12px 14px",textAlign:"right",
-                                        color:diff>0?"#34c759":diff<0?"#ff3b30":"#c7c7cc",fontWeight:diff!==0?600:400 }}>
-                                        {isBase ? "—" : diff > 0 ? `-$${fmtPrice(diff)}/ea` : diff < 0 ? `+$${fmtPrice(Math.abs(diff))}/ea` : "same"}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                            </div>
-
-                            {/* Order This Run button */}
-                            <div style={{ marginTop:16,display:"flex",alignItems:"center",gap:12 }}>
-                              <button className="btn-primary" style={{ fontSize:13,padding:"10px 24px",background:"#34c759" }}
-                                onClick={() => {
-                                  // Use smart strategy at base qty
-                                  const assign = smartBase.assignments;
-                                  if (!assign?.length) return;
-                                  // Group by supplier
-                                  const grouped = {};
-                                  for (const a of assign) {
-                                    if (!a.supplierId) continue;
-                                    if (!grouped[a.supplierId]) grouped[a.supplierId] = [];
-                                    grouped[a.supplierId].push(a);
-                                  }
-                                  // Flag parts for order and set quantities
-                                  setParts(prev => prev.map(p => {
-                                    const a = assign.find(x => x.partId === p.id);
-                                    if (!a) return p;
-                                    return { ...p, flaggedForOrder: true, orderQty: String(a.needed), preferredSupplier: a.supplierId || p.preferredSupplier };
-                                  }));
-                                  // Persist to DB
-                                  for (const a of assign) {
-                                    if (!a.supplierId) continue;
-                                    dbUpdatePart(a.partId, {
-                                      flagged_for_order: true,
-                                      order_qty: a.needed,
-                                      preferred_supplier: a.supplierId,
-                                    }, user.id).catch(e => console.error("order flag failed:", e));
-                                  }
-                                  setActiveView("purchasing");
-                                }}>
-                                Order This Run
-                              </button>
-                              <span style={{ fontSize:11,color:"#86868b" }}>
-                                Flags all parts for purchase at the base qty ({baseQty.toLocaleString()} units) using Smart Consolidated assignments
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )}
-                  </div>)}
-
+                  <div style={{ textAlign:"right",flexShrink:0 }}>
+                    <div style={{ fontSize:20,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",letterSpacing:"-0.3px" }}>{"$"}{fmtDollar(prod.total)}</div>
+                    <div style={{ fontSize:10,color:"#86868b" }}>per unit</div>
+                  </div>
                 </div>
-              );
-            })}
+                <div style={{ display:"flex",gap:16,fontSize:12,color:"#86868b" }}>
+                  <span>{prod.partCount} part{prod.partCount!==1?"s":""}</span>
+                  {prod.buildMinutes && (
+                    <span>{prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h ${prod.buildMinutes%60}m`} build</span>
+                  )}
+                  {buildQueue.find(q=>q.productId===prod.id) && (
+                    <span style={{ color:"#34c759",fontWeight:600 }}>Queued: {buildQueue.find(q=>q.productId===prod.id).qty}</span>
+                  )}
+                </div>
+              </div>
+            ))}
             </div>
           </div>
         )}
+
+        {/* ══════════════════════════════════════
+            PRODUCT DETAIL PAGE
+        ══════════════════════════════════════ */}
+        {activeView === "projects" && selectedProduct && (() => {
+          const prod = productCosts.find(p => p.id === selectedProduct);
+          if (!prod) { setSelectedProduct(null); return null; }
+          const prodParts = parts.filter(p => p.projectId === prod.id);
+          const qa = quickAdd[prod.id] || {};
+          const showOpt = qa.showOptional || false;
+          const prodSelectedParts = [...selectedParts].filter(id => prodParts.some(p => p.id === id));
+          const allProdSelected = prodParts.length > 0 && prodParts.every(p => selectedParts.has(p.id));
+
+          return (
+          <div style={{ background:darkMode?"#1c1c1e":"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
+
+            {/* Back button */}
+            <button onClick={() => { setSelectedProduct(null); selectNone(); }}
+              style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",
+                fontSize:13,fontWeight:600,color:"#0071e3",fontFamily:"inherit",padding:"4px 0",marginBottom:20 }}>
+              ← Back to Products
+            </button>
+
+            {/* Header */}
+            <div style={{ display:"flex",alignItems:"flex-start",gap:16,marginBottom:28,flexWrap:"wrap" }}>
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
+                  <span style={{ display:"inline-block",width:12,height:12,borderRadius:"50%",background:prod.color }} />
+                  <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f5f5f7":"#1d1d1f",margin:0 }}>
+                    {prod.name}
+                  </h2>
+                  {prod.brand && prod.brand !== "Jackson Audio" && (
+                    <span style={{ fontSize:11,fontWeight:700,color:"#fff",background:"#5856d6",padding:"3px 10px",borderRadius:980 }}>{prod.brand}</span>
+                  )}
+                </div>
+                <div style={{ display:"flex",gap:20,fontSize:13,color:"#86868b",flexWrap:"wrap",alignItems:"center" }}>
+                  <span><strong style={{ color:darkMode?"#f5f5f7":"#1d1d1f" }}>{"$"}{fmtDollar(prod.total)}</strong> BOM cost/unit</span>
+                  <span>{prod.partCount} part{prod.partCount!==1?"s":""}</span>
+                  {prod.buildMinutes && (
+                    <span>{prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h ${prod.buildMinutes%60}m`} build time</span>
+                  )}
+                </div>
+              </div>
+              <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                  <span style={{ fontSize:10,color:"#86868b" }}>Brand:</span>
+                  <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f5f5f7":"#1d1d1f",background:darkMode?"#2c2c2e":"#fff",minWidth:120 }}
+                    value={prod.brand || "Jackson Audio"}
+                    onChange={async (e) => {
+                      const val = e.target.value;
+                      setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, brand: val } : p));
+                      try { await supabase.from("products").update({ brand: val }).eq("id", prod.id); } catch (err) { console.error("Brand save failed:", err); }
+                    }}>
+                    <option value="Jackson Audio">Jackson Audio</option>
+                    <option value="Fulltone USA">Fulltone USA</option>
+                  </select>
+                </div>
+                <div style={{ display:"flex",alignItems:"center",gap:4 }}>
+                  <span style={{ fontSize:10,color:"#86868b" }}>Build Time:</span>
+                  <input type="number" min="1" placeholder="min"
+                    value={prod.buildMinutes || ""}
+                    onChange={async (e) => {
+                      const val = e.target.value ? parseInt(e.target.value) : null;
+                      setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, buildMinutes: val } : p));
+                      try { await supabase.from("products").update({ build_minutes: val }).eq("id", prod.id); } catch (err) { console.error("Build time save failed:", err); }
+                    }}
+                    style={{ width:52,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                  <span style={{ fontSize:10,color:"#86868b" }}>
+                    {prod.buildMinutes ? (prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h ${prod.buildMinutes%60}m`) : "min"}
+                  </span>
+                </div>
+                {shopifyProducts.length > 0 && (
+                  <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                    <span style={{ fontSize:10,color:"#86868b" }}>Shopify:</span>
+                    <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f5f5f7":"#1d1d1f",background:darkMode?"#2c2c2e":"#fff",minWidth:120 }}
+                      value={prod.shopifyProductId || ""}
+                      onChange={async (e) => {
+                        const val = e.target.value || null;
+                        setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, shopifyProductId: val } : p));
+                        try { await supabase.from("products").update({ shopify_product_id: val }).eq("id", prod.id); } catch (err) { console.error("Shopify mapping save failed:", err); }
+                      }}>
+                      <option value="">-- Not linked --</option>
+                      {shopifyProducts.map(sp => (
+                        <option key={sp.id} value={sp.id}>{sp.storeName ? `[${sp.storeName}] ` : ""}{sp.title}</option>
+                      ))}
+                    </select>
+                    {prod.shopifyProductId && <span style={{ fontSize:10,color:"#34c759" }}>Linked</span>}
+                  </div>
+                )}
+                <button style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}
+                  disabled={!prodParts.some(p => p.mpn) || prodParts.some(p => p.pricingStatus === "loading")}
+                  onClick={async () => {
+                    const toFetch = prodParts.filter(p => p.mpn);
+                    for (const p of toFetch) { await fetchPartPricing(p.id); await new Promise(r => setTimeout(r, 300)); }
+                  }}>
+                  {prodParts.some(p => p.pricingStatus === "loading") ? "Refreshing..." : `Refresh Prices (${prodParts.filter(p=>p.mpn).length})`}
+                </button>
+                <button style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}
+                  onClick={async () => {
+                    const prodPartsSnap = prodParts.map(p => ({ id:p.id, mpn:p.mpn, reference:p.reference, value:p.value, description:p.description,
+                      quantity:p.quantity, stockQty:p.stockQty, unitCost:p.unitCost, projectId:p.projectId, manufacturer:p.manufacturer }));
+                    const bomCostPerUnit = prodParts.reduce((s, p) => s + priceAtQty(p) * (parseInt(p.quantity)||1), 0);
+                    const snapshot = {
+                      date: new Date().toISOString(),
+                      product_id: prod.id,
+                      products: [{ id: prod.id, name: prod.name }],
+                      parts: prodPartsSnap,
+                      bomCost: bomCostPerUnit,
+                    };
+                    const label = `${prod.name} — ${prodPartsSnap.length} parts, $${fmtDollar(bomCostPerUnit)}/unit`;
+                    try {
+                      const saved = await saveBomSnapshot(label, snapshot, user.id);
+                      setBomSnapshots(prev => [saved, ...prev].slice(0, 50));
+                      alert(`Product snapshot saved: ${prod.name} (${prodPartsSnap.length} parts, $${fmtDollar(bomCostPerUnit)}/unit)`);
+                    } catch (err) {
+                      alert("Snapshot save failed: " + err.message);
+                    }
+                  }}>
+                  Save Snapshot
+                </button>
+              </div>
+            </div>
+
+            {/* ── Import / Add Parts Section */}
+            <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:14,padding:"20px 22px",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ fontSize:12,color:"#86868b",letterSpacing:"0.5px",fontWeight:600,marginBottom:14,textTransform:"uppercase" }}>
+                Add Parts to {prod.name}
+              </div>
+
+              {/* Quick-add form */}
+              {qa._error && (
+                <div style={{ background:"#fff2f2",border:"1px solid #ffccc7",borderRadius:8,padding:"8px 12px",
+                  marginBottom:10,fontSize:12,color:"#ff3b30" }}>{qa._error}</div>
+              )}
+              <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:16 }}>
+                <div style={{ flex:"1 1 200px",position:"relative" }}>
+                  <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Part Number <span style={{ color:"#ff3b30" }}>*</span></div>
+                  <input type="text" placeholder="e.g. LOP-300-24"
+                    value={qa.pn || ""}
+                    onChange={(e) => setQAField(prod.id, "pn", e.target.value)}
+                    onKeyDown={(e) => { if(e.key==="Enter") quickAddPart(prod.id); }}
+                    onFocus={() => setQAField(prod.id, "_focused", true)}
+                    onBlur={() => setTimeout(() => setQAField(prod.id, "_focused", false), 200)}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%",fontSize:13,fontWeight:600,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",border:"1px solid "+(darkMode?"#48484a":"#d2d2d7") }} />
+                  {/* Autocomplete dropdown */}
+                  {qa._focused && qa.pn && qa.pn.trim().length >= 2 && (() => {
+                    const q = qa.pn.trim().toLowerCase();
+                    const matches = parts
+                      .filter(p => p.projectId !== prod.id && (
+                        (p.mpn && p.mpn.toLowerCase().includes(q)) ||
+                        (p.value && p.value.toLowerCase().includes(q)) ||
+                        (p.description && p.description.toLowerCase().includes(q))
+                      ))
+                      .slice(0, 8);
+                    if (matches.length === 0) return null;
+                    return (
+                      <div style={{ position:"absolute",top:"100%",left:0,right:0,zIndex:100,
+                        background:darkMode?"#2c2c2e":"#fff",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",
+                        border:"1px solid "+(darkMode?"#48484a":"#e5e5ea"),marginTop:4,maxHeight:240,overflowY:"auto" }}>
+                        <div style={{ padding:"6px 12px",fontSize:9,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2") }}>
+                          EXISTING PARTS
+                        </div>
+                        {matches.map(m => (
+                          <div key={m.id}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              updatePart(m.id, "projectId", prod.id);
+                              setQAField(prod.id, "pn", "");
+                              setQAField(prod.id, "_focused", false);
+                            }}
+                            style={{ padding:"8px 12px",cursor:"pointer",borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f5f5f7"),transition:"background 0.1s" }}
+                            onMouseOver={e=>e.currentTarget.style.background=darkMode?"#3a3a3e":"#f5f5f7"}
+                            onMouseOut={e=>e.currentTarget.style.background="transparent"}>
+                            <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{m.mpn || m.reference}</div>
+                            <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>
+                              {[m.value, m.description, m.manufacturer].filter(Boolean).join(" · ") || "No details"}
+                              {m.projectId && (() => {
+                                const p = products.find(x => x.id === m.projectId);
+                                return p ? <span style={{ color:"#aeaeb2" }}> -- {p.name}</span> : null;
+                              })()}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div style={{ flex:"0 0 80px" }}>
+                  <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Qty <span style={{ color:"#ff3b30" }}>*</span></div>
+                  <input type="number" placeholder="1" min="1"
+                    value={qa.qty || ""}
+                    onChange={(e) => setQAField(prod.id, "qty", e.target.value)}
+                    onKeyDown={(e) => { if(e.key==="Enter") quickAddPart(prod.id); }}
+                    style={{ padding:"8px 10px",borderRadius:6,width:"100%",fontSize:13,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",border:"1px solid "+(darkMode?"#48484a":"#d2d2d7") }} />
+                </div>
+                <div style={{ flex:"0 0 auto",alignSelf:"flex-end" }}>
+                  <button disabled={!qa.pn?.trim()} onClick={() => quickAddPart(prod.id)}
+                    style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff",opacity:qa.pn?.trim()?"1":"0.4" }}>
+                    + Add Part
+                  </button>
+                </div>
+                <div style={{ flex:"0 0 auto",alignSelf:"flex-end" }}>
+                  <button className="btn-ghost" style={{ fontSize:11 }}
+                    onClick={() => setQAField(prod.id, "showOptional", !showOpt)}>
+                    {showOpt ? "Less" : "More fields"}
+                  </button>
+                </div>
+              </div>
+              {showOpt && (
+                <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:14 }}>
+                  <div style={{ flex:"1 1 160px" }}>
+                    <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Description</div>
+                    <input type="text" placeholder="e.g. 24V Power Supply" value={qa.desc || ""}
+                      onChange={(e) => setQAField(prod.id, "desc", e.target.value)}
+                      style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",border:"1px solid "+(darkMode?"#48484a":"#d2d2d7") }} />
+                  </div>
+                  <div style={{ flex:"1 1 100px" }}>
+                    <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Value</div>
+                    <input type="text" placeholder="e.g. 10k" value={qa.value || ""}
+                      onChange={(e) => setQAField(prod.id, "value", e.target.value)}
+                      style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",border:"1px solid "+(darkMode?"#48484a":"#d2d2d7") }} />
+                  </div>
+                  <div style={{ flex:"1 1 140px" }}>
+                    <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Manufacturer</div>
+                    <input type="text" placeholder="e.g. Mean Well" value={qa.mfr || ""}
+                      onChange={(e) => setQAField(prod.id, "mfr", e.target.value)}
+                      style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",border:"1px solid "+(darkMode?"#48484a":"#d2d2d7") }} />
+                  </div>
+                  <div style={{ display:"flex",alignItems:"center",gap:6,paddingTop:14 }}>
+                    <input type="checkbox" checked={qa.isInternal || false}
+                      onChange={(e) => setQAField(prod.id, "isInternal", e.target.checked)}
+                      style={{ width:14,height:14,accentColor:"#5856d6",cursor:"pointer" }} />
+                    <span style={{ fontSize:11,color:"#5856d6",fontWeight:600 }}>In-House</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Import drop zone */}
+              <div style={{ borderTop:"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2"),paddingTop:14,marginTop:4 }}>
+                <div style={{ fontSize:10,color:"#86868b",letterSpacing:"0.5px",fontWeight:600,marginBottom:8,textTransform:"uppercase" }}>
+                  Import BOM into {prod.name}
+                </div>
+                <div className={`drop-zone ${pdDragOver?"drag-over":""}`}
+                  onDragOver={(e)=>{e.preventDefault();setPdDragOver(true);}}
+                  onDragLeave={()=>setPdDragOver(false)}
+                  onDrop={(e)=>handleProductDrop(e, prod.id)}
+                  onClick={()=>pdFileRef.current?.click()}
+                  style={{ padding:"18px 16px",marginBottom:8,cursor:"pointer" }}>
+                  <div style={{ fontWeight:700,fontSize:13,marginBottom:4 }}>Drop BOM file here</div>
+                  <div style={{ color:"#aeaeb2",fontSize:11 }}>CSV / TSV / TXT -- or click to browse</div>
+                  <input ref={pdFileRef} type="file" accept=".csv,.tsv,.txt" style={{ display:"none" }}
+                    onChange={(e)=>handleProductFilePick(e, prod.id)} />
+                </div>
+                <textarea placeholder="Or paste BOM text here..." value={pdPasteText} onChange={(e)=>setPdPasteText(e.target.value)}
+                  style={{ width:"100%",minHeight:50,padding:"8px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#48484a":"#d2d2d7"),fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",marginBottom:6,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                {pdPasteText.trim() && (
+                  <div style={{ display:"flex",gap:8 }}>
+                    <button className="btn-primary" style={{ fontSize:12 }} onClick={()=>handleProductImport(pdPasteText, prod.id)}>Parse & Import into {prod.name}</button>
+                    <button className="btn-ghost" style={{ fontSize:12 }} onClick={()=>setPdPasteText("")}>Clear</button>
+                  </div>
+                )}
+                {pdImportError && <div style={{ marginTop:6,color:"#ff3b30",fontSize:12 }}>{pdImportError}</div>}
+                {pdImportOk && <div style={{ marginTop:6,color:"#34c759",fontSize:12 }}>{pdImportOk}</div>}
+              </div>
+            </div>
+
+            {/* ── Bulk action bar */}
+            {prodSelectedParts.length > 0 && (
+              <div style={{ display:"flex",alignItems:"center",gap:10,padding:"6px 12px",
+                background:"rgba(0,113,227,0.06)",border:"1px solid rgba(0,113,227,0.3)",borderRadius:6,marginBottom:10 }}>
+                <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#0071e3" }}>
+                  {prodSelectedParts.length} part{prodSelectedParts.length!==1?"s":""} selected
+                </span>
+                <button onClick={deleteSelected}
+                  style={{ background:"#ff3b30",color:"#fff",border:"none",borderRadius:6,
+                    padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:7 }}>
+                  Delete Selected
+                </button>
+                <button onClick={() => { const sel = parts.filter(p => selectedParts.has(p.id) && p.projectId === prod.id); setQrModalParts(sel); }}
+                  style={{ background:"#5856d6",color:"#fff",border:"none",borderRadius:6,
+                    padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:7 }}>
+                  Print QR Labels
+                </button>
+                <button className="btn-ghost btn-sm" onClick={selectNone}>Cancel</button>
+                <div style={{ marginLeft:8,borderLeft:"1px solid rgba(0,113,227,0.3)",paddingLeft:10,display:"flex",alignItems:"center",gap:6 }}>
+                  <select id="pdBulkField" style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7" }}>
+                    <option value="manufacturer">Manufacturer</option>
+                    <option value="value">Value</option>
+                    <option value="description">Description</option>
+                    <option value="reorderQty">Reorder Point</option>
+                    <option value="stockQty">Stock</option>
+                    <option value="preferredSupplier">Supplier</option>
+                  </select>
+                  <input id="pdBulkValue" type="text" placeholder="Set value..."
+                    style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",width:140 }} />
+                  <button onClick={async () => {
+                    const field = document.getElementById("pdBulkField").value;
+                    const val = document.getElementById("pdBulkValue").value;
+                    if (!val && field !== "stockQty") return;
+                    for (const id of prodSelectedParts) { await updatePart(id, field, val); }
+                    document.getElementById("pdBulkValue").value = "";
+                  }}
+                    style={{ background:"#0071e3",color:"#fff",border:"none",borderRadius:6,
+                      padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap" }}>
+                    Apply to {prodSelectedParts.length}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Parts Table */}
+            {prodParts.length > 0 ? (
+              <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:20 }}>
+                <div style={{ overflowX:"auto" }}>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                    <thead>
+                      <tr style={{ background:darkMode?"#3a3a3e":"#b8bdd1",color:darkMode?"#e5e5ea":"#3a3f51" }}>
+                        <th style={{ padding:"12px 10px",width:28,borderRadius:"8px 0 0 0" }}>
+                          <input type="checkbox" style={{ width:15,height:15,cursor:"pointer",accentColor:"#0071e3" }}
+                            checked={allProdSelected}
+                            ref={(el) => { if (el) el.indeterminate = prodSelectedParts.length > 0 && !allProdSelected; }}
+                            onChange={(e) => {
+                              if (e.target.checked) selectAll(prodParts.map(p => p.id));
+                              else selectNone();
+                            }} />
+                        </th>
+                        {["MPN","Value","Description","Manufacturer","Qty/Build","Stock","Reorder Pt","Stock Value","Actions"].map((h,hi,arr)=>(
+                          <th key={hi} style={{ padding:"12px 10px",textAlign:hi>=4?"right":"left",
+                            fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                            fontSize:10,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
+                            borderRadius:hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {prodParts.map((part) => {
+                        const stockVal = (parseInt(part.stockQty)||0) * priceAtQty(part);
+                        return (
+                          <tr key={part.id} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#ededf0"),
+                            background:selectedParts.has(part.id)?(darkMode?"rgba(0,113,227,0.15)":"rgba(0,113,227,0.04)"):"transparent" }}>
+                            <td style={{ padding:"10px 10px" }}>
+                              <input type="checkbox" checked={selectedParts.has(part.id)} onChange={()=>toggleSelect(part.id)}
+                                style={{ width:15,height:15,cursor:"pointer",accentColor:"#0071e3" }} />
+                            </td>
+                            <td style={{ padding:"10px 10px" }}>
+                              <input type="text" value={part.mpn||""} onChange={e=>updatePart(part.id,"mpn",e.target.value)}
+                                style={{ border:"none",background:"transparent",fontWeight:700,fontSize:13,width:"100%",color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";e.target.style.padding="2px 4px";}}
+                                onBlur={e=>{e.target.style.background="transparent";e.target.style.padding="0";}} />
+                            </td>
+                            <td style={{ padding:"10px 10px" }}>
+                              <input type="text" value={part.value||""} onChange={e=>updatePart(part.id,"value",e.target.value)}
+                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#6e6e73",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                onBlur={e=>{e.target.style.background="transparent";}} />
+                            </td>
+                            <td style={{ padding:"10px 10px",maxWidth:180 }}>
+                              <input type="text" value={part.description||""} onChange={e=>updatePart(part.id,"description",e.target.value)}
+                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#6e6e73",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                onBlur={e=>{e.target.style.background="transparent";}} />
+                            </td>
+                            <td style={{ padding:"10px 10px" }}>
+                              <input type="text" value={part.manufacturer||""} onChange={e=>updatePart(part.id,"manufacturer",e.target.value)}
+                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#6e6e73",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                onBlur={e=>{e.target.style.background="transparent";}} />
+                            </td>
+                            <td style={{ padding:"10px 10px",textAlign:"right" }}>
+                              <input type="number" min="1" value={part.quantity||""} onChange={e=>updatePart(part.id,"quantity",parseInt(e.target.value)||1)}
+                                style={{ border:"none",background:"transparent",fontSize:13,fontWeight:700,width:50,textAlign:"right",color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                onBlur={e=>{e.target.style.background="transparent";}} />
+                            </td>
+                            <td style={{ padding:"10px 10px",textAlign:"right" }}>
+                              <input type="number" min="0" value={part.stockQty||""} onChange={e=>updatePart(part.id,"stockQty",e.target.value)}
+                                style={{ border:"none",background:"transparent",fontSize:13,width:50,textAlign:"right",color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                onBlur={e=>{e.target.style.background="transparent";}} />
+                            </td>
+                            <td style={{ padding:"10px 10px",textAlign:"right" }}>
+                              <input type="number" min="0" value={part.reorderQty||""} onChange={e=>updatePart(part.id,"reorderQty",e.target.value)}
+                                style={{ border:"none",background:"transparent",fontSize:12,width:50,textAlign:"right",color:darkMode?"#c7c7cc":"#86868b",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                onBlur={e=>{e.target.style.background="transparent";}} />
+                            </td>
+                            <td style={{ padding:"10px 10px",textAlign:"right",fontSize:12,color:stockVal>0?(darkMode?"#f5f5f7":"#1d1d1f"):"#c7c7cc" }}>
+                              {stockVal > 0 ? `$${fmtDollar(stockVal)}` : "--"}
+                            </td>
+                            <td style={{ padding:"10px 10px",textAlign:"right" }}>
+                              <button onClick={()=>{if(window.confirm(`Remove "${part.mpn||part.reference}" from this product?`))updatePart(part.id,"projectId",null);}}
+                                title="Remove from product"
+                                style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:13,padding:"2px 6px",borderRadius:4,transition:"color 0.15s" }}
+                                onMouseOver={(e)=>e.target.style.color="#ff9500"}
+                                onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>remove</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:14,padding:"40px 20px",textAlign:"center",color:"#86868b",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div style={{ fontSize:14 }}>No parts assigned to this product yet. Use the form above to add parts.</div>
+              </div>
+            )}
+
+            {/* ── Production Run Simulator */}
+            {prodParts.length > 0 && (
+              <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div style={{ fontSize:10,color:"#86868b",letterSpacing:"0.5px",fontWeight:500,marginBottom:10,textTransform:"uppercase" }}>
+                  Production Run Simulator
+                </div>
+                <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:12 }}>
+                  <span style={{ fontSize:12,color:"#86868b" }}>If I build</span>
+                  <input type="number" min="1" placeholder="100"
+                    value={bomSim[prod.id]?.qty || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const pid = prod.id;
+                      setBomSim(prev => ({ ...prev, [pid]: { ...prev[pid], qty: val } }));
+                      clearTimeout(simTimer.current);
+                      if (parseInt(val) > 0) simTimer.current = setTimeout(() => runBomSimulation(pid), 600);
+                    }}
+                    style={{ width:100,padding:"6px 10px",borderRadius:5,fontSize:14,fontWeight:700,textAlign:"center",background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",border:"1px solid "+(darkMode?"#48484a":"#d2d2d7") }} />
+                  <span style={{ fontSize:12,color:"#86868b" }}>units of <strong style={{ color:darkMode?"#f5f5f7":"#1d1d1f" }}>{prod.name}</strong>...</span>
+                  <button className="btn-primary" style={{ fontSize:12 }}
+                    disabled={bomSim[prod.id]?.loading || !parseInt(bomSim[prod.id]?.qty)}
+                    onClick={() => runBomSimulation(prod.id)}>
+                    {bomSim[prod.id]?.loading ? <><span className="spinner" /> Calculating...</> : "Run Simulation"}
+                  </button>
+                  <label style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#86868b",cursor:"pointer",marginLeft:8 }}>
+                    <input type="checkbox" checked={simUsOnly} onChange={(e)=>{
+                      const v = e.target.checked;
+                      setSimUsOnly(v);
+                      if (bomSim[prod.id]?.results) runBomSimulation(prod.id, v);
+                    }} />
+                    US suppliers only
+                  </label>
+                </div>
+
+                {bomSim[prod.id]?.results && (() => {
+                  const results = bomSim[prod.id].results;
+                  const baseResult = results.reduce((min, r) => !min || r.qty < min.qty ? r : min, null);
+                  if (!baseResult) return null;
+                  const baseQty = baseResult.qty;
+                  const cheapBase = baseResult.cheapest;
+                  const smartBase = baseResult.smart;
+                  const smartSavings = cheapBase.total - smartBase.total;
+                  const smartResults = results.map(r => ({ qty: r.qty, ...r.smart }));
+                  const bestQty = smartResults.reduce((a, b) => a.perUnit < b.perUnit ? a : b);
+
+                  return (
+                    <div>
+                      <div style={{ display:"flex",gap:12,flexWrap:"wrap",marginBottom:16 }}>
+                        <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,padding:"12px 16px",minWidth:200,flex:1,border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                          <div style={{ fontSize:10,color:"#ff9500",fontWeight:700,letterSpacing:"0.06em",marginBottom:4 }}>CHEAPEST PER PART</div>
+                          <div style={{ fontSize:22,fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                            ${fmtPrice(cheapBase.perUnit)}<span style={{ fontSize:12,color:"#86868b",fontWeight:400 }}> / unit</span>
+                          </div>
+                          <div style={{ fontSize:11,color:"#86868b",marginTop:8 }}>Parts: {"$"}{fmtDollar(cheapBase.partsCost)}</div>
+                          <div style={{ fontSize:11,color:"#86868b" }}>Shipping: {"$"}{fmtDollar(cheapBase.shipping)} ({cheapBase.suppliers.length} vendor{cheapBase.suppliers.length!==1?"s":""})</div>
+                          <div style={{ fontSize:11,color:cheapBase.tariffTotal>0?"#ff3b30":"#86868b" }}>Tariffs: {cheapBase.tariffTotal > 0 ? `$${fmtDollar(cheapBase.tariffTotal)}` : "$0.00"}</div>
+                          <div style={{ fontSize:12,color:darkMode?"#f5f5f7":"#1d1d1f",fontWeight:700,marginTop:4,borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),paddingTop:4 }}>Total: {"$"}{fmtDollar(cheapBase.total)}</div>
+                          <div style={{ fontSize:10,color:"#aeaeb2",marginTop:6 }}>{cheapBase.shippingBreakdown.map(sb => <div key={sb.supplierId}>{sb.name}: {"$"}{fmtDollar(sb.cost)} shipping</div>)}</div>
+                          {cheapBase.tariffBreakdown?.length > 0 && <div style={{ fontSize:10,color:"#ff3b30",marginTop:4 }}>{cheapBase.tariffBreakdown.map((t,i) => <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{fmtDollar(t.goodsValue)} = {"$"}{fmtDollar(t.cost)}</div>)}</div>}
+                        </div>
+                        <div style={{ background:smartSavings>0?"rgba(52,199,89,0.06)":(darkMode?"#1c1c1e":"#fff"),
+                          border:smartSavings>0?"1px solid #34c759":"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),
+                          borderRadius:8,padding:"12px 16px",minWidth:200,flex:1 }}>
+                          <div style={{ fontSize:10,color:"#34c759",fontWeight:700,letterSpacing:"0.06em",marginBottom:4 }}>SMART CONSOLIDATED {smartSavings > 0 ? "-- RECOMMENDED" : ""}</div>
+                          <div style={{ fontSize:22,fontWeight:800,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",color:"#34c759" }}>
+                            ${fmtPrice(smartBase.perUnit)}<span style={{ fontSize:12,color:"#86868b",fontWeight:400 }}> / unit</span>
+                          </div>
+                          <div style={{ fontSize:11,color:"#86868b",marginTop:8 }}>Parts: {"$"}{fmtDollar(smartBase.partsCost)}</div>
+                          <div style={{ fontSize:11,color:"#86868b" }}>Shipping: {"$"}{fmtDollar(smartBase.shipping)} ({smartBase.suppliers.length} vendor{smartBase.suppliers.length!==1?"s":""})</div>
+                          <div style={{ fontSize:11,color:smartBase.tariffTotal>0?"#ff3b30":"#86868b" }}>Tariffs: {smartBase.tariffTotal > 0 ? `$${fmtDollar(smartBase.tariffTotal)}` : "$0.00"}</div>
+                          <div style={{ fontSize:12,color:darkMode?"#f5f5f7":"#1d1d1f",fontWeight:700,marginTop:4,borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),paddingTop:4 }}>Total: {"$"}{fmtDollar(smartBase.total)}</div>
+                          <div style={{ fontSize:10,color:"#aeaeb2",marginTop:6 }}>{smartBase.shippingBreakdown.map(sb => <div key={sb.supplierId}>{sb.name}: {"$"}{fmtDollar(sb.cost)} shipping</div>)}</div>
+                          {smartBase.tariffBreakdown?.length > 0 && <div style={{ fontSize:10,color:"#ff3b30",marginTop:4 }}>{smartBase.tariffBreakdown.map((t,i) => <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{fmtDollar(t.goodsValue)} = {"$"}{fmtDollar(t.cost)}</div>)}</div>}
+                          {smartSavings > 0 && <div style={{ fontSize:12,color:"#34c759",fontWeight:700,marginTop:6 }}>Saves {"$"}{fmtDollar(smartSavings)} total vs cheapest-per-part</div>}
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize:10,color:"#5856d6",fontWeight:700,letterSpacing:"0.06em",marginBottom:6 }}>QUANTITY COMPARISON (Smart Consolidated)</div>
+                      <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden" }}>
+                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                        <thead>
+                          <tr style={{ background:darkMode?"#3a3a3e":"#b8bdd1",color:darkMode?"#e5e5ea":"#3a3f51" }}>
+                            {["Units","Parts Cost","Shipping","Tariffs","Total","Per Unit","Vendors","vs Base"].map((h,hi,arr)=>(
+                              <th key={hi} style={{ padding:"12px 14px",textAlign:hi>0?"right":"left",
+                                fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                                fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
+                                borderRadius:hi===0?"8px 0 0 0":hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {results.map((r) => {
+                            const s = r.smart;
+                            const diff = smartBase.perUnit - s.perUnit;
+                            const isBase = r.qty === baseQty;
+                            const isBest = r.qty === bestQty.qty && r.qty !== baseQty;
+                            return (
+                              <tr key={r.qty} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#ededf0"),
+                                background: isBest ? "rgba(52,199,89,0.06)" : isBase ? (darkMode?"#2c2c2e":"#f9f9fb") : "transparent" }}>
+                                <td style={{ padding:"12px 14px",fontWeight:isBase||isBest?700:400,color:isBest?"#34c759":isBase?(darkMode?"#f5f5f7":"#1d1d1f"):"#6e6e73" }}>
+                                  {r.qty.toLocaleString()}{isBest?" (best value)":""}{isBase?" (base)":""}
+                                </td>
+                                <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{"$"}{fmtDollar(s.partsCost)}</td>
+                                <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{"$"}{fmtDollar(s.shipping)}</td>
+                                <td style={{ padding:"12px 14px",textAlign:"right",color:s.tariffTotal>0?"#ff3b30":"#c7c7cc" }}>{s.tariffTotal > 0 ? `$${fmtDollar(s.tariffTotal)}` : "--"}</td>
+                                <td style={{ padding:"12px 14px",textAlign:"right",color:darkMode?"#f5f5f7":"#1d1d1f",fontWeight:600 }}>{"$"}{fmtDollar(s.total)}</td>
+                                <td style={{ padding:"12px 14px",textAlign:"right",fontWeight:700,color:isBest?"#34c759":(darkMode?"#f5f5f7":"#1d1d1f") }}>{"$"}{fmtPrice(s.perUnit)}</td>
+                                <td style={{ padding:"12px 14px",textAlign:"right",color:"#6e6e73" }}>{s.suppliers.length}</td>
+                                <td style={{ padding:"12px 14px",textAlign:"right",color:diff>0?"#34c759":diff<0?"#ff3b30":"#c7c7cc",fontWeight:diff!==0?600:400 }}>
+                                  {isBase ? "--" : diff > 0 ? `-$${fmtPrice(diff)}/ea` : diff < 0 ? `+$${fmtPrice(Math.abs(diff))}/ea` : "same"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      </div>
+
+                      <div style={{ marginTop:16,display:"flex",alignItems:"center",gap:12 }}>
+                        <button className="btn-primary" style={{ fontSize:13,padding:"10px 24px",background:"#34c759" }}
+                          onClick={() => {
+                            const assign = smartBase.assignments;
+                            if (!assign?.length) return;
+                            const grouped = {};
+                            for (const a of assign) { if (!a.supplierId) continue; if (!grouped[a.supplierId]) grouped[a.supplierId] = []; grouped[a.supplierId].push(a); }
+                            setParts(prev => prev.map(p => {
+                              const a = assign.find(x => x.partId === p.id);
+                              if (!a) return p;
+                              return { ...p, flaggedForOrder: true, orderQty: String(a.needed), preferredSupplier: a.supplierId || p.preferredSupplier };
+                            }));
+                            for (const a of assign) {
+                              if (!a.supplierId) continue;
+                              dbUpdatePart(a.partId, { flagged_for_order: true, order_qty: a.needed, preferred_supplier: a.supplierId }, user.id).catch(e => console.error("order flag failed:", e));
+                            }
+                            setActiveView("purchasing");
+                          }}>
+                          Order This Run
+                        </button>
+                        <span style={{ fontSize:11,color:"#86868b" }}>
+                          Flags all parts for purchase at the base qty ({baseQty.toLocaleString()} units) using Smart Consolidated assignments
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+          </div>
+          );
+        })()}
 
         {/* ══════════════════════════════════════
             ALERTS
@@ -7424,7 +7467,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.42 — built 2026-03-20 9:00am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.43 — built 2026-03-20 6:30pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
