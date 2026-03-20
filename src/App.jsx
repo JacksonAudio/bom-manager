@@ -62,6 +62,7 @@ const DEFAULT_KEYS = {
   twilio_phone_number: "", // twilio.com — your Twilio phone number (e.g. +1234567890)
   labor_rate_hourly: "25", // $/hr labor rate for profit analysis
   ad_spend_pct: "35",     // % of sales price spent on ads (Facebook, Google, etc.)
+  preferred_distributors: '["mouser"]', // JSON array of preferred supplier IDs — get priority in pricing
   shipping_cost_per_unit: "8", // avg shipping cost per unit sold
   fb_ja_access_token: "",    // Facebook — Jackson Audio access token
   fb_ja_ad_account_id: "",   // Facebook — Jackson Audio ad account (act_XXX)
@@ -2433,8 +2434,14 @@ function BOMManager({ user }) {
     if (simUsOnly) entries = entries.filter(([sid, d]) => isUS(sid, d));
     if (!entries.length) return parseFloat(part.unitCost) || 0;
     const calc = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
+    // Prefer preferred distributors if within 5% of cheapest price
+    let prefDists = [];
+    try { prefDists = JSON.parse(apiKeys.preferred_distributors || '["mouser"]'); } catch { prefDists = ["mouser"]; }
     entries.sort((a,b) => (calc(a[1])||Infinity) - (calc(b[1])||Infinity));
-    return calc(entries[0][1]);
+    const cheapest = calc(entries[0][1]);
+    const prefEntry = entries.find(([sid]) => prefDists.some(p => sid.toLowerCase().includes(p.toLowerCase())));
+    if (prefEntry && calc(prefEntry[1]) <= cheapest * 1.05) return calc(prefEntry[1]);
+    return cheapest;
   };
 
   // Inventory valuation — total $ value of all stock on hand
@@ -6525,6 +6532,8 @@ function BOMManager({ user }) {
               try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
               let orderModes = {};
               try { orderModes = JSON.parse(apiKeys.supplier_order_modes || "{}"); } catch {}
+              let preferredDists = [];
+              try { preferredDists = JSON.parse(apiKeys.preferred_distributors || '["mouser"]'); } catch { preferredDists = ["mouser"]; }
               return (
                 <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
                   <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
@@ -6536,6 +6545,7 @@ function BOMManager({ user }) {
                   </div>
                   {!collapsedSettings.has("distributors") && <div style={{ padding:"12px 20px" }}>
                     <div style={{ display:"flex",gap:8,marginBottom:6,fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.06em" }}>
+                      <div style={{ width:50,textAlign:"center" }}>Pref</div>
                       <div style={{ width:120 }}>Raw Key</div>
                       <div style={{ flex:1 }}>Display Name</div>
                       <div style={{ flex:1 }}>Sales Email</div>
@@ -6547,6 +6557,14 @@ function BOMManager({ user }) {
                         const mc = ORDER_MODE_CONFIG[curMode] || ORDER_MODE_CONFIG.manual;
                         return (
                         <div key={key} style={{ display:"flex",gap:8,alignItems:"center",paddingTop:3,paddingBottom:3,borderBottom:"1px solid #f0f0f2" }}>
+                          <div style={{ width:50,textAlign:"center" }}>
+                            <input type="checkbox" checked={preferredDists.includes(key)}
+                              onChange={() => {
+                                const updated = preferredDists.includes(key) ? preferredDists.filter(d => d !== key) : [...preferredDists, key];
+                                setApiKeys(k => ({ ...k, preferred_distributors: JSON.stringify(updated) }));
+                              }}
+                              style={{ width:16,height:16,cursor:"pointer",accentColor:"#34c759" }} />
+                          </div>
                           <div style={{ width:120,fontSize:11,color:"#86868b",fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }} title={key}>{key}</div>
                           <input style={{ flex:1,padding:"4px 8px",border:"1px solid #d2d2d7",borderRadius:5,fontSize:12,boxSizing:"border-box" }}
                             value={nameOverrides[key] ?? distMap[key] ?? ""}
@@ -7406,7 +7424,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.41 — built 2026-03-18 3:18am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.42 — built 2026-03-20 9:00am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
