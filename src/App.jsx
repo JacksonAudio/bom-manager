@@ -3396,31 +3396,48 @@ function BOMManager({ user }) {
                 const multipliers = { "r":1, "ohm":1, "mohm":0.001, "k":1e3, "kohm":1e3, "m":1e6, "gohm":1e9, "g":1e9, "pf":1e-12, "nf":1e-9, "uf":1e-6, "mf":1e-3 };
                 return num * (multipliers[unit] || 1);
               };
-              // Extract human-readable value from description
+              // Extract human-readable value from MPN and description
               const extractDisplayValue = (part) => {
+                const mpn = part.mpn || "";
                 const desc = part.description || "";
-                // Try resistance with unit attached: "2000ohm", "10K Ohm", "4.7Mohm"
-                const rm = desc.match(/([\d.]+)\s*(Mohm|Kohm|kohm|mohm|ohm|Ohm|MΩ|kΩ|Ω)/);
-                if (rm) {
-                  const num = parseFloat(rm[1]);
-                  const u = rm[2].toLowerCase();
-                  if (u.startsWith("m") && !u.startsWith("mo")) return num + "M"; // Mohm but not mohm (milliohm)
+                const fmtOhms = (ohms) => {
+                  if (ohms >= 1000000) { const v = ohms/1000000; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"M"; }
+                  if (ohms >= 1000) { const v = ohms/1000; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"k"; }
+                  if (ohms === 0) return "0R";
+                  return (Number.isInteger(ohms)?ohms:ohms.toFixed(ohms<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"R";
+                };
+
+                // Try parsing resistance from MPN (4-digit code after prefix like 0603WAF)
+                // Standard: 0603WAF[3dig][mult]T5E → e.g., 1002 = 100 × 10^2 = 10kΩ
+                const rm4 = mpn.match(/(\d{3})(\d)T/);
+                if (rm4) {
+                  const sig = parseInt(rm4[1]);
+                  const mult = parseInt(rm4[2]);
+                  const ohms = sig * Math.pow(10, mult);
+                  return fmtOhms(ohms);
+                }
+                // Sub-100Ω: 0603WAF[3dig][tolerance]T5E → e.g., 100JT5E = 10.0Ω
+                const rm3 = mpn.match(/WAF(\d{3})[A-Z]T/);
+                if (rm3) {
+                  const ohms = parseInt(rm3[1]) / 10;
+                  return fmtOhms(ohms);
+                }
+                // 0R jumper: 0000
+                if (mpn.includes("0000")) return "0R";
+
+                // Try from description: "2000ohm", "10K Ohm", "5.6K Ohm"
+                const dm = desc.match(/([\d.]+)\s*(Mohm|Kohm|kohm|ohm|Ohm|MΩ|kΩ|Ω)/);
+                if (dm) {
+                  const num = parseFloat(dm[1]);
+                  const u = dm[2].toLowerCase();
                   if (u.startsWith("k")) return num + "k";
-                  // Raw ohms
-                  if (num >= 1000000) return (num/1000000) + "M";
-                  if (num >= 1000) { const v = num/1000; return (Number.isInteger(v) ? v : v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,"")) + "k"; }
-                  if (num === 0) return "0R";
-                  return (Number.isInteger(num) ? num : num.toFixed(num<10?2:1).replace(/0+$/,"").replace(/\.$/,"")) + "R";
+                  if (u.startsWith("m")) return num + "M";
+                  return fmtOhms(num);
                 }
-                // Try "10K Ohm" or "5.6K" pattern
-                const km = desc.match(/([\d.]+)\s*([KkMm])\s*[Oo]?[Hh]?[Mm]?/);
-                if (km) {
-                  const num = parseFloat(km[1]);
-                  const u = km[2];
-                  if (u === "K" || u === "k") return num + "k";
-                  if (u === "M" || u === "m") return num + "M";
-                }
-                // Try capacitance: "10uF", "100nF", "47pF"
+                const km = desc.match(/([\d.]+)\s*([KkMm])\s*Ohm/i);
+                if (km) return parseFloat(km[1]) + (km[2].toUpperCase() === "K" ? "k" : "M");
+
+                // Try capacitance
                 const cm = desc.match(/([\d.]+)\s*(uF|nF|pF|µF)/i);
                 if (cm) return cm[1] + cm[2].replace("µ","u").toLowerCase();
                 return "";
@@ -7931,7 +7948,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.75 — built 2026-03-21 1:50am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.76 — built 2026-03-21 1:55am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
