@@ -3458,7 +3458,7 @@ function BOMManager({ user }) {
 
               const handleCompSearch = async () => {
                 if (!compSearchQuery.trim()) return;
-                if (!apiKeys.mouser_api_key) { alert("Set your Mouser Search API key in Settings first."); return; }
+                if (!nexarToken) { alert("Connect Nexar in Settings first."); return; }
                 setCompSearchLoading(true);
                 setCompSearchResults([]);
                 setCompSelectedParts(new Set());
@@ -8031,7 +8031,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.89 — built 2026-03-21 3:20am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.90 — built 2026-03-21 3:25am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
