@@ -94,7 +94,7 @@ export default async function handler(req, res) {
         lineItems = (orderDetail.line_items || []).map(li => ({
           title: li.name || li.description || "",
           productId: String(li.item_id || ""),
-          quantity: li.quantity || 0,
+          quantity: Math.round(li.quantity) || 0,
           rate: li.rate || 0,
           amount: li.item_total || 0,
         }));
