@@ -1118,6 +1118,7 @@ function BOMManager({ user }) {
   const [pricingSearch, setPricingSearch] = useState("");
   const [pasteText,   setPasteText]   = useState("");
   const [showImport,  setShowImport]  = useState(false);
+  const [partSort,    setPartSort]    = useState({ field: null, asc: true });
   const [showResGen,  setShowResGen]  = useState(false);
   const [resGenCfg,   setResGenCfg]   = useState({
     prefix: "0603WAF", suffix: "T5E", manufacturer: "Royalohm",
@@ -2368,6 +2369,19 @@ function BOMManager({ user }) {
     const blob = [p.reference, p.value, p.mpn, p.description, p.manufacturer].join(" ").toLowerCase();
     return mP && words.every(w => blob.includes(w));
   });
+
+  // Sort visible parts if a sort is active
+  if (partSort.field) {
+    const parseNum = (s) => { const n = parseFloat(String(s).replace(/[^0-9.\-]/g, "")); return isNaN(n) ? null : n; };
+    visibleParts.sort((a, b) => {
+      let va = a[partSort.field] || "", vb = b[partSort.field] || "";
+      const na = parseNum(va), nb = parseNum(vb);
+      let cmp;
+      if (na !== null && nb !== null) cmp = na - nb;
+      else cmp = String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: "base" });
+      return partSort.asc ? cmp : -cmp;
+    });
+  }
 
   // ── SHOPIFY INTEGRATION (multi-store) ──
   const getShopifyStores = () => {
@@ -3686,11 +3700,19 @@ function BOMManager({ user }) {
                           }}
                         />
                       </th>
-                      {["MPN","Value","Description","Manufacturer","Current Stock","Reorder Pt","Reel Qty","Stock Value",""].map((h,hi,arr)=>(
-                        <th key={hi} style={{ textAlign:"left",padding:"12px 14px",
+                      {[
+                        {label:"MPN",field:"mpn"},{label:"Value",field:"value"},{label:"Description",field:"description"},
+                        {label:"Manufacturer",field:"manufacturer"},{label:"Stock",field:"stockQty"},
+                        {label:"Reorder Pt",field:"reorderQty"},{label:"Reel Qty",field:"reelQty"},{label:"Stock Value",field:null},{label:"",field:null}
+                      ].map((h,hi,arr)=>(
+                        <th key={hi} onClick={h.field ? ()=>setPartSort(prev=>({field:h.field,asc:prev.field===h.field?!prev.asc:true})) : undefined}
+                          style={{ textAlign:"left",padding:"12px 14px",
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                           fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
-                          borderRadius:hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
+                          cursor:h.field?"pointer":"default",userSelect:"none",
+                          borderRadius:hi===arr.length-1?"0 8px 0 0":undefined }}>
+                          {h.label}{partSort.field===h.field ? (partSort.asc?" ▲":" ▼") : ""}
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -7888,7 +7910,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.53 — built 2026-03-20 11:25pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.54 — built 2026-03-20 11:30pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
