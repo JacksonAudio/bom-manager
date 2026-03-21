@@ -1556,6 +1556,18 @@ function BOMManager({ user }) {
       }
     }
 
+    // Skip API fetch if part has an exclusive custom supplier — that's the only source
+    const hasExclusive = Object.values(customEntries).some(v => v.exclusive);
+    if (hasExclusive) {
+      const best = bestPriceSupplier(customEntries);
+      const bestPrice = customEntries[best]?.unitPrice;
+      setParts((prev) => prev.map((p) => p.id === partId ? {
+        ...p, pricing: customEntries, pricingStatus: "done", bestSupplier: best,
+        unitCost: p.unitCost || (bestPrice ? fmtPrice(bestPrice) : p.unitCost),
+      } : p));
+      return;
+    }
+
     // Parts with no MPN but custom pricing should still show as "done"
     if (!part.mpn) {
       if (Object.keys(customEntries).length > 0) {
@@ -7877,7 +7889,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.64 — built 2026-03-21 12:35am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.65 — built 2026-03-21 12:45am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
