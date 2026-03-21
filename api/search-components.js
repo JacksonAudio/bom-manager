@@ -75,52 +75,60 @@ export default async function handler(req, res) {
 
   // Fallback to Nexar
   if (token) {
-    const query = `query SearchParts($q: String!, $limit: Int!) {
-      supSearchMpn(q: $q, limit: $limit) {
+    const query = `query SearchParts($q: String!, $limit: Int!, $start: Int) {
+      supSearchMpn(q: $q, limit: $limit, start: $start) {
+        hits
         results {
           part {
             mpn
             manufacturer { name }
             shortDescription
             category { name }
-            bestDatasheet { url }
-            specs { attribute { name } displayValue }
           }
         }
       }
     }`;
 
     try {
-      const response = await fetch("https://api.nexar.com/graphql", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ query, variables: { q, limit: maxResults } }),
-      });
+      // Paginate to get all results (Nexar limits to 100 per request)
+      const allResults = [];
+      let start = 0;
+      const pageSize = 100;
+      let totalHits = Infinity;
 
-      if (!response.ok) {
-        const errText = await response.text();
-        return res.status(response.status).json({ error: `Nexar API error: ${response.status}` });
+      while (start < totalHits && start < 1000) { // cap at 1000 to be safe
+        const response = await fetch("https://api.nexar.com/graphql", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ query, variables: { q, limit: pageSize, start } }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          return res.status(response.status).json({ error: `Nexar API error: ${response.status}`, details: errText.substring(0, 300) });
+        }
+
+        const data = await response.json();
+        if (data.errors) return res.status(400).json({ error: data.errors[0]?.message || "Nexar error" });
+
+        totalHits = data?.data?.supSearchMpn?.hits || 0;
+        const pageResults = data?.data?.supSearchMpn?.results || [];
+        if (pageResults.length === 0) break;
+
+        allResults.push(...pageResults.map(r => ({
+          mpn: r.part.mpn || "",
+          manufacturer: r.part.manufacturer?.name || "",
+          description: r.part.shortDescription || "",
+          category: r.part.category?.name || "",
+        })));
+
+        start += pageSize;
       }
 
-      const data = await response.json();
-      if (data.errors) return res.status(400).json({ error: data.errors[0]?.message || "Nexar error" });
-
-      const results = (data?.data?.supSearchMpn?.results || []).map(r => ({
-        mpn: r.part.mpn || "",
-        manufacturer: r.part.manufacturer?.name || "",
-        description: r.part.shortDescription || "",
-        category: r.part.category?.name || "",
-        datasheetUrl: r.part.bestDatasheet?.url || null,
-        specs: (r.part.specs || []).reduce((acc, s) => {
-          if (s.attribute?.name && s.displayValue) acc[s.attribute.name] = s.displayValue;
-          return acc;
-        }, {}),
-      }));
-
-      return res.status(200).json({ results, count: results.length, source: "nexar" });
+      return res.status(200).json({ results: allResults, count: allResults.length, totalHits, source: "nexar" });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }

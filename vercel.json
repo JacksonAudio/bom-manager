@@ -3,6 +3,9 @@
   "functions": {
     "api/parse-invoice.js": {
       "maxDuration": 60
+    },
+    "api/search-components.js": {
+      "maxDuration": 120
     }
   },
   "crons": [
