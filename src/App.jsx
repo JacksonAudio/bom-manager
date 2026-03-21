@@ -1126,6 +1126,7 @@ function BOMManager({ user }) {
   const [compSelectedParts, setCompSelectedParts] = useState(new Set());
   const [compSearchMfr, setCompSearchMfr] = useState("");
   const [compSearchDescPrefix, setCompSearchDescPrefix] = useState("");
+  const [compSearchLimit, setCompSearchLimit] = useState("10");
   const [newProjName, setNewProjName] = useState("");
   const [importError, setImportError] = useState("");
   const [importOk,    setImportOk]    = useState("");
@@ -3452,7 +3453,7 @@ function BOMManager({ user }) {
                 try {
                   // Use Nexar API (Pro account)
                   if (!nexarToken) throw new Error("Connect Nexar in Settings first");
-                  const params = new URLSearchParams({ q: compSearchQuery.trim(), token: nexarToken, limit: "10" });
+                  const params = new URLSearchParams({ q: compSearchQuery.trim(), token: nexarToken, limit: compSearchLimit || "10" });
                   const searchRes = await fetch(`/api/search-components?${params}`);
                   const searchData = await searchRes.json();
                   if (!searchRes.ok) throw new Error(searchData.error || `API error ${searchRes.status}`);
@@ -3501,11 +3502,9 @@ function BOMManager({ user }) {
                 try {
                   const dbRows = toImport.map(p => {
                     const mfr = compSearchMfr || p.manufacturer;
-                    const desc = compSearchDescPrefix ? (compSearchDescPrefix + " " + p.description) : p.description;
-                    // Try to extract a value string from specs
-                    const valSpec = p.specs?.["Resistance"] || p.specs?.["Capacitance"] || p.specs?.["Inductance"] || "";
+                    const desc = compSearchDescPrefix || p.description;
                     return {
-                      mpn: p.mpn, value: valSpec, description: desc, manufacturer: mfr,
+                      mpn: p.mpn, value: p.value || "", description: desc.trim(), manufacturer: mfr,
                       quantity: 1, product_id: null, reference: "", footprint: "",
                       unit_cost: null, reorder_qty: null, stock_qty: null, preferred_supplier: "mouser",
                       order_qty: null, flagged_for_order: false,
@@ -3532,12 +3531,17 @@ function BOMManager({ user }) {
                   )}
 
                   {/* Search bar */}
-                  <div style={{ display:"flex",gap:8,marginBottom:14 }}>
+                  <div style={{ display:"flex",gap:8,marginBottom:14,alignItems:"center" }}>
                     <input type="text" value={compSearchQuery} onChange={e=>setCompSearchQuery(e.target.value)}
                       onKeyDown={e=>{ if(e.key==="Enter") handleCompSearch(); }}
-                      placeholder="Search by MPN prefix or series (e.g. 0603WAF, GRM188R61E, RC0603FR-07)"
+                      placeholder="Search by MPN prefix or series (e.g. 0603WAF, GRM188R61E)"
                       style={{ flex:1,padding:"9px 12px",borderRadius:8,fontSize:13,border:"1px solid #d2d2d7",boxSizing:"border-box",fontFamily:"inherit" }} />
-                    <button onClick={handleCompSearch} disabled={compSearchLoading || !apiKeys.mouser_api_key}
+                    <div style={{ display:"flex",alignItems:"center",gap:4 }}>
+                      <span style={{ fontSize:10,color:"#86868b" }}>Limit:</span>
+                      <input type="number" min="1" max="1000" value={compSearchLimit} onChange={e=>setCompSearchLimit(e.target.value)}
+                        style={{ width:60,padding:"8px 6px",borderRadius:8,fontSize:13,border:"1px solid #d2d2d7",textAlign:"center",fontFamily:"inherit" }} />
+                    </div>
+                    <button onClick={handleCompSearch} disabled={compSearchLoading || !nexarToken}
                       style={{ padding:"9px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
                         border:"none",background:"#5856d6",color:"#fff",opacity:(compSearchLoading||!nexarToken)?"0.5":"1",whiteSpace:"nowrap" }}>
                       {compSearchLoading ? "Searching..." : "Search"}
@@ -3553,8 +3557,8 @@ function BOMManager({ user }) {
                         style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
                     </div>
                     <div style={{ flex:"2 1 240px" }}>
-                      <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Description Prefix (prepended to each part)</div>
-                      <input type="text" value={compSearchDescPrefix} onChange={e=>setCompSearchDescPrefix(e.target.value)}
+                      <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Description Override (replaces all descriptions)</div>
+                      <input type="text" value={compSearchDescPrefix} onChange={e=>setCompSearchDescPrefix(e.target.value)} placeholder="Thick Film Resistor - 0603 - 1% - 0.1W"
                         placeholder="e.g. Resistor 0603 1% 1/10W"
                         style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
                     </div>
@@ -7947,7 +7951,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.78 — built 2026-03-21 2:05am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.79 — built 2026-03-21 2:10am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
