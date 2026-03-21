@@ -1123,7 +1123,7 @@ function BOMManager({ user }) {
   const [resGenCfg,   setResGenCfg]   = useState({
     prefix: "0603WAF", suffix: "T5E", manufacturer: "Royalohm",
     descPrefix: "Resistor 0603 1% 1/10W Thick Film",
-    decades: { 0:true, 1:true, 2:true, 3:true, 4:true },
+    decades: { 0:true, 1:true, 2:true, 3:true, 4:true, 5:true, 6:true },
   });
   const [resGenPreview, setResGenPreview] = useState(false);
   const [compGenType, setCompGenType] = useState("resistor"); // resistor | capacitor
@@ -3379,7 +3379,7 @@ function BOMManager({ user }) {
             {/* ── Component Library Generator */}
             {showResGen && (() => {
               const E96 = [100,102,105,107,110,113,115,118,121,124,127,130,133,137,140,143,147,150,154,158,162,165,169,174,178,182,187,191,196,200,205,210,215,221,226,232,237,243,249,255,261,267,274,280,287,294,301,309,316,324,332,340,348,357,365,374,383,392,402,412,422,432,442,453,464,475,487,499,511,523,536,549,562,576,590,604,619,634,649,665,681,698,715,732,750,768,787,806,825,845,866,887,909,931,953,976];
-              const decadeLabels = ["100R–976R","1k–9.76k","10k–97.6k","100k–976k","1M–9.76M"];
+              const decadeLabels = ["1R–9.76R","10R–97.6R","100R–976R","1k–9.76k","10k–97.6k","100k–976k","1M–9.76M"];
               const fmtRes = (ohms) => {
                 if (ohms >= 1000000) { const v = ohms/1000000; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"M"; }
                 if (ohms >= 1000) { const v = ohms/1000; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"k"; }
@@ -3387,12 +3387,23 @@ function BOMManager({ user }) {
               };
               const generateParts = () => {
                 const result = [];
-                for (let mult = 0; mult <= 4; mult++) {
-                  if (!resGenCfg.decades[mult]) continue;
+                for (let decade = 0; decade <= 6; decade++) {
+                  if (!resGenCfg.decades[decade]) continue;
                   for (const base of E96) {
-                    const code = String(base) + String(mult);
-                    const mpn = resGenCfg.prefix + code + resGenCfg.suffix;
-                    const ohms = base * Math.pow(10, mult); // 1000=100Ω, 1001=1kΩ, 5492=54.9kΩ
+                    let mpn, ohms;
+                    if (decade <= 1) {
+                      // Sub-100Ω: 3-digit code (value×10) + tolerance letter F (1%)
+                      // decade 0: 1R–9.76R, decade 1: 10R–97.6R
+                      ohms = (base / 100) * Math.pow(10, decade); // base=100,decade=0→1Ω; base=100,decade=1→10Ω
+                      const code3 = String(Math.round(ohms * 10)).padStart(3, "0"); // 1Ω→010, 10Ω→100, 24.9Ω→249
+                      mpn = resGenCfg.prefix + code3 + "F" + resGenCfg.suffix;
+                    } else {
+                      // ≥100Ω: standard 4-digit code (3 sig digits + multiplier)
+                      const mult = decade - 2; // decade 2→mult 0 (100Ω), decade 3→mult 1 (1kΩ)
+                      ohms = base * Math.pow(10, mult); // base=100,mult=0→100Ω; base=549,mult=2→54.9kΩ
+                      const code = String(base) + String(mult);
+                      mpn = resGenCfg.prefix + code + resGenCfg.suffix;
+                    }
                     const value = fmtRes(ohms);
                     result.push({ mpn, value, description: resGenCfg.descPrefix + " " + value, manufacturer: resGenCfg.manufacturer, quantity: 1, product_id: null });
                   }
@@ -7946,7 +7957,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.60 — built 2026-03-21 12:10am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.61 — built 2026-03-21 12:15am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
