@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.16
+// src/App.jsx — Jackson Audio BOM Manager v6.17
 // Saturday, March 21, 2026 — 10:30 AM
 //
 // Changelog:
@@ -2557,7 +2557,7 @@ function BOMManager({ user }) {
         if (!store.domain || !store.clientId || !store.clientSecret) { errors.push(`${store.name || "?"}: missing domain, client ID, or secret`); continue; }
         const q = `domain=${encodeURIComponent(store.domain)}&client_id=${encodeURIComponent(store.clientId)}&client_secret=${encodeURIComponent(store.clientSecret)}`;
         // Fetch orders
-        const oRes = await fetch(`/api/shopify-orders?${q}`);
+        const oRes = await fetch(`/api/shopify?action=orders&${q}`);
         if (!oRes.ok) { const e = await oRes.json().catch(() => ({})); errors.push(`${store.name}: ${e.error || oRes.status}`); continue; }
         const oData = await oRes.json();
         // Tag orders & products with store name
@@ -2566,7 +2566,7 @@ function BOMManager({ user }) {
         allOrders.push(...(oData.orders || []));
         allProducts.push(...(oData.products || []));
         // Fetch product list for mapping
-        const pRes = await fetch(`/api/shopify-products?${q}`);
+        const pRes = await fetch(`/api/shopify?action=products&${q}`);
         if (pRes.ok) {
           const pData = await pRes.json();
           const tagged = (pData.products || []).map(p => ({ ...p, storeName: store.name }));
@@ -2616,7 +2616,7 @@ function BOMManager({ user }) {
       for (const org of zohoOrgs) {
         if (!org.org_id || !org.client_id || !org.client_secret || !org.refresh_token) continue;
         console.log("[Zoho] Syncing", org.name, "org_id:", org.org_id, "client_id:", org.client_id?.slice(0,20), "secret_len:", org.client_secret?.length, "token_len:", org.refresh_token?.length);
-        const res = await fetch(`/api/zoho-orders`, {
+        const res = await fetch(`/api/zoho?action=orders`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ org_id: org.org_id, client_id: org.client_id, client_secret: org.client_secret, refresh_token: org.refresh_token }),
@@ -2656,7 +2656,7 @@ function BOMManager({ user }) {
         if (!store.domain || !store.clientId || !store.clientSecret) continue;
         const q = `domain=${encodeURIComponent(store.domain)}&client_id=${encodeURIComponent(store.clientId)}&client_secret=${encodeURIComponent(store.clientSecret)}`;
         try {
-          const res = await fetch(`/api/shopify-history?${q}`);
+          const res = await fetch(`/api/shopify?action=history&${q}`);
           if (!res.ok) { console.warn(`[History] Shopify ${store.name} failed:`, res.status); continue; }
           const data = await res.json();
           for (const m of (data.history || [])) {
@@ -2683,7 +2683,7 @@ function BOMManager({ user }) {
       for (const org of zohoOrgs) {
         if (!org.org_id || !org.client_id || !org.client_secret || !org.refresh_token) continue;
         try {
-          const res = await fetch(`/api/zoho-history`, {
+          const res = await fetch(`/api/zoho?action=history`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ org_id: org.org_id, client_id: org.client_id, client_secret: org.client_secret, refresh_token: org.refresh_token }),
@@ -2922,7 +2922,7 @@ function BOMManager({ user }) {
       for (const store of stores) {
         if (!store.domain || !store.clientId || !store.clientSecret) { errors.push(`${store.name || "?"}: missing credentials`); continue; }
         const q = `domain=${encodeURIComponent(store.domain)}&client_id=${encodeURIComponent(store.clientId)}&client_secret=${encodeURIComponent(store.clientSecret)}`;
-        const res = await fetch(`/api/shopify-sales-prices?${q}`);
+        const res = await fetch(`/api/shopify?action=sales-prices&${q}`);
         if (!res.ok) { const e = await res.json().catch(() => ({})); errors.push(`${store.name}: ${e.error || res.status}`); continue; }
         const data = await res.json();
         for (const p of (data.products || [])) { p.storeName = store.name; }
@@ -7704,7 +7704,7 @@ function BOMManager({ user }) {
                 if (member?.phone && apiKeys.twilio_account_sid) {
                   const dueStr = newBuildOrder.due_date ? ` Due: ${new Date(newBuildOrder.due_date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}` : "";
                   console.log("[SMS] Sending to", member.phone, "from", apiKeys.twilio_phone_number);
-                  fetch("/api/send-sms", {
+                  fetch("/api/notifications?type=sms", {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       to: member.phone,
@@ -7769,7 +7769,7 @@ function BOMManager({ user }) {
                 const durationStr = buildDuration ? (buildDuration < 1 ? `${Math.round(buildDuration*60)}m` : `${buildDuration.toFixed(1)}h`) : "";
                 // Email the manager
                 if (apiKeys.notify_email) {
-                  fetch("/api/build-complete-notify", {
+                  fetch("/api/notifications?type=build-complete", {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       productName: prod?.name, quantity: bo.quantity,
@@ -7780,7 +7780,7 @@ function BOMManager({ user }) {
                 }
                 // Text the builder
                 if (member?.phone && apiKeys.twilio_account_sid) {
-                  fetch("/api/send-sms", {
+                  fetch("/api/notifications?type=sms", {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       to: member.phone,
@@ -10015,7 +10015,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.16 — built 2026-03-21</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.17 — built 2026-03-21</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>

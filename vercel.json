@@ -7,10 +7,10 @@
     "api/search-components.js": {
       "maxDuration": 120
     },
-    "api/shopify-history.js": {
+    "api/shopify.js": {
       "maxDuration": 120
     },
-    "api/zoho-history.js": {
+    "api/zoho.js": {
       "maxDuration": 120
     }
   },
