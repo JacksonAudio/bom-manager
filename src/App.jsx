@@ -3274,11 +3274,29 @@ function BOMManager({ user }) {
                 <p style={{ fontSize:13,color:"#86868b",marginBottom:16 }}>
                   Upload or photograph a supplier invoice — AI extracts all parts, quantities, and prices.
                 </p>
+                {/* Progress indicator */}
+                {invoiceParsing && (
+                  <div style={{ marginBottom:16,padding:"16px 20px",background:darkMode?"#1c1c1e":"#f5f5f7",borderRadius:12,
+                    border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10 }}>
+                      <div style={{ width:20,height:20,border:"3px solid #d2d2d7",borderTopColor:"#5856d6",borderRadius:"50%",animation:"spin 0.7s linear infinite" }} />
+                      <span style={{ fontSize:14,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>AI is reading your invoice...</span>
+                    </div>
+                    <div style={{ fontSize:12,color:"#86868b" }}>This may take 10-30 seconds for multi-page PDFs. Do not close this page.</div>
+                    <div style={{ marginTop:10,height:4,background:darkMode?"#2c2c2e":"#e5e5ea",borderRadius:2,overflow:"hidden" }}>
+                      <div style={{ height:"100%",background:"linear-gradient(90deg,#5856d6,#0071e3)",borderRadius:2,
+                        animation:"progressIndeterminate 1.5s ease-in-out infinite",width:"40%" }} />
+                    </div>
+                    <style>{`@keyframes progressIndeterminate { 0% { margin-left:0; width:30%; } 50% { margin-left:40%; width:40%; } 100% { margin-left:90%; width:10%; } }`}</style>
+                  </div>
+                )}
+
                 <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:16 }}>
                   <label style={{ display:"inline-flex",alignItems:"center",gap:8,padding:"10px 20px",borderRadius:980,
-                    fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:"#5856d6",color:"#fff",
+                    fontSize:13,fontWeight:600,cursor:invoiceParsing?"not-allowed":"pointer",border:"none",
+                    background:invoiceParsing?"#aeaeb2":"#5856d6",color:"#fff",
                     fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                    {invoiceParsing ? "Parsing…" : "Upload Invoice"}
+                    {invoiceParsing ? "Processing..." : "Upload Invoice"}
                     <input type="file" accept=".pdf,.csv,.txt,.tsv,.png,.jpg,.jpeg,.gif,.webp,image/*" style={{ display:"none" }}
                       onChange={(e) => { const f = e.target.files[0]; if (f) parseInvoice(f); e.target.value=""; }}
                       disabled={invoiceParsing} />
@@ -3341,6 +3359,20 @@ function BOMManager({ user }) {
                           Dismiss
                         </button>
                       </div>
+                    </div>
+                    {/* Select All */}
+                    <div style={{ padding:"8px 16px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #e5e5ea",
+                      background:darkMode?"#2c2c2e":"#f9f9fb",display:"flex",alignItems:"center",gap:10 }}>
+                      <input type="checkbox"
+                        checked={invoiceResult.items.every(i=>i.apply)}
+                        onChange={()=>{
+                          const allChecked = invoiceResult.items.every(i=>i.apply);
+                          setInvoiceResult(prev=>({...prev,items:prev.items.map(it=>({...it,apply:!allChecked}))}));
+                        }}
+                        style={{ width:16,height:16,cursor:"pointer",accentColor:"#5856d6" }} />
+                      <span style={{ fontSize:12,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                        Select All ({invoiceResult.items.length})
+                      </span>
                     </div>
                     {invoiceResult.items.map((item, idx) => (
                       <div key={idx} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 16px",
@@ -9123,7 +9155,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.01 — built 2026-03-21</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.02 — built 2026-03-21 2:45pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
