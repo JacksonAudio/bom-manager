@@ -3453,7 +3453,8 @@ function BOMManager({ user }) {
                 // Try capacitance
                 const cm = desc.match(/([\d.]+)\s*(uF|nF|pF|µF)/i);
                 if (cm) return cm[1] + cm[2].replace("µ","u").toLowerCase();
-                return "";
+                // For ICs, connectors, etc. — use the MPN as the value
+                return mpn || "";
               };
 
               const handleCompSearch = async () => {
@@ -3520,9 +3521,20 @@ function BOMManager({ user }) {
               const importSelected = async () => {
                 const toImport = compSearchResults.filter(p => compSelectedParts.has(p.mpn));
                 if (toImport.length === 0) return;
-                if (!window.confirm(`Import ${toImport.length} parts into the master library?`)) return;
+                // Check for duplicates
+                const existingMPNs = new Set(parts.map(p => p.mpn?.toUpperCase()).filter(Boolean));
+                const dupes = toImport.filter(p => existingMPNs.has(p.mpn.toUpperCase()));
+                const fresh = toImport.filter(p => !existingMPNs.has(p.mpn.toUpperCase()));
+                if (dupes.length > 0 && fresh.length === 0) {
+                  alert(`All ${dupes.length} selected parts already exist in your library.`);
+                  return;
+                }
+                const msg = fresh.length < toImport.length
+                  ? `Import ${fresh.length} new parts? (${dupes.length} already exist and will be skipped)`
+                  : `Import ${fresh.length} parts into the master library?`;
+                if (!window.confirm(msg)) return;
                 try {
-                  const dbRows = toImport.map(p => {
+                  const dbRows = fresh.map(p => {
                     const mfr = compSearchMfr || p.manufacturer;
                     const desc = compSearchDescPrefix || p.description;
                     return {
@@ -8032,7 +8044,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.91 — built 2026-03-21 3:30am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.92 — built 2026-03-21 3:35am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
