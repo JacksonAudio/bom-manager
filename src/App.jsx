@@ -3401,21 +3401,40 @@ function BOMManager({ user }) {
 
               const handleCompSearch = async () => {
                 if (!compSearchQuery.trim()) return;
-                if (!apiKeys.mouser_api_key && !nexarToken) { alert("Set a Mouser API key or connect Nexar in Settings first."); return; }
+                if (!apiKeys.mouser_api_key) { alert("Set your Mouser Search API key in Settings first."); return; }
                 setCompSearchLoading(true);
                 setCompSearchResults([]);
                 setCompSelectedParts(new Set());
                 try {
-                  const params = new URLSearchParams({ q: compSearchQuery.trim(), limit: "100" });
-                  if (apiKeys.mouser_api_key) params.set("mouserKey", apiKeys.mouser_api_key);
-                  else if (nexarToken) params.set("token", nexarToken);
-                  const res = await fetch(`/api/search-components?${params}`);
-                  const data = await res.json();
-                  if (!res.ok) throw new Error(data.error || `API error ${res.status}`);
-                  // Sort by parsed value (numeric-aware)
-                  const sorted = (data.results || []).sort((a, b) => parseValue(a) - parseValue(b));
+                  // Call Mouser Search API directly from client (same pattern as fetchMouserPricing)
+                  const mouserRes = await fetch(
+                    `https://api.mouser.com/api/v1/search/partnumber?apiKey=${apiKeys.mouser_api_key}`,
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                      body: JSON.stringify({
+                        SearchByPartRequest: {
+                          mouserPartNumber: compSearchQuery.trim(),
+                          partSearchOptions: "BeginsWith",
+                        },
+                      }),
+                    }
+                  );
+                  if (!mouserRes.ok) throw new Error(`Mouser API error: ${mouserRes.status}`);
+                  const mouserData = await mouserRes.json();
+                  const mparts = mouserData?.SearchResults?.Parts || [];
+                  const results = mparts.map(p => ({
+                    mpn: p.ManufacturerPartNumber || "",
+                    manufacturer: p.Manufacturer || "",
+                    description: p.Description || "",
+                    category: p.Category || "",
+                    mouserPN: p.MouserPartNumber || "",
+                    stock: parseInt(String(p.Availability || "0").replace(/[^0-9]/g, "")) || 0,
+                    price: (() => { const b = p.PriceBreaks || []; return b.length > 0 ? parseFloat(String(b[0].Price||"0").replace(/[^0-9.]/g,"")) || null : null; })(),
+                    reelQty: (() => { const b = p.PriceBreaks || []; return b.length > 0 ? parseInt(b[b.length-1].Quantity) || null : null; })(),
+                  }));
+                  const sorted = results.sort((a, b) => parseValue(a) - parseValue(b));
                   setCompSearchResults(sorted);
-                  // Pre-fill manufacturer from first result if available
                   if (sorted.length > 0 && !compSearchMfr) setCompSearchMfr(sorted[0].manufacturer || "");
                 } catch (err) {
                   alert("Search failed: " + err.message);
@@ -3466,7 +3485,7 @@ function BOMManager({ user }) {
               return (
                 <div style={{ marginBottom:12,padding:"16px 20px",background:"#fff",borderRadius:10,border:"1px solid #d5d0f0",boxShadow:"0 1px 4px rgba(88,86,214,0.1)" }}>
                   <div style={{ fontSize:14,fontWeight:700,marginBottom:4,color:"#5856d6" }}>Component Library</div>
-                  <p style={{ color:"#86868b",fontSize:12,marginBottom:14 }}>Search Nexar/Octopart for real manufacturer part numbers. Every MPN is verified from the distributor database.</p>
+                  <p style={{ color:"#86868b",fontSize:12,marginBottom:14 }}>Search Mouser for real manufacturer part numbers. Every MPN is verified from the distributor database.</p>
 
                   {!apiKeys.mouser_api_key && !nexarToken && (
                     <div style={{ padding:"12px 16px",background:"#fff3cd",borderRadius:8,border:"1px solid #ffc107",fontSize:12,marginBottom:14,color:"#856404" }}>
@@ -3480,7 +3499,7 @@ function BOMManager({ user }) {
                       onKeyDown={e=>{ if(e.key==="Enter") handleCompSearch(); }}
                       placeholder="Search by MPN prefix or series (e.g. 0603WAF, GRM188R61E, RC0603FR-07)"
                       style={{ flex:1,padding:"9px 12px",borderRadius:8,fontSize:13,border:"1px solid #d2d2d7",boxSizing:"border-box",fontFamily:"inherit" }} />
-                    <button onClick={handleCompSearch} disabled={compSearchLoading || !nexarToken}
+                    <button onClick={handleCompSearch} disabled={compSearchLoading || !apiKeys.mouser_api_key}
                       style={{ padding:"9px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
                         border:"none",background:"#5856d6",color:"#fff",opacity:(compSearchLoading||!nexarToken)?"0.5":"1",whiteSpace:"nowrap" }}>
                       {compSearchLoading ? "Searching..." : "Search"}
@@ -3556,7 +3575,7 @@ function BOMManager({ user }) {
                   )}
 
                   {compSearchLoading && (
-                    <div style={{ textAlign:"center",padding:"20px",color:"#86868b",fontSize:13 }}>Searching Nexar/Octopart...</div>
+                    <div style={{ textAlign:"center",padding:"20px",color:"#86868b",fontSize:13 }}>Searching Mouser...</div>
                   )}
                 </div>
               );
@@ -7891,7 +7910,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.66 — built 2026-03-21 12:55am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.67 — built 2026-03-21 1:00am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
