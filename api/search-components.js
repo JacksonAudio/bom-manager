@@ -76,7 +76,7 @@ export default async function handler(req, res) {
   // Fallback to Nexar
   if (token) {
     const query = `query SearchParts($q: String!, $limit: Int!, $start: Int) {
-      supSearchMpn(q: $q, limit: $limit, start: $start) {
+      supSearch(q: $q, limit: $limit, start: $start) {
         hits
         results {
           part {
@@ -114,8 +114,8 @@ export default async function handler(req, res) {
         const data = await response.json();
         if (data.errors) return res.status(400).json({ error: data.errors[0]?.message || "Nexar error" });
 
-        totalHits = data?.data?.supSearchMpn?.hits || 0;
-        const pageResults = data?.data?.supSearchMpn?.results || [];
+        totalHits = data?.data?.supSearch?.hits || 0;
+        const pageResults = data?.data?.supSearch?.results || [];
         if (pageResults.length === 0) break;
 
         allResults.push(...pageResults.map(r => ({
