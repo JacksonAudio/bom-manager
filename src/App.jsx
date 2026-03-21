@@ -1106,6 +1106,8 @@ function BOMManager({ user }) {
   const [activeView,  setActiveView]  = useState("dashboard");
   const [selProject,  setSelProject]  = useState("all");
   const [selBrand,    setSelBrand]    = useState("all");
+  const [collapsedBrands, setCollapsedBrands] = useState(new Set());
+  const [newProjBrand, setNewProjBrand] = useState("Jackson Audio");
   const [search,      setSearch]      = useState("");
   const [pricingSearch, setPricingSearch] = useState("");
   const [pasteText,   setPasteText]   = useState("");
@@ -1117,6 +1119,13 @@ function BOMManager({ user }) {
     decades: { 0:false, 1:true, 2:true, 3:true, 4:true, 5:true, 6:false },
   });
   const [resGenPreview, setResGenPreview] = useState(false);
+  const [compGenType, setCompGenType] = useState("resistor"); // resistor | capacitor
+  const [capGenCfg, setCapGenCfg] = useState({
+    prefix: "GRM188R61E", suffix: "KA73D", manufacturer: "Murata",
+    descPrefix: "0603 X5R 25V MLCC",
+    decades: { 0:false, 1:true, 2:true, 3:true, 4:true, 5:true, 6:true },
+  });
+  const [capGenPreview, setCapGenPreview] = useState(false);
   const [newProjName, setNewProjName] = useState("");
   const [importError, setImportError] = useState("");
   const [importOk,    setImportOk]    = useState("");
@@ -1933,7 +1942,7 @@ function BOMManager({ user }) {
     const name   = newProjName.trim();
     setNewProjName(""); // clear immediately for responsiveness
     try {
-      await createProduct({ name, color, userId: user.id });
+      await createProduct({ name, color, userId: user.id, brand: newProjBrand || "Jackson Audio" });
       // realtime INSERT fires → setProducts handled in subscription above
     } catch (e) { console.error("addProduct failed:", e); }
   };
@@ -3304,7 +3313,7 @@ function BOMManager({ user }) {
               </select>
               <span style={{ color:"#aeaeb2",fontSize:12,marginLeft:"auto" }}>{visibleParts.length}/{parts.length} parts</span>
               <button className="btn-ghost btn-sm" onClick={()=>setShowImport(!showImport)}>{showImport ? "Close Import" : "+ Import"}</button>
-              <button className="btn-ghost btn-sm" onClick={()=>setShowResGen(!showResGen)} style={{ color:"#5856d6" }}>{showResGen ? "Close Resistor Library" : "Resistor Library"}</button>
+              <button className="btn-ghost btn-sm" onClick={()=>setShowResGen(!showResGen)} style={{ color:"#5856d6" }}>{showResGen ? "Close Component Library" : "Component Library"}</button>
             </div>
 
             {/* ── Inline Import Section */}
@@ -3335,7 +3344,7 @@ function BOMManager({ user }) {
               </div>
             )}
 
-            {/* ── Resistor Library Generator */}
+            {/* ── Component Library Generator */}
             {showResGen && (() => {
               const E96 = [100,102,105,107,110,113,115,118,121,124,127,130,133,137,140,143,147,150,154,158,162,165,169,174,178,182,187,191,196,200,205,210,215,221,226,232,237,243,249,255,261,267,274,280,287,294,301,309,316,324,332,340,348,357,365,374,383,392,402,412,422,432,442,453,464,475,487,499,511,523,536,549,562,576,590,604,619,634,649,665,681,698,715,732,750,768,787,806,825,845,866,887,909,931,953,976];
               const decadeLabels = ["1\u03A9\u20139.76\u03A9","10\u03A9\u201397.6\u03A9","100\u03A9\u2013976\u03A9","1k\u03A9\u20139.76k\u03A9","10k\u03A9\u201397.6k\u03A9","100k\u03A9\u2013976k\u03A9","1M\u03A9\u20139.76M\u03A9"];
@@ -3362,9 +3371,17 @@ function BOMManager({ user }) {
               const selectedCount = Object.values(resGenCfg.decades).filter(Boolean).length;
               return (
                 <div style={{ marginBottom:12,padding:"16px 20px",background:"#fff",borderRadius:10,border:"1px solid #d5d0f0",boxShadow:"0 1px 4px rgba(88,86,214,0.1)" }}>
-                  <div style={{ fontSize:14,fontWeight:700,marginBottom:4,color:"#5856d6" }}>Resistor Library Generator</div>
-                  <p style={{ color:"#86868b",fontSize:12,marginBottom:14 }}>Generate E96 standard resistance values for any series. Creates parts in master library (no product assigned).</p>
-                  <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:14 }}>
+                  <div style={{ fontSize:14,fontWeight:700,marginBottom:4,color:"#5856d6" }}>Component Library Generator</div>
+                  <div style={{ display:"flex",gap:4,marginBottom:14 }}>
+                    {[{id:"resistor",label:"Resistors (E96)"},{id:"capacitor",label:"Capacitors (E12)"}].map(t=>(
+                      <button key={t.id} onClick={()=>setCompGenType(t.id)}
+                        style={{ padding:"5px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",
+                          background:compGenType===t.id?"#5856d6":"#f0f0f2",color:compGenType===t.id?"#fff":"#86868b" }}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                  {compGenType === "resistor" && <><div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:14 }}>
                     <div style={{ flex:"1 1 140px" }}>
                       <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>MPN Prefix</div>
                       <input type="text" value={resGenCfg.prefix} onChange={e=>setResGenCfg(c=>({...c,prefix:e.target.value}))}
@@ -3452,6 +3469,132 @@ function BOMManager({ user }) {
                       </table>
                     </div>
                   )}
+                  </>}
+
+                  {/* ── Capacitor Generator */}
+                  {compGenType === "capacitor" && (() => {
+                    const E12 = [1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2];
+                    // Murata GRM encoding: value code = 3 digits where first 2 are significant, 3rd is multiplier (in pF)
+                    // 106 = 10 × 10^6 pF = 10µF, 105 = 10 × 10^5 pF = 1µF, 104 = 10 × 10^4 pF = 100nF
+                    const capDecadeLabels = ["1pF–8.2pF","10pF–82pF","100pF–820pF","1nF–8.2nF","10nF–82nF","100nF–820nF","1µF–8.2µF","10µF–82µF"];
+                    const fmtCap = (pf) => {
+                      if (pf >= 1000000) return (pf/1000000).toFixed(pf/1000000 < 10 && pf%1000000 ? 1 : 0).replace(/\.0$/,"") + "µF";
+                      if (pf >= 1000) return (pf/1000).toFixed(pf/1000 < 10 && pf%1000 ? 1 : 0).replace(/\.0$/,"") + "nF";
+                      return (Number.isInteger(pf) ? pf : pf.toFixed(1).replace(/\.0$/,"")) + "pF";
+                    };
+                    const capCode = (pf) => {
+                      // Convert pF to 3-digit code: significant digits + multiplier
+                      if (pf < 10) return String(Math.round(pf * 10)).padStart(2,"0") + "9"; // R notation for <10pF (special)
+                      const exp = Math.floor(Math.log10(pf));
+                      const sig = Math.round(pf / Math.pow(10, exp - 1));
+                      const mult = exp - 1;
+                      return String(sig).padStart(2,"0") + String(mult);
+                    };
+                    const generateCapParts = () => {
+                      const result = [];
+                      for (let decade = 0; decade <= 7; decade++) {
+                        if (!capGenCfg.decades[decade]) continue;
+                        for (const base of E12) {
+                          const pf = base * Math.pow(10, decade);
+                          const code = capCode(pf);
+                          const mpn = capGenCfg.prefix + code + capGenCfg.suffix;
+                          const value = fmtCap(pf);
+                          result.push({ mpn, value, description: capGenCfg.descPrefix + " " + value, manufacturer: capGenCfg.manufacturer, quantity: 1, product_id: null });
+                        }
+                      }
+                      return result;
+                    };
+                    const capParts = generateCapParts();
+                    const selectedCount = Object.values(capGenCfg.decades).filter(Boolean).length;
+                    return (<>
+                      <p style={{ color:"#86868b",fontSize:12,marginBottom:14 }}>Generate E12 standard capacitor values for any MLCC series. Murata GRM 0603 25V pre-configured.</p>
+                      <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:14 }}>
+                        <div style={{ flex:"1 1 140px" }}>
+                          <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>MPN Prefix</div>
+                          <input type="text" value={capGenCfg.prefix} onChange={e=>setCapGenCfg(c=>({...c,prefix:e.target.value}))}
+                            style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                        </div>
+                        <div style={{ flex:"0 0 80px" }}>
+                          <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>MPN Suffix</div>
+                          <input type="text" value={capGenCfg.suffix} onChange={e=>setCapGenCfg(c=>({...c,suffix:e.target.value}))}
+                            style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                        </div>
+                        <div style={{ flex:"1 1 120px" }}>
+                          <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Manufacturer</div>
+                          <input type="text" value={capGenCfg.manufacturer} onChange={e=>setCapGenCfg(c=>({...c,manufacturer:e.target.value}))}
+                            style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                        </div>
+                        <div style={{ flex:"2 1 200px" }}>
+                          <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Description Prefix</div>
+                          <input type="text" value={capGenCfg.descPrefix} onChange={e=>setCapGenCfg(c=>({...c,descPrefix:e.target.value}))}
+                            style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                        </div>
+                      </div>
+                      <div style={{ marginBottom:14 }}>
+                        <div style={{ fontSize:10,color:"#86868b",marginBottom:6 }}>Decades (12 values each)</div>
+                        <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                          {capDecadeLabels.map((label, i) => (
+                            <label key={i} style={{ display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer",
+                              padding:"4px 10px",borderRadius:6,border:"1px solid "+(capGenCfg.decades[i]?"#5856d6":"#d2d2d7"),
+                              background:capGenCfg.decades[i]?"rgba(88,86,214,0.06)":"transparent" }}>
+                              <input type="checkbox" checked={capGenCfg.decades[i]||false}
+                                onChange={e=>setCapGenCfg(c=>({...c,decades:{...c.decades,[i]:e.target.checked}}))}
+                                style={{ width:13,height:13,accentColor:"#5856d6",cursor:"pointer" }} />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div style={{ display:"flex",gap:10,alignItems:"center",flexWrap:"wrap" }}>
+                        <span style={{ fontSize:12,color:"#86868b" }}>{capParts.length} capacitors ({selectedCount} decade{selectedCount!==1?"s":""})</span>
+                        <button className="btn-ghost btn-sm" onClick={()=>setCapGenPreview(!capGenPreview)}>
+                          {capGenPreview ? "Hide Preview" : "Preview"}
+                        </button>
+                        <button disabled={capParts.length===0}
+                          onClick={async () => {
+                            if (!window.confirm(`Import ${capParts.length} capacitors into the master library?`)) return;
+                            try {
+                              const dbRows = capParts.map(p => ({
+                                mpn: p.mpn, value: p.value, description: p.description, manufacturer: p.manufacturer,
+                                quantity: p.quantity, product_id: null, reference: "", footprint: "0603",
+                                unit_cost: null, reorder_qty: null, stock_qty: null, preferred_supplier: "mouser",
+                                order_qty: null, flagged_for_order: false,
+                                pricing_status: "idle", pricing_error: "",
+                              }));
+                              await upsertParts(dbRows, user.id);
+                              setImportOk(`Imported ${capParts.length} capacitors into master library.`);
+                              setShowResGen(false);
+                            } catch (err) { alert("Import failed: " + err.message); }
+                          }}
+                          style={{ padding:"7px 18px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                            border:"none",background:"#5856d6",color:"#fff",opacity:capParts.length>0?"1":"0.4" }}>
+                          Import All ({capParts.length})
+                        </button>
+                      </div>
+                      {capGenPreview && capParts.length > 0 && (
+                        <div style={{ marginTop:12,maxHeight:300,overflowY:"auto",border:"1px solid #e5e5ea",borderRadius:8 }}>
+                          <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
+                            <thead>
+                              <tr style={{ background:"#f5f5f7" }}>
+                                <th style={{ padding:"6px 10px",textAlign:"left" }}>MPN</th>
+                                <th style={{ padding:"6px 10px",textAlign:"left" }}>Value</th>
+                                <th style={{ padding:"6px 10px",textAlign:"left" }}>Description</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {capParts.slice(0, 200).map((p, i) => (
+                                <tr key={i} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                                  <td style={{ padding:"4px 10px",fontWeight:600,color:"#0071e3",fontFamily:"'SF Mono',monospace" }}>{p.mpn}</td>
+                                  <td style={{ padding:"4px 10px" }}>{p.value}</td>
+                                  <td style={{ padding:"4px 10px",color:"#86868b" }}>{p.description}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>);
+                  })()}
                 </div>
               );
             })()}
@@ -5074,6 +5217,17 @@ function BOMManager({ user }) {
                 <input type="text" placeholder="New product name…" value={newProjName}
                   onChange={(e)=>setNewProjName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addProduct()}
                   style={{ padding:"8px 14px",borderRadius:980,fontSize:13,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:220,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                <select value={newProjBrand} onChange={e=>{
+                    let val=e.target.value;
+                    if(val==="__new__"){val=window.prompt("New brand name:");if(!val){setNewProjBrand("Jackson Audio");return;}}
+                    setNewProjBrand(val);
+                  }}
+                  style={{ padding:"7px 10px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7" }}>
+                  {[...new Set(["Jackson Audio","Fulltone USA",...products.map(p=>p.brand).filter(Boolean)])].sort().map(b=>
+                    <option key={b} value={b}>{b}</option>
+                  )}
+                  <option value="__new__">+ New Brand...</option>
+                </select>
                 <button onClick={addProduct}
                   style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff" }}>
                   + New Product
@@ -5112,36 +5266,58 @@ function BOMManager({ user }) {
               const brandKeys = Object.keys(groups);
               return (
                 <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                  {/* Column headers */}
+                  <div style={{ display:"grid",gridTemplateColumns:"24px 1fr 90px 80px 100px 70px 80px 36px",gap:8,padding:"10px 22px",
+                    fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",
+                    borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),background:darkMode?"#1c1c1e":"#fafafa" }}>
+                    <div></div><div>Product</div><div>Brand</div><div style={{textAlign:"right"}}>Parts</div>
+                    <div style={{textAlign:"right"}}>BOM Cost</div><div style={{textAlign:"right"}}>Build</div><div>Queue</div><div></div>
+                  </div>
                   {brandKeys.map(brand => (
                     <div key={brand}>
                       {brandKeys.length > 1 && (
-                        <div style={{ padding:"10px 22px",fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",
-                          color:darkMode?"#aeaeb2":"#86868b",background:darkMode?"#1c1c1e":"#f0f0f2",borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
-                          {brand}
+                        <div style={{ padding:"8px 22px",fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",
+                          color:darkMode?"#aeaeb2":"#86868b",background:darkMode?"#1c1c1e":"#f0f0f2",borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),
+                          cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center" }}
+                          onClick={()=>setCollapsedBrands(prev=>{const s=new Set(prev);s.has(brand)?s.delete(brand):s.add(brand);return s;})}>
+                          <span>{brand} ({groups[brand].length})</span>
+                          <span style={{ fontSize:11,transform:collapsedBrands.has(brand)?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>▼</span>
                         </div>
                       )}
-                      {groups[brand].map(prod => (
+                      {!collapsedBrands.has(brand) &&
+                      groups[brand].map(prod => (
                         <div key={prod.id}
                           onClick={() => { setSelectedProduct(prod.id); setPdImportError(""); setPdImportOk(""); setPdPasteText(""); }}
-                          style={{ display:"flex",alignItems:"center",gap:14,padding:"14px 22px",cursor:"pointer",
+                          style={{ display:"grid",gridTemplateColumns:"24px 1fr 90px 80px 100px 70px 80px 36px",gap:8,alignItems:"center",
+                            padding:"12px 22px",cursor:"pointer",
                             borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#ededf0"),transition:"background 0.12s" }}
                           onMouseOver={e=>e.currentTarget.style.background=darkMode?"#3a3a3e":"#f5f5f7"}
                           onMouseOut={e=>e.currentTarget.style.background="transparent"}>
-                          <span style={{ display:"inline-block",width:10,height:10,borderRadius:"50%",background:prod.color,flexShrink:0 }} />
-                          <div style={{ flex:1,minWidth:0,fontSize:15,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
+                          <span style={{ display:"inline-block",width:10,height:10,borderRadius:"50%",background:prod.color }} />
+                          <div style={{ fontSize:15,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
                             {prod.name}
                           </div>
-                          {prod.brand && prod.brand !== "Jackson Audio" && (
-                            <span style={{ fontSize:9,fontWeight:700,color:"#fff",background:"#5856d6",padding:"2px 8px",borderRadius:980,flexShrink:0 }}>{prod.brand}</span>
-                          )}
-                          <span style={{ fontSize:12,color:"#86868b",flexShrink:0 }}>{prod.partCount} part{prod.partCount!==1?"s":""}</span>
-                          <span style={{ fontSize:14,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",flexShrink:0 }}>{"$"}{fmtDollar(prod.total)}</span>
-                          {prod.buildMinutes && (
-                            <span style={{ fontSize:11,color:"#86868b",flexShrink:0 }}>{prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h ${prod.buildMinutes%60}m`}</span>
-                          )}
-                          {buildQueue.find(q=>q.productId===prod.id) && (
-                            <span style={{ fontSize:11,color:"#34c759",fontWeight:600,flexShrink:0 }}>Queued: {buildQueue.find(q=>q.productId===prod.id).qty}</span>
-                          )}
+                          <div onClick={e=>e.stopPropagation()}>
+                            <select value={prod.brand||"Jackson Audio"}
+                              onChange={async(e)=>{
+                                let val=e.target.value;
+                                if(val==="__new__"){val=window.prompt("New brand name:");if(!val)return;}
+                                setProducts(prev=>prev.map(p=>p.id===prod.id?{...p,brand:val}:p));
+                                await supabase.from("products").update({brand:val}).eq("id",prod.id);
+                              }}
+                              style={{ fontSize:11,padding:"2px 4px",borderRadius:4,border:"1px solid #d2d2d7",color:"#1d1d1f",background:"transparent",cursor:"pointer" }}>
+                              {[...new Set(["Jackson Audio","Fulltone USA",...products.map(p=>p.brand).filter(Boolean)])].sort().map(b=>
+                                <option key={b} value={b}>{b}</option>
+                              )}
+                              <option value="__new__">+ New Brand...</option>
+                            </select>
+                          </div>
+                          <div style={{ fontSize:12,color:"#86868b",textAlign:"right" }}>{prod.partCount}</div>
+                          <div style={{ fontSize:14,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",textAlign:"right" }}>${fmtDollar(prod.total)}</div>
+                          <div style={{ fontSize:11,color:"#86868b",textAlign:"right" }}>{prod.buildMinutes ? (prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h${prod.buildMinutes%60?` ${prod.buildMinutes%60}m`:""}`) : "—"}</div>
+                          <div>{buildQueue.find(q=>q.productId===prod.id)
+                            ? <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>{buildQueue.find(q=>q.productId===prod.id).qty}</span>
+                            : <span style={{ fontSize:11,color:"#aeaeb2" }}>—</span>}</div>
                           <button title="Duplicate product"
                             onClick={async (e) => {
                               e.stopPropagation();
@@ -5171,7 +5347,8 @@ function BOMManager({ user }) {
                             ⧉
                           </button>
                         </div>
-                      ))}
+                      ))
+                      }
                     </div>
                   ))}
                 </div>
@@ -5213,6 +5390,26 @@ function BOMManager({ user }) {
                   {prod.brand && prod.brand !== "Jackson Audio" && (
                     <span style={{ fontSize:11,fontWeight:700,color:"#fff",background:"#5856d6",padding:"3px 10px",borderRadius:980 }}>{prod.brand}</span>
                   )}
+                  <button title="Duplicate product"
+                    onClick={async () => {
+                      const name = window.prompt("Name for the new product:", prod.name + " (copy)");
+                      if (!name) return;
+                      try {
+                        const created = await createProduct({ name, color: prod.color, userId: user.id, brand: prod.brand || "Jackson Audio" });
+                        const srcParts = parts.filter(p => p.projectId === prod.id);
+                        if (srcParts.length > 0) {
+                          const dbRows = srcParts.map(p => { const row = uiPartToDB(p); row.product_id = created.id; delete row.pricing; delete row.best_supplier; return row; });
+                          await upsertParts(dbRows, user.id);
+                        }
+                        setSelectedProduct(created.id);
+                      } catch (e) { alert("Duplicate failed: " + e.message); }
+                    }}
+                    style={{ background:"none",border:"1px solid #d2d2d7",borderRadius:6,cursor:"pointer",padding:"4px 10px",
+                      fontSize:12,color:"#86868b",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
+                    onMouseOver={e=>e.currentTarget.style.borderColor="#0071e3"}
+                    onMouseOut={e=>e.currentTarget.style.borderColor="#d2d2d7"}>
+                    Duplicate
+                  </button>
                 </div>
                 <div style={{ display:"flex",gap:20,fontSize:13,color:"#86868b",flexWrap:"wrap",alignItems:"center" }}>
                   <span><strong style={{ color:darkMode?"#f5f5f7":"#1d1d1f" }}>{"$"}{fmtDollar(prod.total)}</strong> BOM cost/unit</span>
@@ -7628,7 +7825,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.45 — built 2026-03-20 9:42pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.46 — built 2026-03-20 10:10pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
