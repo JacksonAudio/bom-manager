@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v5.97
+// src/App.jsx — Jackson Audio BOM Manager v6.01
 // Saturday, March 21, 2026 — 10:30 AM
 //
 // Changelog:
@@ -69,6 +69,10 @@ const DEFAULT_KEYS = {
   fb_ja_ad_account_id: "",   // Facebook — Jackson Audio ad account (act_XXX)
   fb_ft_access_token: "",    // Facebook — Fulltone USA access token
   fb_ft_ad_account_id: "",   // Facebook — Fulltone USA ad account (act_XXX)
+  zoho_org_id: "",         // Zoho Books — organization ID
+  zoho_client_id: "",      // api-console.zoho.com — Self Client
+  zoho_client_secret: "",  // api-console.zoho.com — Self Client
+  zoho_refresh_token: "",  // api-console.zoho.com — Self Client
   admin_emails: "brad@jacksonaudio.net",
   timezone: "America/Chicago",  // Central Time default // comma-separated list of admin email addresses
 };
@@ -1151,7 +1155,7 @@ function BOMManager({ user }) {
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
+  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","zoho","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
   const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
@@ -1172,6 +1176,7 @@ function BOMManager({ user }) {
   const [buyQtys, setBuyQtys] = useState({}); // { [partId]: number } — qty to price at per part
   const [simUsOnly, setSimUsOnly] = useState(false); // simulation: US suppliers only
   const [shopifyDemand, setShopifyDemand] = useState(null); // { products, orders, syncedAt, loading, error }
+  const [zohoDemand, setZohoDemand] = useState(null); // { products, orders, syncedAt, loading, error }
   const [shopifyProducts, setShopifyProducts] = useState([]); // Shopify product list for mapping
   const [shopifySalesPrices, setShopifySalesPrices] = useState(null); // { products: [{ shopifyProductId, title, avgPrice, minPrice, maxPrice, unitsSold, totalRevenue }] }
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
@@ -1799,6 +1804,7 @@ function BOMManager({ user }) {
       color: row.color,
       createdBy: row.created_by,
       shopifyProductId: row.shopify_product_id || null,
+      zohoProductId: row.zoho_product_id || null,
       buildMinutes: row.build_minutes || null,
       salesPrice: row.sales_price || null,
       brand: row.brand || "Jackson Audio",
@@ -2519,6 +2525,33 @@ function BOMManager({ user }) {
     }
   };
 
+  // ── ZOHO BOOKS INTEGRATION ──
+  const syncZohoOrders = async () => {
+    const { zoho_org_id, zoho_client_id, zoho_client_secret, zoho_refresh_token } = apiKeys;
+    if (!zoho_org_id || !zoho_client_id || !zoho_client_secret || !zoho_refresh_token) {
+      setZohoDemand({ loading: false, error: "Zoho Books credentials not configured. Add them in Settings." });
+      return;
+    }
+    setZohoDemand(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const q = `org_id=${encodeURIComponent(zoho_org_id)}&client_id=${encodeURIComponent(zoho_client_id)}&client_secret=${encodeURIComponent(zoho_client_secret)}&refresh_token=${encodeURIComponent(zoho_refresh_token)}`;
+      const res = await fetch(`/api/zoho-orders?${q}`);
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
+      const data = await res.json();
+      setZohoDemand({
+        products: data.products || [],
+        orders: data.orders || [],
+        totalOrders: data.totalOrders || 0,
+        syncedAt: data.syncedAt || new Date().toISOString(),
+        loading: false,
+        error: null,
+      });
+    } catch (e) {
+      console.error("[Zoho] sync failed:", e);
+      setZohoDemand(prev => ({ ...prev, loading: false, error: e.message }));
+    }
+  };
+
   const fetchShopifySalesPrices = async () => {
     const stores = getShopifyStores();
     if (!stores.length) {
@@ -2550,23 +2583,44 @@ function BOMManager({ user }) {
     }
   };
 
-  // Compute parts demand from Shopify orders + product mappings
+  // Compute parts demand from Shopify + Zoho orders + product mappings
   const computePartsDemand = () => {
-    if (!shopifyDemand?.products) return [];
+    const hasShopify = shopifyDemand?.products?.length > 0;
+    const hasZoho = zohoDemand?.products?.length > 0;
+    if (!hasShopify && !hasZoho) return [];
     const demand = {}; // { partId: { part, needed, products: [] } }
-    for (const sp of shopifyDemand.products) {
-      // Find BOM product linked to this Shopify product (by shopifyProductId or name match)
-      const bomProduct = products.find(p =>
-        p.shopifyProductId === sp.shopifyProductId ||
-        sp.title.toLowerCase().includes(p.name.toLowerCase()) ||
-        p.name.toLowerCase().includes(sp.title.toLowerCase())
-      );
-      if (!bomProduct) continue;
-      const productParts = parts.filter(p => p.projectId === bomProduct.id);
-      for (const part of productParts) {
-        if (!demand[part.id]) demand[part.id] = { part, needed: 0, products: [] };
-        demand[part.id].needed += (parseInt(part.quantity) || 1) * sp.totalUnfulfilled;
-        demand[part.id].products.push({ name: bomProduct.name, color: bomProduct.color, qty: sp.totalUnfulfilled, perUnit: parseInt(part.quantity) || 1 });
+    // Shopify demand
+    if (hasShopify) {
+      for (const sp of shopifyDemand.products) {
+        const bomProduct = products.find(p =>
+          p.shopifyProductId === sp.shopifyProductId ||
+          sp.title.toLowerCase().includes(p.name.toLowerCase()) ||
+          p.name.toLowerCase().includes(sp.title.toLowerCase())
+        );
+        if (!bomProduct) continue;
+        const productParts = parts.filter(p => p.projectId === bomProduct.id);
+        for (const part of productParts) {
+          if (!demand[part.id]) demand[part.id] = { part, needed: 0, products: [] };
+          demand[part.id].needed += (parseInt(part.quantity) || 1) * sp.totalUnfulfilled;
+          demand[part.id].products.push({ name: bomProduct.name, color: bomProduct.color, qty: sp.totalUnfulfilled, perUnit: parseInt(part.quantity) || 1, channel: "Shopify" });
+        }
+      }
+    }
+    // Zoho demand
+    if (hasZoho) {
+      for (const zp of zohoDemand.products) {
+        const bomProduct = products.find(p =>
+          p.zohoProductId === zp.zohoProductId ||
+          zp.title.toLowerCase().includes(p.name.toLowerCase()) ||
+          p.name.toLowerCase().includes(zp.title.toLowerCase())
+        );
+        if (!bomProduct) continue;
+        const productParts = parts.filter(p => p.projectId === bomProduct.id);
+        for (const part of productParts) {
+          if (!demand[part.id]) demand[part.id] = { part, needed: 0, products: [] };
+          demand[part.id].needed += (parseInt(part.quantity) || 1) * zp.totalUnfulfilled;
+          demand[part.id].products.push({ name: bomProduct.name, color: bomProduct.color, qty: zp.totalUnfulfilled, perUnit: parseInt(part.quantity) || 1, channel: "Zoho" });
+        }
       }
     }
     return Object.values(demand).sort((a, b) => {
@@ -2712,7 +2766,7 @@ function BOMManager({ user }) {
           { id:"purchasing",label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}` },
           { id:"suppliers", label:"Suppliers" },
           { id:"orders",    label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}` },
-          { id:"demand",    label:`Demand${shopifyDemand?.totalOrders?` (${shopifyDemand.totalOrders})`:""}` },
+          { id:"demand",    label:`Demand${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)?` (${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)})`:""}` },
           { id:"production",label:`Production${buildOrders.filter(b=>b.status!=="completed").length>0?` (${buildOrders.filter(b=>b.status!=="completed").length})`:""}` },
           { id:"scoreboard",label:"Scoreboard" },
           { id:"projects",  label:"Products" },
@@ -2745,6 +2799,8 @@ function BOMManager({ user }) {
                 { label:"Low Stock Alerts", value:lowStockParts.length, sub:lowStockParts.length>0?`${lowStockParts.slice(0,3).map(p=>p.mpn||p.reference).join(", ")}${lowStockParts.length>3?" ...":""}`:"All parts stocked", color:lowStockParts.length>0?"#ff3b30":"#34c759", nav:"alerts" },
                 { label:"Parts to Order", value:poPartCount, sub:poPartCount>0?`across ${Object.keys(purchaseOrders).length} suppliers`:"No orders pending", color:poPartCount>0?"#ff9500":"#34c759", nav:"purchasing" },
                 { label:"Products", value:products.length, sub:`${pricedCount}/${parts.length} parts priced`, color:"#5856d6", nav:"projects" },
+                ...(shopifyDemand?.totalOrders ? [{ label:"Shopify Orders", value:shopifyDemand.totalOrders, sub:"Direct / consumer", color:"#96bf48", nav:"demand" }] : []),
+                ...(zohoDemand?.totalOrders ? [{ label:"Zoho Orders", value:zohoDemand.totalOrders, sub:"Dealer / wholesale", color:"#4bc076", nav:"demand" }] : []),
               ].map((card) => (
                 <div key={card.label} onClick={()=>setActiveView(card.nav)}
                   style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",
@@ -5722,6 +5778,24 @@ function BOMManager({ user }) {
                     {prod.shopifyProductId && <span style={{ fontSize:10,color:"#34c759" }}>Linked</span>}
                   </div>
                 )}
+                {zohoDemand?.products?.length > 0 && (
+                  <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                    <span style={{ fontSize:10,color:"#86868b" }}>Zoho:</span>
+                    <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f5f5f7":"#1d1d1f",background:darkMode?"#2c2c2e":"#fff",minWidth:120 }}
+                      value={prod.zohoProductId || ""}
+                      onChange={async (e) => {
+                        const val = e.target.value || null;
+                        setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, zohoProductId: val } : p));
+                        try { await supabase.from("products").update({ zoho_product_id: val }).eq("id", prod.id); } catch (err) { console.error("Zoho mapping save failed:", err); }
+                      }}>
+                      <option value="">-- Not linked --</option>
+                      {zohoDemand.products.map(zp => (
+                        <option key={zp.zohoProductId} value={zp.zohoProductId}>{zp.title}{zp.avgRate > 0 ? ` ($${zp.avgRate.toFixed(2)})` : ""}</option>
+                      ))}
+                    </select>
+                    {prod.zohoProductId && <span style={{ fontSize:10,color:"#34c759" }}>Linked</span>}
+                  </div>
+                )}
                 <button style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}
                   disabled={!prodParts.some(p => p.mpn) || prodParts.some(p => p.pricingStatus === "loading")}
                   onClick={async () => {
@@ -6199,7 +6273,7 @@ function BOMManager({ user }) {
             ALERTS
         ══════════════════════════════════════ */}
         {/* ══════════════════════════════════════
-            DEMAND (Shopify Orders)
+            DEMAND (Shopify + Zoho Orders)
         ══════════════════════════════════════ */}
         {activeView === "demand" && (() => {
           const partsDemand = computePartsDemand();
@@ -6213,22 +6287,39 @@ function BOMManager({ user }) {
               p.name.toLowerCase().includes(sp.title.toLowerCase())
             );
           }) || [];
+          const unmappedZoho = zohoDemand?.products?.filter(zp => {
+            if (_isNonProduct(zp.title)) return false;
+            return !products.find(p =>
+              p.zohoProductId === zp.zohoProductId ||
+              zp.title.toLowerCase().includes(p.name.toLowerCase()) ||
+              p.name.toLowerCase().includes(zp.title.toLowerCase())
+            );
+          }) || [];
           return (
           <div style={{ maxWidth:1100 }}>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12 }}>
               <div>
                 <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Order Demand</h2>
-                <p style={{ color:"#86868b",fontSize:13 }}>Unfulfilled Shopify orders → parts you need to build.</p>
+                <p style={{ color:"#86868b",fontSize:13 }}>Unfulfilled orders from Shopify (direct) and Zoho Books (dealer) → parts you need to build.</p>
               </div>
-              <div style={{ display:"flex",gap:10,alignItems:"center" }}>
+              <div style={{ display:"flex",gap:10,alignItems:"center",flexWrap:"wrap" }}>
                 {shopifyDemand?.syncedAt && (
                   <span style={{ fontSize:11,color:"#86868b" }}>
-                    Synced {new Date(shopifyDemand.syncedAt).toLocaleString()}
+                    Shopify synced {new Date(shopifyDemand.syncedAt).toLocaleString()}
                   </span>
                 )}
                 <button className="btn-primary" onClick={syncShopifyOrders}
                   disabled={shopifyDemand?.loading}>
                   {shopifyDemand?.loading ? <><span className="spinner" /> Syncing…</> : "⟳ Sync Shopify Orders"}
+                </button>
+                {zohoDemand?.syncedAt && (
+                  <span style={{ fontSize:11,color:"#86868b" }}>
+                    Zoho synced {new Date(zohoDemand.syncedAt).toLocaleString()}
+                  </span>
+                )}
+                <button className="btn-primary" style={{ background:"#4bc076" }} onClick={syncZohoOrders}
+                  disabled={zohoDemand?.loading}>
+                  {zohoDemand?.loading ? <><span className="spinner" /> Syncing…</> : "⟳ Sync Zoho Orders"}
                 </button>
                 {partsDemand.length > 0 && (
                   <button className="btn-primary" style={{ background:"#34c759" }}
@@ -6265,23 +6356,32 @@ function BOMManager({ user }) {
                 ) : shopifyDemand.error}
               </div>
             )}
+            {zohoDemand?.error && (
+              <div style={{ background:"#fff2f0",border:"1px solid #ff3b30",borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:12,color:"#ff3b30" }}>
+                {zohoDemand.error.includes("configured") || zohoDemand.error.includes("credentials") ? (
+                  <>Zoho Books not configured. <button className="btn-ghost" style={{ fontSize:11,marginLeft:8 }}
+                    onClick={() => setActiveView("settings")}>Go to Settings →</button></>
+                ) : zohoDemand.error}
+              </div>
+            )}
 
-            {!shopifyDemand && !shopifyDemand?.loading && (
+            {!shopifyDemand && !shopifyDemand?.loading && !zohoDemand && !zohoDemand?.loading && (
               <div className="card" style={{ textAlign:"center",padding:60 }}>
                 <div style={{ fontSize:40,marginBottom:12 }}>🛒</div>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:15,marginBottom:8 }}>Connect Shopify to see order demand</div>
-                <p style={{ color:"#86868b",fontSize:13,marginBottom:16 }}>Add your Shopify store domain and admin token in Settings, then sync.</p>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:15,marginBottom:8 }}>Connect Shopify or Zoho Books to see order demand</div>
+                <p style={{ color:"#86868b",fontSize:13,marginBottom:16 }}>Add your Shopify store or Zoho Books credentials in Settings, then sync.</p>
                 <button className="btn-primary" onClick={() => setActiveView("settings")}>⚙ Go to Settings</button>
               </div>
             )}
 
-            {shopifyDemand && !shopifyDemand.error && (
+            {(shopifyDemand || zohoDemand) && !(shopifyDemand?.error && zohoDemand?.error) && (
               <>
                 {/* ── Summary cards */}
                 <div style={{ display:"flex",gap:12,marginBottom:20,flexWrap:"wrap" }}>
                   {[
-                    { label:"Open Orders", value:shopifyDemand.totalOrders || 0, color:"#0071e3" },
-                    { label:"Products in Demand", value:shopifyDemand.products?.length || 0, color:"#5856d6" },
+                    { label:"Direct Orders (Shopify)", value:shopifyDemand?.totalOrders || 0, color:"#0071e3" },
+                    { label:"Dealer Orders (Zoho)", value:zohoDemand?.totalOrders || 0, color:"#4bc076" },
+                    { label:"Products in Demand", value:(shopifyDemand?.products?.length || 0) + (zohoDemand?.products?.length || 0), color:"#5856d6" },
                     { label:"Parts Needed", value:partsDemand.length, color:"#ff9500" },
                     { label:"Parts Short", value:partsDemand.filter(d => d.needed > (parseInt(d.part.stockQty) || 0)).length, color:"#ff3b30" },
                   ].map(c => (
@@ -6338,10 +6438,57 @@ function BOMManager({ user }) {
                   </div>
                 )}
 
+                {/* ── Unmapped Zoho products */}
+                {unmappedZoho.length > 0 && (
+                  <div style={{ background:"#edf7f0",border:"1px solid #4bc076",borderRadius:8,padding:"12px 16px",marginBottom:16 }}>
+                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                      <div style={{ fontSize:12,fontWeight:700,color:"#4bc076" }}>
+                        {unmappedZoho.length} Zoho product{unmappedZoho.length !== 1 ? "s" : ""} not mapped to BOM products
+                      </div>
+                      <button className="btn-ghost" style={{ fontSize:10,fontWeight:700,color:"#4bc076" }}
+                        onClick={async () => {
+                          const colors = ["#4bc076","#5856d6","#ff3b30","#34c759","#0071e3","#ff2d55"];
+                          for (let i = 0; i < unmappedZoho.length; i++) {
+                            const u = unmappedZoho[i];
+                            const color = colors[(products.length + i) % colors.length];
+                            try {
+                              await createProduct({ name: u.title, color, userId: user.id });
+                            } catch (e) { console.error("Create product failed:", e); }
+                          }
+                        }}>
+                        Create All ({unmappedZoho.length})
+                      </button>
+                    </div>
+                    {unmappedZoho.map((u) => (
+                      <div key={u.zohoProductId} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",
+                        padding:"6px 0",borderBottom:"1px solid #4bc07622" }}>
+                        <span style={{ fontSize:12,color:"#1d1d1f" }}>{u.title}</span>
+                        <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                          {u.avgRate > 0 && <span style={{ fontSize:10,color:"#86868b" }}>@ ${u.avgRate.toFixed(2)}</span>}
+                          <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
+                            onClick={async (e) => {
+                              const btn = e.currentTarget;
+                              const colors = ["#4bc076","#5856d6","#ff3b30","#34c759","#0071e3","#ff2d55"];
+                              const color = colors[(products.length) % colors.length];
+                              try {
+                                await createProduct({ name: u.title, color, userId: user.id });
+                                btn.textContent = "Created";
+                                btn.style.color = "#34c759";
+                                btn.disabled = true;
+                              } catch (e) { console.error("Create product failed:", e); }
+                            }}>
+                            + Create Product
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* ── Parts demand table */}
                 {partsDemand.length > 0 && (
                   <div className="card" style={{ marginBottom:16 }}>
-                    <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>PARTS DEMAND BREAKDOWN</div>
+                    <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>PARTS DEMAND BREAKDOWN (ALL CHANNELS)</div>
                     <div style={{ overflowX:"auto" }}>
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                         <thead>
@@ -6381,7 +6528,7 @@ function BOMManager({ user }) {
                                   <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
                                     {d.products.map((pr,i) => (
                                       <span key={i} className="badge" style={{ background:pr.color+"22",color:pr.color,fontSize:10 }}>
-                                        {pr.name} ×{pr.qty} ({pr.perUnit}/unit)
+                                        {pr.channel === "Zoho" ? "[Dealer] " : pr.channel === "Shopify" ? "[Direct] " : ""}{pr.name} ×{pr.qty} ({pr.perUnit}/unit)
                                       </span>
                                     ))}
                                   </div>
@@ -6424,7 +6571,54 @@ function BOMManager({ user }) {
                 )}
 
                 {/* ── Build Plan + Sales Forecast */}
-                {shopifyDemand.orders?.length > 0 && (() => {
+                {/* ── Zoho Dealer Orders */}
+                {zohoDemand?.products?.length > 0 && (
+                  <div className="card" style={{ marginBottom:16 }}>
+                    <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>DEALER ORDERS (ZOHO BOOKS) — {zohoDemand.totalOrders || 0} ORDERS</div>
+                    <div style={{ overflowX:"auto" }}>
+                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                        <thead>
+                          <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>PRODUCT</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>QTY ORDERED</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>AVG RATE</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>BOM PRODUCT</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {zohoDemand.products.map(zp => {
+                            const bomProduct = products.find(p =>
+                              p.zohoProductId === zp.zohoProductId ||
+                              zp.title.toLowerCase().includes(p.name.toLowerCase()) ||
+                              p.name.toLowerCase().includes(zp.title.toLowerCase())
+                            );
+                            return (
+                              <tr key={zp.zohoProductId || zp.title} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                                <td style={{ padding:"10px 10px",fontWeight:600,color:"#1d1d1f" }}>{zp.title}</td>
+                                <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,color:"#4bc076",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                  {zp.totalUnfulfilled.toLocaleString()}
+                                </td>
+                                <td style={{ padding:"10px 10px",textAlign:"right",color:"#86868b" }}>
+                                  {zp.avgRate > 0 ? `$${zp.avgRate.toFixed(2)}` : "—"}
+                                </td>
+                                <td style={{ padding:"10px 10px" }}>
+                                  {bomProduct ? (
+                                    <span className="badge" style={{ background:bomProduct.color+"22",color:bomProduct.color,fontSize:10 }}>
+                                      {bomProduct.name}
+                                    </span>
+                                  ) : <span style={{ fontSize:11,color:"#ff9500" }}>Unmapped</span>}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Shopify Direct Orders + Sales Forecast */}
+                {shopifyDemand?.orders?.length > 0 && (() => {
                   // Calculate daily sell rate per product from order history
                   const now = new Date();
                   const skipWords = ["shipping","gift card","tip","gratuity","donation","insurance","handling","gift wrap","express shipping"];
@@ -6464,7 +6658,7 @@ function BOMManager({ user }) {
                     {forecasts.length > 0 && (
                       <div className="card">
                         <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>
-                          SALES FORECAST — BASED ON {shopifyDemand.orders.length} ORDERS
+                          DIRECT SALES FORECAST — BASED ON {shopifyDemand?.orders?.length || 0} SHOPIFY ORDERS
                         </div>
                         <div style={{ overflowX:"auto" }}>
                           <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
@@ -7952,6 +8146,50 @@ function BOMManager({ user }) {
               </div>}
             </div>
 
+            {/* ── Zoho Books */}
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#4bc076",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("zoho") ? s.delete("zoho") : s.add("zoho"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("zoho") ? "▶" : "▼"}</span>
+                  Zoho Books
+                </div>
+                {apiKeys.zoho_org_id && apiKeys.zoho_refresh_token && <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>Configured</span>}
+              </div>
+              {!collapsedSettings.has("zoho") && <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  Pull dealer/wholesale orders from Zoho Books. Get credentials from{" "}
+                  <a href="https://api-console.zoho.com" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}>api-console.zoho.com</a>
+                  {" "}→ create a Self Client.
+                </div>
+                <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
+                  <div className="key-label" style={{ minWidth:120 }}>Organization ID</div>
+                  <input type="text" placeholder="Zoho Books Org ID" value={apiKeys.zoho_org_id || ""}
+                    onChange={(e) => setApiKeys(k => ({ ...k, zoho_org_id: e.target.value }))}
+                    style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
+                </div>
+                <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
+                  <div className="key-label" style={{ minWidth:120 }}>Client ID</div>
+                  <input type="text" placeholder="From API Console" value={apiKeys.zoho_client_id || ""}
+                    onChange={(e) => setApiKeys(k => ({ ...k, zoho_client_id: e.target.value }))}
+                    style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
+                </div>
+                <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
+                  <div className="key-label" style={{ minWidth:120 }}>Client Secret</div>
+                  <input type="password" placeholder="From API Console" value={apiKeys.zoho_client_secret || ""}
+                    onChange={(e) => setApiKeys(k => ({ ...k, zoho_client_secret: e.target.value }))}
+                    style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
+                </div>
+                <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
+                  <div className="key-label" style={{ minWidth:120 }}>Refresh Token</div>
+                  <input type="password" placeholder="Self Client refresh token" value={apiKeys.zoho_refresh_token || ""}
+                    onChange={(e) => setApiKeys(k => ({ ...k, zoho_refresh_token: e.target.value }))}
+                    style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
+                </div>
+                {sectionSaveBtn("zoho", "Zoho Books")}
+              </div>}
+            </div>
+
             {/* ── Shipping Costs */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
@@ -8584,23 +8822,49 @@ function BOMManager({ user }) {
               </div>
             </div>
 
-            {/* Channel Margin Summary — only when Shopify data loaded */}
-            {hasShopifyPrices && (
+            {/* Channel Margin Summary — when Shopify or Zoho data loaded */}
+            {(hasShopifyPrices || zohoDemand?.products?.length > 0) && (() => {
+              // Zoho dealer margin: use avgRate from Zoho orders as sale price
+              const zohoMargins = zohoDemand?.products?.length > 0 ? rows.map(r => {
+                const zp = zohoDemand.products.find(z =>
+                  r.zohoProductId === z.zohoProductId ||
+                  (z.title && r.name && z.title.toLowerCase().includes(r.name.toLowerCase()))
+                );
+                if (!zp || !zp.avgRate || zp.avgRate <= 0) return null;
+                const zohoPrice = zp.avgRate;
+                const adCostZoho = 0; // no ads on dealer sales
+                const profitZoho = zohoPrice - r.totalCost - adCostZoho;
+                const marginZoho = zohoPrice > 0 ? (profitZoho / zohoPrice) * 100 : null;
+                return { ...r, zohoPrice, profitZoho, marginZoho };
+              }).filter(Boolean) : [];
+              const zohoDealerMargin = zohoMargins.length > 0 ? zohoMargins.reduce((s,r) => s + r.marginZoho, 0) / zohoMargins.length : null;
+              // Blended: weighted avg of Shopify avg + Zoho dealer
+              const allMargins = [];
+              if (blendedMargin != null) allMargins.push(blendedMargin);
+              if (zohoDealerMargin != null) allMargins.push(zohoDealerMargin);
+              const combinedBlended = allMargins.length > 0 ? allMargins.reduce((s,m) => s + m, 0) / allMargins.length : null;
+
+              return (
               <div style={{ display:"flex",gap:16,marginBottom:24,flexWrap:"wrap" }}>
-                <div style={{ ...cardStyle,borderColor:"#34c759" }}>
-                  <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Direct Margin (max price)</div>
+                {hasShopifyPrices && <div style={{ ...cardStyle,borderColor:"#34c759" }}>
+                  <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Direct (Shopify max price)</div>
                   <div style={{ fontSize:28,fontWeight:700,color:marginColor(directMargin) }}>{directMargin != null ? `${directMargin.toFixed(1)}%` : "—"}</div>
-                </div>
-                <div style={{ ...cardStyle,borderColor:"#ff9500" }}>
-                  <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Dealer Margin (min price)</div>
+                </div>}
+                {zohoDealerMargin != null && <div style={{ ...cardStyle,borderColor:"#4bc076" }}>
+                  <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Dealer (Zoho sale price)</div>
+                  <div style={{ fontSize:28,fontWeight:700,color:marginColor(zohoDealerMargin) }}>{zohoDealerMargin.toFixed(1)}%</div>
+                </div>}
+                {hasShopifyPrices && <div style={{ ...cardStyle,borderColor:"#ff9500" }}>
+                  <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Dealer (Shopify min price)</div>
                   <div style={{ fontSize:28,fontWeight:700,color:marginColor(dealerMargin) }}>{dealerMargin != null ? `${dealerMargin.toFixed(1)}%` : "—"}</div>
-                </div>
+                </div>}
                 <div style={{ ...cardStyle,borderColor:"#0071e3" }}>
-                  <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Blended Margin (avg price)</div>
-                  <div style={{ fontSize:28,fontWeight:700,color:marginColor(blendedMargin) }}>{blendedMargin != null ? `${blendedMargin.toFixed(1)}%` : "—"}</div>
+                  <div style={{ fontSize:11,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Blended (weighted avg)</div>
+                  <div style={{ fontSize:28,fontWeight:700,color:marginColor(combinedBlended) }}>{combinedBlended != null ? `${combinedBlended.toFixed(1)}%` : "—"}</div>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* Controls row */}
             <div style={{ display:"flex",alignItems:"center",gap:16,marginBottom:20,flexWrap:"wrap" }}>
@@ -8859,7 +9123,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.00 — built 2026-03-21 1:50pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.01 — built 2026-03-21</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
