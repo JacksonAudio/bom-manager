@@ -1645,10 +1645,19 @@ function BOMManager({ user }) {
   // ── Fetch pricing for ALL parts with MPNs
   const fetchAllPartsPricing = async () => {
     setFetchingAll(true);
-    const partsWithMPN = parts.filter((p) => p.mpn && p.pricingStatus !== "loading");
-    for (const part of partsWithMPN) {
+    // Use pricing search filter if active, otherwise all parts
+    const pq = pricingSearch.trim();
+    let filtered = parts.filter((p) => p.mpn && p.pricingStatus !== "loading");
+    if (pq) {
+      const words = pq.toLowerCase().split(/\s+/).filter(Boolean);
+      filtered = filtered.filter(p => {
+        const blob = [p.reference, p.value, p.mpn, p.description, p.manufacturer].join(" ").toLowerCase();
+        return words.every(w => blob.includes(w));
+      });
+    }
+    for (const part of filtered) {
       await fetchPartPricing(part.id);
-      await new Promise((r) => setTimeout(r, 300)); // gentle rate limiting
+      await new Promise((r) => setTimeout(r, 300));
     }
     setFetchingAll(false);
   };
@@ -3882,7 +3891,7 @@ function BOMManager({ user }) {
                   disabled={!hasAnyKey || fetchingAll || parts.filter(p=>p.mpn).length===0}
                   onClick={fetchAllPartsPricing}
                   style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff",opacity:(!hasAnyKey||fetchingAll)?"0.4":"1" }}>
-                  {fetchingAll ? "Fetching…" : "Fetch All Prices"}
+                  {fetchingAll ? "Fetching…" : pricingSearch.trim() ? `Fetch Filtered Prices` : "Fetch All Prices"}
                 </button>
                 <div style={{ display:"flex",borderRadius:980,overflow:"hidden",border:"1px solid #d2d2d7" }}>
                   <button onClick={()=>setCountryFilter("us")}
@@ -7991,7 +8000,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.86 — built 2026-03-21 3:00am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.87 — built 2026-03-21 3:05am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
