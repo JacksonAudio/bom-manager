@@ -1115,14 +1115,14 @@ function BOMManager({ user }) {
   const [showResGen,  setShowResGen]  = useState(false);
   const [resGenCfg,   setResGenCfg]   = useState({
     prefix: "0603WAF", suffix: "T5E", manufacturer: "Royalohm",
-    descPrefix: "0603 1% 1/10W Thick Film",
+    descPrefix: "Resistor 0603 1% 1/10W Thick Film",
     decades: { 0:false, 1:true, 2:true, 3:true, 4:true, 5:true, 6:false },
   });
   const [resGenPreview, setResGenPreview] = useState(false);
   const [compGenType, setCompGenType] = useState("resistor"); // resistor | capacitor
   const [capGenCfg, setCapGenCfg] = useState({
     prefix: "GRM188R61E", suffix: "KA73D", manufacturer: "Murata",
-    descPrefix: "0603 X5R 25V MLCC",
+    descPrefix: "Capacitor 0603 X5R 25V MLCC",
     decades: { 0:false, 1:true, 2:true, 3:true, 4:true, 5:true, 6:true },
   });
   const [capGenPreview, setCapGenPreview] = useState(false);
@@ -7825,7 +7825,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.46 — built 2026-03-20 10:10pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.47 — built 2026-03-20 10:30pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
