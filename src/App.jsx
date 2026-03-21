@@ -1110,6 +1110,13 @@ function BOMManager({ user }) {
   const [pricingSearch, setPricingSearch] = useState("");
   const [pasteText,   setPasteText]   = useState("");
   const [showImport,  setShowImport]  = useState(false);
+  const [showResGen,  setShowResGen]  = useState(false);
+  const [resGenCfg,   setResGenCfg]   = useState({
+    prefix: "0603WAF", suffix: "T5E", manufacturer: "Royalohm",
+    descPrefix: "0603 1% 1/10W Thick Film",
+    decades: { 0:false, 1:true, 2:true, 3:true, 4:true, 5:true, 6:false },
+  });
+  const [resGenPreview, setResGenPreview] = useState(false);
   const [newProjName, setNewProjName] = useState("");
   const [importError, setImportError] = useState("");
   const [importOk,    setImportOk]    = useState("");
@@ -3298,6 +3305,7 @@ function BOMManager({ user }) {
               </select>
               <span style={{ color:"#aeaeb2",fontSize:12,marginLeft:"auto" }}>{visibleParts.length}/{parts.length} parts</span>
               <button className="btn-ghost btn-sm" onClick={()=>setShowImport(!showImport)}>{showImport ? "Close Import" : "+ Import"}</button>
+              <button className="btn-ghost btn-sm" onClick={()=>setShowResGen(!showResGen)} style={{ color:"#5856d6" }}>{showResGen ? "Close Resistor Library" : "Resistor Library"}</button>
             </div>
 
             {/* ── Inline Import Section */}
@@ -3327,6 +3335,127 @@ function BOMManager({ user }) {
                 {importOk && <div style={{ marginTop:8,color:"#34c759",fontSize:12 }}>{importOk}</div>}
               </div>
             )}
+
+            {/* ── Resistor Library Generator */}
+            {showResGen && (() => {
+              const E96 = [100,102,105,107,110,113,115,118,121,124,127,130,133,137,140,143,147,150,154,158,162,165,169,174,178,182,187,191,196,200,205,210,215,221,226,232,237,243,249,255,261,267,274,280,287,294,301,309,316,324,332,340,348,357,365,374,383,392,402,412,422,432,442,453,464,475,487,499,511,523,536,549,562,576,590,604,619,634,649,665,681,698,715,732,750,768,787,806,825,845,866,887,909,931,953,976];
+              const decadeLabels = ["1\u03A9\u20139.76\u03A9","10\u03A9\u201397.6\u03A9","100\u03A9\u2013976\u03A9","1k\u03A9\u20139.76k\u03A9","10k\u03A9\u201397.6k\u03A9","100k\u03A9\u2013976k\u03A9","1M\u03A9\u20139.76M\u03A9"];
+              const fmtRes = (ohms) => {
+                if (ohms >= 1000000) { const v = ohms/1000000; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"M\u03A9"; }
+                if (ohms >= 1000) { const v = ohms/1000; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"k\u03A9"; }
+                const v = ohms; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"\u03A9";
+              };
+              const generateParts = () => {
+                const result = [];
+                for (let mult = 0; mult <= 6; mult++) {
+                  if (!resGenCfg.decades[mult]) continue;
+                  for (const base of E96) {
+                    const code = String(base) + String(mult);
+                    const mpn = resGenCfg.prefix + code + resGenCfg.suffix;
+                    const ohms = base * Math.pow(10, mult - 2); // base=100 means 1.00, mult=0 → ×10^-2 → 1Ω; mult=2 → ×10^0 → 100Ω
+                    const value = fmtRes(ohms);
+                    result.push({ mpn, value, description: resGenCfg.descPrefix + " " + value, manufacturer: resGenCfg.manufacturer, quantity: 1, product_id: null });
+                  }
+                }
+                return result;
+              };
+              const genParts = generateParts();
+              const selectedCount = Object.values(resGenCfg.decades).filter(Boolean).length;
+              return (
+                <div style={{ marginBottom:12,padding:"16px 20px",background:"#fff",borderRadius:10,border:"1px solid #d5d0f0",boxShadow:"0 1px 4px rgba(88,86,214,0.1)" }}>
+                  <div style={{ fontSize:14,fontWeight:700,marginBottom:4,color:"#5856d6" }}>Resistor Library Generator</div>
+                  <p style={{ color:"#86868b",fontSize:12,marginBottom:14 }}>Generate E96 standard resistance values for any series. Creates parts in master library (no product assigned).</p>
+                  <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:14 }}>
+                    <div style={{ flex:"1 1 140px" }}>
+                      <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>MPN Prefix</div>
+                      <input type="text" value={resGenCfg.prefix} onChange={e=>setResGenCfg(c=>({...c,prefix:e.target.value}))}
+                        style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                    </div>
+                    <div style={{ flex:"0 0 80px" }}>
+                      <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>MPN Suffix</div>
+                      <input type="text" value={resGenCfg.suffix} onChange={e=>setResGenCfg(c=>({...c,suffix:e.target.value}))}
+                        style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                    </div>
+                    <div style={{ flex:"1 1 120px" }}>
+                      <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Manufacturer</div>
+                      <input type="text" value={resGenCfg.manufacturer} onChange={e=>setResGenCfg(c=>({...c,manufacturer:e.target.value}))}
+                        style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                    </div>
+                    <div style={{ flex:"2 1 200px" }}>
+                      <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Description Prefix</div>
+                      <input type="text" value={resGenCfg.descPrefix} onChange={e=>setResGenCfg(c=>({...c,descPrefix:e.target.value}))}
+                        style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom:14 }}>
+                    <div style={{ fontSize:10,color:"#86868b",marginBottom:6 }}>Decades (96 values each)</div>
+                    <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                      {decadeLabels.map((label, i) => (
+                        <label key={i} style={{ display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer",
+                          padding:"4px 10px",borderRadius:6,border:"1px solid "+(resGenCfg.decades[i]?"#5856d6":"#d2d2d7"),
+                          background:resGenCfg.decades[i]?"rgba(88,86,214,0.06)":"transparent" }}>
+                          <input type="checkbox" checked={resGenCfg.decades[i]||false}
+                            onChange={e=>setResGenCfg(c=>({...c,decades:{...c.decades,[i]:e.target.checked}}))}
+                            style={{ width:13,height:13,accentColor:"#5856d6",cursor:"pointer" }} />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex",gap:10,alignItems:"center",flexWrap:"wrap" }}>
+                    <span style={{ fontSize:12,color:"#86868b" }}>{genParts.length} resistors ({selectedCount} decade{selectedCount!==1?"s":""})</span>
+                    <button className="btn-ghost btn-sm" onClick={()=>setResGenPreview(!resGenPreview)}>
+                      {resGenPreview ? "Hide Preview" : "Preview"}
+                    </button>
+                    <button disabled={genParts.length===0}
+                      onClick={async () => {
+                        if (!window.confirm(`Import ${genParts.length} resistors into the master library?`)) return;
+                        try {
+                          const dbRows = genParts.map(p => ({
+                            mpn: p.mpn, value: p.value, description: p.description, manufacturer: p.manufacturer,
+                            quantity: p.quantity, product_id: null, reference: "", footprint: "",
+                            unit_cost: null, reorder_qty: null, stock_qty: null, preferred_supplier: "mouser",
+                            order_qty: null, flagged_for_order: false, is_internal: false,
+                            pricing: null, pricing_status: "idle", pricing_error: "", best_supplier: null,
+                          }));
+                          await upsertParts(dbRows, user.id);
+                          setImportOk(`Imported ${genParts.length} resistors into master library.`);
+                          setShowResGen(false);
+                        } catch (err) { alert("Import failed: " + err.message); }
+                      }}
+                      style={{ padding:"7px 18px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                        border:"none",background:"#5856d6",color:"#fff",opacity:genParts.length>0?"1":"0.4" }}>
+                      Import All ({genParts.length})
+                    </button>
+                  </div>
+                  {resGenPreview && genParts.length > 0 && (
+                    <div style={{ marginTop:12,maxHeight:300,overflowY:"auto",border:"1px solid #e5e5ea",borderRadius:8 }}>
+                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
+                        <thead>
+                          <tr style={{ background:"#f5f5f7" }}>
+                            <th style={{ padding:"6px 10px",textAlign:"left" }}>MPN</th>
+                            <th style={{ padding:"6px 10px",textAlign:"left" }}>Value</th>
+                            <th style={{ padding:"6px 10px",textAlign:"left" }}>Description</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {genParts.slice(0, 200).map((p, i) => (
+                            <tr key={i} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                              <td style={{ padding:"4px 10px",fontWeight:600,color:"#0071e3",fontFamily:"'SF Mono',monospace" }}>{p.mpn}</td>
+                              <td style={{ padding:"4px 10px" }}>{p.value}</td>
+                              <td style={{ padding:"4px 10px",color:"#86868b" }}>{p.description}</td>
+                            </tr>
+                          ))}
+                          {genParts.length > 200 && (
+                            <tr><td colSpan={3} style={{ padding:"8px 10px",textAlign:"center",color:"#aeaeb2",fontSize:11 }}>...and {genParts.length - 200} more</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* ── Bulk-action bar — only visible when parts are selected */}
             {selectedParts.size > 0 && (
@@ -3404,7 +3533,7 @@ function BOMManager({ user }) {
                           }}
                         />
                       </th>
-                      {["MPN","Value","Description","Manufacturer","Product","Current Stock","Reorder Point","Stock Value",""].map((h,hi,arr)=>(
+                      {["MPN","Value","Description","Manufacturer","Current Stock","Reorder Point","Stock Value",""].map((h,hi,arr)=>(
                         <th key={hi} style={{ textAlign:"left",padding:"12px 14px",
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                           fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
@@ -3455,18 +3584,6 @@ function BOMManager({ user }) {
                               onChange={(e)=>updatePart(part.id,"manufacturer",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,color:"#86868b" }} placeholder="" />
-                          </td>
-                          <td style={{ padding:"6px 8px",width:110 }}>
-                            {(() => {
-                              const prod = products.find(x => x.id === part.projectId);
-                              if (!prod) return <span style={{ fontSize:11,color:"#aeaeb2" }}>—</span>;
-                              return (
-                                <span style={{ fontSize:11,fontWeight:600,color:"#1d1d1f",display:"inline-flex",alignItems:"center",gap:4 }}>
-                                  <span style={{ width:6,height:6,borderRadius:"50%",background:prod.color,flexShrink:0 }} />
-                                  {prod.name}
-                                </span>
-                              );
-                            })()}
                           </td>
                           <td style={{ padding:"6px 8px",width:90 }}>
                             <input type="number" placeholder="0" value={part.stockQty}
@@ -4979,43 +5096,88 @@ function BOMManager({ user }) {
               </div>
             )}
 
-            {/* Product cards */}
-            <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))",gap:14 }}>
-            {productCosts.filter(p => selBrand === "all" || (p.brand || "Jackson Audio") === selBrand).map((prod) => (
-              <div key={prod.id}
-                onClick={() => { setSelectedProduct(prod.id); setPdImportError(""); setPdImportOk(""); setPdPasteText(""); }}
-                style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:14,padding:"20px 22px",cursor:"pointer",
-                  boxShadow:"0 1px 4px rgba(0,0,0,0.08)",transition:"transform 0.15s, box-shadow 0.15s",
-                  display:"flex",flexDirection:"column",gap:10 }}
-                onMouseOver={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.12)";}}
-                onMouseOut={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.08)";}}>
-                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                  <span style={{ display:"inline-block",width:10,height:10,borderRadius:"50%",background:prod.color,flexShrink:0 }} />
-                  <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
-                      {prod.name}
+            {/* Product list rows grouped by brand */}
+            {(() => {
+              const filtered = productCosts.filter(p => selBrand === "all" || (p.brand || "Jackson Audio") === selBrand);
+              // Sort: Jackson Audio first, then Fulltone USA, alphabetical within each
+              const brandOrder = { "Jackson Audio": 0, "Fulltone USA": 1 };
+              const sorted = [...filtered].sort((a, b) => {
+                const ba = a.brand || "Jackson Audio", bb = b.brand || "Jackson Audio";
+                const oa = brandOrder[ba] ?? 99, ob = brandOrder[bb] ?? 99;
+                if (oa !== ob) return oa - ob;
+                return a.name.localeCompare(b.name);
+              });
+              // Group by brand
+              const groups = {};
+              sorted.forEach(p => { const b = p.brand || "Jackson Audio"; (groups[b] = groups[b] || []).push(p); });
+              const brandKeys = Object.keys(groups);
+              return (
+                <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                  {brandKeys.map(brand => (
+                    <div key={brand}>
+                      {brandKeys.length > 1 && (
+                        <div style={{ padding:"10px 22px",fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",
+                          color:darkMode?"#aeaeb2":"#86868b",background:darkMode?"#1c1c1e":"#f0f0f2",borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                          {brand}
+                        </div>
+                      )}
+                      {groups[brand].map(prod => (
+                        <div key={prod.id}
+                          onClick={() => { setSelectedProduct(prod.id); setPdImportError(""); setPdImportOk(""); setPdPasteText(""); }}
+                          style={{ display:"flex",alignItems:"center",gap:14,padding:"14px 22px",cursor:"pointer",
+                            borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#ededf0"),transition:"background 0.12s" }}
+                          onMouseOver={e=>e.currentTarget.style.background=darkMode?"#3a3a3e":"#f5f5f7"}
+                          onMouseOut={e=>e.currentTarget.style.background="transparent"}>
+                          <span style={{ display:"inline-block",width:10,height:10,borderRadius:"50%",background:prod.color,flexShrink:0 }} />
+                          <div style={{ flex:1,minWidth:0,fontSize:15,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
+                            {prod.name}
+                          </div>
+                          {prod.brand && prod.brand !== "Jackson Audio" && (
+                            <span style={{ fontSize:9,fontWeight:700,color:"#fff",background:"#5856d6",padding:"2px 8px",borderRadius:980,flexShrink:0 }}>{prod.brand}</span>
+                          )}
+                          <span style={{ fontSize:12,color:"#86868b",flexShrink:0 }}>{prod.partCount} part{prod.partCount!==1?"s":""}</span>
+                          <span style={{ fontSize:14,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",flexShrink:0 }}>{"$"}{fmtDollar(prod.total)}</span>
+                          {prod.buildMinutes && (
+                            <span style={{ fontSize:11,color:"#86868b",flexShrink:0 }}>{prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h ${prod.buildMinutes%60}m`}</span>
+                          )}
+                          {buildQueue.find(q=>q.productId===prod.id) && (
+                            <span style={{ fontSize:11,color:"#34c759",fontWeight:600,flexShrink:0 }}>Queued: {buildQueue.find(q=>q.productId===prod.id).qty}</span>
+                          )}
+                          <button title="Duplicate product"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const name = window.prompt("Name for the new product:", prod.name + " (copy)");
+                              if (!name) return;
+                              try {
+                                const created = await createProduct({ name, color: prod.color, userId: user.id, brand: prod.brand || "Jackson Audio" });
+                                // Copy parts
+                                const srcParts = parts.filter(p => p.projectId === prod.id);
+                                if (srcParts.length > 0) {
+                                  const dbRows = srcParts.map(p => {
+                                    const row = uiPartToDB(p);
+                                    row.product_id = created.id;
+                                    delete row.pricing;
+                                    delete row.pricing_status;
+                                    delete row.pricing_error;
+                                    delete row.best_supplier;
+                                    return row;
+                                  });
+                                  await upsertParts(dbRows, user.id);
+                                }
+                              } catch (err) { console.error("Duplicate product failed:", err); alert("Duplicate failed: " + err.message); }
+                            }}
+                            style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:15,padding:"2px 6px",borderRadius:4,transition:"color 0.15s",flexShrink:0 }}
+                            onMouseOver={e=>{e.stopPropagation();e.currentTarget.style.color="#0071e3";}}
+                            onMouseOut={e=>{e.stopPropagation();e.currentTarget.style.color="#c7c7cc";}}>
+                            ⧉
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    {prod.brand && prod.brand !== "Jackson Audio" && (
-                      <span style={{ fontSize:10,fontWeight:700,color:"#5856d6",letterSpacing:"0.04em" }}>{prod.brand}</span>
-                    )}
-                  </div>
-                  <div style={{ textAlign:"right",flexShrink:0 }}>
-                    <div style={{ fontSize:20,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",letterSpacing:"-0.3px" }}>{"$"}{fmtDollar(prod.total)}</div>
-                    <div style={{ fontSize:10,color:"#86868b" }}>per unit</div>
-                  </div>
+                  ))}
                 </div>
-                <div style={{ display:"flex",gap:16,fontSize:12,color:"#86868b" }}>
-                  <span>{prod.partCount} part{prod.partCount!==1?"s":""}</span>
-                  {prod.buildMinutes && (
-                    <span>{prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h ${prod.buildMinutes%60}m`} build</span>
-                  )}
-                  {buildQueue.find(q=>q.productId===prod.id) && (
-                    <span style={{ color:"#34c759",fontWeight:600 }}>Queued: {buildQueue.find(q=>q.productId===prod.id).qty}</span>
-                  )}
-                </div>
-              </div>
-            ))}
-            </div>
+              );
+            })()}
           </div>
         )}
 
@@ -7467,7 +7629,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.43 — built 2026-03-20 6:30pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.44 — built 2026-03-20 7:00pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
