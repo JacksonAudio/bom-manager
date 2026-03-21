@@ -3667,9 +3667,9 @@ function BOMManager({ user }) {
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:15 }}>No parts yet — import a BOM to get started</div>
               </div>
             ) : (
-              <div style={{ overflowX:"auto",background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ overflowX:"auto",maxHeight:"75vh",overflowY:"auto",background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
-                  <thead>
+                  <thead style={{ position:"sticky",top:0,zIndex:10 }}>
                     <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
                       <th style={{ padding:"12px 10px",width:28,borderRadius:"8px 0 0 0" }}>
                         <input
@@ -7878,7 +7878,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.51 — built 2026-03-20 11:10pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.52 — built 2026-03-20 11:15pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
