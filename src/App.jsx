@@ -1118,6 +1118,8 @@ function BOMManager({ user }) {
   const [pricingSearch, setPricingSearch] = useState("");
   const [pasteText,   setPasteText]   = useState("");
   const [showImport,  setShowImport]  = useState(false);
+  const [bulkField,   setBulkField]   = useState("manufacturer");
+  const [bulkValue,   setBulkValue]   = useState("");
   const [partSort,    setPartSort]    = useState({ field: "value", asc: true });
   const [showResGen,  setShowResGen]  = useState(false);
   const [compSearchQuery, setCompSearchQuery] = useState("");
@@ -3695,7 +3697,8 @@ function BOMManager({ user }) {
                 <button className="btn-ghost btn-sm" onClick={selectNone}>Cancel</button>
                 {/* Bulk Edit */}
                 <div style={{ marginLeft:8,borderLeft:"1px solid rgba(0,113,227,0.3)",paddingLeft:10,display:"flex",alignItems:"center",gap:6 }}>
-                  <select id="bulkField" style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7" }}>
+                  <select value={bulkField} onChange={e=>{setBulkField(e.target.value);setBulkValue("");}}
+                    style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7" }}>
                     <option value="manufacturer">Manufacturer</option>
                     <option value="value">Value</option>
                     <option value="description">Description</option>
@@ -3704,11 +3707,19 @@ function BOMManager({ user }) {
                     <option value="stockQty">Stock</option>
                     <option value="preferredSupplier">Supplier</option>
                   </select>
-                  <input id="bulkValue" type="text" placeholder="Set value…"
-                    style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",width:140 }} />
+                  {bulkField === "preferredSupplier" ? (
+                    <select value={bulkValue} onChange={e=>setBulkValue(e.target.value)}
+                      style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",width:140 }}>
+                      <option value="">Select supplier…</option>
+                      {SUPPLIERS.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" value={bulkValue} onChange={e=>setBulkValue(e.target.value)} placeholder="Set value…"
+                      style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",width:140 }} />
+                  )}
                   <button onClick={async () => {
-                    const field = document.getElementById("bulkField").value;
-                    const val = document.getElementById("bulkValue").value;
+                    const field = bulkField;
+                    const val = bulkValue;
                     if (!val && field !== "stockQty") return;
                     const dbFieldMap = { unitCost:"unit_cost",projectId:"product_id",reorderQty:"reorder_qty",
                       stockQty:"stock_qty",preferredSupplier:"preferred_supplier",orderQty:"order_qty",reelQty:"reel_qty",
@@ -3722,7 +3733,7 @@ function BOMManager({ user }) {
                     try {
                       await bulkUpdateParts([...selectedParts], { [dbField]: dbValue });
                     } catch (e) { alert("Bulk update failed: " + e.message); }
-                    document.getElementById("bulkValue").value = "";
+                    setBulkValue("");
                   }}
                     style={{ background:"#0071e3",color:"#fff",border:"none",borderRadius:6,
                       padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap" }}>
@@ -8000,7 +8011,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.87 — built 2026-03-21 3:05am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.88 — built 2026-03-21 3:10am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
