@@ -467,6 +467,23 @@ function getSupplierOrderMode(supplierId, orderModesJson) {
   return modes[supplierId] || "manual";
 }
 
+// Get full reel quantity from pricing data (highest price break qty)
+function getReelQty(part, supplierId) {
+  const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
+  if (!pr) return null;
+  // Check the specific supplier first, then any supplier
+  const suppliers = supplierId && pr[supplierId] ? [pr[supplierId]] : Object.values(pr);
+  let maxQty = 0;
+  for (const d of suppliers) {
+    if (d.priceBreaks?.length) {
+      for (const pb of d.priceBreaks) { if (pb.qty > maxQty) maxQty = pb.qty; }
+    }
+  }
+  // Common reel sizes if no price breaks found
+  if (maxQty === 0) return 5000; // standard 0603 reel
+  return maxQty;
+}
+
 const ORDER_MODE_CONFIG = {
   api:    { label: "API",    color: "#34c759", bg: "rgba(52,199,89,0.12)", description: "Direct API ordering" },
   rep:    { label: "Rep",    color: "#0071e3", bg: "rgba(0,113,227,0.10)", description: "Email PO to sales rep" },
@@ -1167,6 +1184,7 @@ function BOMManager({ user }) {
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [orderForm, setOrderForm] = useState(null); // { supplier, poNumber, items, notes }
   const [supplierSort, setSupplierSort] = useState("spend"); // spend | leadtime | orders
+  const [fullReelParts, setFullReelParts] = useState(new Set()); // part IDs where full reel is toggled
   const [settingsSaving, setSettingsSaving] = useState(""); // which section is saving
   const [settingsSaved, setSettingsSaved] = useState(""); // which section just saved
   const [qrModalParts, setQrModalParts] = useState(null); // array of parts to show QR labels for
@@ -2355,8 +2373,10 @@ function BOMManager({ user }) {
   // ── Derived state
   const visibleParts = parts.filter((p) => {
     const mP = selProject === "all" || p.projectId === selProject || (selProject === "unassigned" && !p.projectId);
-    const q = search.toLowerCase();
-    return mP && (!q || p.reference.toLowerCase().includes(q) || p.value.toLowerCase().includes(q) || p.mpn.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
+    if (!search.trim()) return mP;
+    const words = search.toLowerCase().split(/\s+/).filter(Boolean);
+    const blob = [p.reference, p.value, p.mpn, p.description, p.manufacturer].join(" ").toLowerCase();
+    return mP && words.every(w => blob.includes(w));
   });
 
   // ── SHOPIFY INTEGRATION (multi-store) ──
@@ -4639,22 +4659,57 @@ function BOMManager({ user }) {
                       </div>
                     )}
 
-                    {items.map((d, idx) => (
+                    {items.map((d, idx) => {
+                      const isFullReel = fullReelParts.has(d.part.id);
+                      const reelQty = getReelQty(d.part, sid);
+                      const qty = isFullReel && reelQty ? reelQty : d.net;
+                      // Get best price at reel quantity
+                      const priceAtReel = (() => {
+                        if (!isFullReel || !d.part.pricing) return d.bestPrice;
+                        const pr = d.part.pricing[sid] || Object.values(d.part.pricing).find(s => s.priceBreaks?.length);
+                        if (!pr?.priceBreaks?.length) return d.bestPrice;
+                        let price = pr.unitPrice;
+                        for (const pb of pr.priceBreaks) { if (qty >= pb.qty) price = pb.price; }
+                        return parseFloat(price) || d.bestPrice;
+                      })();
+                      return (
                       <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"12px 22px",
-                        borderBottom:idx<items.length-1?"1px solid #f0f0f2":"none",gap:16 }}>
+                        borderBottom:idx<items.length-1?"1px solid #f0f0f2":"none",gap:12 }}>
                         <div style={{ flex:"1 1 200px",minWidth:0 }}>
                           <div style={{ fontWeight:600,fontSize:14,color:"#1d1d1f" }}>{d.part.mpn || d.part.reference}</div>
                           <div style={{ fontSize:11,color:"#86868b" }}>{[d.part.description, d.part.value].filter(Boolean).join(" — ")}</div>
                         </div>
-                        <div style={{ flex:"0 0 auto",fontWeight:700,fontSize:14,color:"#1d1d1f",minWidth:60,textAlign:"center" }}>{d.net.toLocaleString()}</div>
+                        <div style={{ flex:"0 0 auto",display:"flex",alignItems:"center",gap:6 }}>
+                          <label style={{ display:"flex",alignItems:"center",gap:4,cursor:"pointer",fontSize:10,
+                            padding:"3px 8px",borderRadius:4,
+                            border:isFullReel?"1px solid #34c759":"1px solid #d2d2d7",
+                            background:isFullReel?"rgba(52,199,89,0.08)":"transparent",
+                            color:isFullReel?"#34c759":"#86868b",fontWeight:600 }}
+                            title={reelQty ? `Full reel: ${reelQty.toLocaleString()} units` : "Full reel"}>
+                            <input type="checkbox" checked={isFullReel}
+                              onChange={()=>setFullReelParts(prev=>{const s=new Set(prev);s.has(d.part.id)?s.delete(d.part.id):s.add(d.part.id);return s;})}
+                              style={{ width:12,height:12,accentColor:"#34c759",cursor:"pointer" }} />
+                            Reel{reelQty ? ` (${reelQty.toLocaleString()})` : ""}
+                          </label>
+                        </div>
+                        <div style={{ flex:"0 0 auto",fontWeight:700,fontSize:14,color:isFullReel?"#34c759":"#1d1d1f",minWidth:60,textAlign:"center" }}>
+                          {qty.toLocaleString()}
+                        </div>
                         <div style={{ flex:"0 0 auto",textAlign:"right",minWidth:80 }}>
-                          <div style={{ fontWeight:600,color:"#1d1d1f" }}>{"$"}{fmtDollar(d.bestPrice * d.net)}</div>
-                          <div style={{ fontSize:10,color:"#86868b" }}>${fmtPrice(d.bestPrice)} ea</div>
+                          <div style={{ fontWeight:600,color:"#1d1d1f" }}>{"$"}{fmtDollar(priceAtReel * qty)}</div>
+                          <div style={{ fontSize:10,color:isFullReel?"#34c759":"#86868b" }}>${fmtPrice(priceAtReel)} ea{isFullReel && priceAtReel < d.bestPrice ? " (reel price)" : ""}</div>
                         </div>
                       </div>
-                    ))}
-                    <div style={{ display:"flex",justifyContent:"flex-end",padding:"12px 22px",background:"#f9f9fb",borderTop:"1px solid #f0f0f2" }}>
-                      <span style={{ fontSize:16,fontWeight:700,color:"#1d1d1f" }}>{"$"}{fmtDollar(poTotal)}</span>
+                    );})}
+                    <div style={{ display:"flex",justifyContent:"space-between",padding:"12px 22px",background:"#f9f9fb",borderTop:"1px solid #f0f0f2" }}>
+                      {fullReelParts.size > 0 && <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>{[...fullReelParts].filter(id => items.some(d => d.part.id === id)).length} full reel(s)</span>}
+                      <span style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",marginLeft:"auto" }}>{"$"}{fmtDollar(items.reduce((s, d) => {
+                        const isReel = fullReelParts.has(d.part.id);
+                        const rq = getReelQty(d.part, sid);
+                        const q = isReel && rq ? rq : d.net;
+                        const pr = (() => { if (!isReel || !d.part.pricing) return d.bestPrice; const p = d.part.pricing[sid] || Object.values(d.part.pricing).find(x => x.priceBreaks?.length); if (!p?.priceBreaks?.length) return d.bestPrice; let price = p.unitPrice; for (const pb of p.priceBreaks) { if (q >= pb.qty) price = pb.price; } return parseFloat(price) || d.bestPrice; })();
+                        return s + pr * q;
+                      }, 0))}</span>
                     </div>
                   </div>
                 );
@@ -7825,7 +7880,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.47 — built 2026-03-20 10:30pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.48 — built 2026-03-20 10:45pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
