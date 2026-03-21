@@ -2578,9 +2578,13 @@ function BOMManager({ user }) {
   const syncZohoOrders = async () => {
     let zohoOrgs = [];
     try { zohoOrgs = JSON.parse(apiKeys.zoho_books_json || "[]"); } catch {}
-    // Legacy single-org fallback
-    if (zohoOrgs.length === 0 && apiKeys.zoho_org_id) {
-      zohoOrgs = [{ name: "Jackson Audio", org_id: apiKeys.zoho_org_id, client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, refresh_token: apiKeys.zoho_refresh_token }];
+    // Always check legacy single-org fields as primary source
+    if (apiKeys.zoho_org_id && apiKeys.zoho_refresh_token) {
+      const legacyOrg = { name: "Jackson Audio", org_id: apiKeys.zoho_org_id, client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, refresh_token: apiKeys.zoho_refresh_token };
+      // Use legacy if zoho_books_json is empty or has bad data
+      if (zohoOrgs.length === 0 || !zohoOrgs.some(o => o.refresh_token?.length > 50)) {
+        zohoOrgs = [legacyOrg];
+      }
     }
     if (zohoOrgs.length === 0 || !zohoOrgs.some(o => o.org_id && o.refresh_token)) {
       setZohoDemand({ loading: false, error: "Zoho Books credentials not configured. Add them in Settings." });
@@ -9329,7 +9333,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.11 — built 2026-03-21 5:40pm 3:30pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.12 — built 2026-03-21 5:50pm 3:30pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
