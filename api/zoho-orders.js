@@ -4,12 +4,14 @@
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
-    const { org_id, client_id, client_secret, refresh_token } = req.query;
+    // Accept params from query string (GET) or body (POST)
+    const params = req.method === "POST" ? (req.body || {}) : (req.query || {});
+    const { org_id, client_id, client_secret, refresh_token } = params;
 
     if (!org_id || !client_id || !client_secret || !refresh_token) {
       return res.status(400).json({ error: "Missing org_id, client_id, client_secret, or refresh_token" });
@@ -24,6 +26,8 @@ export default async function handler(req, res) {
 
     if (!tokenRes.ok) {
       const errText = await tokenRes.text().catch(() => "");
+      console.error("[zoho] Token failed:", tokenRes.status, errText.slice(0, 500));
+      console.error("[zoho] client_id:", client_id?.slice(0, 20), "secret length:", client_secret?.length, "refresh length:", refresh_token?.length);
       return res.status(tokenRes.status).json({
         error: `Zoho token exchange failed: ${tokenRes.status}`,
         detail: errText.slice(0, 500),
@@ -34,6 +38,8 @@ export default async function handler(req, res) {
     const access_token = tokenData.access_token;
 
     if (!access_token) {
+      console.error("[zoho] No access_token:", JSON.stringify(tokenData).slice(0, 300));
+      console.error("[zoho] client_id:", client_id?.slice(0, 20), "secret length:", client_secret?.length, "refresh length:", refresh_token?.length);
       return res.status(401).json({ error: "No access_token in Zoho response", detail: JSON.stringify(tokenData).slice(0, 500) });
     }
 
