@@ -6559,10 +6559,10 @@ function BOMManager({ user }) {
                 phone: newTeamMember.phone.trim() || null,
                 email: newTeamMember.email.trim() || null,
                 pin_code: newTeamMember.pin_code.trim() || null,
+                hourly_rate: newTeamMember.hourly_rate ? parseFloat(newTeamMember.hourly_rate) : null,
                 active: true,
               });
-              // realtime INSERT will add to state
-              setNewTeamMember({ name:"", role:"assembler", phone:"", email:"", pin_code:"" });
+              setNewTeamMember({ name:"", role:"assembler", phone:"", email:"", pin_code:"", hourly_rate:"" });
             } catch (e) { console.error("Create team member failed:", e); alert("Failed to add team member: " + e.message); }
             setProdBusy(false);
           };
@@ -6769,7 +6769,7 @@ function BOMManager({ user }) {
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                   <thead>
                     <tr style={{ borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
-                      {["#","Name","Role","Builds","Units","Avg Time/Build","Avg Time/Unit"].map(h=>(
+                      {["#","Name","Role","$/hr","Builds","Units","Avg Time/Build","Avg Time/Unit","Labor Cost/Unit"].map(h=>(
                         <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#86868b",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
                       ))}
                     </tr>
@@ -6780,11 +6780,15 @@ function BOMManager({ user }) {
                         <td style={{ padding:"10px 12px",fontWeight:800,fontSize:16,color:i===0?"#ffd700":i===1?"#c0c0c0":i===2?"#cd7f32":"#86868b" }}>{i+1}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{m.name}</td>
                         <td style={{ padding:"10px 12px",color:"#86868b",textTransform:"capitalize" }}>{m.role}</td>
+                        <td style={{ padding:"10px 12px",color:"#34c759",fontWeight:600 }}>{m.hourly_rate ? `$${m.hourly_rate}` : "—"}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600 }}>{m.totalBuilds}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600 }}>{m.totalUnits.toLocaleString()}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600,color:"#0071e3" }}>{m.avgHours > 0 ? fmtHours(m.avgHours) : "—"}</td>
                         <td style={{ padding:"10px 12px",fontWeight:700,color:m.avgPerUnit > 0 ? (i === 0 ? "#34c759" : "#1d1d1f") : "#86868b" }}>
                           {m.avgPerUnit > 0 ? `${m.avgPerUnit.toFixed(1)} min` : "—"}
+                        </td>
+                        <td style={{ padding:"10px 12px",fontWeight:700,color:"#ff9500" }}>
+                          {m.avgPerUnit > 0 && m.hourly_rate ? `$${(m.avgPerUnit / 60 * m.hourly_rate).toFixed(2)}` : "—"}
                         </td>
                       </tr>
                     ))}
@@ -6825,7 +6829,12 @@ function BOMManager({ user }) {
                       <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Email</label>
                       <input style={inputStyle} placeholder="Email address" value={newTeamMember.email} onChange={e => setNewTeamMember({...newTeamMember, email:e.target.value})} />
                     </div>
-                    <div style={{ flex:"0 0 100px" }}>
+                    <div style={{ flex:"0 0 80px" }}>
+                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>$/hr</label>
+                      <input style={inputStyle} type="number" step="0.50" min="0" placeholder="25" value={newTeamMember.hourly_rate||""}
+                        onChange={e => setNewTeamMember({...newTeamMember, hourly_rate:e.target.value})} />
+                    </div>
+                    <div style={{ flex:"0 0 80px" }}>
                       <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>PIN</label>
                       <input style={inputStyle} placeholder="4-6 digits" value={newTeamMember.pin_code} maxLength={6}
                         onChange={e => setNewTeamMember({...newTeamMember, pin_code:e.target.value.replace(/\D/g,"")})} />
@@ -6842,8 +6851,19 @@ function BOMManager({ user }) {
                           <div style={{ fontSize:12,color:"#86868b",textTransform:"capitalize",minWidth:80 }}>{member.role || "—"}</div>
                           <div style={{ fontSize:12,color:"#86868b",minWidth:110 }}>{member.phone || "—"}</div>
                           <div style={{ fontSize:12,color:"#86868b",minWidth:160 }}>{member.email || "—"}</div>
-                          <div style={{ minWidth:80 }}>
-                            <input style={{ width:70,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
+                          <div style={{ minWidth:70 }}>
+                            <input style={{ width:60,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
+                              fontSize:11,background:darkMode?"#2c2c2e":"#f9f9fb",color:darkMode?"#f5f5f7":"#1d1d1f",textAlign:"center" }}
+                              type="number" step="0.50" min="0" placeholder="$/hr" defaultValue={member.hourly_rate || ""}
+                              onBlur={async (e) => {
+                                const val = parseFloat(e.target.value) || null;
+                                if (val !== (member.hourly_rate || null)) {
+                                  try { await updateTeamMember(member.id, { hourly_rate: val }); setTeamMembers(prev=>prev.map(t=>t.id===member.id?{...t,hourly_rate:val}:t)); } catch {}
+                                }
+                              }} />
+                          </div>
+                          <div style={{ minWidth:70 }}>
+                            <input style={{ width:60,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
                               fontSize:11,background:darkMode?"#2c2c2e":"#f9f9fb",color:darkMode?"#f5f5f7":"#1d1d1f",textAlign:"center" }}
                               placeholder="PIN" maxLength={6} defaultValue={member.pin_code || ""}
                               onChange={e => {
@@ -8011,7 +8031,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.88 — built 2026-03-21 3:10am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.89 — built 2026-03-21 3:20am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
