@@ -467,21 +467,10 @@ function getSupplierOrderMode(supplierId, orderModesJson) {
   return modes[supplierId] || "manual";
 }
 
-// Get full reel quantity from pricing data (highest price break qty)
-function getReelQty(part, supplierId) {
-  const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
-  if (!pr) return null;
-  // Check the specific supplier first, then any supplier
-  const suppliers = supplierId && pr[supplierId] ? [pr[supplierId]] : Object.values(pr);
-  let maxQty = 0;
-  for (const d of suppliers) {
-    if (d.priceBreaks?.length) {
-      for (const pb of d.priceBreaks) { if (pb.qty > maxQty) maxQty = pb.qty; }
-    }
-  }
-  // Common reel sizes if no price breaks found
-  if (maxQty === 0) return 5000; // standard 0603 reel
-  return maxQty;
+// Get full reel quantity — uses part's reel_qty field, falls back to pricing data
+function getReelQty(part) {
+  if (part.reelQty && parseInt(part.reelQty) > 0) return parseInt(part.reelQty);
+  return null;
 }
 
 const ORDER_MODE_CONFIG = {
@@ -1761,6 +1750,7 @@ function BOMManager({ user }) {
       stockQty:          row.stock_qty   != null ? String(row.stock_qty)   : "",
       preferredSupplier: row.preferred_supplier || "mouser",
       orderQty:          row.order_qty   != null ? String(row.order_qty)   : "",
+      reelQty:           row.reel_qty    != null ? String(row.reel_qty)    : "",
       flaggedForOrder:   row.flagged_for_order  || false,
       pricing:           row.pricing     || null,
       pricingStatus:     row.pricing_status     || "idle",
@@ -1809,7 +1799,7 @@ function BOMManager({ user }) {
     // Build DB field name from camelCase field
     const dbFieldMap = {
       unitCost: "unit_cost", projectId: "product_id", reorderQty: "reorder_qty",
-      stockQty: "stock_qty", preferredSupplier: "preferred_supplier", orderQty: "order_qty",
+      stockQty: "stock_qty", preferredSupplier: "preferred_supplier", orderQty: "order_qty", reelQty: "reel_qty",
       flaggedForOrder: "flagged_for_order", pricingStatus: "pricing_status",
       pricingError: "pricing_error", bestSupplier: "best_supplier",
     };
@@ -1818,7 +1808,7 @@ function BOMManager({ user }) {
 
     // Type coercion for numeric DB fields
     if (["unit_cost"].includes(dbField))    dbValue = value !== "" ? parseFloat(value) || null : null;
-    if (["reorder_qty","stock_qty","order_qty","quantity"].includes(dbField)) dbValue = value !== "" ? parseInt(value) || null : null;
+    if (["reorder_qty","stock_qty","order_qty","reel_qty","quantity"].includes(dbField)) dbValue = value !== "" ? parseInt(value) || null : null;
 
     try {
       await dbUpdatePart(id, { [dbField]: dbValue }, user.id);
@@ -3648,6 +3638,7 @@ function BOMManager({ user }) {
                     <option value="value">Value</option>
                     <option value="description">Description</option>
                     <option value="reorderQty">Reorder Point</option>
+                    <option value="reelQty">Reel Qty</option>
                     <option value="stockQty">Stock</option>
                     <option value="preferredSupplier">Supplier</option>
                   </select>
@@ -3695,7 +3686,7 @@ function BOMManager({ user }) {
                           }}
                         />
                       </th>
-                      {["MPN","Value","Description","Manufacturer","Current Stock","Reorder Point","Stock Value",""].map((h,hi,arr)=>(
+                      {["MPN","Value","Description","Manufacturer","Current Stock","Reorder Pt","Reel Qty","Stock Value",""].map((h,hi,arr)=>(
                         <th key={hi} style={{ textAlign:"left",padding:"12px 14px",
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                           fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
@@ -3754,11 +3745,17 @@ function BOMManager({ user }) {
                               style={{ ...inputStyle,fontWeight:600,
                                 color:isLow?"#ff3b30":"#1d1d1f" }} min="0" />
                           </td>
-                          <td style={{ padding:"6px 8px",width:90 }}>
+                          <td style={{ padding:"6px 8px",width:80 }}>
                             <input type="number" placeholder="0" value={part.reorderQty}
                               onChange={(e)=>updatePart(part.id,"reorderQty",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
                               style={inputStyle} min="0" />
+                          </td>
+                          <td style={{ padding:"6px 8px",width:80 }}>
+                            <input type="number" placeholder="" value={part.reelQty}
+                              onChange={(e)=>updatePart(part.id,"reelQty",e.target.value)}
+                              onFocus={focusIn} onBlur={focusOut}
+                              style={{ ...inputStyle,color:"#34c759" }} min="0" />
                           </td>
                           <td style={{ padding:"6px 8px",width:90 }}>
                             {(() => {
@@ -4661,7 +4658,7 @@ function BOMManager({ user }) {
 
                     {items.map((d, idx) => {
                       const isFullReel = fullReelParts.has(d.part.id);
-                      const reelQty = getReelQty(d.part, sid);
+                      const reelQty = getReelQty(d.part);
                       const qty = isFullReel && reelQty ? reelQty : d.net;
                       // Get best price at reel quantity
                       const priceAtReel = (() => {
@@ -4705,7 +4702,7 @@ function BOMManager({ user }) {
                       {fullReelParts.size > 0 && <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>{[...fullReelParts].filter(id => items.some(d => d.part.id === id)).length} full reel(s)</span>}
                       <span style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",marginLeft:"auto" }}>{"$"}{fmtDollar(items.reduce((s, d) => {
                         const isReel = fullReelParts.has(d.part.id);
-                        const rq = getReelQty(d.part, sid);
+                        const rq = getReelQty(d.part);
                         const q = isReel && rq ? rq : d.net;
                         const pr = (() => { if (!isReel || !d.part.pricing) return d.bestPrice; const p = d.part.pricing[sid] || Object.values(d.part.pricing).find(x => x.priceBreaks?.length); if (!p?.priceBreaks?.length) return d.bestPrice; let price = p.unitPrice; for (const pb of p.priceBreaks) { if (q >= pb.qty) price = pb.price; } return parseFloat(price) || d.bestPrice; })();
                         return s + pr * q;
@@ -5721,6 +5718,7 @@ function BOMManager({ user }) {
                     <option value="value">Value</option>
                     <option value="description">Description</option>
                     <option value="reorderQty">Reorder Point</option>
+                    <option value="reelQty">Reel Qty</option>
                     <option value="stockQty">Stock</option>
                     <option value="preferredSupplier">Supplier</option>
                   </select>
@@ -7880,7 +7878,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.48 — built 2026-03-20 10:45pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.49 — built 2026-03-20 10:55pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
