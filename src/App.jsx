@@ -1767,7 +1767,6 @@ function BOMManager({ user }) {
       pricing_status:    part.pricingStatus      || "idle",
       pricing_error:     part.pricingError       || "",
       best_supplier:     part.bestSupplier       || null,
-      is_internal:       part.isInternal         || false,
     };
   }
 
@@ -3415,8 +3414,8 @@ function BOMManager({ user }) {
                             mpn: p.mpn, value: p.value, description: p.description, manufacturer: p.manufacturer,
                             quantity: p.quantity, product_id: null, reference: "", footprint: "",
                             unit_cost: null, reorder_qty: null, stock_qty: null, preferred_supplier: "mouser",
-                            order_qty: null, flagged_for_order: false, is_internal: false,
-                            pricing: null, pricing_status: "idle", pricing_error: "", best_supplier: null,
+                            order_qty: null, flagged_for_order: false,
+                            pricing_status: "idle", pricing_error: "",
                           }));
                           await upsertParts(dbRows, user.id);
                           setImportOk(`Imported ${genParts.length} resistors into master library.`);
@@ -7629,7 +7628,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.44 — built 2026-03-20 7:00pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.45 — built 2026-03-20 9:42pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
