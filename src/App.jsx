@@ -1467,6 +1467,20 @@ function BOMManager({ user }) {
         // Pre-fetch exchange rates so they're cached for pricing
         fetchExchangeRates().catch(() => {});
 
+        // Restore cached demand data then auto-sync
+        try {
+          const cachedShopify = JSON.parse(localStorage.getItem("bom_shopify_demand") || "null");
+          if (cachedShopify) setShopifyDemand(cachedShopify);
+          const cachedZoho = JSON.parse(localStorage.getItem("bom_zoho_demand") || "null");
+          if (cachedZoho) setZohoDemand(cachedZoho);
+        } catch {}
+
+        // Auto-sync demand in background after boot
+        setTimeout(() => {
+          if (mergedKeys.shopify_stores_json) syncShopifyOrders().catch(() => {});
+          if (mergedKeys.zoho_org_id || mergedKeys.zoho_books_json) syncZohoOrders().catch(() => {});
+        }, 2000);
+
         // Auto-connect APIs silently on page load if keys exist in DB
         // Avoids user having to press "Save & Connect" every session
         if (mergedKeys.nexar_client_id && mergedKeys.nexar_client_secret) {
@@ -2563,7 +2577,7 @@ function BOMManager({ user }) {
       }
 
       // Merge demand across stores (same product title from different stores = separate entries)
-      setShopifyDemand({
+      const shopifyResult = {
         products: allProducts,
         orders: allOrders,
         totalOrders: allOrders.length,
@@ -2571,8 +2585,10 @@ function BOMManager({ user }) {
         loading: false,
         error: errors.length ? errors.join("; ") : null,
         storeCount: stores.length,
-      });
+      };
+      setShopifyDemand(shopifyResult);
       setShopifyProducts(allShopifyProducts);
+      try { localStorage.setItem("bom_shopify_demand", JSON.stringify(shopifyResult)); } catch {}
     } catch (e) {
       console.error("[Shopify] sync failed:", e);
       setShopifyDemand(prev => ({ ...prev, loading: false, error: e.message }));
@@ -2613,14 +2629,16 @@ function BOMManager({ user }) {
         (data.products || []).forEach(p => { p.companyName = org.name; allProducts.push(p); });
         (data.orders || []).forEach(o => { o.companyName = org.name; allOrders.push(o); });
       }
-      setZohoDemand({
+      const zohoResult = {
         products: allProducts,
         orders: allOrders,
         totalOrders: allOrders.length,
         syncedAt: new Date().toISOString(),
         loading: false,
         error: null,
-      });
+      };
+      setZohoDemand(zohoResult);
+      try { localStorage.setItem("bom_zoho_demand", JSON.stringify(zohoResult)); } catch {}
     } catch (e) {
       console.error("[Zoho] sync failed:", e);
       setZohoDemand(prev => ({ ...prev, loading: false, error: e.message }));
@@ -9914,7 +9932,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.13</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.14 — built 2026-03-21 6:00pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
