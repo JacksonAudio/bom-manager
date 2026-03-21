@@ -96,7 +96,7 @@ export default async function handler(req, res) {
       const pageSize = 100;
       let totalHits = Infinity;
 
-      while (start < totalHits && start < 1000) { // cap at 1000 to be safe
+      while (start < totalHits && start < maxResults) {
         const response = await fetch("https://api.nexar.com/graphql", {
           method: "POST",
           headers: {
