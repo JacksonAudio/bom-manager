@@ -3387,16 +3387,37 @@ function BOMManager({ user }) {
               const parseValue = (part) => {
                 const desc = (part.description || "").toLowerCase();
                 const specs = part.specs || {};
-                // Try specs first: "Resistance" or "Capacitance"
                 const resSpec = specs["Resistance"] || specs["Capacitance"] || "";
                 const specStr = resSpec || desc;
-                // Match patterns like 10kohm, 4.7uF, 100pF, 1M, 220R, etc.
                 const m = specStr.match(/([\d.]+)\s*(mohm|kohm|ohm|gohm|uf|nf|pf|mf|m|k|r|g)?/i);
                 if (!m) return Infinity;
                 const num = parseFloat(m[1]);
                 const unit = (m[2] || "").toLowerCase();
                 const multipliers = { "r":1, "ohm":1, "mohm":0.001, "k":1e3, "kohm":1e3, "m":1e6, "gohm":1e9, "g":1e9, "pf":1e-12, "nf":1e-9, "uf":1e-6, "mf":1e-3 };
                 return num * (multipliers[unit] || 1);
+              };
+              // Extract human-readable value from description
+              const extractDisplayValue = (part) => {
+                const desc = part.description || "";
+                // Try to find resistance: "2000ohm" → "2k", "100ohm" → "100R", "10K Ohm" → "10k"
+                const m = desc.match(/([\d.]+)\s*(Mohm|Kohm|kohm|ohm|Ohm|MΩ|kΩ|Ω)?/i);
+                if (!m) return "";
+                const num = parseFloat(m[1]);
+                const unit = (m[2] || "").toLowerCase();
+                if (unit.includes("m")) { // Megaohm
+                  return num + "M";
+                } else if (unit.includes("k")) { // Kilohm
+                  return num + "k";
+                } else if (unit.includes("ohm") || unit.includes("ω")) {
+                  // Raw ohms — convert
+                  if (num >= 1000000) return (num/1000000) + "M";
+                  if (num >= 1000) { const v = num/1000; return (Number.isInteger(v) ? v : v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,"")) + "k"; }
+                  return (Number.isInteger(num) ? num : num.toFixed(num<10?2:1).replace(/0+$/,"").replace(/\.$/,"")) + "R";
+                }
+                // Try capacitance: "10uF", "100nF", "47pF"
+                const cm = desc.match(/([\d.]+)\s*(uF|nF|pF|µF)/i);
+                if (cm) return cm[1] + cm[2].toLowerCase();
+                return "";
               };
 
               const handleCompSearch = async () => {
@@ -3423,7 +3444,11 @@ function BOMManager({ user }) {
                     price: (() => { const b = p.PriceBreaks || []; return b.length > 0 ? parseFloat(String(b[0].Price||"0").replace(/[^0-9.]/g,"")) || null : null; })(),
                     reelQty: (() => { const b = p.PriceBreaks || []; return b.length > 0 ? parseInt(b[b.length-1].Quantity) || null : null; })(),
                   }));
-                  const sorted = results.sort((a, b) => parseValue(a) - parseValue(b));
+                  // Extract display values, deduplicate by MPN, and sort
+                  const withValues = results.map(r => ({ ...r, value: extractDisplayValue(r) }));
+                  const seen = new Set();
+                  const deduped = withValues.filter(r => { const key = r.mpn.toUpperCase(); if (seen.has(key)) return false; seen.add(key); return true; });
+                  const sorted = deduped.sort((a, b) => parseValue(a) - parseValue(b));
                   setCompSearchResults(sorted);
                   if (sorted.length > 0 && !compSearchMfr) setCompSearchMfr(sorted[0].manufacturer || "");
                 } catch (err) {
@@ -7900,7 +7925,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.72 — built 2026-03-21 1:35am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.73 — built 2026-03-21 1:40am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
