@@ -3396,7 +3396,7 @@ function BOMManager({ user }) {
                       // decade 0: 1R–9.76R, decade 1: 10R–97.6R
                       ohms = (base / 100) * Math.pow(10, decade); // base=100,decade=0→1Ω; base=100,decade=1→10Ω
                       const code3 = String(Math.round(ohms * 10)).padStart(3, "0"); // 1Ω→010, 10Ω→100, 24.9Ω→249
-                      mpn = resGenCfg.prefix + code3 + "F" + resGenCfg.suffix;
+                      mpn = resGenCfg.prefix + code3 + "J" + resGenCfg.suffix;
                     } else {
                       // ≥100Ω: standard 4-digit code (3 sig digits + multiplier)
                       const mult = decade - 2; // decade 2→mult 0 (100Ω), decade 3→mult 1 (1kΩ)
@@ -7971,7 +7971,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.62 — built 2026-03-21 12:20am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.63 — built 2026-03-21 12:25am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
