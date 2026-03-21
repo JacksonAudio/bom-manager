@@ -3678,8 +3678,8 @@ function BOMManager({ user }) {
                     </div>
                     <div style={{ flex:"2 1 240px" }}>
                       <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Description Override (replaces all descriptions)</div>
-                      <input type="text" value={compSearchDescPrefix} onChange={e=>setCompSearchDescPrefix(e.target.value)} placeholder="Thick Film Resistor - 0603 - 1% - 0.1W"
-                        placeholder="e.g. Resistor 0603 1% 1/10W"
+                      <input type="text" value={compSearchDescPrefix} onChange={e=>setCompSearchDescPrefix(e.target.value)}
+                        placeholder="e.g. Thick Film Resistor - 0603 - 1% - 0.1W"
                         style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
                     </div>
                   </div>
@@ -8846,7 +8846,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.97 — built 2026-03-21 10:30am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.98 — built 2026-03-21 10:35am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
