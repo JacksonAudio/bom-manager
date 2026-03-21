@@ -93,7 +93,7 @@ export default async function handler(req, res) {
       // Paginate to get all results (Nexar limits to 100 per request)
       const allResults = [];
       let start = 0;
-      const pageSize = 100;
+      const pageSize = Math.min(maxResults, 100);
       let totalHits = Infinity;
 
       while (start < totalHits && start < maxResults) {
