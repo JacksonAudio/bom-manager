@@ -3406,8 +3406,12 @@ function BOMManager({ user }) {
                 setCompSearchResults([]);
                 setCompSelectedParts(new Set());
                 try {
-                  // Use Mouser keyword search (already proven to work)
-                  const mparts = await mouserKeywordSearch(compSearchQuery.trim(), apiKeys.mouser_api_key, 100);
+                  // Route through serverless function to avoid CORS
+                  const params = new URLSearchParams({ q: compSearchQuery.trim(), mouserKey: apiKeys.mouser_api_key, limit: "100" });
+                  const searchRes = await fetch(`/api/search-components?${params}`);
+                  const searchData = await searchRes.json();
+                  if (!searchRes.ok) throw new Error(searchData.error || `API error ${searchRes.status}`);
+                  const mparts = (searchData.results || []).map(r => ({ ManufacturerPartNumber: r.mpn, Manufacturer: r.manufacturer, Description: r.description, Category: r.category, MouserPartNumber: r.mouserPN || "", Availability: String(r.stock || "0"), PriceBreaks: r.price ? [{ Price: String(r.price), Quantity: r.reelQty || 1 }] : [] }));
                   const results = mparts.map(p => ({
                     mpn: p.ManufacturerPartNumber || "",
                     manufacturer: p.Manufacturer || "",
@@ -7895,7 +7899,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.68 — built 2026-03-21 1:05am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.69 — built 2026-03-21 1:15am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>

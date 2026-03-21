@@ -21,13 +21,16 @@ export default async function handler(req, res) {
   // Try Mouser first (free, no monthly part limit)
   if (mouserKey) {
     try {
-      const mouserRes = await fetch(`https://api.mouser.com/api/v1/search/partnumber?apiKey=${encodeURIComponent(mouserKey)}`, {
+      const mouserRes = await fetch(`https://api.mouser.com/api/v1/search/keyword?apiKey=${encodeURIComponent(mouserKey)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          SearchByPartRequest: {
-            mouserPartNumber: q,
-            partSearchOptions: "BeginsWith",
+          SearchByKeywordRequest: {
+            keyword: q,
+            records: maxResults,
+            startingRecord: 0,
+            searchOptions: "",
+            searchWithYourSignUpLanguage: "",
           },
         }),
       });
