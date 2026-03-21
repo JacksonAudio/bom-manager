@@ -2372,10 +2372,18 @@ function BOMManager({ user }) {
 
   // Sort visible parts if a sort is active
   if (partSort.field) {
-    const parseNum = (s) => { const n = parseFloat(String(s).replace(/[^0-9.\-]/g, "")); return isNaN(n) ? null : n; };
+    const parseVal = (s) => {
+      const str = String(s).trim();
+      const m = str.match(/^([0-9.]+)\s*(pF|nF|uF|R|k|M|G)?$/i);
+      if (!m) return parseFloat(str.replace(/[^0-9.\-]/g, "")) || null;
+      const num = parseFloat(m[1]);
+      const unit = (m[2] || "").toLowerCase();
+      const mult = { "pf":1e-12, "nf":1e-9, "uf":1e-6, "r":1, "k":1e3, "m":1e6, "g":1e9 };
+      return num * (mult[unit] || 1);
+    };
     visibleParts.sort((a, b) => {
       let va = a[partSort.field] || "", vb = b[partSort.field] || "";
-      const na = parseNum(va), nb = parseNum(vb);
+      const na = parseVal(va), nb = parseVal(vb);
       let cmp;
       if (na !== null && nb !== null) cmp = na - nb;
       else cmp = String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: "base" });
@@ -7910,7 +7918,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.54 — built 2026-03-20 11:30pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.55 — built 2026-03-20 11:35pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
