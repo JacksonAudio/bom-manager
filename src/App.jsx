@@ -3406,23 +3406,8 @@ function BOMManager({ user }) {
                 setCompSearchResults([]);
                 setCompSelectedParts(new Set());
                 try {
-                  // Call Mouser Search API directly from client (same pattern as fetchMouserPricing)
-                  const mouserRes = await fetch(
-                    `https://api.mouser.com/api/v1/search/partnumber?apiKey=${apiKeys.mouser_api_key}`,
-                    {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-                      body: JSON.stringify({
-                        SearchByPartRequest: {
-                          mouserPartNumber: compSearchQuery.trim(),
-                          partSearchOptions: "BeginsWith",
-                        },
-                      }),
-                    }
-                  );
-                  if (!mouserRes.ok) throw new Error(`Mouser API error: ${mouserRes.status}`);
-                  const mouserData = await mouserRes.json();
-                  const mparts = mouserData?.SearchResults?.Parts || [];
+                  // Use Mouser keyword search (already proven to work)
+                  const mparts = await mouserKeywordSearch(compSearchQuery.trim(), apiKeys.mouser_api_key, 100);
                   const results = mparts.map(p => ({
                     mpn: p.ManufacturerPartNumber || "",
                     manufacturer: p.Manufacturer || "",
@@ -7910,7 +7895,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.67 — built 2026-03-21 1:00am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.68 — built 2026-03-21 1:05am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
