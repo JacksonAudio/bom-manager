@@ -3484,7 +3484,8 @@ function BOMManager({ user }) {
                   const withValues = results.map(r => ({ ...r, value: extractDisplayValue(r) }));
                   const seen = new Set();
                   const deduped = withValues.filter(r => {
-                    if (!r.value) return false; // skip kits, sample boxes, etc.
+                    // Only filter out valueless parts if searching for resistors/capacitors (value-based components)
+                    // For ICs, connectors, etc. keep everything
                     const key = r.mpn.toUpperCase();
                     if (seen.has(key)) return false;
                     seen.add(key);
@@ -8031,7 +8032,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.90 — built 2026-03-21 3:25am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.91 — built 2026-03-21 3:30am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
