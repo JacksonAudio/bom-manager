@@ -1105,6 +1105,9 @@ export default function App() {
   return <BOMManager user={user} />;
 }
 
+// Parse date string as local time (not UTC) to avoid timezone shift
+const parseLocal = (s) => { if (!s) return null; if (s instanceof Date) return s; const [y,m,d] = String(s).slice(0,10).split("-"); return new Date(parseInt(y),parseInt(m)-1,parseInt(d)); };
+
 // ─────────────────────────────────────────────
 // MAIN BOM MANAGER
 // ─────────────────────────────────────────────
@@ -8846,7 +8849,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.98 — built 2026-03-21 10:35am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.99 — built 2026-03-21 1:40pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
