@@ -3401,12 +3401,14 @@ function BOMManager({ user }) {
 
               const handleCompSearch = async () => {
                 if (!compSearchQuery.trim()) return;
-                if (!nexarToken) { alert("Connect Nexar in Settings first."); return; }
+                if (!apiKeys.mouser_api_key && !nexarToken) { alert("Set a Mouser API key or connect Nexar in Settings first."); return; }
                 setCompSearchLoading(true);
                 setCompSearchResults([]);
                 setCompSelectedParts(new Set());
                 try {
-                  const params = new URLSearchParams({ q: compSearchQuery.trim(), token: nexarToken, limit: "100" });
+                  const params = new URLSearchParams({ q: compSearchQuery.trim(), limit: "100" });
+                  if (apiKeys.mouser_api_key) params.set("mouserKey", apiKeys.mouser_api_key);
+                  else if (nexarToken) params.set("token", nexarToken);
                   const res = await fetch(`/api/search-components?${params}`);
                   const data = await res.json();
                   if (!res.ok) throw new Error(data.error || `API error ${res.status}`);
@@ -3466,9 +3468,9 @@ function BOMManager({ user }) {
                   <div style={{ fontSize:14,fontWeight:700,marginBottom:4,color:"#5856d6" }}>Component Library</div>
                   <p style={{ color:"#86868b",fontSize:12,marginBottom:14 }}>Search Nexar/Octopart for real manufacturer part numbers. Every MPN is verified from the distributor database.</p>
 
-                  {!nexarToken && (
+                  {!apiKeys.mouser_api_key && !nexarToken && (
                     <div style={{ padding:"12px 16px",background:"#fff3cd",borderRadius:8,border:"1px solid #ffc107",fontSize:12,marginBottom:14,color:"#856404" }}>
-                      Connect Nexar in Settings first to search for components.
+                      Set a Mouser API key or connect Nexar in Settings to search for components.
                     </div>
                   )}
 
@@ -7889,7 +7891,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.65 — built 2026-03-21 12:45am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.66 — built 2026-03-21 12:55am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
