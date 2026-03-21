@@ -3532,7 +3532,34 @@ function BOMManager({ user }) {
               return (
                 <div style={{ marginBottom:12,padding:"16px 20px",background:"#fff",borderRadius:10,border:"1px solid #d5d0f0",boxShadow:"0 1px 4px rgba(88,86,214,0.1)" }}>
                   <div style={{ fontSize:14,fontWeight:700,marginBottom:4,color:"#5856d6" }}>Component Library</div>
-                  <p style={{ color:"#86868b",fontSize:12,marginBottom:14 }}>Search Mouser for real manufacturer part numbers. Every MPN is verified from the distributor database.</p>
+                  <p style={{ color:"#86868b",fontSize:12,marginBottom:10 }}>Quick-import verified libraries or search Nexar for any component.</p>
+
+                  {/* Quick Import Buttons */}
+                  <div style={{ display:"flex",gap:8,marginBottom:14,flexWrap:"wrap" }}>
+                    {[
+                      {label:"Yageo 0603 Resistors (E24)",key:"resistors_0603_yageo",count:97},
+                      {label:"Samsung 0603 Capacitors",key:"capacitors_0603_samsung",count:46},
+                      {label:"Murata 0603 Capacitors",key:"capacitors_0603_murata",count:21},
+                    ].map(lib=>(
+                      <button key={lib.key} onClick={async()=>{
+                        try{
+                          const res=await fetch("/component-libraries.json");
+                          const data=await res.json();
+                          const libData=data[lib.key];
+                          if(!libData)throw new Error("Library not found");
+                          const parts=libData.parts;
+                          setCompSearchResults(parts.map(p=>({mpn:p.mpn,value:p.value,manufacturer:libData.manufacturer,description:libData.description})));
+                          setCompSearchMfr(libData.manufacturer);
+                          setCompSearchDescPrefix(libData.description);
+                          setCompSelectedParts(new Set(parts.map(p=>p.mpn)));
+                        }catch(e){alert("Load failed: "+e.message);}
+                      }}
+                        style={{ padding:"8px 16px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",
+                          border:"1px solid #5856d6",background:"rgba(88,86,214,0.06)",color:"#5856d6" }}>
+                        {lib.label} ({lib.count})
+                      </button>
+                    ))}
+                  </div>
 
                   {!apiKeys.mouser_api_key && !nexarToken && (
                     <div style={{ padding:"12px 16px",background:"#fff3cd",borderRadius:8,border:"1px solid #ffc107",fontSize:12,marginBottom:14,color:"#856404" }}>
@@ -7961,7 +7988,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.84 — built 2026-03-21 2:35am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.85 — built 2026-03-21 2:45am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
