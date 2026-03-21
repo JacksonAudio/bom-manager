@@ -3421,7 +3421,7 @@ function BOMManager({ user }) {
                 // Sub-100Ω: 0603WAF[3dig][tolerance]T5E → e.g., 100JT5E = 10.0Ω
                 const rm3 = mpn.match(/WAF(\d{3})[A-Z]T/);
                 if (rm3) {
-                  const ohms = parseInt(rm3[1]) / 10;
+                  const ohms = parseInt(rm3[1]) / 100;
                   return fmtOhms(ohms);
                 }
                 // 0R jumper: 0000
@@ -7961,7 +7961,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.83 — built 2026-03-21 2:30am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.84 — built 2026-03-21 2:35am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
