@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v5.64
+// src/App.jsx — Jackson Audio BOM Manager v5.94
 // Thursday, March 12, 2026 — 9:43 PM
 //
 // Changelog:
@@ -68,6 +68,7 @@ const DEFAULT_KEYS = {
   fb_ja_ad_account_id: "",   // Facebook — Jackson Audio ad account (act_XXX)
   fb_ft_access_token: "",    // Facebook — Fulltone USA access token
   fb_ft_ad_account_id: "",   // Facebook — Fulltone USA ad account (act_XXX)
+  admin_emails: "brad@jacksonaudio.net", // comma-separated list of admin email addresses
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -1145,7 +1146,7 @@ function BOMManager({ user }) {
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","ai","sms","facebook","guide"]));
+  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
   const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
@@ -2600,6 +2601,11 @@ function BOMManager({ user }) {
   if (window.location.hash === "#invoice") return <InvoiceView />;
 
   // ─────────────────────────────────────────────
+  // ADMIN CHECK
+  // ─────────────────────────────────────────────
+  const isAdmin = (apiKeys.admin_emails || "").split(",").map(e=>e.trim().toLowerCase()).includes(user.email?.toLowerCase());
+
+  // ─────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────
   return (
@@ -2679,7 +2685,7 @@ function BOMManager({ user }) {
           { id:"alerts",    label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}` },
           { id:"settings",  label:"Settings" },
           { id:"admin",     label:"Admin" },
-        ].map((tab) => (
+        ].filter(tab => tab.id !== "admin" || isAdmin).map((tab) => (
           <button key={tab.id}
             className={`nav-btn ${activeView===tab.id?"active":""}`}
             onClick={() => setActiveView(tab.id)}>
@@ -6801,7 +6807,7 @@ function BOMManager({ user }) {
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                   <thead>
                     <tr style={{ borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
-                      {["#","Name","Role","$/hr","Builds","Units","Avg Time/Build","Avg Time/Unit","Labor Cost/Unit"].map(h=>(
+                      {["#","Name","Role",...(isAdmin?["$/hr"]:[]),"Builds","Units","Avg Time/Build","Avg Time/Unit",...(isAdmin?["Labor Cost/Unit"]:[])].map(h=>(
                         <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#86868b",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
                       ))}
                     </tr>
@@ -6812,16 +6818,16 @@ function BOMManager({ user }) {
                         <td style={{ padding:"10px 12px",fontWeight:800,fontSize:16,color:i===0?"#ffd700":i===1?"#c0c0c0":i===2?"#cd7f32":"#86868b" }}>{i+1}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{m.name}</td>
                         <td style={{ padding:"10px 12px",color:"#86868b",textTransform:"capitalize" }}>{m.role}</td>
-                        <td style={{ padding:"10px 12px",color:"#34c759",fontWeight:600 }}>{m.hourly_rate ? `$${m.hourly_rate}` : "—"}</td>
+                        {isAdmin && <td style={{ padding:"10px 12px",color:"#34c759",fontWeight:600 }}>{m.hourly_rate ? `$${m.hourly_rate}` : "—"}</td>}
                         <td style={{ padding:"10px 12px",fontWeight:600 }}>{m.totalBuilds}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600 }}>{m.totalUnits.toLocaleString()}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600,color:"#0071e3" }}>{m.avgHours > 0 ? fmtHours(m.avgHours) : "—"}</td>
                         <td style={{ padding:"10px 12px",fontWeight:700,color:m.avgPerUnit > 0 ? (i === 0 ? "#34c759" : "#1d1d1f") : "#86868b" }}>
                           {m.avgPerUnit > 0 ? `${m.avgPerUnit.toFixed(1)} min` : "—"}
                         </td>
-                        <td style={{ padding:"10px 12px",fontWeight:700,color:"#ff9500" }}>
+                        {isAdmin && <td style={{ padding:"10px 12px",fontWeight:700,color:"#ff9500" }}>
                           {m.avgPerUnit > 0 && m.hourly_rate ? `$${(m.avgPerUnit / 60 * m.hourly_rate).toFixed(2)}` : "—"}
-                        </td>
+                        </td>}
                       </tr>
                     ))}
                   </tbody>
@@ -6861,11 +6867,11 @@ function BOMManager({ user }) {
                       <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Email</label>
                       <input style={inputStyle} placeholder="Email address" value={newTeamMember.email} onChange={e => setNewTeamMember({...newTeamMember, email:e.target.value})} />
                     </div>
-                    <div style={{ flex:"0 0 80px" }}>
+                    {isAdmin && <div style={{ flex:"0 0 80px" }}>
                       <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>$/hr</label>
                       <input style={inputStyle} type="number" step="0.50" min="0" placeholder="25" value={newTeamMember.hourly_rate||""}
                         onChange={e => setNewTeamMember({...newTeamMember, hourly_rate:e.target.value})} />
-                    </div>
+                    </div>}
                     <div style={{ flex:"0 0 80px" }}>
                       <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>PIN</label>
                       <input style={inputStyle} placeholder="4-6 digits" value={newTeamMember.pin_code} maxLength={6}
@@ -6883,7 +6889,7 @@ function BOMManager({ user }) {
                           <div style={{ fontSize:12,color:"#86868b",textTransform:"capitalize",minWidth:80 }}>{member.role || "—"}</div>
                           <div style={{ fontSize:12,color:"#86868b",minWidth:110 }}>{member.phone || "—"}</div>
                           <div style={{ fontSize:12,color:"#86868b",minWidth:160 }}>{member.email || "—"}</div>
-                          <div style={{ minWidth:70 }}>
+                          {isAdmin && <div style={{ minWidth:70 }}>
                             <input style={{ width:60,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
                               fontSize:11,background:darkMode?"#2c2c2e":"#f9f9fb",color:darkMode?"#f5f5f7":"#1d1d1f",textAlign:"center" }}
                               type="number" step="0.50" min="0" placeholder="$/hr" defaultValue={member.hourly_rate || ""}
@@ -6893,7 +6899,7 @@ function BOMManager({ user }) {
                                   try { await updateTeamMember(member.id, { hourly_rate: val }); setTeamMembers(prev=>prev.map(t=>t.id===member.id?{...t,hourly_rate:val}:t)); } catch {}
                                 }
                               }} />
-                          </div>
+                          </div>}
                           <div style={{ minWidth:70 }}>
                             <input style={{ width:60,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
                               fontSize:11,background:darkMode?"#2c2c2e":"#f9f9fb",color:darkMode?"#f5f5f7":"#1d1d1f",textAlign:"center" }}
@@ -7652,6 +7658,25 @@ function BOMManager({ user }) {
               </div>}
             </div>
 
+            {/* Admin Access */}
+            {isAdmin && <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ background:darkMode?"#2c2c2e":"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("admin_access") ? s.delete("admin_access") : s.add("admin_access"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:darkMode?"#f5f5f7":"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:darkMode?"#f5f5f7":"#3a3f51" }}>{collapsedSettings.has("admin_access") ? "▶" : "▼"}</span>
+                  Admin Access
+                </div>
+              </div>
+              {!collapsedSettings.has("admin_access") && <div style={{ padding:"16px 20px" }}>
+                <label style={{ display:"block",fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#3a3f51",marginBottom:6 }}>Admin Email Addresses</label>
+                <p style={{ fontSize:12,color:"#86868b",marginBottom:10 }}>Comma-separated list of email addresses that have admin access (can see the Admin tab, hourly rates, and labor costs).</p>
+                <input style={{ width:"100%",padding:"8px 12px",border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",borderRadius:8,fontSize:14,marginBottom:14,boxSizing:"border-box",
+                  background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }}
+                  value={apiKeys.admin_emails||""} onChange={e=>setApiKeys(k=>({...k,admin_emails:e.target.value}))} placeholder="brad@jacksonaudio.net, admin@example.com" />
+                {sectionSaveBtn("admin_access", "Admin Access")}
+              </div>}
+            </div>}
+
             {/* Key acquisition guide */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
@@ -7685,7 +7710,7 @@ function BOMManager({ user }) {
         {/* ══════════════════════════════════════
             ADMIN — Profit Analysis
         ══════════════════════════════════════ */}
-        {activeView === "admin" && (() => {
+        {activeView === "admin" && isAdmin && (() => {
           const laborRate = parseFloat(apiKeys.labor_rate_hourly) || 25;
           const adSpendPct = parseFloat(apiKeys.ad_spend_pct) || 0;
           const shippingPerUnit = parseFloat(apiKeys.shipping_cost_per_unit) || 0;
@@ -7763,9 +7788,79 @@ function BOMManager({ user }) {
               }, 500);
             };
           })();
+          // ── Team Hourly Rates stats (same computation as Production tab) ──
+          const adminMemberStats = teamMembers.map(m => {
+            const memberAssignments = buildAssignments.filter(a => a.team_member_id === m.id && a.status === "completed" && a.started_at && a.completed_at);
+            const totalBuilds = buildAssignments.filter(a => a.team_member_id === m.id && a.status === "completed").length;
+            const totalUnits = memberAssignments.reduce((s, a) => {
+              const bo = buildOrders.find(b => b.id === a.build_order_id);
+              return s + (bo?.quantity || 0);
+            }, 0);
+            const durations = memberAssignments.map(a => (new Date(a.completed_at) - new Date(a.started_at)) / 3600000);
+            const avgHours = durations.length > 0 ? durations.reduce((s, d) => s + d, 0) / durations.length : 0;
+            const avgPerUnit = totalUnits > 0 && durations.length > 0
+              ? durations.reduce((s, d, i) => { const bo = buildOrders.find(b => b.id === memberAssignments[i].build_order_id); return s + d / (bo?.quantity || 1); }, 0) / durations.length * 60
+              : 0;
+            return { ...m, totalBuilds, totalUnits, avgHours, avgPerUnit, durations };
+          });
+
           return (
           <div style={{ maxWidth:1800 }}>
-            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",marginBottom:4 }}>Profit Analysis</h2>
+            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",marginBottom:4 }}>Admin</h2>
+            <p style={{ fontSize:14,color:"#86868b",marginBottom:24 }}>Manage team rates, profit analysis, and admin-only settings.</p>
+
+            {/* ── Team Hourly Rates ── */}
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:14 }}>Team Hourly Rates</div>
+              {teamMembers.length === 0 ? (
+                <p style={{ fontSize:13,color:"#86868b" }}>No team members yet. Add team members in the Production tab.</p>
+              ) : (
+                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                  <thead>
+                    <tr style={{ borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                      {["Name","Role","Hourly Rate","Avg Time/Unit","Labor Cost/Unit"].map(h=>(
+                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#86868b",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teamMembers.map(member => {
+                      const stats = adminMemberStats.find(s => s.id === member.id);
+                      return (
+                        <tr key={member.id} style={{ borderBottom:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2"),opacity:member.active===false?0.5:1 }}>
+                          <td style={{ padding:"10px 12px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{member.name}</td>
+                          <td style={{ padding:"10px 12px",color:"#86868b",textTransform:"capitalize" }}>{member.role || "—"}</td>
+                          <td style={{ padding:"10px 12px" }}>
+                            <div style={{ display:"flex",alignItems:"center",gap:4 }}>
+                              <span style={{ fontSize:13,color:"#86868b" }}>$</span>
+                              <input style={{ width:70,padding:"4px 8px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
+                                fontSize:13,background:darkMode?"#2c2c2e":"#f9f9fb",color:darkMode?"#f5f5f7":"#1d1d1f",textAlign:"center" }}
+                                type="number" step="0.50" min="0" placeholder="25" defaultValue={member.hourly_rate || ""}
+                                onBlur={async (e) => {
+                                  const val = parseFloat(e.target.value) || null;
+                                  if (val !== (member.hourly_rate || null)) {
+                                    try { await updateTeamMember(member.id, { hourly_rate: val }); setTeamMembers(prev=>prev.map(t=>t.id===member.id?{...t,hourly_rate:val}:t)); } catch {}
+                                  }
+                                }} />
+                              <span style={{ fontSize:12,color:"#86868b" }}>/hr</span>
+                            </div>
+                          </td>
+                          <td style={{ padding:"10px 12px",fontWeight:600,color:"#0071e3" }}>
+                            {stats && stats.avgPerUnit > 0 ? `${stats.avgPerUnit.toFixed(1)} min` : "—"}
+                          </td>
+                          <td style={{ padding:"10px 12px",fontWeight:700,color:"#ff9500" }}>
+                            {stats && stats.avgPerUnit > 0 && member.hourly_rate ? `$${(stats.avgPerUnit / 60 * member.hourly_rate).toFixed(2)}` : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* ── Profit Analysis ── */}
+            <h3 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,letterSpacing:"-0.3px",marginBottom:4 }}>Profit Analysis</h3>
             <p style={{ fontSize:14,color:"#86868b",marginBottom:24 }}>Margins, markup, and profitability across all products{hasShopifyPrices ? " — with Shopify actual pricing data" : ""}.</p>
 
             {/* Summary Cards */}
@@ -8063,7 +8158,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.93 — built 2026-03-21 3:40am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.94 — built 2026-03-21</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
