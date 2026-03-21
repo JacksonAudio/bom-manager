@@ -7655,6 +7655,16 @@ function BOMManager({ user }) {
                 <textarea style={{ width:"100%",padding:"8px 12px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:14,minHeight:80,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit" }}
                   value={apiKeys.company_address ?? ""} onChange={e => setApiKeys(k => ({ ...k, company_address: e.target.value }))} placeholder="123 Main St&#10;City, ST 12345&#10;USA" />
                 <p style={{ fontSize:12,color:"#86868b",marginTop:8 }}>This address appears as the "Ship To" on purchase orders.</p>
+                <label style={{ display:"block",fontSize:13,fontWeight:600,color:"#3a3f51",marginBottom:6,marginTop:14 }}>Timezone</label>
+                <select style={{ width:"100%",padding:"8px 12px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:14,marginBottom:8,boxSizing:"border-box" }}
+                  value={apiKeys.timezone || "America/Chicago"} onChange={e => setApiKeys(k => ({ ...k, timezone: e.target.value }))}>
+                  <option value="America/New_York">Eastern (ET)</option>
+                  <option value="America/Chicago">Central (CT)</option>
+                  <option value="America/Denver">Mountain (MT)</option>
+                  <option value="America/Los_Angeles">Pacific (PT)</option>
+                  <option value="America/Anchorage">Alaska (AKT)</option>
+                  <option value="Pacific/Honolulu">Hawaii (HT)</option>
+                </select>
                 {sectionSaveBtn("company", "Company Info")}
               </div>}
             </div>
@@ -8849,7 +8859,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.99 — built 2026-03-21 1:40pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.00 — built 2026-03-21 1:50pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
