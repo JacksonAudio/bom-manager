@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.13
+// src/App.jsx — Jackson Audio BOM Manager v6.16
 // Saturday, March 21, 2026 — 10:30 AM
 //
 // Changelog:
@@ -1180,6 +1180,7 @@ function BOMManager({ user }) {
   const [selProject,  setSelProject]  = useState("all");
   const [selBrand,    setSelBrand]    = useState("all");
   const [collapsedBrands, setCollapsedBrands] = useState(new Set());
+  const [collapsedDemandSections, setCollapsedDemandSections] = useState(new Set());
   const [newProjBrand, setNewProjBrand] = useState("Jackson Audio");
   const [search,      setSearch]      = useState("");
   const [pricingSearch, setPricingSearch] = useState("");
@@ -2958,7 +2959,7 @@ function BOMManager({ user }) {
         for (const part of productParts) {
           if (!demand[part.id]) demand[part.id] = { part, needed: 0, products: [] };
           demand[part.id].needed += (parseInt(part.quantity) || 1) * sp.totalUnfulfilled;
-          demand[part.id].products.push({ name: bomProduct.name, color: bomProduct.color, qty: sp.totalUnfulfilled, perUnit: parseInt(part.quantity) || 1, channel: "Shopify" });
+          demand[part.id].products.push({ name: bomProduct.name, color: bomProduct.color, qty: sp.totalUnfulfilled, perUnit: parseInt(part.quantity) || 1, channel: "Shopify", brand: sp.storeName || "Jackson Audio" });
         }
       }
     }
@@ -2975,7 +2976,7 @@ function BOMManager({ user }) {
         for (const part of productParts) {
           if (!demand[part.id]) demand[part.id] = { part, needed: 0, products: [] };
           demand[part.id].needed += (parseInt(part.quantity) || 1) * zp.totalUnfulfilled;
-          demand[part.id].products.push({ name: bomProduct.name, color: bomProduct.color, qty: zp.totalUnfulfilled, perUnit: parseInt(part.quantity) || 1, channel: "Zoho" });
+          demand[part.id].products.push({ name: bomProduct.name, color: bomProduct.color, qty: zp.totalUnfulfilled, perUnit: parseInt(part.quantity) || 1, channel: "Zoho", brand: zp.companyName || "Jackson Audio" });
         }
       }
     }
@@ -6957,7 +6958,7 @@ function BOMManager({ user }) {
                                   <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
                                     {d.products.map((pr,i) => (
                                       <span key={i} className="badge" style={{ background:pr.color+"22",color:pr.color,fontSize:10 }}>
-                                        {pr.channel === "Zoho" ? "[Dealer] " : pr.channel === "Shopify" ? "[Direct] " : ""}{pr.name} ×{pr.qty} ({pr.perUnit}/unit)
+                                        {pr.channel === "Zoho" ? "[Dealer" : pr.channel === "Shopify" ? "[Direct" : ""}{pr.brand ? ` · ${pr.brand}` : ""}] {pr.name} ×{pr.qty} ({pr.perUnit}/unit)
                                       </span>
                                     ))}
                                   </div>
@@ -6999,52 +7000,142 @@ function BOMManager({ user }) {
                   </div>
                 )}
 
-                {/* ── Build Plan + Sales Forecast */}
-                {/* ── Zoho Dealer Orders */}
-                {zohoDemand?.products?.length > 0 && (
-                  <div className="card" style={{ marginBottom:16 }}>
-                    <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>DEALER ORDERS (ZOHO BOOKS) — {zohoDemand.totalOrders || 0} ORDERS</div>
-                    <div style={{ overflowX:"auto" }}>
-                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
-                        <thead>
-                          <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>PRODUCT</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>QTY ORDERED</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>AVG RATE</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>BOM PRODUCT</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {zohoDemand.products.map(zp => {
-                            const bomProduct = products.find(p =>
-                              p.zohoProductId === zp.zohoProductId ||
-                              zp.title.toLowerCase().includes(p.name.toLowerCase()) ||
-                              p.name.toLowerCase().includes(zp.title.toLowerCase())
-                            );
-                            return (
-                              <tr key={zp.zohoProductId || zp.title} style={{ borderBottom:"1px solid #f0f0f2" }}>
-                                <td style={{ padding:"10px 10px",fontWeight:600,color:"#1d1d1f" }}>{zp.title}</td>
-                                <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,color:"#4bc076",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                                  {zp.totalUnfulfilled.toLocaleString()}
-                                </td>
-                                <td style={{ padding:"10px 10px",textAlign:"right",color:"#86868b" }}>
-                                  {zp.avgRate > 0 ? `$${zp.avgRate.toFixed(2)}` : "—"}
-                                </td>
-                                <td style={{ padding:"10px 10px" }}>
-                                  {bomProduct ? (
-                                    <span className="badge" style={{ background:bomProduct.color+"22",color:bomProduct.color,fontSize:10 }}>
-                                      {bomProduct.name}
-                                    </span>
-                                  ) : <span style={{ fontSize:11,color:"#ff9500" }}>Unmapped</span>}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
+                {/* ── Grouped Order Sections (Channel + Brand) */}
+                {(() => {
+                  // Build grouped sections: Dealer by companyName, Direct by storeName
+                  const demandSections = [];
+                  // Zoho (Dealer) groups
+                  if (zohoDemand?.products?.length > 0) {
+                    const zohoByBrand = {};
+                    for (const zp of zohoDemand.products) {
+                      const brand = zp.companyName || "Jackson Audio";
+                      if (!zohoByBrand[brand]) zohoByBrand[brand] = [];
+                      zohoByBrand[brand].push(zp);
+                    }
+                    // Also count orders per brand
+                    const zohoOrdersByBrand = {};
+                    for (const o of (zohoDemand.orders || [])) {
+                      const brand = o.companyName || "Jackson Audio";
+                      zohoOrdersByBrand[brand] = (zohoOrdersByBrand[brand] || 0) + 1;
+                    }
+                    for (const brand of Object.keys(zohoByBrand).sort()) {
+                      const prods = zohoByBrand[brand];
+                      const totalUnits = prods.reduce((s, p) => s + (p.totalUnfulfilled || 0), 0);
+                      demandSections.push({
+                        key: `dealer-${brand}`,
+                        channel: "Dealer",
+                        brand,
+                        accentColor: "#4bc076",
+                        orderCount: zohoOrdersByBrand[brand] || 0,
+                        totalUnits,
+                        products: prods,
+                        source: "zoho",
+                      });
+                    }
+                  }
+                  // Shopify (Direct) groups
+                  if (shopifyDemand?.products?.length > 0) {
+                    const shopByBrand = {};
+                    for (const sp of shopifyDemand.products) {
+                      const brand = sp.storeName || "Jackson Audio";
+                      if (!shopByBrand[brand]) shopByBrand[brand] = [];
+                      shopByBrand[brand].push(sp);
+                    }
+                    const shopOrdersByBrand = {};
+                    for (const o of (shopifyDemand.orders || [])) {
+                      const brand = o.storeName || "Jackson Audio";
+                      shopOrdersByBrand[brand] = (shopOrdersByBrand[brand] || 0) + 1;
+                    }
+                    for (const brand of Object.keys(shopByBrand).sort()) {
+                      const prods = shopByBrand[brand];
+                      const totalUnits = prods.reduce((s, p) => s + (p.totalUnfulfilled || 0), 0);
+                      demandSections.push({
+                        key: `direct-${brand}`,
+                        channel: "Direct",
+                        brand,
+                        accentColor: "#0071e3",
+                        orderCount: shopOrdersByBrand[brand] || 0,
+                        totalUnits,
+                        products: prods,
+                        source: "shopify",
+                      });
+                    }
+                  }
+                  if (demandSections.length === 0) return null;
+                  return demandSections.map(section => {
+                    const isCollapsed = collapsedDemandSections.has(section.key);
+                    return (
+                      <div key={section.key} className="card" style={{ marginBottom:16, overflow:"hidden" }}>
+                        {/* Collapsible header */}
+                        <div
+                          onClick={() => setCollapsedDemandSections(prev => { const s = new Set(prev); s.has(section.key) ? s.delete(section.key) : s.add(section.key); return s; })}
+                          style={{
+                            padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
+                            background: darkMode ? "#1c1c1e" : (section.accentColor + "0a"),
+                            borderBottom: isCollapsed ? "none" : `2px solid ${section.accentColor}33`,
+                            borderRadius: isCollapsed ? 12 : "12px 12px 0 0",
+                            transition: "all 0.2s",
+                          }}
+                        >
+                          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                            <div style={{ width:8,height:8,borderRadius:"50%",background:section.accentColor,flexShrink:0 }} />
+                            <span style={{ fontSize:13,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                              {section.channel} Orders — {section.brand}
+                            </span>
+                            <span style={{ fontSize:11,color:"#86868b",fontWeight:500 }}>
+                              ({section.orderCount.toLocaleString()} order{section.orderCount !== 1 ? "s" : ""}, {section.totalUnits.toLocaleString()} unit{section.totalUnits !== 1 ? "s" : ""})
+                            </span>
+                          </div>
+                          <span style={{ fontSize:11,color:"#86868b",transform:isCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
+                        </div>
+                        {/* Collapsible body */}
+                        {!isCollapsed && (
+                          <div style={{ overflowX:"auto" }}>
+                            <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                              <thead>
+                                <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>PRODUCT</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>QTY NEEDED</th>
+                                  {section.source === "zoho" && <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>AVG RATE</th>}
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>BOM PRODUCT</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {section.products.map(prod => {
+                                  const bomProduct = products.find(p =>
+                                    (section.source === "zoho" ? p.zohoProductId === prod.zohoProductId : p.shopifyProductId === prod.shopifyProductId) ||
+                                    prod.title.toLowerCase().includes(p.name.toLowerCase()) ||
+                                    p.name.toLowerCase().includes(prod.title.toLowerCase())
+                                  );
+                                  return (
+                                    <tr key={prod.zohoProductId || prod.shopifyProductId || prod.title} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                                      <td style={{ padding:"10px 10px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{prod.title}</td>
+                                      <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,color:section.accentColor,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                        {prod.totalUnfulfilled.toLocaleString()}
+                                      </td>
+                                      {section.source === "zoho" && (
+                                        <td style={{ padding:"10px 10px",textAlign:"right",color:"#86868b" }}>
+                                          {prod.avgRate > 0 ? `$${prod.avgRate.toFixed(2)}` : "\u2014"}
+                                        </td>
+                                      )}
+                                      <td style={{ padding:"10px 10px" }}>
+                                        {bomProduct ? (
+                                          <span className="badge" style={{ background:bomProduct.color+"22",color:bomProduct.color,fontSize:10 }}>
+                                            {bomProduct.name}
+                                          </span>
+                                        ) : <span style={{ fontSize:11,color:"#ff9500" }}>Unmapped</span>}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
 
                 {/* ── Shopify Direct Orders + Sales Forecast */}
                 {shopifyDemand?.orders?.length > 0 && (() => {
@@ -9924,7 +10015,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.15 — built 2026-03-21 6:15pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.16 — built 2026-03-21</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
