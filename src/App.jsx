@@ -1127,7 +1127,7 @@ function BOMManager({ user }) {
   const [compSearchMfr, setCompSearchMfr] = useState("");
   const [compSearchDescPrefix, setCompSearchDescPrefix] = useState("");
   const [compSearchLimit, setCompSearchLimit] = useState("10");
-  const [nexarUsed, setNexarUsed] = useState(() => { try { return parseInt(localStorage.getItem("nexar_used")||"0"); } catch { return 0; } });
+  const [nexarUsed, setNexarUsed] = useState(() => { try { return parseInt(localStorage.getItem("nexar_used")||"6557"); } catch { return 6557; } });
   const [newProjName, setNewProjName] = useState("");
   const [importError, setImportError] = useState("");
   const [importOk,    setImportOk]    = useState("");
@@ -7961,7 +7961,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.81 — built 2026-03-21 2:20am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.82 — built 2026-03-21 2:22am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
