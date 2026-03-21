@@ -1,6 +1,6 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v5.95
-// Saturday, March 21, 2026 — 10:00 AM
+// src/App.jsx — Jackson Audio BOM Manager v5.97
+// Saturday, March 21, 2026 — 10:30 AM
 //
 // Changelog:
 //   [1] Fix Nexar query — inline MPN string instead of GraphQL variable (fixes 400)
@@ -30,6 +30,7 @@ import {
   recordPrice, fetchPriceHistory, fetchAllPriceHistory,
   saveBomSnapshot, fetchBomSnapshots,
   fetchPOHistory, createPORecord, updatePORecord,
+  fetchScrapLog, createScrapEntry, subscribeToScrapLog,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -1214,6 +1215,10 @@ function BOMManager({ user }) {
   const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
   const [calendarSelectedDay, setCalendarSelectedDay] = useState(null); // clicked day in month view (Date or null)
   const [calendarReschedule, setCalendarReschedule] = useState(null); // build order id being rescheduled
+  // ── Scrap/Waste tracking
+  const [scrapLog, setScrapLog] = useState([]);
+  const [scrapFormOpen, setScrapFormOpen] = useState(null); // build_order id or null
+  const [scrapForm, setScrapForm] = useState({ quantity: 1, category: "other", notes: "" });
 
   const [pdPasteText, setPdPasteText] = useState(""); // product detail page paste text
   const [pdDragOver, setPdDragOver] = useState(false); // product detail page drag state
@@ -1391,6 +1396,9 @@ function BOMManager({ user }) {
           }
         }).catch(() => {});
 
+        // Load scrap log from DB
+        fetchScrapLog().then(rows => setScrapLog(rows || [])).catch(() => {});
+
         // Load BOM snapshots from DB
         fetchBomSnapshots().then(snaps => setBomSnapshots(snaps || [])).catch(() => {});
 
@@ -1530,12 +1538,24 @@ function BOMManager({ user }) {
       }
     });
 
+    // Scrap log channel
+    const scrapChannel = subscribeToScrapLog((eventType, newRow, oldRow) => {
+      if (eventType === "INSERT") {
+        setScrapLog((prev) => prev.find(s => s.id === newRow.id) ? prev : [newRow, ...prev]);
+      } else if (eventType === "UPDATE") {
+        setScrapLog((prev) => prev.map(s => s.id === newRow.id ? newRow : s));
+      } else if (eventType === "DELETE") {
+        setScrapLog((prev) => prev.filter(s => s.id !== oldRow.id));
+      }
+    });
+
     return () => {
       prodChannel.unsubscribe();
       partChannel.unsubscribe();
       teamChannel.unsubscribe();
       boChannel.unsubscribe();
       baChannel.unsubscribe();
+      scrapChannel.unsubscribe();
     };
   }, []); // eslint-disable-line
 
@@ -5434,7 +5454,7 @@ function BOMManager({ user }) {
                 Full Screen ↗
               </button>
             </div>
-            <Scoreboard teamMembers={teamMembers} buildOrders={buildOrders} buildAssignments={buildAssignments} products={products} />
+            <Scoreboard teamMembers={teamMembers} buildOrders={buildOrders} buildAssignments={buildAssignments} products={products} scrapLog={scrapLog} />
           </div>
         )}
 
@@ -7196,19 +7216,38 @@ function BOMManager({ user }) {
             })()}
 
             {/* ── Team Performance Leaderboard ── */}
-            {memberStats.length > 0 && (
+            {memberStats.length > 0 && (() => {
+              // Compute scrap, yield, and quality score per builder
+              const totalBuilders = memberStats.length;
+              const enriched = memberStats.map((m, _origIdx) => {
+                const scrapped = scrapLog.filter(s => s.team_member_id === m.id).reduce((s, e) => s + (e.quantity || 0), 0);
+                const yieldPct = m.totalUnits > 0 ? ((m.totalUnits - scrapped) / m.totalUnits) * 100 : 100;
+                return { ...m, scrapped, yieldPct };
+              });
+              // Sort by avgPerUnit ascending (fastest first) to compute speed rank
+              const bySpeed = [...enriched].filter(m => m.avgPerUnit > 0).sort((a, b) => a.avgPerUnit - b.avgPerUnit);
+              enriched.forEach(m => {
+                const speedRank = bySpeed.findIndex(x => x.id === m.id);
+                const speedPctile = m.avgPerUnit > 0 && bySpeed.length > 0 ? 100 - ((speedRank) / totalBuilders * 100) : 50;
+                m.qualityScore = m.yieldPct * 0.6 + speedPctile * 0.4;
+              });
+              // Sort by quality score descending
+              enriched.sort((a, b) => b.qualityScore - a.qualityScore);
+
+              return (
               <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
                 <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:14 }}>Team Performance</div>
+                <div style={{ overflowX:"auto" }}>
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                   <thead>
                     <tr style={{ borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
-                      {["#","Name","Role",...(isAdmin?["$/hr"]:[]),"Builds","Units","Avg Time/Build","Avg Time/Unit",...(isAdmin?["Labor Cost/Unit"]:[])].map(h=>(
+                      {["#","Name","Role",...(isAdmin?["$/hr"]:[]),"Builds","Units","Scrap","Yield %","Avg Time/Unit","Quality Score",...(isAdmin?["Labor Cost/Unit"]:[])].map(h=>(
                         <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#86868b",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {memberStats.map((m, i) => (
+                    {enriched.map((m, i) => (
                       <tr key={m.id} style={{ borderBottom:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2") }}>
                         <td style={{ padding:"10px 12px",fontWeight:800,fontSize:16,color:i===0?"#ffd700":i===1?"#c0c0c0":i===2?"#cd7f32":"#86868b" }}>{i+1}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{m.name}</td>
@@ -7216,9 +7255,15 @@ function BOMManager({ user }) {
                         {isAdmin && <td style={{ padding:"10px 12px",color:"#34c759",fontWeight:600 }}>{m.hourly_rate ? `$${m.hourly_rate}` : "—"}</td>}
                         <td style={{ padding:"10px 12px",fontWeight:600 }}>{m.totalBuilds}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600 }}>{m.totalUnits.toLocaleString()}</td>
-                        <td style={{ padding:"10px 12px",fontWeight:600,color:"#0071e3" }}>{m.avgHours > 0 ? fmtHours(m.avgHours) : "—"}</td>
-                        <td style={{ padding:"10px 12px",fontWeight:700,color:m.avgPerUnit > 0 ? (i === 0 ? "#34c759" : "#1d1d1f") : "#86868b" }}>
+                        <td style={{ padding:"10px 12px",fontWeight:600,color:m.scrapped > 0 ? "#ff3b30" : "#86868b" }}>{m.scrapped}</td>
+                        <td style={{ padding:"10px 12px",fontWeight:700,color:m.yieldPct >= 98 ? "#34c759" : m.yieldPct >= 95 ? "#ff9500" : "#ff3b30" }}>
+                          {m.totalUnits > 0 ? `${m.yieldPct.toFixed(1)}%` : "—"}
+                        </td>
+                        <td style={{ padding:"10px 12px",fontWeight:700,color:m.avgPerUnit > 0 ? (darkMode?"#f5f5f7":"#1d1d1f") : "#86868b" }}>
                           {m.avgPerUnit > 0 ? `${m.avgPerUnit.toFixed(1)} min` : "—"}
+                        </td>
+                        <td style={{ padding:"10px 12px",fontWeight:800,color:m.qualityScore >= 90 ? "#34c759" : m.qualityScore >= 70 ? "#0071e3" : "#ff9500" }}>
+                          {m.qualityScore.toFixed(0)}
                         </td>
                         {isAdmin && <td style={{ padding:"10px 12px",fontWeight:700,color:"#ff9500" }}>
                           {m.avgPerUnit > 0 && m.hourly_rate ? `$${(m.avgPerUnit / 60 * m.hourly_rate).toFixed(2)}` : "—"}
@@ -7227,8 +7272,10 @@ function BOMManager({ user }) {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* ── Team Members (collapsible) ── */}
             <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
@@ -7457,11 +7504,68 @@ function BOMManager({ user }) {
                             {bo.notes && <span style={{ fontStyle:"italic" }}>{bo.notes}</span>}
                           </div>
 
+                          {/* Scrap Form (inline) */}
+                          {scrapFormOpen === bo.id && (
+                            <div style={{ background:darkMode?"#2c2c2e":"#f5f5f7",borderRadius:10,padding:"14px 16px",marginTop:12,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                              <div style={{ fontSize:13,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:10 }}>Log Scrap / Waste</div>
+                              <div style={{ display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end" }}>
+                                <div style={{ flex:"0 0 80px" }}>
+                                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Qty</label>
+                                  <input type="number" min="1" value={scrapForm.quantity}
+                                    onChange={e => setScrapForm(f=>({...f,quantity:parseInt(e.target.value)||1}))}
+                                    style={{ ...inputStyle, background:darkMode?"#1c1c1e":"#fff" }} />
+                                </div>
+                                <div style={{ flex:"1 1 180px" }}>
+                                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Category</label>
+                                  <select value={scrapForm.category} onChange={e => setScrapForm(f=>({...f,category:e.target.value}))}
+                                    style={{ ...selectStyle, background:darkMode?"#1c1c1e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                                    <option value="solder defect">Solder Defect</option>
+                                    <option value="wrong part">Wrong Part</option>
+                                    <option value="ESD damage">ESD Damage</option>
+                                    <option value="assembly error">Assembly Error</option>
+                                    <option value="component failure">Component Failure</option>
+                                    <option value="other">Other</option>
+                                  </select>
+                                </div>
+                                <div style={{ flex:"2 1 200px" }}>
+                                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Notes</label>
+                                  <input value={scrapForm.notes} onChange={e => setScrapForm(f=>({...f,notes:e.target.value}))}
+                                    placeholder="Optional details" style={{ ...inputStyle, background:darkMode?"#1c1c1e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                                </div>
+                                <button className="btn-primary btn-sm" disabled={prodBusy} onClick={async () => {
+                                  setProdBusy(true);
+                                  try {
+                                    const productParts = parts.filter(p => p.projectId === bo.product_id);
+                                    const partsCost = scrapForm.quantity * productParts.reduce((s,p) => s + (parseFloat(p.unitCost)||0) * (parseInt(p.quantity)||1), 0);
+                                    const assignment = buildAssignments.find(a => a.build_order_id === bo.id && a.status !== "completed");
+                                    await createScrapEntry({
+                                      build_order_id: bo.id,
+                                      product_id: bo.product_id,
+                                      team_member_id: assignment?.team_member_id || null,
+                                      quantity: scrapForm.quantity,
+                                      reason: scrapForm.notes || scrapForm.category,
+                                      category: scrapForm.category,
+                                      parts_cost: partsCost,
+                                      notes: scrapForm.notes,
+                                    });
+                                    setScrapFormOpen(null);
+                                    setScrapForm({ quantity:1, category:"other", notes:"" });
+                                  } catch (e) { console.error("Scrap log failed:", e); alert("Failed: " + e.message); }
+                                  setProdBusy(false);
+                                }} style={{ height:37,whiteSpace:"nowrap" }}>Log Scrap</button>
+                                <button className="btn-ghost btn-sm" onClick={() => { setScrapFormOpen(null); setScrapForm({ quantity:1, category:"other", notes:"" }); }}
+                                  style={{ height:37 }}>Cancel</button>
+                              </div>
+                            </div>
+                          )}
+
                           {/* Actions */}
                           <div style={{ display:"flex",gap:8,borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",paddingTop:12,marginTop:12 }}>
                             {(bo.status === "pending" || bo.status === "assigned") && (
                               <button className="btn-primary btn-sm" onClick={() => handleStartBuild(bo)} disabled={prodBusy}>Start Build</button>
                             )}
+                            <button className="btn-ghost btn-sm" onClick={() => setScrapFormOpen(scrapFormOpen === bo.id ? null : bo.id)}
+                              style={{ color:"#ff9500" }}>Log Scrap</button>
                             <button className="btn-ghost btn-sm" onClick={() => handleDeleteBuildOrder(bo.id)}
                               style={{ color:"#ff3b30",marginLeft:"auto" }}>Delete</button>
                           </div>
@@ -8254,6 +8358,195 @@ function BOMManager({ user }) {
               )}
             </div>
 
+            {/* ── Team Incentives / Bonus Calculator ── */}
+            {(() => {
+              const weeklyTarget = parseInt(apiKeys.weekly_target_points) || 500;
+              const bonusPerPoint = parseFloat(apiKeys.bonus_per_point) || 0.50;
+              // Get current week range
+              const wNow = new Date();
+              const wDay = wNow.getDay();
+              const wMonday = new Date(wNow); wMonday.setDate(wNow.getDate() - (wDay === 0 ? 6 : wDay - 1)); wMonday.setHours(0,0,0,0);
+              const wSunday = new Date(wMonday); wSunday.setDate(wMonday.getDate() + 6); wSunday.setHours(23,59,59,999);
+              const weekAssignments = buildAssignments.filter(a => {
+                if (a.status !== "completed") return false;
+                const completed = a.completed_at ? new Date(a.completed_at) : null;
+                return completed && completed >= wMonday && completed <= wSunday;
+              });
+              const boMapLocal = {}; buildOrders.forEach(bo => { boMapLocal[bo.id] = bo; });
+              const prodMapLocal = {}; products.forEach(p => { prodMapLocal[p.id] = p; });
+              const builderPoints = {};
+              weekAssignments.forEach(a => {
+                const memberId = a.team_member_id; if (!memberId) return;
+                const bo = boMapLocal[a.build_order_id]; if (!bo) return;
+                const prod = prodMapLocal[bo.product_id];
+                const buildMinutes = prod?.build_minutes || prod?.buildMinutes || 15;
+                const qty = bo.quantity || 0;
+                if (!builderPoints[memberId]) builderPoints[memberId] = 0;
+                builderPoints[memberId] += qty * buildMinutes;
+              });
+              const incentiveRows = teamMembers.filter(m => m.active !== false).map(m => {
+                const pts = builderPoints[m.id] || 0;
+                const surplus = Math.max(0, pts - weeklyTarget);
+                const bonus = surplus * bonusPerPoint;
+                return { ...m, pts, surplus, bonus };
+              }).sort((a,b) => b.pts - a.pts);
+              const totalPayout = incentiveRows.reduce((s,r) => s + r.bonus, 0);
+
+              return (
+              <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:14 }}>Team Incentives</div>
+                <div style={{ display:"flex",gap:12,marginBottom:16,flexWrap:"wrap",alignItems:"flex-end" }}>
+                  <div>
+                    <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Weekly Target (pts)</label>
+                    <input type="number" min="0" value={apiKeys.weekly_target_points||""} placeholder="500"
+                      onChange={e => setApiKeys(k=>({...k,weekly_target_points:e.target.value}))}
+                      style={{ width:100,padding:"6px 10px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",fontSize:13,background:darkMode?"#2c2c2e":"#f9f9fb",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>Bonus $/pt above target</label>
+                    <input type="number" min="0" step="0.01" value={apiKeys.bonus_per_point||""} placeholder="0.50"
+                      onChange={e => setApiKeys(k=>({...k,bonus_per_point:e.target.value}))}
+                      style={{ width:100,padding:"6px 10px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",fontSize:13,background:darkMode?"#2c2c2e":"#f9f9fb",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                  </div>
+                  <button className="btn-primary btn-sm" onClick={async () => {
+                    try {
+                      await saveAllApiKeys({ ...apiKeys, weekly_target_points: apiKeys.weekly_target_points || "500", bonus_per_point: apiKeys.bonus_per_point || "0.50" }, user.id);
+                    } catch (e) { alert("Save failed: " + e.message); }
+                  }} style={{ height:33 }}>Save Settings</button>
+                </div>
+                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                  <thead>
+                    <tr style={{ borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                      {["Builder","Points This Week","Target","Surplus","Bonus Earned"].map(h=>(
+                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#86868b",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {incentiveRows.map(r => (
+                      <tr key={r.id} style={{ borderBottom:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2") }}>
+                        <td style={{ padding:"10px 12px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{r.name}</td>
+                        <td style={{ padding:"10px 12px",fontWeight:700,color:"#0071e3" }}>{r.pts.toLocaleString()}</td>
+                        <td style={{ padding:"10px 12px",color:"#86868b" }}>{weeklyTarget.toLocaleString()}</td>
+                        <td style={{ padding:"10px 12px",fontWeight:600,color:r.surplus > 0 ? "#34c759" : "#86868b" }}>{r.surplus > 0 ? `+${r.surplus.toLocaleString()}` : "0"}</td>
+                        <td style={{ padding:"10px 12px",fontWeight:700,color:r.bonus > 0 ? "#34c759" : "#86868b" }}>{r.bonus > 0 ? `$${r.bonus.toFixed(2)}` : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ marginTop:12,display:"flex",justifyContent:"flex-end",gap:16,fontSize:14 }}>
+                  <span style={{ color:"#86868b" }}>Total Weekly Payout:</span>
+                  <span style={{ fontWeight:800,color:totalPayout > 0 ? "#34c759" : "#86868b" }}>${totalPayout.toFixed(2)}</span>
+                </div>
+              </div>
+              );
+            })()}
+
+            {/* ── Waste & Scrap Dashboard ── */}
+            {(() => {
+              const now = new Date();
+              const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+              const weekStart = new Date(now); const wd = weekStart.getDay(); weekStart.setDate(now.getDate() - (wd === 0 ? 6 : wd - 1)); weekStart.setHours(0,0,0,0);
+              const lastWeekStart = new Date(weekStart); lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+              const monthScrap = scrapLog.filter(s => new Date(s.created_at) >= monthStart);
+              const weekScrap = scrapLog.filter(s => new Date(s.created_at) >= weekStart);
+              const lastWeekScrap = scrapLog.filter(s => { const d = new Date(s.created_at); return d >= lastWeekStart && d < weekStart; });
+              const totalScrapped = monthScrap.reduce((s,e) => s + (e.quantity||0), 0);
+              const totalCost = monthScrap.reduce((s,e) => s + parseFloat(e.parts_cost||0), 0);
+              const thisWeekQty = weekScrap.reduce((s,e) => s + (e.quantity||0), 0);
+              const lastWeekQty = lastWeekScrap.reduce((s,e) => s + (e.quantity||0), 0);
+              // By category
+              const byCat = {};
+              monthScrap.forEach(s => { byCat[s.category||"other"] = (byCat[s.category||"other"]||0) + (s.quantity||0); });
+              const catEntries = Object.entries(byCat).sort((a,b) => b[1] - a[1]);
+              const maxCat = catEntries.length > 0 ? catEntries[0][1] : 1;
+              const catColors = { "solder defect":"#ff3b30","wrong part":"#ff9500","ESD damage":"#5856d6","assembly error":"#0071e3","component failure":"#ff2d55","other":"#86868b" };
+              // By builder
+              const byBuilder = {};
+              monthScrap.forEach(s => { const name = teamMembers.find(m => m.id === s.team_member_id)?.name || "Unknown"; byBuilder[name] = (byBuilder[name]||0) + (s.quantity||0); });
+              const builderEntries = Object.entries(byBuilder).sort((a,b) => b[1] - a[1]);
+              const maxBuilder = builderEntries.length > 0 ? builderEntries[0][1] : 1;
+              // By product
+              const byProduct = {};
+              monthScrap.forEach(s => { const name = products.find(p => p.id === s.product_id)?.name || "Unknown"; byProduct[name] = (byProduct[name]||0) + (s.quantity||0); });
+              const prodEntries = Object.entries(byProduct).sort((a,b) => b[1] - a[1]);
+              const maxProd = prodEntries.length > 0 ? prodEntries[0][1] : 1;
+
+              return (
+              <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:14 }}>Waste & Scrap</div>
+                {/* Summary cards */}
+                <div style={{ display:"flex",gap:16,marginBottom:20,flexWrap:"wrap" }}>
+                  <div style={{ background:darkMode?"#2c2c2e":"#f5f5f7",borderRadius:10,padding:"14px 18px",flex:1,minWidth:120 }}>
+                    <div style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Scrapped (Month)</div>
+                    <div style={{ fontSize:28,fontWeight:800,color:"#ff3b30" }}>{totalScrapped}</div>
+                  </div>
+                  <div style={{ background:darkMode?"#2c2c2e":"#f5f5f7",borderRadius:10,padding:"14px 18px",flex:1,minWidth:120 }}>
+                    <div style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>$ Value Lost</div>
+                    <div style={{ fontSize:28,fontWeight:800,color:"#ff9500" }}>${totalCost.toFixed(2)}</div>
+                  </div>
+                  <div style={{ background:darkMode?"#2c2c2e":"#f5f5f7",borderRadius:10,padding:"14px 18px",flex:1,minWidth:120 }}>
+                    <div style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>This Week vs Last</div>
+                    <div style={{ fontSize:28,fontWeight:800,color:thisWeekQty > lastWeekQty ? "#ff3b30" : "#34c759" }}>
+                      {thisWeekQty} <span style={{ fontSize:14,color:"#86868b" }}>vs {lastWeekQty}</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Breakdowns */}
+                <div style={{ display:"flex",gap:20,flexWrap:"wrap" }}>
+                  {/* By Category */}
+                  <div style={{ flex:"1 1 200px" }}>
+                    <div style={{ fontSize:11,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8 }}>By Category</div>
+                    {catEntries.map(([cat, qty]) => (
+                      <div key={cat} style={{ marginBottom:6 }}>
+                        <div style={{ display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2 }}>
+                          <span style={{ color:darkMode?"#f5f5f7":"#1d1d1f",textTransform:"capitalize" }}>{cat}</span>
+                          <span style={{ fontWeight:700,color:catColors[cat]||"#86868b" }}>{qty}</span>
+                        </div>
+                        <div style={{ height:6,background:darkMode?"#1a1a28":"#e5e5ea",borderRadius:3,overflow:"hidden" }}>
+                          <div style={{ width:`${(qty/maxCat)*100}%`,height:"100%",background:catColors[cat]||"#86868b",borderRadius:3 }} />
+                        </div>
+                      </div>
+                    ))}
+                    {catEntries.length === 0 && <div style={{ fontSize:12,color:"#aeaeb2" }}>No scrap data this month.</div>}
+                  </div>
+                  {/* By Builder */}
+                  <div style={{ flex:"1 1 200px" }}>
+                    <div style={{ fontSize:11,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8 }}>By Builder</div>
+                    {builderEntries.map(([name, qty]) => (
+                      <div key={name} style={{ marginBottom:6 }}>
+                        <div style={{ display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2 }}>
+                          <span style={{ color:darkMode?"#f5f5f7":"#1d1d1f" }}>{name}</span>
+                          <span style={{ fontWeight:700,color:"#ff3b30" }}>{qty}</span>
+                        </div>
+                        <div style={{ height:6,background:darkMode?"#1a1a28":"#e5e5ea",borderRadius:3,overflow:"hidden" }}>
+                          <div style={{ width:`${(qty/maxBuilder)*100}%`,height:"100%",background:"#ff3b30",borderRadius:3 }} />
+                        </div>
+                      </div>
+                    ))}
+                    {builderEntries.length === 0 && <div style={{ fontSize:12,color:"#aeaeb2" }}>No scrap data.</div>}
+                  </div>
+                  {/* By Product */}
+                  <div style={{ flex:"1 1 200px" }}>
+                    <div style={{ fontSize:11,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8 }}>By Product</div>
+                    {prodEntries.map(([name, qty]) => (
+                      <div key={name} style={{ marginBottom:6 }}>
+                        <div style={{ display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2 }}>
+                          <span style={{ color:darkMode?"#f5f5f7":"#1d1d1f" }}>{name}</span>
+                          <span style={{ fontWeight:700,color:"#5856d6" }}>{qty}</span>
+                        </div>
+                        <div style={{ height:6,background:darkMode?"#1a1a28":"#e5e5ea",borderRadius:3,overflow:"hidden" }}>
+                          <div style={{ width:`${(qty/maxProd)*100}%`,height:"100%",background:"#5856d6",borderRadius:3 }} />
+                        </div>
+                      </div>
+                    ))}
+                    {prodEntries.length === 0 && <div style={{ fontSize:12,color:"#aeaeb2" }}>No scrap data.</div>}
+                  </div>
+                </div>
+              </div>
+              );
+            })()}
+
             {/* ── Profit Analysis ── */}
             <h3 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,letterSpacing:"-0.3px",marginBottom:4 }}>Profit Analysis</h3>
             <p style={{ fontSize:14,color:"#86868b",marginBottom:24 }}>Margins, markup, and profitability across all products{hasShopifyPrices ? " — with Shopify actual pricing data" : ""}.</p>
@@ -8553,7 +8846,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.96 — built 2026-03-21 10:15am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.97 — built 2026-03-21 10:30am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>

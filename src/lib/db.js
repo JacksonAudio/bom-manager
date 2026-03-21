@@ -513,6 +513,41 @@ export async function findTeamMemberByPin(pinCode) {
   return data
 }
 
+// ─────────────────────────────────────────────
+// SCRAP LOG
+// ─────────────────────────────────────────────
+
+// Fetch all scrap log entries, newest first
+export async function fetchScrapLog() {
+  const { data, error } = await supabase
+    .from('scrap_log')
+    .select('*')
+    .order('created_at', { ascending: false })
+  check(error, 'fetchScrapLog')
+  return data
+}
+
+// Insert a new scrap log entry
+export async function createScrapEntry(fields) {
+  const { data, error } = await supabase
+    .from('scrap_log')
+    .insert(fields)
+    .select()
+    .single()
+  check(error, 'createScrapEntry')
+  return data
+}
+
+// Subscribe to live changes on the scrap_log table
+export function subscribeToScrapLog(callback) {
+  return supabase
+    .channel('scrap-log-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'scrap_log' },
+      (payload) => callback(payload.eventType, payload.new, payload.old)
+    )
+    .subscribe()
+}
+
 // Fetch all price history (for product-level rollups)
 export async function fetchAllPriceHistory() {
   const { data, error } = await supabase

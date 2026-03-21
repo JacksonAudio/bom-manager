@@ -35,11 +35,12 @@ function formatWeekLabel(monday) {
   return monday.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
-export default function Scoreboard({ standalone = false, teamMembers: propTM, buildOrders: propBO, buildAssignments: propBA, products: propProducts }) {
+export default function Scoreboard({ standalone = false, teamMembers: propTM, buildOrders: propBO, buildAssignments: propBA, products: propProducts, scrapLog: propScrap }) {
   const [teamMembers, setTeamMembers] = useState(propTM || []);
   const [buildOrders, setBuildOrders] = useState(propBO || []);
   const [buildAssignments, setBuildAssignments] = useState(propBA || []);
   const [products, setProducts] = useState(propProducts || []);
+  const [scrapLog, setScrapLog] = useState(propScrap || []);
   const [now, setNow] = useState(new Date());
   const [loaded, setLoaded] = useState(!standalone);
   const [theme, setTheme] = useState(() => {
@@ -59,16 +60,18 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
     if (!standalone) return;
     async function load() {
       try {
-        const [tm, bo, ba, pr] = await Promise.all([
+        const [tm, bo, ba, pr, sl] = await Promise.all([
           supabase.from("team_members").select("*").order("name"),
           supabase.from("build_orders").select("*").order("created_at", { ascending: false }),
           supabase.from("build_assignments").select("*").order("created_at", { ascending: false }),
           supabase.from("products").select("*"),
+          supabase.from("scrap_log").select("*").order("created_at", { ascending: false }),
         ]);
         setTeamMembers(tm.data || []);
         setBuildOrders(bo.data || []);
         setBuildAssignments(ba.data || []);
         setProducts(pr.data || []);
+        setScrapLog(sl.data || []);
         setLoaded(true);
       } catch (e) { console.error("Scoreboard load error:", e); }
     }
@@ -102,6 +105,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
   useEffect(() => { if (!standalone && propBO) setBuildOrders(propBO); }, [propBO, standalone]);
   useEffect(() => { if (!standalone && propBA) setBuildAssignments(propBA); }, [propBA, standalone]);
   useEffect(() => { if (!standalone && propProducts) setProducts(propProducts); }, [propProducts, standalone]);
+  useEffect(() => { if (!standalone && propScrap) setScrapLog(propScrap); }, [propScrap, standalone]);
 
   const { monday, sunday } = getWeekRange();
 
@@ -151,16 +155,26 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
     // No assignment — skip (can't attribute to a builder)
   });
 
-  const rankings = Object.values(builderMap)
+  const rankingsRaw = Object.values(builderMap)
     .map(b => {
       const member = teamMembers.find(m => m.id === b.memberId);
       const productList = Object.entries(b.productCounts)
         .sort((a, c) => c[1] - a[1])
         .map(([name, count]) => `${count}\u00d7 ${name}`)
         .join(", ");
-      return { ...b, name: member?.name || "Unknown", productList };
-    })
-    .sort((a, b) => b.points - a.points || b.units - a.units);
+      const scrapped = scrapLog.filter(s => s.team_member_id === b.memberId).reduce((s, e) => s + (e.quantity || 0), 0);
+      const yieldPct = b.units > 0 ? ((b.units - scrapped) / b.units) * 100 : 100;
+      return { ...b, name: member?.name || "Unknown", productList, scrapped, yieldPct };
+    });
+  // Compute quality score
+  const bySpeed = [...rankingsRaw].filter(r => r.units > 0).sort((a, b) => b.points - a.points);
+  const totalBuildersCount = rankingsRaw.length || 1;
+  rankingsRaw.forEach(r => {
+    const speedRank = bySpeed.findIndex(x => x.memberId === r.memberId);
+    const speedPctile = speedRank >= 0 ? 100 - (speedRank / totalBuildersCount * 100) : 50;
+    r.qualityScore = r.yieldPct * 0.6 + speedPctile * 0.4;
+  });
+  const rankings = rankingsRaw.sort((a, b) => b.qualityScore - a.qualityScore || b.points - a.points);
 
   const maxPoints = rankings.length > 0 ? rankings[0].points : 1;
 
@@ -292,8 +306,18 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
                         }}>
                           {builder.name}
                         </span>
+                        <span style={{
+                          fontSize: standalone ? 13 : 10, fontWeight: 700, padding: "2px 8px", borderRadius: 12,
+                          background: builder.qualityScore >= 90 ? "rgba(52,199,89,0.18)" : builder.qualityScore >= 70 ? "rgba(0,113,227,0.18)" : "rgba(255,149,0,0.18)",
+                          color: builder.qualityScore >= 90 ? "#34c759" : builder.qualityScore >= 70 ? "#0071e3" : "#ff9500",
+                        }}>
+                          Q:{builder.qualityScore.toFixed(0)}
+                        </span>
                         <span style={{ fontSize: standalone ? 15 : 12, color: T.textDim }}>
                           {builder.units} unit{builder.units !== 1 ? "s" : ""} built
+                        </span>
+                        <span style={{ fontSize: standalone ? 12 : 10, color: builder.yieldPct >= 98 ? "#34c759" : builder.yieldPct >= 95 ? "#ff9500" : "#ff3b30" }}>
+                          Yield: {builder.yieldPct.toFixed(1)}%
                         </span>
                       </div>
                       <div style={{
