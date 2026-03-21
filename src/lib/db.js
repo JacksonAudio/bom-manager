@@ -549,6 +549,27 @@ export function subscribeToScrapLog(callback) {
     .subscribe()
 }
 
+// ─────────────────────────────────────────────
+// DEMAND CACHE
+// ─────────────────────────────────────────────
+
+export async function saveDemandCache(id, source, data) {
+  const { error } = await supabase
+    .from('demand_cache')
+    .upsert({ id, source, data, synced_at: new Date().toISOString() }, { onConflict: 'id' })
+  if (error) console.error('[db:saveDemandCache]', error.message)
+}
+
+export async function fetchDemandCache(id) {
+  const { data, error } = await supabase
+    .from('demand_cache')
+    .select('*')
+    .eq('id', id)
+    .single()
+  if (error && error.code !== 'PGRST116') console.error('[db:fetchDemandCache]', error.message)
+  return data
+}
+
 // Fetch all price history (for product-level rollups)
 export async function fetchAllPriceHistory() {
   const { data, error } = await supabase

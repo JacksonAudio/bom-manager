@@ -31,6 +31,7 @@ import {
   saveBomSnapshot, fetchBomSnapshots,
   fetchPOHistory, createPORecord, updatePORecord,
   fetchScrapLog, createScrapEntry, subscribeToScrapLog,
+  saveDemandCache, fetchDemandCache,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -1467,13 +1468,9 @@ function BOMManager({ user }) {
         // Pre-fetch exchange rates so they're cached for pricing
         fetchExchangeRates().catch(() => {});
 
-        // Restore cached demand data then auto-sync
-        try {
-          const cachedShopify = JSON.parse(localStorage.getItem("bom_shopify_demand") || "null");
-          if (cachedShopify) setShopifyDemand(cachedShopify);
-          const cachedZoho = JSON.parse(localStorage.getItem("bom_zoho_demand") || "null");
-          if (cachedZoho) setZohoDemand(cachedZoho);
-        } catch {}
+        // Restore demand data from DB cache
+        fetchDemandCache("shopify").then(row => { if (row?.data) setShopifyDemand(row.data); }).catch(() => {});
+        fetchDemandCache("zoho").then(row => { if (row?.data) setZohoDemand(row.data); }).catch(() => {});
 
         // Auto-sync demand in background after boot
         setTimeout(() => {
@@ -2588,7 +2585,7 @@ function BOMManager({ user }) {
       };
       setShopifyDemand(shopifyResult);
       setShopifyProducts(allShopifyProducts);
-      try { localStorage.setItem("bom_shopify_demand", JSON.stringify(shopifyResult)); } catch {}
+      saveDemandCache("shopify", "shopify", shopifyResult).catch(() => {});
     } catch (e) {
       console.error("[Shopify] sync failed:", e);
       setShopifyDemand(prev => ({ ...prev, loading: false, error: e.message }));
@@ -2638,7 +2635,7 @@ function BOMManager({ user }) {
         error: null,
       };
       setZohoDemand(zohoResult);
-      try { localStorage.setItem("bom_zoho_demand", JSON.stringify(zohoResult)); } catch {}
+      saveDemandCache("zoho", "zoho", zohoResult).catch(() => {});
     } catch (e) {
       console.error("[Zoho] sync failed:", e);
       setZohoDemand(prev => ({ ...prev, loading: false, error: e.message }));
@@ -6739,25 +6736,20 @@ function BOMManager({ user }) {
                 <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Order Demand</h2>
                 <p style={{ color:"#86868b",fontSize:13 }}>Unfulfilled orders from Shopify (direct) and Zoho Books (dealer) → parts you need to build.</p>
               </div>
-              <div style={{ display:"flex",gap:10,alignItems:"center",flexWrap:"wrap" }}>
-                {shopifyDemand?.syncedAt && (
-                  <span style={{ fontSize:11,color:"#86868b" }}>
-                    Shopify synced {new Date(shopifyDemand.syncedAt).toLocaleString()}
+              <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
+                <button className="btn-ghost btn-sm" onClick={syncShopifyOrders} disabled={shopifyDemand?.loading}
+                  style={{ fontSize:11 }}>
+                  {shopifyDemand?.loading ? "Syncing…" : "Sync Shopify"}
+                </button>
+                <button className="btn-ghost btn-sm" onClick={syncZohoOrders} disabled={zohoDemand?.loading}
+                  style={{ fontSize:11 }}>
+                  {zohoDemand?.loading ? "Syncing…" : "Sync Zoho"}
+                </button>
+                {(shopifyDemand?.syncedAt || zohoDemand?.syncedAt) && (
+                  <span style={{ fontSize:10,color:"#aeaeb2" }}>
+                    Last sync: {new Date(shopifyDemand?.syncedAt || zohoDemand?.syncedAt).toLocaleTimeString()}
                   </span>
                 )}
-                <button className="btn-primary" onClick={syncShopifyOrders}
-                  disabled={shopifyDemand?.loading}>
-                  {shopifyDemand?.loading ? <><span className="spinner" /> Syncing…</> : "⟳ Sync Shopify Orders"}
-                </button>
-                {zohoDemand?.syncedAt && (
-                  <span style={{ fontSize:11,color:"#86868b" }}>
-                    Zoho synced {new Date(zohoDemand.syncedAt).toLocaleString()}
-                  </span>
-                )}
-                <button className="btn-primary" style={{ background:"#4bc076" }} onClick={syncZohoOrders}
-                  disabled={zohoDemand?.loading}>
-                  {zohoDemand?.loading ? <><span className="spinner" /> Syncing…</> : "⟳ Sync Zoho Orders"}
-                </button>
                 {partsDemand.length > 0 && (
                   <button className="btn-primary" style={{ background:"#34c759" }}
                     onClick={() => {
@@ -9932,7 +9924,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.14 — built 2026-03-21 6:00pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.15 — built 2026-03-21 6:15pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
