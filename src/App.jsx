@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.01
+// src/App.jsx — Jackson Audio BOM Manager v6.03
 // Saturday, March 21, 2026 — 10:30 AM
 //
 // Changelog:
@@ -73,6 +73,8 @@ const DEFAULT_KEYS = {
   zoho_client_id: "",      // api-console.zoho.com — Self Client
   zoho_client_secret: "",  // api-console.zoho.com — Self Client
   zoho_refresh_token: "",  // api-console.zoho.com — Self Client
+  ti_api_key: "",          // ti.com — Texas Instruments Store API
+  ti_api_secret: "",       // ti.com — Texas Instruments Store API
   admin_emails: "brad@jacksonaudio.net",
   timezone: "America/Chicago",  // Central Time default // comma-separated list of admin email addresses
 };
@@ -145,6 +147,7 @@ const SUPPLIERS = [
   { id: "arrow",    name: "Arrow Electronics",    color: "#005eb8", bg: "rgba(0,94,184,0.06)", logo: "A",  shipping: 0,     address: "9201 E. Dry Creek Road\nCentennial, CO 80112\nUSA", searchUrl: (pn) => `https://www.arrow.com/en/products/search?q=${encodeURIComponent(pn)}` },
   { id: "lcsc",     name: "LCSC Electronics",     color: "#0a8f4c", bg: "rgba(10,143,76,0.06)", logo: "LC", shipping: 20.00, address: "Shenzhen, Guangdong\nChina", searchUrl: (pn) => `https://www.lcsc.com/search?q=${encodeURIComponent(pn)}` },
   { id: "allied",   name: "Allied Electronics",   color: "#7c3aed", bg: "rgba(124,58,237,0.06)", logo: "AL", shipping: 9.99,  address: "7151 Jack Newell Blvd S\nFort Worth, TX 76118\nUSA", searchUrl: (pn) => `https://www.alliedelec.com/search/?q=${encodeURIComponent(pn)}` },
+  { id: "ti",       name: "Texas Instruments", color: "#c12b2b", bg: "#fef2f2", logo: "TI", shipping: 0,     address: "12500 TI Blvd\nDallas, TX 75243\nUSA", searchUrl: (pn) => `https://www.ti.com/search?q=${encodeURIComponent(pn)}` },
   { id: "amazon",   name: "Amazon",   color: "#f90",    bg: "rgba(255,153,0,0.06)", logo: "Az", shipping: 0,     address: "", searchUrl: (pn) => `https://www.amazon.com/s?k=${encodeURIComponent(pn)}` },
 ];
 const DEFAULT_SHIPPING = 15.00; // for distributors not in SUPPLIERS list
@@ -162,7 +165,7 @@ const NEXAR_DIST_MAP = {
 
 // Known distributor countries — fallback when API doesn't return country
 const DIST_COUNTRY = {
-  "mouser":"US","digikey":"US","arrow":"US","allied":"US","newark":"US","amazon":"US",
+  "mouser":"US","digikey":"US","arrow":"US","allied":"US","newark":"US","amazon":"US","ti":"US","Texas Instruments":"US",
   "Mouser Electronics":"US","Digi-Key":"US","Arrow Electronics":"US","Allied Electronics":"US","Newark":"US",
   "Farnell":"UK","element14":"AU","Schukat":"DE","TTI Europe":"DE","Maritex":"IT",
   "Bravo Electro":"US","JRH Electronics":"US","TRC Electronics":"US",
@@ -634,6 +637,70 @@ async function fetchArrowPricing(mpn, quantity, login, apiKey) {
 }
 
 // ─────────────────────────────────────────────
+// TEXAS INSTRUMENTS PRICING
+// OAuth2 client credentials → product search
+// ─────────────────────────────────────────────
+async function fetchTIPricing(mpn, quantity, tiApiKey, tiApiSecret) {
+  // Step 1: Get OAuth2 access token
+  const tokenRes = await fetch("https://transact.ti.com/v1/oauth/accesstoken", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `grant_type=client_credentials&client_id=${encodeURIComponent(tiApiKey)}&client_secret=${encodeURIComponent(tiApiSecret)}`,
+  });
+  if (!tokenRes.ok) throw new Error(`TI OAuth error ${tokenRes.status}`);
+  const tokenData = await tokenRes.json();
+  const accessToken = tokenData.access_token;
+  if (!accessToken) throw new Error("TI OAuth: no access_token in response");
+
+  // Step 2: Search for the part
+  const searchRes = await fetch(`https://transact.ti.com/v2/store/products?q=${encodeURIComponent(mpn)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!searchRes.ok) throw new Error(`TI search error ${searchRes.status}`);
+  const searchData = await searchRes.json();
+
+  const products = searchData?.products || searchData?.data || [];
+  if (!products.length) return null;
+
+  // Find exact MPN match first, then fall back to first result
+  const exact = products.find(p => (p.tiPartNumber || p.gpn || "").toLowerCase() === mpn.toLowerCase());
+  const product = exact || products[0];
+
+  const tiPN = product.tiPartNumber || product.gpn || mpn;
+  const stock = parseInt(product.inventoryQuantity || product.inventory || 0);
+  const moq = parseInt(product.minimumOrderQuantity || product.moq || 1);
+
+  // Parse price breaks
+  const rawBreaks = product.pricingTiers || product.priceBreaks || product.pricing || [];
+  const priceBreaks = rawBreaks.map(pb => ({
+    qty: parseInt(pb.quantity || pb.minQuantity || pb.qty || 1),
+    price: parseFloat(pb.price || pb.unitPrice || 0),
+  })).filter(pb => pb.price > 0);
+
+  // Determine unit price at requested quantity
+  let unitPrice = parseFloat(product.buyNowPrice || product.unitPrice || product.price || 0);
+  if (priceBreaks.length) {
+    unitPrice = priceBreaks[0].price;
+    for (const pb of priceBreaks) {
+      if (quantity >= pb.qty) unitPrice = pb.price;
+    }
+  }
+
+  if (unitPrice <= 0 && !priceBreaks.length) return null;
+
+  return {
+    supplierId: "ti",
+    displayName: "Texas Instruments",
+    country: "US",
+    unitPrice,
+    stock,
+    moq,
+    url: `https://www.ti.com/product/${encodeURIComponent(tiPN)}`,
+    priceBreaks,
+  };
+}
+
+// ─────────────────────────────────────────────
 // MAIN PRICING ORCHESTRATOR
 // Tries Nexar first (best coverage), then
 // supplements with direct APIs if configured
@@ -674,6 +741,14 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
       const ad = await fetchArrowPricing(mpn, quantity, apiKeys.arrow_login, apiKeys.arrow_api_key);
       if (ad) pricing.arrow = ad;
     } catch (e) { console.warn("Arrow direct failed:", e.message); }
+  }
+
+  // 5. Texas Instruments direct
+  if (apiKeys.ti_api_key && apiKeys.ti_api_secret) {
+    try {
+      const td = await fetchTIPricing(mpn, quantity, apiKeys.ti_api_key, apiKeys.ti_api_secret);
+      if (td) pricing.ti = td;
+    } catch (e) { console.warn("TI direct failed:", e.message); }
   }
 
   // Propagate countryOfOrigin across all entries for this part
@@ -1155,7 +1230,7 @@ function BOMManager({ user }) {
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","shopify","zoho","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
+  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","shopify","zoho","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
   const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
@@ -8113,6 +8188,37 @@ function BOMManager({ user }) {
               </div>}
             </div>
 
+            {/* ── Texas Instruments Direct */}
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#c12b2b",padding:"14px 20px",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("ti") ? s.delete("ti") : s.add("ti"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("ti") ? "▶" : "▼"}</span>
+                  Texas Instruments Direct
+                </div>
+              </div>
+              {!collapsedSettings.has("ti") && <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  OAuth2 client credentials for TI.com store API — get pricing + stock for TI parts.
+                  <a href="https://www.ti.com/myti/docs/overview.page" target="_blank" rel="noopener noreferrer"
+                    style={{ marginLeft:6,color:"#0071e3",textDecoration:"none",fontWeight:500 }}>ti.com/myti →</a>
+                </div>
+                <div className="key-input-row">
+                  <div className="key-label">API Key</div>
+                  <input type="password" placeholder="TI API Key (client_id)" value={apiKeys.ti_api_key}
+                    onChange={(e)=>setApiKeys((k)=>({...k,ti_api_key:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+                </div>
+                <div className="key-input-row">
+                  <div className="key-label">API Secret</div>
+                  <input type="password" placeholder="TI API Secret (client_secret)" value={apiKeys.ti_api_secret}
+                    onChange={(e)=>setApiKeys((k)=>({...k,ti_api_secret:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+                </div>
+                {sectionSaveBtn("ti", "TI Keys")}
+              </div>}
+            </div>
+
             {/* ── Shopify Integration (Multi-Store) */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#96bf48",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
@@ -9155,7 +9261,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.02 — built 2026-03-21 2:45pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.03 — built 2026-03-21 3:30pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
