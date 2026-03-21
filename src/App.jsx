@@ -69,8 +69,9 @@ const DEFAULT_KEYS = {
   fb_ja_ad_account_id: "",   // Facebook — Jackson Audio ad account (act_XXX)
   fb_ft_access_token: "",    // Facebook — Fulltone USA access token
   fb_ft_ad_account_id: "",   // Facebook — Fulltone USA ad account (act_XXX)
-  zoho_org_id: "",         // Zoho Books — organization ID
+  zoho_org_id: "",         // Zoho Books — organization ID (legacy single org)
   zoho_client_id: "",      // api-console.zoho.com — Self Client
+  zoho_books_json: "",     // JSON array: [{ name, org_id, client_id, client_secret, refresh_token }]
   zoho_client_secret: "",  // api-console.zoho.com — Self Client
   zoho_refresh_token: "",  // api-console.zoho.com — Self Client
   ti_api_key: "",          // ti.com — Texas Instruments Store API
@@ -2573,24 +2574,37 @@ function BOMManager({ user }) {
     }
   };
 
-  // ── ZOHO BOOKS INTEGRATION ──
+  // ── ZOHO BOOKS INTEGRATION (multi-org) ──
   const syncZohoOrders = async () => {
-    const { zoho_org_id, zoho_client_id, zoho_client_secret, zoho_refresh_token } = apiKeys;
-    if (!zoho_org_id || !zoho_client_id || !zoho_client_secret || !zoho_refresh_token) {
+    let zohoOrgs = [];
+    try { zohoOrgs = JSON.parse(apiKeys.zoho_books_json || "[]"); } catch {}
+    // Legacy single-org fallback
+    if (zohoOrgs.length === 0 && apiKeys.zoho_org_id) {
+      zohoOrgs = [{ name: "Jackson Audio", org_id: apiKeys.zoho_org_id, client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, refresh_token: apiKeys.zoho_refresh_token }];
+    }
+    if (zohoOrgs.length === 0 || !zohoOrgs.some(o => o.org_id && o.refresh_token)) {
       setZohoDemand({ loading: false, error: "Zoho Books credentials not configured. Add them in Settings." });
       return;
     }
     setZohoDemand(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const q = `org_id=${encodeURIComponent(zoho_org_id)}&client_id=${encodeURIComponent(zoho_client_id)}&client_secret=${encodeURIComponent(zoho_client_secret)}&refresh_token=${encodeURIComponent(zoho_refresh_token)}`;
-      const res = await fetch(`/api/zoho-orders?${q}`);
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
-      const data = await res.json();
+      const allProducts = [];
+      const allOrders = [];
+      for (const org of zohoOrgs) {
+        if (!org.org_id || !org.client_id || !org.client_secret || !org.refresh_token) continue;
+        const q = `org_id=${encodeURIComponent(org.org_id)}&client_id=${encodeURIComponent(org.client_id)}&client_secret=${encodeURIComponent(org.client_secret)}&refresh_token=${encodeURIComponent(org.refresh_token)}`;
+        const res = await fetch(`/api/zoho-orders?${q}`);
+        if (!res.ok) { const e = await res.json().catch(() => ({})); console.warn(`[Zoho] ${org.name} failed:`, e.error); continue; }
+        const data = await res.json();
+        // Tag products and orders with the company name
+        (data.products || []).forEach(p => { p.companyName = org.name; allProducts.push(p); });
+        (data.orders || []).forEach(o => { o.companyName = org.name; allOrders.push(o); });
+      }
       setZohoDemand({
-        products: data.products || [],
-        orders: data.orders || [],
-        totalOrders: data.totalOrders || 0,
-        syncedAt: data.syncedAt || new Date().toISOString(),
+        products: allProducts,
+        orders: allOrders,
+        totalOrders: allOrders.length,
+        syncedAt: new Date().toISOString(),
         loading: false,
         error: null,
       });
@@ -8315,34 +8329,65 @@ function BOMManager({ user }) {
               </div>
               {!collapsedSettings.has("zoho") && <div style={{ padding:"16px 20px" }}>
                 <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
-                  Pull dealer/wholesale orders from Zoho Books. Get credentials from{" "}
+                  Pull dealer/wholesale orders from Zoho Books. Add one entry per company. Get credentials from{" "}
                   <a href="https://api-console.zoho.com" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}>api-console.zoho.com</a>
                   {" "}→ create a Self Client.
                 </div>
-                <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
-                  <div className="key-label" style={{ minWidth:120 }}>Organization ID</div>
-                  <input type="text" placeholder="Zoho Books Org ID" value={apiKeys.zoho_org_id || ""}
-                    onChange={(e) => setApiKeys(k => ({ ...k, zoho_org_id: e.target.value }))}
-                    style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
-                </div>
-                <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
-                  <div className="key-label" style={{ minWidth:120 }}>Client ID</div>
-                  <input type="text" placeholder="From API Console" value={apiKeys.zoho_client_id || ""}
-                    onChange={(e) => setApiKeys(k => ({ ...k, zoho_client_id: e.target.value }))}
-                    style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
-                </div>
-                <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
-                  <div className="key-label" style={{ minWidth:120 }}>Client Secret</div>
-                  <input type="password" placeholder="From API Console" value={apiKeys.zoho_client_secret || ""}
-                    onChange={(e) => setApiKeys(k => ({ ...k, zoho_client_secret: e.target.value }))}
-                    style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
-                </div>
-                <div className="key-input-row" style={{ paddingTop:4,paddingBottom:4 }}>
-                  <div className="key-label" style={{ minWidth:120 }}>Refresh Token</div>
-                  <input type="password" placeholder="Self Client refresh token" value={apiKeys.zoho_refresh_token || ""}
-                    onChange={(e) => setApiKeys(k => ({ ...k, zoho_refresh_token: e.target.value }))}
-                    style={{ padding:"6px 10px",borderRadius:5,width:"100%",fontSize:12 }} />
-                </div>
+                {(() => {
+                  let zohoOrgs = [];
+                  try { zohoOrgs = JSON.parse(apiKeys.zoho_books_json || "[]"); } catch {}
+                  // Migrate legacy single-org config
+                  if (zohoOrgs.length === 0 && apiKeys.zoho_org_id) {
+                    zohoOrgs = [{ name: "Jackson Audio", org_id: apiKeys.zoho_org_id, client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, refresh_token: apiKeys.zoho_refresh_token }];
+                  }
+                  if (zohoOrgs.length === 0) zohoOrgs = [{ name: "", org_id: "", client_id: "", client_secret: "", refresh_token: "" }];
+                  const updateOrgs = (newOrgs) => setApiKeys(k => ({ ...k, zoho_books_json: JSON.stringify(newOrgs) }));
+                  const updateOrg = (idx, field, val) => { const u = [...zohoOrgs]; u[idx] = { ...u[idx], [field]: val }; updateOrgs(u); };
+                  return (
+                    <>
+                      {zohoOrgs.map((org, idx) => (
+                        <div key={idx} style={{ padding:"12px 16px",border:"1px solid #e5e5ea",borderRadius:8,marginBottom:12,background:"#fafafa" }}>
+                          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                            <span style={{ fontSize:13,fontWeight:700,color:"#1d1d1f" }}>{org.name || `Company ${idx+1}`}</span>
+                            {zohoOrgs.length > 1 && <button onClick={() => { const u = zohoOrgs.filter((_,i)=>i!==idx); updateOrgs(u); }}
+                              style={{ background:"none",border:"none",color:"#ff3b30",cursor:"pointer",fontSize:12,fontWeight:600 }}>Remove</button>}
+                          </div>
+                          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8 }}>
+                            <div>
+                              <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Company Name</div>
+                              <input type="text" placeholder="e.g. Jackson Audio" value={org.name||""} onChange={e=>updateOrg(idx,"name",e.target.value)}
+                                style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Organization ID</div>
+                              <input type="text" placeholder="Zoho Books Org ID" value={org.org_id||""} onChange={e=>updateOrg(idx,"org_id",e.target.value)}
+                                style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Client ID</div>
+                              <input type="text" placeholder="From API Console" value={org.client_id||""} onChange={e=>updateOrg(idx,"client_id",e.target.value)}
+                                style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Client Secret</div>
+                              <input type="password" placeholder="From API Console" value={org.client_secret||""} onChange={e=>updateOrg(idx,"client_secret",e.target.value)}
+                                style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Refresh Token</div>
+                            <input type="password" placeholder="Self Client refresh token" value={org.refresh_token||""} onChange={e=>updateOrg(idx,"refresh_token",e.target.value)}
+                              style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                          </div>
+                        </div>
+                      ))}
+                      <button className="btn-ghost" style={{ fontSize:12,marginBottom:10 }}
+                        onClick={() => updateOrgs([...zohoOrgs, { name:"", org_id:"", client_id:"", client_secret:"", refresh_token:"" }])}>
+                        + Add Zoho Books Company
+                      </button>
+                    </>
+                  );
+                })()}
                 {sectionSaveBtn("zoho", "Zoho Books")}
               </div>}
             </div>
@@ -9280,7 +9325,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.08 — built 2026-03-21 4:30pm 3:30pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.09 — built 2026-03-21 4:40pm 3:30pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
