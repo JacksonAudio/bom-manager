@@ -1,8 +1,8 @@
 // ============================================================
 // api/ti-search.js — Texas Instruments Part Search
 //
-// OAuth2 client_credentials flow → TI Store product search.
-// Returns parts with pricing, stock, and MOQ data.
+// OAuth2 client_credentials flow → TI product lookup.
+// Returns pricing, stock, and MOQ data.
 // ============================================================
 
 export default async function handler(req, res) {
@@ -26,57 +26,69 @@ export default async function handler(req, res) {
 
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
-      console.error("[ti-search] OAuth error:", err.slice(0, 500));
-      return res.status(tokenRes.status).json({ error: `TI OAuth error: ${tokenRes.status}` });
+      console.error("[ti-search] OAuth error:", tokenRes.status, err.slice(0, 500));
+      return res.status(502).json({ error: `TI OAuth error: ${tokenRes.status}`, details: err.slice(0, 300) });
     }
 
     const tokenData = await tokenRes.json();
     const accessToken = tokenData.access_token;
     if (!accessToken) {
-      return res.status(500).json({ error: "TI OAuth: no access_token in response" });
+      return res.status(500).json({ error: "TI OAuth: no access_token", details: JSON.stringify(tokenData).slice(0, 300) });
     }
 
-    // Step 2: Search for products
-    const searchRes = await fetch(
-      `https://transact.ti.com/v2/store/products?q=${encodeURIComponent(query)}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+    // Step 2: Look up the specific part
+    const productRes = await fetch(
+      `https://transact.ti.com/v1/products/${encodeURIComponent(query)}`,
+      { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } }
     );
 
-    if (!searchRes.ok) {
-      const err = await searchRes.text();
-      console.error("[ti-search] Search error:", err.slice(0, 500));
-      return res.status(searchRes.status).json({ error: `TI search error: ${searchRes.status}` });
+    if (!productRes.ok) {
+      // Try the store search as fallback
+      const storeRes = await fetch(
+        `https://transact.ti.com/v2/store/products?q=${encodeURIComponent(query)}`,
+        { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } }
+      );
+      if (!storeRes.ok) {
+        const err = await storeRes.text();
+        console.error("[ti-search] Search error:", storeRes.status, err.slice(0, 500));
+        return res.status(storeRes.status).json({ error: `TI API error: ${storeRes.status}`, details: err.slice(0, 300) });
+      }
+      const storeData = await storeRes.json();
+      const products = storeData?.products || storeData?.data || [];
+      const parts = products.map(mapProduct);
+      return res.status(200).json({ parts, count: parts.length, source: "ti-store" });
     }
 
-    const searchData = await searchRes.json();
-    const products = searchData?.products || searchData?.data || [];
+    const productData = await productRes.json();
+    // Single product response — wrap in array
+    const parts = [mapProduct(productData)];
+    return res.status(200).json({ parts, count: parts.length, source: "ti-product" });
 
-    const parts = products.map(p => {
-      const tiPN = p.tiPartNumber || p.gpn || "";
-      const rawBreaks = p.pricingTiers || p.priceBreaks || p.pricing || [];
-      const priceBreaks = rawBreaks.map(pb => ({
-        qty: parseInt(pb.quantity || pb.minQuantity || pb.qty || 1),
-        price: parseFloat(pb.price || pb.unitPrice || 0),
-      })).filter(pb => pb.price > 0);
-
-      const unitPrice = priceBreaks.length
-        ? priceBreaks[0].price
-        : parseFloat(p.buyNowPrice || p.unitPrice || p.price || 0);
-
-      return {
-        mpn: tiPN,
-        description: p.description || p.shortDescription || "",
-        stock: parseInt(p.inventoryQuantity || p.inventory || 0),
-        price: unitPrice,
-        moq: parseInt(p.minimumOrderQuantity || p.moq || 1),
-        url: `https://www.ti.com/product/${encodeURIComponent(tiPN)}`,
-        priceBreaks,
-      };
-    });
-
-    return res.status(200).json({ parts, count: parts.length, source: "ti" });
   } catch (err) {
     console.error("[ti-search] Error:", err);
     return res.status(500).json({ error: err.message });
   }
+}
+
+function mapProduct(p) {
+  const tiPN = p.tiPartNumber || p.gpn || p.partNumber || p.opn || "";
+  const rawBreaks = p.pricingTiers || p.priceBreaks || p.pricing || p.standardPricing || [];
+  const priceBreaks = (Array.isArray(rawBreaks) ? rawBreaks : []).map(pb => ({
+    qty: parseInt(pb.quantity || pb.minQuantity || pb.qty || pb.minQty || 1),
+    price: parseFloat(pb.price || pb.unitPrice || pb.publicPrice || 0),
+  })).filter(pb => pb.price > 0);
+
+  const unitPrice = priceBreaks.length
+    ? priceBreaks[0].price
+    : parseFloat(p.buyNowPrice || p.unitPrice || p.price || p.publicPrice || 0);
+
+  return {
+    mpn: tiPN,
+    description: p.description || p.shortDescription || p.genericDescription || "",
+    stock: parseInt(p.inventoryQuantity || p.inventory || p.quantity || 0),
+    price: unitPrice,
+    moq: parseInt(p.minimumOrderQuantity || p.moq || p.minOrderQty || 1),
+    url: tiPN ? `https://www.ti.com/product/${encodeURIComponent(tiPN)}` : "",
+    priceBreaks,
+  };
 }

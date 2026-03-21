@@ -36,7 +36,8 @@
       "Read(//Users/BradJackson/.config/gh/**)",
       "mcp__mcp-registry__search_mcp_registry",
       "WebFetch(domain:www.royalohm.com)",
-      "WebFetch(domain:www.yageo.com)"
+      "WebFetch(domain:www.yageo.com)",
+      "WebFetch(domain:www.ti.com)"
     ]
   }
 }

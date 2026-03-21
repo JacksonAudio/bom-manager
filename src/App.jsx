@@ -641,51 +641,23 @@ async function fetchArrowPricing(mpn, quantity, login, apiKey) {
 // OAuth2 client credentials → product search
 // ─────────────────────────────────────────────
 async function fetchTIPricing(mpn, quantity, tiApiKey, tiApiSecret) {
-  // Step 1: Get OAuth2 access token
-  const tokenRes = await fetch("https://transact.ti.com/v1/oauth/accesstoken", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `grant_type=client_credentials&client_id=${encodeURIComponent(tiApiKey)}&client_secret=${encodeURIComponent(tiApiSecret)}`,
-  });
-  if (!tokenRes.ok) throw new Error(`TI OAuth error ${tokenRes.status}`);
-  const tokenData = await tokenRes.json();
-  const accessToken = tokenData.access_token;
-  if (!accessToken) throw new Error("TI OAuth: no access_token in response");
+  // Route through serverless function to avoid CORS
+  const params = new URLSearchParams({ query: mpn, apiKey: tiApiKey, apiSecret: tiApiSecret });
+  const res = await fetch(`/api/ti-search?${params}`);
+  if (!res.ok) throw new Error(`TI API error ${res.status}`);
+  const data = await res.json();
+  const parts = data?.parts || [];
+  if (!parts.length) return null;
 
-  // Step 2: Search for the part
-  const searchRes = await fetch(`https://transact.ti.com/v2/store/products?q=${encodeURIComponent(mpn)}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!searchRes.ok) throw new Error(`TI search error ${searchRes.status}`);
-  const searchData = await searchRes.json();
+  const exact = parts.find(p => (p.mpn || "").toLowerCase() === mpn.toLowerCase());
+  const product = exact || parts[0];
 
-  const products = searchData?.products || searchData?.data || [];
-  if (!products.length) return null;
-
-  // Find exact MPN match first, then fall back to first result
-  const exact = products.find(p => (p.tiPartNumber || p.gpn || "").toLowerCase() === mpn.toLowerCase());
-  const product = exact || products[0];
-
-  const tiPN = product.tiPartNumber || product.gpn || mpn;
-  const stock = parseInt(product.inventoryQuantity || product.inventory || 0);
-  const moq = parseInt(product.minimumOrderQuantity || product.moq || 1);
-
-  // Parse price breaks
-  const rawBreaks = product.pricingTiers || product.priceBreaks || product.pricing || [];
-  const priceBreaks = rawBreaks.map(pb => ({
-    qty: parseInt(pb.quantity || pb.minQuantity || pb.qty || 1),
-    price: parseFloat(pb.price || pb.unitPrice || 0),
-  })).filter(pb => pb.price > 0);
-
-  // Determine unit price at requested quantity
-  let unitPrice = parseFloat(product.buyNowPrice || product.unitPrice || product.price || 0);
+  const priceBreaks = (product.priceBreaks || []).filter(pb => pb.price > 0);
+  let unitPrice = parseFloat(product.price || 0);
   if (priceBreaks.length) {
     unitPrice = priceBreaks[0].price;
-    for (const pb of priceBreaks) {
-      if (quantity >= pb.qty) unitPrice = pb.price;
-    }
+    for (const pb of priceBreaks) { if (quantity >= pb.qty) unitPrice = pb.price; }
   }
-
   if (unitPrice <= 0 && !priceBreaks.length) return null;
 
   return {
@@ -693,9 +665,9 @@ async function fetchTIPricing(mpn, quantity, tiApiKey, tiApiSecret) {
     displayName: "Texas Instruments",
     country: "US",
     unitPrice,
-    stock,
-    moq,
-    url: `https://www.ti.com/product/${encodeURIComponent(tiPN)}`,
+    stock: parseInt(product.stock || 0),
+    moq: parseInt(product.moq || 1),
+    url: product.url || `https://www.ti.com/product/${encodeURIComponent(mpn)}`,
     priceBreaks,
   };
 }
@@ -9261,7 +9233,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.03 — built 2026-03-21 3:30pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.04 — built 2026-03-21 3:00pm 3:30pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
