@@ -1,6 +1,6 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v5.94
-// Thursday, March 12, 2026 — 9:43 PM
+// src/App.jsx — Jackson Audio BOM Manager v5.95
+// Saturday, March 21, 2026 — 10:00 AM
 //
 // Changelog:
 //   [1] Fix Nexar query — inline MPN string instead of GraphQL variable (fixes 400)
@@ -1203,6 +1203,16 @@ function BOMManager({ user }) {
   const [newTeamMember,    setNewTeamMember]     = useState({ name:"", role:"assembler", phone:"", email:"", pin_code:"" });
   const [newBuildOrder,    setNewBuildOrder]     = useState({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"" });
   const [prodBusy,         setProdBusy]          = useState(false);
+  // ── Production Calendar state
+  const [calendarView,     setCalendarView]      = useState("week"); // "week" or "month"
+  const [calendarWeekStart, setCalendarWeekStart] = useState(() => {
+    const d = new Date(); d.setHours(0,0,0,0);
+    const day = d.getDay(); const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff); return d;
+  });
+  const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
+  const [calendarSelectedDay, setCalendarSelectedDay] = useState(null); // clicked day in month view (Date or null)
+  const [calendarReschedule, setCalendarReschedule] = useState(null); // build order id being rescheduled
 
   const [pdPasteText, setPdPasteText] = useState(""); // product detail page paste text
   const [pdDragOver, setPdDragOver] = useState(false); // product detail page drag state
@@ -6800,6 +6810,388 @@ function BOMManager({ user }) {
               ))}
             </div>
 
+            {/* ══════ PRODUCTION CALENDAR ══════ */}
+            {(() => {
+              const cardBg = darkMode ? "#1c1c1e" : "#fff";
+              const cardBorder = darkMode ? "1px solid #3a3a3e" : "1px solid #e5e5ea";
+              const textPrimary = darkMode ? "#f5f5f7" : "#1d1d1f";
+              const textSecondary = "#86868b";
+              const borderColor = darkMode ? "#3a3a3e" : "#e5e5ea";
+              const todayDate = new Date(); todayDate.setHours(0,0,0,0);
+
+              // Helper: format date as YYYY-MM-DD for comparison
+              const fmtISO = (d) => { const dd = new Date(d); dd.setHours(0,0,0,0); return dd.toISOString().slice(0,10); };
+              const isSameDay = (a, b) => fmtISO(a) === fmtISO(b);
+              const isToday = (d) => isSameDay(d, todayDate);
+
+              // Get builds for a specific day
+              const buildsForDay = (day) => buildOrders.filter(bo => {
+                if (!bo.due_date) return false;
+                return isSameDay(new Date(bo.due_date), day);
+              });
+
+              // Capacity: sum build_minutes * quantity for builds on a day
+              const dayCapacityMinutes = (day) => {
+                return buildsForDay(day).reduce((sum, bo) => {
+                  const prod = products.find(p => p.id === bo.product_id);
+                  return sum + (bo.quantity || 0) * (prod?.build_minutes || 0);
+                }, 0);
+              };
+              const capacityColor = (mins) => {
+                const hrs = mins / 60;
+                if (hrs > 10) return "#ff3b30";
+                if (hrs >= 8) return "#ff9500";
+                return "#34c759";
+              };
+
+              // Week navigation
+              const weekDays = [];
+              for (let i = 0; i < 7; i++) {
+                const d = new Date(calendarWeekStart);
+                d.setDate(d.getDate() + i);
+                weekDays.push(d);
+              }
+              const prevWeek = () => { const d = new Date(calendarWeekStart); d.setDate(d.getDate() - 7); setCalendarWeekStart(d); };
+              const nextWeek = () => { const d = new Date(calendarWeekStart); d.setDate(d.getDate() + 7); setCalendarWeekStart(d); };
+              const goToday = () => {
+                const d = new Date(); d.setHours(0,0,0,0);
+                const day = d.getDay(); const diff = day === 0 ? -6 : 1 - day;
+                d.setDate(d.getDate() + diff);
+                setCalendarWeekStart(d);
+                setCalendarMonth({ year: new Date().getFullYear(), month: new Date().getMonth() });
+                setCalendarSelectedDay(null);
+              };
+
+              // Month navigation
+              const prevMonth = () => setCalendarMonth(prev => prev.month === 0 ? { year: prev.year - 1, month: 11 } : { year: prev.year, month: prev.month - 1 });
+              const nextMonth = () => setCalendarMonth(prev => prev.month === 11 ? { year: prev.year + 1, month: 0 } : { year: prev.year, month: prev.month + 1 });
+
+              // Month grid
+              const monthGridDays = () => {
+                const first = new Date(calendarMonth.year, calendarMonth.month, 1);
+                const lastDay = new Date(calendarMonth.year, calendarMonth.month + 1, 0).getDate();
+                const startDow = first.getDay() === 0 ? 6 : first.getDay() - 1; // Mon=0
+                const days = [];
+                // Padding
+                for (let i = 0; i < startDow; i++) {
+                  const d = new Date(first); d.setDate(d.getDate() - (startDow - i));
+                  days.push({ date: d, outside: true });
+                }
+                for (let i = 1; i <= lastDay; i++) {
+                  days.push({ date: new Date(calendarMonth.year, calendarMonth.month, i), outside: false });
+                }
+                // Pad to complete last row
+                while (days.length % 7 !== 0) {
+                  const d = new Date(calendarMonth.year, calendarMonth.month + 1, days.length - startDow - lastDay + 1);
+                  days.push({ date: d, outside: true });
+                }
+                return days;
+              };
+
+              // Reschedule handler
+              const handleReschedule = async (boId, newDate) => {
+                try {
+                  await updateBuildOrder(boId, { due_date: newDate });
+                  setBuildOrders(prev => prev.map(b => b.id === boId ? { ...b, due_date: newDate } : b));
+                } catch (e) { console.error("Reschedule failed:", e); alert("Failed to reschedule: " + e.message); }
+                setCalendarReschedule(null);
+              };
+
+              // Build card renderer
+              const renderBuildCard = (bo) => {
+                const prod = products.find(p => p.id === bo.product_id);
+                const assignment = buildAssignments.find(a => a.build_order_id === bo.id && a.status !== "completed");
+                const assignedMember = assignment ? teamMembers.find(m => m.id === assignment.team_member_id) : null;
+                const done = bo.completed_count || 0;
+                const total = bo.quantity || 1;
+                const pct = Math.round(done / total * 100);
+                const dueDate = bo.due_date ? new Date(bo.due_date) : null;
+                const isOverdue = dueDate && fmtISO(dueDate) < fmtISO(todayDate) && bo.status !== "completed";
+                return (
+                  <div key={bo.id} style={{ padding:"6px 8px",borderRadius:8,marginBottom:4,fontSize:11,
+                    background: darkMode ? "#2c2c2e" : "#f5f5f7",
+                    borderLeft: `3px solid ${bo.priority === "urgent" ? "#ff3b30" : bo.priority === "high" ? "#ff9500" : (prod?.color || "#0071e3")}`,
+                    border: isOverdue ? "1px solid #ff3b30" : "none",
+                    borderLeftWidth: 3, borderLeftStyle: "solid",
+                    borderLeftColor: bo.priority === "urgent" ? "#ff3b30" : bo.priority === "high" ? "#ff9500" : (prod?.color || "#0071e3"),
+                    cursor: "pointer", transition: "background 0.15s" }}
+                    onClick={() => setCalendarReschedule(calendarReschedule === bo.id ? null : bo.id)}>
+                    <div style={{ display:"flex",alignItems:"center",gap:4,marginBottom:2 }}>
+                      {prod && <div style={{ width:6,height:6,borderRadius:"50%",background:prod.color||"#0071e3",flexShrink:0 }} />}
+                      <span style={{ fontWeight:600,color:textPrimary,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{prod?.name || "?"}</span>
+                    </div>
+                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",color:textSecondary }}>
+                      <span>x{total}</span>
+                      <span style={{ fontWeight:600,color:pct >= 100 ? "#34c759" : "#0071e3" }}>{done}/{total}</span>
+                    </div>
+                    {assignedMember && <div style={{ color:textSecondary,fontSize:10,marginTop:1 }}>{assignedMember.name}</div>}
+                    {/* Reschedule date picker */}
+                    {calendarReschedule === bo.id && (
+                      <div style={{ marginTop:6,borderTop:`1px solid ${borderColor}`,paddingTop:6 }} onClick={e => e.stopPropagation()}>
+                        <label style={{ fontSize:9,fontWeight:700,color:textSecondary,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3 }}>Reschedule</label>
+                        <input type="date" defaultValue={bo.due_date ? fmtISO(new Date(bo.due_date)) : ""}
+                          style={{ fontSize:11,padding:"4px 6px",borderRadius:5,border:`1px solid ${borderColor}`,
+                            background:darkMode?"#1c1c1e":"#fff",color:textPrimary,width:"100%" }}
+                          onChange={e => { if (e.target.value) handleReschedule(bo.id, e.target.value); }} />
+                      </div>
+                    )}
+                  </div>
+                );
+              };
+
+              const dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+              const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+              return (
+                <div style={{ background:cardBg,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:cardBorder }}>
+                  {/* Calendar header */}
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8 }}>
+                    <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>Production Calendar</div>
+                    <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                      <button onClick={goToday}
+                        style={{ padding:"5px 12px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor}`,background:darkMode?"#2c2c2e":"#f5f5f7",color:textPrimary }}>
+                        Today
+                      </button>
+                      <button onClick={calendarView === "week" ? prevWeek : prevMonth}
+                        style={{ padding:"5px 10px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor}`,background:darkMode?"#2c2c2e":"#f5f5f7",color:textPrimary }}>
+                        ←
+                      </button>
+                      <span style={{ fontSize:13,fontWeight:600,color:textPrimary,minWidth:160,textAlign:"center" }}>
+                        {calendarView === "week"
+                          ? `${weekDays[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})} — ${weekDays[6].toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
+                          : `${monthNames[calendarMonth.month]} ${calendarMonth.year}`}
+                      </span>
+                      <button onClick={calendarView === "week" ? nextWeek : nextMonth}
+                        style={{ padding:"5px 10px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor}`,background:darkMode?"#2c2c2e":"#f5f5f7",color:textPrimary }}>
+                        →
+                      </button>
+                      <div style={{ marginLeft:8,display:"flex",borderRadius:980,overflow:"hidden",border:`1px solid ${borderColor}` }}>
+                        {["week","month"].map(v => (
+                          <button key={v} onClick={() => { setCalendarView(v); setCalendarSelectedDay(null); }}
+                            style={{ padding:"5px 14px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",
+                              background: calendarView === v ? "#0071e3" : (darkMode ? "#2c2c2e" : "#f5f5f7"),
+                              color: calendarView === v ? "#fff" : textPrimary }}>
+                            {v.charAt(0).toUpperCase() + v.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── WEEK VIEW ── */}
+                  {calendarView === "week" && (
+                    <div style={{ display:"grid",gridTemplateColumns:"repeat(7, 1fr)",gap:1,background:borderColor,borderRadius:10,overflow:"hidden" }}>
+                      {weekDays.map((day, i) => {
+                        const builds = buildsForDay(day);
+                        const capMins = dayCapacityMinutes(day);
+                        const capHrs = capMins / 60;
+                        const dayIsToday = isToday(day);
+                        return (
+                          <div key={i} style={{ background:cardBg,minHeight:160,display:"flex",flexDirection:"column",
+                            borderLeft: dayIsToday ? "3px solid #0071e3" : "none",
+                            backgroundColor: dayIsToday ? (darkMode ? "#0071e318" : "#0071e308") : cardBg }}>
+                            {/* Day header */}
+                            <div style={{ padding:"8px 8px 4px",borderBottom:`1px solid ${borderColor}` }}>
+                              <div style={{ fontSize:10,fontWeight:700,color:textSecondary,textTransform:"uppercase",letterSpacing:"0.06em" }}>{dayNames[i]}</div>
+                              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                                <span style={{ fontSize:16,fontWeight:dayIsToday?800:600,color:dayIsToday?"#0071e3":textPrimary }}>{day.getDate()}</span>
+                                {capMins > 0 && (
+                                  <span style={{ fontSize:9,fontWeight:700,color:capacityColor(capMins),background:capacityColor(capMins)+"18",padding:"2px 6px",borderRadius:10 }}>
+                                    {capHrs < 1 ? `${capMins}m` : `${capHrs % 1 === 0 ? capHrs : capHrs.toFixed(1)}h`}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {/* Builds */}
+                            <div style={{ padding:4,flex:1,overflowY:"auto" }}>
+                              {builds.length === 0 && (
+                                <div style={{ fontSize:10,color:darkMode?"#48484a":"#c7c7cc",textAlign:"center",padding:"12px 0" }}>—</div>
+                              )}
+                              {builds.map(bo => renderBuildCard(bo))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* ── MONTH VIEW ── */}
+                  {calendarView === "month" && (
+                    <div>
+                      {/* Day name headers */}
+                      <div style={{ display:"grid",gridTemplateColumns:"repeat(7, 1fr)",gap:1,marginBottom:1 }}>
+                        {dayNames.map(dn => (
+                          <div key={dn} style={{ textAlign:"center",fontSize:10,fontWeight:700,color:textSecondary,padding:"6px 0",textTransform:"uppercase",letterSpacing:"0.06em" }}>{dn}</div>
+                        ))}
+                      </div>
+                      <div style={{ display:"grid",gridTemplateColumns:"repeat(7, 1fr)",gap:1,background:borderColor,borderRadius:10,overflow:"hidden" }}>
+                        {monthGridDays().map((dayObj, i) => {
+                          const builds = buildsForDay(dayObj.date);
+                          const dayIsToday = isToday(dayObj.date);
+                          const isSelected = calendarSelectedDay && isSameDay(calendarSelectedDay, dayObj.date);
+                          const capMins = dayCapacityMinutes(dayObj.date);
+                          const capHrs = capMins / 60;
+                          return (
+                            <div key={i} onClick={() => setCalendarSelectedDay(dayObj.date)}
+                              style={{ background: isSelected ? (darkMode ? "#0071e320" : "#0071e310") : cardBg,
+                                minHeight:64, padding:"4px 6px", cursor:"pointer", opacity: dayObj.outside ? 0.35 : 1,
+                                borderLeft: dayIsToday ? "3px solid #0071e3" : "none",
+                                transition: "background 0.15s" }}>
+                              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2 }}>
+                                <span style={{ fontSize:12,fontWeight:dayIsToday?800:500,color:dayIsToday?"#0071e3":textPrimary }}>{dayObj.date.getDate()}</span>
+                                {capMins > 0 && (
+                                  <span style={{ fontSize:8,fontWeight:700,color:capacityColor(capMins) }}>
+                                    {capHrs < 1 ? `${capMins}m` : `${capHrs % 1 === 0 ? capHrs : capHrs.toFixed(1)}h`}
+                                  </span>
+                                )}
+                              </div>
+                              {/* Colored dots for builds */}
+                              {builds.length > 0 && (
+                                <div style={{ display:"flex",flexWrap:"wrap",gap:2 }}>
+                                  {builds.slice(0,5).map(bo => {
+                                    const prod = products.find(p => p.id === bo.product_id);
+                                    const isOverdue = fmtISO(dayObj.date) < fmtISO(todayDate) && bo.status !== "completed";
+                                    return (
+                                      <div key={bo.id} style={{ width:8,height:8,borderRadius:"50%",
+                                        background: isOverdue ? "#ff3b30" : (prod?.color || "#0071e3"),
+                                        border: bo.priority === "urgent" ? "1px solid #ff3b30" : "none" }} />
+                                    );
+                                  })}
+                                  {builds.length > 5 && <span style={{ fontSize:8,color:textSecondary }}>+{builds.length-5}</span>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Selected day detail */}
+                      {calendarSelectedDay && (() => {
+                        const dayBuilds = buildsForDay(calendarSelectedDay);
+                        const capMins = dayCapacityMinutes(calendarSelectedDay);
+                        const capHrs = capMins / 60;
+                        return (
+                          <div style={{ marginTop:12,padding:"12px 16px",background:darkMode?"#2c2c2e":"#f5f5f7",borderRadius:10 }}>
+                            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                              <span style={{ fontSize:14,fontWeight:700,color:textPrimary }}>
+                                {calendarSelectedDay.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
+                              </span>
+                              {capMins > 0 && <span style={{ fontSize:11,fontWeight:600,color:capacityColor(capMins) }}>
+                                {capHrs % 1 === 0 ? capHrs : capHrs.toFixed(1)}h scheduled
+                              </span>}
+                            </div>
+                            {dayBuilds.length === 0
+                              ? <div style={{ fontSize:12,color:textSecondary,padding:"8px 0" }}>No builds scheduled — available capacity.</div>
+                              : dayBuilds.map(bo => renderBuildCard(bo))
+                            }
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* ══════ MATERIALS CHECK ══════ */}
+            {(() => {
+              const twoWeeksOut = new Date(); twoWeeksOut.setDate(twoWeeksOut.getDate() + 14);
+              const upcoming = buildOrders.filter(bo => {
+                if (bo.status === "completed") return false;
+                if (!bo.due_date) return false;
+                const d = new Date(bo.due_date);
+                return d <= twoWeeksOut;
+              });
+              const shortages = [];
+              for (const bo of upcoming) {
+                const prod = products.find(p => p.id === bo.product_id);
+                const productParts = parts.filter(p => p.projectId === bo.product_id);
+                for (const part of productParts) {
+                  const needed = (part.quantity || 1) * bo.quantity;
+                  const stock = parseInt(part.stockQty) || 0;
+                  if (stock < needed) {
+                    shortages.push({
+                      boId: bo.id,
+                      productName: prod?.name || "Unknown",
+                      productColor: prod?.color || "#0071e3",
+                      dueDate: bo.due_date,
+                      partMPN: part.mpn || part.reference || "?",
+                      needed,
+                      have: stock,
+                      deficit: needed - stock,
+                    });
+                  }
+                }
+              }
+              if (shortages.length === 0) return null;
+              return (
+                <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                  <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>Materials Check</div>
+                  <div style={{ fontSize:12,color:"#86868b",marginBottom:12 }}>Parts shortages for builds due in the next 2 weeks.</div>
+                  <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+                    {shortages.slice(0,20).map((s, i) => (
+                      <div key={i} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderRadius:8,
+                        background:darkMode?"#2c2c2e":"#fff5f5",border:"1px solid #ff3b3030",fontSize:12 }}>
+                        <div style={{ width:8,height:8,borderRadius:"50%",background:s.productColor,flexShrink:0 }} />
+                        <span style={{ fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{s.productName}</span>
+                        <span style={{ color:"#86868b" }}>x{s.needed / (parseInt(parts.find(p => (p.mpn||p.reference) === s.partMPN)?.quantity)||1)}</span>
+                        <span style={{ color:"#86868b" }}>on {new Date(s.dueDate).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
+                        <span style={{ color:"#ff3b30",fontWeight:700 }}>MISSING: {s.partMPN}</span>
+                        <span style={{ color:"#86868b" }}>(need {s.needed.toLocaleString()}, have {s.have.toLocaleString()})</span>
+                      </div>
+                    ))}
+                    {shortages.length > 20 && <div style={{ fontSize:11,color:"#86868b",padding:"4px 12px" }}>+{shortages.length - 20} more shortages...</div>}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ══════ SUGGESTED BUILDS FROM SHOPIFY ══════ */}
+            {shopifyDemand && shopifyDemand.products && shopifyDemand.products.length > 0 && (() => {
+              // Find products with unfulfilled orders that don't already have active build orders
+              const activeBOProductIds = new Set(buildOrders.filter(b => b.status !== "completed").map(b => b.product_id));
+              const suggestions = shopifyDemand.products.filter(sp => {
+                const unfulfilled = (sp.ordered || 0) - (sp.fulfilled || 0);
+                if (unfulfilled <= 0) return false;
+                // Match shopify product to local product by name
+                const localProd = products.find(p => p.name && sp.title && p.name.toLowerCase() === sp.title.toLowerCase());
+                if (!localProd) return false;
+                if (activeBOProductIds.has(localProd.id)) return false;
+                return true;
+              }).map(sp => {
+                const localProd = products.find(p => p.name && sp.title && p.name.toLowerCase() === sp.title.toLowerCase());
+                return { ...sp, localProduct: localProd, unfulfilled: (sp.ordered || 0) - (sp.fulfilled || 0) };
+              });
+              if (suggestions.length === 0) return null;
+              return (
+                <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                  <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>Suggested Builds</div>
+                  <div style={{ fontSize:12,color:"#86868b",marginBottom:12 }}>Products with unfulfilled Shopify orders that have no active build order.</div>
+                  <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+                    {suggestions.map((sg, i) => (
+                      <div key={i} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,
+                        background:darkMode?"#2c2c2e":"#f5f5f7",border:`1px solid ${darkMode?"#3a3a3e":"#e5e5ea"}` }}>
+                        <div style={{ width:10,height:10,borderRadius:"50%",background:sg.localProduct?.color||"#0071e3",flexShrink:0 }} />
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{sg.title}</div>
+                          <div style={{ fontSize:11,color:"#86868b" }}>{sg.unfulfilled} unfulfilled orders</div>
+                        </div>
+                        <button onClick={() => {
+                          setNewBuildOrder(prev => ({ ...prev, product_id: sg.localProduct.id, quantity: String(sg.unfulfilled), priority: sg.unfulfilled > 20 ? "high" : "normal" }));
+                          // Scroll to create form
+                          const el = document.getElementById("create-build-order-section");
+                          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }}
+                          style={{ padding:"6px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",
+                            background:"#0071e3",color:"#fff",whiteSpace:"nowrap" }}>
+                          Schedule Build
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ── Team Performance Leaderboard ── */}
             {memberStats.length > 0 && (
               <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
@@ -6931,7 +7323,7 @@ function BOMManager({ user }) {
             </div>
 
             {/* ── Create Build Order ── */}
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+            <div id="create-build-order-section" style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
               <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:16 }}>Create Build Order</div>
               <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:12,marginBottom:12 }}>
                 <div>
@@ -8158,7 +8550,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.94 — built 2026-03-21</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.95 — built 2026-03-21 10:00am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
