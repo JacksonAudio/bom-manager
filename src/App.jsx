@@ -1109,7 +1109,15 @@ function BOMManager({ user }) {
   const [parts,       setParts]       = useState([]);
   const [products,    setProducts]    = useState([]);
   const [loading,     setLoading]     = useState(true);  // initial DB fetch in progress
-  const [activeView,  setActiveView]  = useState("dashboard");
+  const [activeView,  setActiveViewRaw]  = useState(() => {
+    const hash = window.location.hash.replace("#","");
+    const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","scoreboard","projects","suppliers","alerts","settings","admin"];
+    return validTabs.includes(hash) ? hash : "dashboard";
+  });
+  const setActiveView = (view) => {
+    setActiveViewRaw(view);
+    window.history.pushState(null, "", "#" + view);
+  };
   const [selProject,  setSelProject]  = useState("all");
   const [selBrand,    setSelBrand]    = useState("all");
   const [collapsedBrands, setCollapsedBrands] = useState(new Set());
@@ -1399,6 +1407,17 @@ function BOMManager({ user }) {
     }
     boot();
   }, []); // eslint-disable-line
+
+  // Browser back/forward navigation between tabs
+  useEffect(() => {
+    const onPopState = () => {
+      const hash = window.location.hash.replace("#","");
+      const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","scoreboard","projects","suppliers","alerts","settings","admin"];
+      if (validTabs.includes(hash)) setActiveViewRaw(hash);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // Persist dark mode preference + sync body background
   useEffect(() => {
@@ -8044,7 +8063,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.92 — built 2026-03-21 3:35am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.93 — built 2026-03-21 3:40am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
