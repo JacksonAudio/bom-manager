@@ -3468,10 +3468,16 @@ function BOMManager({ user }) {
                     price: (() => { const b = p.PriceBreaks || []; return b.length > 0 ? parseFloat(String(b[0].Price||"0").replace(/[^0-9.]/g,"")) || null : null; })(),
                     reelQty: (() => { const b = p.PriceBreaks || []; return b.length > 0 ? parseInt(b[b.length-1].Quantity) || null : null; })(),
                   }));
-                  // Extract display values, deduplicate by MPN, and sort
+                  // Extract display values, deduplicate by MPN, filter out unparseable (kits etc), and sort
                   const withValues = results.map(r => ({ ...r, value: extractDisplayValue(r) }));
                   const seen = new Set();
-                  const deduped = withValues.filter(r => { const key = r.mpn.toUpperCase(); if (seen.has(key)) return false; seen.add(key); return true; });
+                  const deduped = withValues.filter(r => {
+                    if (!r.value) return false; // skip kits, sample boxes, etc.
+                    const key = r.mpn.toUpperCase();
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                  });
                   const sorted = deduped.sort((a, b) => parseValue(a) - parseValue(b));
                   setCompSearchResults(sorted);
                   if (sorted.length > 0 && !compSearchMfr) setCompSearchMfr(sorted[0].manufacturer || "");
@@ -7951,7 +7957,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.79 — built 2026-03-21 2:10am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.80 — built 2026-03-21 2:15am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
