@@ -20,7 +20,7 @@ import {
   onAuthChange, signOut,
   fetchProducts, createProduct, deleteProduct,
   fetchParts,   createPart,   updatePart as dbUpdatePart,
-  deletePart as dbDeletePart, deletePartsMany, upsertParts,
+  deletePart as dbDeletePart, deletePartsMany, upsertParts, bulkUpdateParts,
   fetchApiKeys, saveAllApiKeys,
   subscribeToProducts, subscribeToParts,
   fetchTeamMembers, createTeamMember, updateTeamMember, deleteTeamMember,
@@ -3681,9 +3681,18 @@ function BOMManager({ user }) {
                     const field = document.getElementById("bulkField").value;
                     const val = document.getElementById("bulkValue").value;
                     if (!val && field !== "stockQty") return;
-                    for (const id of selectedParts) {
-                      await updatePart(id, field, val);
-                    }
+                    const dbFieldMap = { unitCost:"unit_cost",projectId:"product_id",reorderQty:"reorder_qty",
+                      stockQty:"stock_qty",preferredSupplier:"preferred_supplier",orderQty:"order_qty",reelQty:"reel_qty",
+                      flaggedForOrder:"flagged_for_order" };
+                    const dbField = dbFieldMap[field] || field;
+                    let dbValue = val;
+                    if (["reorder_qty","stock_qty","order_qty","reel_qty","quantity"].includes(dbField)) dbValue = val !== "" ? parseInt(val) || null : null;
+                    if (["unit_cost"].includes(dbField)) dbValue = val !== "" ? parseFloat(val) || null : null;
+                    // Optimistic UI update
+                    setParts(prev => prev.map(p => selectedParts.has(p.id) ? { ...p, [field]: val } : p));
+                    try {
+                      await bulkUpdateParts([...selectedParts], { [dbField]: dbValue });
+                    } catch (e) { alert("Bulk update failed: " + e.message); }
                     document.getElementById("bulkValue").value = "";
                   }}
                     style={{ background:"#0071e3",color:"#fff",border:"none",borderRadius:6,
@@ -3879,8 +3888,13 @@ function BOMManager({ user }) {
                 {/* Part list */}
                 <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden" }}>
                   {(() => {
-                    const pq = pricingSearch.toLowerCase().trim();
-                    return parts.filter(p => !pq || p.reference.toLowerCase().includes(pq) || p.value.toLowerCase().includes(pq) || p.mpn.toLowerCase().includes(pq) || p.description.toLowerCase().includes(pq) || (p.manufacturer||"").toLowerCase().includes(pq));
+                    const pq = pricingSearch.trim();
+                    if (!pq) return parts;
+                    const words = pq.toLowerCase().split(/\s+/).filter(Boolean);
+                    return parts.filter(p => {
+                      const blob = [p.reference, p.value, p.mpn, p.description, p.manufacturer].join(" ").toLowerCase();
+                      return words.every(w => blob.includes(w));
+                    });
                   })().map((part, partIdx) => {
                     const pricingObj = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
                     const hasPricing = pricingObj && Object.keys(pricingObj).length > 0;
@@ -7957,7 +7971,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.61 — built 2026-03-21 12:15am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.62 — built 2026-03-21 12:20am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>

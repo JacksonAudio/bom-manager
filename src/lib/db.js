@@ -137,6 +137,20 @@ export async function updatePart(id, fields, userId) {
   check(error, 'updatePart')
 }
 
+// Bulk update a single field on many parts at once
+export async function bulkUpdateParts(ids, fields) {
+  if (!ids.length) return
+  const batchSize = 200
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const batch = ids.slice(i, i + batchSize)
+    const { error } = await supabase
+      .from('parts')
+      .update(fields)
+      .in('id', batch)
+    check(error, 'bulkUpdateParts')
+  }
+}
+
 // Delete a single part by id
 export async function deletePart(id) {
   const { error } = await supabase
