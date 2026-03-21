@@ -185,5 +185,53 @@
       {"mpn":"GRM188R61E106KA73D","value":"10uF"},
       {"mpn":"GRM188R61E226MEA0D","value":"22uF"}
     ]
+  },
+  "electrolytic_smd_panasonic_16v": {
+    "manufacturer": "Panasonic",
+    "description": "SMD Aluminum Electrolytic - 16V",
+    "series": "EEE-FK",
+    "parts": [
+      {"mpn":"EEE-FK1C1R0R","value":"1uF"},
+      {"mpn":"EEE-FK1C2R2R","value":"2.2uF"},
+      {"mpn":"EEE-FK1C4R7R","value":"4.7uF"},
+      {"mpn":"EEE-FK1C100R","value":"10uF"},
+      {"mpn":"EEE-FK1C220R","value":"22uF"},
+      {"mpn":"EEE-FK1C470R","value":"47uF"},
+      {"mpn":"EEE-FK1C101P","value":"100uF"},
+      {"mpn":"EEE-FK1C221P","value":"220uF"},
+      {"mpn":"EEE-FK1C471P","value":"470uF"}
+    ]
+  },
+  "electrolytic_smd_panasonic_25v": {
+    "manufacturer": "Panasonic",
+    "description": "SMD Aluminum Electrolytic - 25V",
+    "series": "EEE-FK",
+    "parts": [
+      {"mpn":"EEE-FK1E1R0R","value":"1uF"},
+      {"mpn":"EEE-FK1E2R2R","value":"2.2uF"},
+      {"mpn":"EEE-FK1E4R7R","value":"4.7uF"},
+      {"mpn":"EEE-FK1E100R","value":"10uF"},
+      {"mpn":"EEE-FK1E220R","value":"22uF"},
+      {"mpn":"EEE-FK1E470R","value":"47uF"},
+      {"mpn":"EEE-FK1E101P","value":"100uF"},
+      {"mpn":"EEE-FK1E221P","value":"220uF"},
+      {"mpn":"EEE-FK1E471P","value":"470uF"}
+    ]
+  },
+  "electrolytic_smd_panasonic_50v": {
+    "manufacturer": "Panasonic",
+    "description": "SMD Aluminum Electrolytic - 50V",
+    "series": "EEE-FK",
+    "parts": [
+      {"mpn":"EEE-FK1H1R0R","value":"1uF"},
+      {"mpn":"EEE-FK1H2R2R","value":"2.2uF"},
+      {"mpn":"EEE-FK1H4R7R","value":"4.7uF"},
+      {"mpn":"EEE-FK1H100R","value":"10uF"},
+      {"mpn":"EEE-FK1H220R","value":"22uF"},
+      {"mpn":"EEE-FK1H470R","value":"47uF"},
+      {"mpn":"EEE-FK1H101P","value":"100uF"},
+      {"mpn":"EEE-FK1H221P","value":"220uF"},
+      {"mpn":"EEE-FK1H471P","value":"470uF"}
+    ]
   }
 }

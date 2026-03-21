@@ -3540,6 +3540,9 @@ function BOMManager({ user }) {
                       {label:"Yageo 0603 Resistors (E24)",key:"resistors_0603_yageo",count:97},
                       {label:"Samsung 0603 Capacitors",key:"capacitors_0603_samsung",count:46},
                       {label:"Murata 0603 Capacitors",key:"capacitors_0603_murata",count:21},
+                      {label:"Panasonic SMD Electrolytic 16V",key:"electrolytic_smd_panasonic_16v",count:9},
+                      {label:"Panasonic SMD Electrolytic 25V",key:"electrolytic_smd_panasonic_25v",count:9},
+                      {label:"Panasonic SMD Electrolytic 50V",key:"electrolytic_smd_panasonic_50v",count:9},
                     ].map(lib=>(
                       <button key={lib.key} onClick={async()=>{
                         try{
@@ -7988,7 +7991,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.85 — built 2026-03-21 2:45am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.86 — built 2026-03-21 3:00am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
