@@ -3970,6 +3970,14 @@ function BOMManager({ user }) {
                                     <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#34c759",marginRight:4,verticalAlign:"middle" }}></span>
                                     {filteredBestData?.displayName || filteredBest}
                                   </div>
+                                  {filteredBestData?.url && (
+                                    <a href={filteredBestData.url} target="_blank" rel="noopener noreferrer"
+                                      onClick={e=>e.stopPropagation()}
+                                      style={{ display:"inline-block",marginTop:4,padding:"3px 10px",borderRadius:980,fontSize:10,
+                                        fontWeight:600,background:"#34c759",color:"#fff",textDecoration:"none",cursor:"pointer" }}>
+                                      Buy {bq.toLocaleString()} →
+                                    </a>
+                                  )}
                                 </>;
                               })()
                             ) : part.pricingStatus === "loading" ? (
@@ -4067,9 +4075,11 @@ function BOMManager({ user }) {
                                       <div style={{ fontSize:10,color:"#aeaeb2",marginTop:2 }}>@ {bq} pcs</div>
                                       {data.url && (
                                         <a href={data.url} target="_blank" rel="noopener noreferrer"
-                                          style={{ display:"block",marginTop:8,fontSize:11,color:"#0071e3",textDecoration:"none",fontWeight:500 }}
+                                          style={{ display:"inline-block",marginTop:8,padding:"4px 12px",borderRadius:980,fontSize:10,
+                                            fontWeight:600,background:isBest?"#34c759":"#0071e3",color:"#fff",textDecoration:"none",
+                                            textAlign:"center" }}
                                           onClick={e=>e.stopPropagation()}>
-                                          View on site →
+                                          Buy {bq.toLocaleString()} →
                                         </a>
                                       )}
                                       {data.isCustom && (
@@ -7936,7 +7946,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.57 — built 2026-03-20 11:50pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.58 — built 2026-03-20 11:58pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
