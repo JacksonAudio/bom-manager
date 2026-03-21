@@ -3357,11 +3357,11 @@ function BOMManager({ user }) {
             {/* ── Component Library Generator */}
             {showResGen && (() => {
               const E96 = [100,102,105,107,110,113,115,118,121,124,127,130,133,137,140,143,147,150,154,158,162,165,169,174,178,182,187,191,196,200,205,210,215,221,226,232,237,243,249,255,261,267,274,280,287,294,301,309,316,324,332,340,348,357,365,374,383,392,402,412,422,432,442,453,464,475,487,499,511,523,536,549,562,576,590,604,619,634,649,665,681,698,715,732,750,768,787,806,825,845,866,887,909,931,953,976];
-              const decadeLabels = ["1\u03A9\u20139.76\u03A9","10\u03A9\u201397.6\u03A9","100\u03A9\u2013976\u03A9","1k\u03A9\u20139.76k\u03A9","10k\u03A9\u201397.6k\u03A9","100k\u03A9\u2013976k\u03A9","1M\u03A9\u20139.76M\u03A9"];
+              const decadeLabels = ["1R–9.76R","10R–97.6R","100R–976R","1k–9.76k","10k–97.6k","100k–976k","1M–9.76M"];
               const fmtRes = (ohms) => {
-                if (ohms >= 1000000) { const v = ohms/1000000; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"M\u03A9"; }
-                if (ohms >= 1000) { const v = ohms/1000; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"k\u03A9"; }
-                const v = ohms; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"\u03A9";
+                if (ohms >= 1000000) { const v = ohms/1000000; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"M"; }
+                if (ohms >= 1000) { const v = ohms/1000; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"k"; }
+                const v = ohms; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"R";
               };
               const generateParts = () => {
                 const result = [];
@@ -7878,7 +7878,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.50 — built 2026-03-20 11:05pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.51 — built 2026-03-20 11:10pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
