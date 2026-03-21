@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.03
+// src/App.jsx — Jackson Audio BOM Manager v6.13
 // Saturday, March 21, 2026 — 10:30 AM
 //
 // Changelog:
@@ -1226,6 +1226,11 @@ function BOMManager({ user }) {
   const [simUsOnly, setSimUsOnly] = useState(false); // simulation: US suppliers only
   const [shopifyDemand, setShopifyDemand] = useState(null); // { products, orders, syncedAt, loading, error }
   const [zohoDemand, setZohoDemand] = useState(null); // { products, orders, syncedAt, loading, error }
+  const [salesHistory, setSalesHistory] = useState(() => { try { const c = localStorage.getItem("bom_sales_history"); return c ? JSON.parse(c) : null; } catch { return null; } }); // combined historical data
+  const [forecastData, setForecastData] = useState(null); // computed forecast
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(null);
+  const [forecastChartProduct, setForecastChartProduct] = useState("__all__"); // selected product for chart
   const [shopifyProducts, setShopifyProducts] = useState([]); // Shopify product list for mapping
   const [shopifySalesPrices, setShopifySalesPrices] = useState(null); // { products: [{ shopifyProductId, title, avgPrice, minPrice, maxPrice, unitsSold, totalRevenue }] }
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
@@ -2621,6 +2626,272 @@ function BOMManager({ user }) {
       setZohoDemand(prev => ({ ...prev, loading: false, error: e.message }));
     }
   };
+
+  // ── SALES HISTORY (for forecasting) ──
+  const fetchSalesHistory = async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const monthlyMap = {}; // { "2024-01": { products: { key: { title, productId, quantity, revenue, channel } } } }
+
+      // Fetch Shopify history from all stores
+      const stores = getShopifyStores();
+      for (const store of stores) {
+        if (!store.domain || !store.clientId || !store.clientSecret) continue;
+        const q = `domain=${encodeURIComponent(store.domain)}&client_id=${encodeURIComponent(store.clientId)}&client_secret=${encodeURIComponent(store.clientSecret)}`;
+        try {
+          const res = await fetch(`/api/shopify-history?${q}`);
+          if (!res.ok) { console.warn(`[History] Shopify ${store.name} failed:`, res.status); continue; }
+          const data = await res.json();
+          for (const m of (data.history || [])) {
+            if (!monthlyMap[m.month]) monthlyMap[m.month] = { products: {} };
+            for (const p of (m.products || [])) {
+              const key = `shopify_${p.productId}_${store.name || ""}`;
+              if (!monthlyMap[m.month].products[key]) {
+                monthlyMap[m.month].products[key] = { title: p.title, productId: p.productId, quantity: 0, revenue: 0, channel: "Shopify" };
+              }
+              monthlyMap[m.month].products[key].quantity += p.quantity;
+              monthlyMap[m.month].products[key].revenue += p.revenue;
+            }
+          }
+        } catch (e) { console.warn(`[History] Shopify ${store.name} error:`, e.message); }
+      }
+
+      // Fetch Zoho history
+      let zohoOrgs = [];
+      try { zohoOrgs = JSON.parse(apiKeys.zoho_books_json || "[]"); } catch {}
+      if (apiKeys.zoho_org_id && apiKeys.zoho_refresh_token) {
+        const legacyOrg = { name: "Jackson Audio", org_id: apiKeys.zoho_org_id, client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, refresh_token: apiKeys.zoho_refresh_token };
+        if (zohoOrgs.length === 0 || !zohoOrgs.some(o => o.refresh_token?.length > 50)) zohoOrgs = [legacyOrg];
+      }
+      for (const org of zohoOrgs) {
+        if (!org.org_id || !org.client_id || !org.client_secret || !org.refresh_token) continue;
+        try {
+          const res = await fetch(`/api/zoho-history`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ org_id: org.org_id, client_id: org.client_id, client_secret: org.client_secret, refresh_token: org.refresh_token }),
+          });
+          if (!res.ok) { console.warn(`[History] Zoho ${org.name} failed:`, res.status); continue; }
+          const data = await res.json();
+          for (const m of (data.history || [])) {
+            if (!monthlyMap[m.month]) monthlyMap[m.month] = { products: {} };
+            for (const p of (m.products || [])) {
+              const key = `zoho_${p.productId}_${org.name || ""}`;
+              if (!monthlyMap[m.month].products[key]) {
+                monthlyMap[m.month].products[key] = { title: p.title, productId: p.productId, quantity: 0, revenue: 0, channel: "Zoho" };
+              }
+              monthlyMap[m.month].products[key].quantity += p.quantity;
+              monthlyMap[m.month].products[key].revenue += p.revenue;
+            }
+          }
+        } catch (e) { console.warn(`[History] Zoho ${org.name} error:`, e.message); }
+      }
+
+      // Convert to sorted array
+      const history = Object.entries(monthlyMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, data]) => ({
+          month,
+          products: Object.values(data.products),
+        }));
+
+      if (history.length === 0) {
+        setHistoryError("No historical data found. Make sure Shopify or Zoho credentials are configured.");
+        setHistoryLoading(false);
+        return;
+      }
+
+      const result = { history, fetchedAt: new Date().toISOString() };
+      setSalesHistory(result);
+      localStorage.setItem("bom_sales_history", JSON.stringify(result));
+
+      // Compute forecast
+      const forecast = forecastDemand(history, 3);
+      setForecastData(forecast);
+      setHistoryLoading(false);
+    } catch (e) {
+      console.error("[History] fetch failed:", e);
+      setHistoryError(e.message);
+      setHistoryLoading(false);
+    }
+  };
+
+  // ── FORECAST ENGINE ──
+  const forecastDemand = (monthlyHistory, monthsAhead = 3) => {
+    if (!monthlyHistory || monthlyHistory.length < 2) return null;
+
+    // Build per-product monthly series: { productTitle: { months: { "2024-01": qty }, channel } }
+    const productSeries = {};
+    for (const m of monthlyHistory) {
+      for (const p of (m.products || [])) {
+        // Merge by title (across channels)
+        const key = p.title;
+        if (!productSeries[key]) productSeries[key] = { title: p.title, months: {}, channel: p.channel };
+        productSeries[key].months[m.month] = (productSeries[key].months[m.month] || 0) + p.quantity;
+      }
+    }
+
+    // Generate all month keys in range
+    const allMonths = monthlyHistory.map(m => m.month).sort();
+    const firstMonth = allMonths[0];
+    const lastMonth = allMonths[allMonths.length - 1];
+
+    // Generate future months
+    const futureMonths = [];
+    const [ly, lm] = lastMonth.split("-").map(Number);
+    for (let i = 1; i <= monthsAhead; i++) {
+      const fm = lm + i;
+      const fy = ly + Math.floor((fm - 1) / 12);
+      const fmn = ((fm - 1) % 12) + 1;
+      futureMonths.push(`${fy}-${String(fmn).padStart(2, "0")}`);
+    }
+
+    // Month names for seasonal labels
+    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+    const forecasts = [];
+
+    for (const [title, series] of Object.entries(productSeries)) {
+      // Build ordered array of monthly values (fill gaps with 0)
+      const values = allMonths.map(m => series.months[m] || 0);
+      if (values.every(v => v === 0)) continue;
+
+      const n = values.length;
+
+      // 1. Linear regression for trend
+      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+      for (let i = 0; i < n; i++) {
+        sumX += i; sumY += values[i]; sumXY += i * values[i]; sumX2 += i * i;
+      }
+      const slope = n > 1 ? (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX) : 0;
+      const intercept = (sumY - slope * sumX) / n;
+
+      // 2. Seasonal indices (average ratio for each calendar month)
+      const monthBuckets = {}; // { 0..11: [values] }
+      const overallAvg = sumY / n || 1;
+      for (let i = 0; i < n; i++) {
+        const calMonth = parseInt(allMonths[i].split("-")[1]) - 1; // 0-11
+        if (!monthBuckets[calMonth]) monthBuckets[calMonth] = [];
+        monthBuckets[calMonth].push(values[i]);
+      }
+      const seasonalIndex = {};
+      for (let m = 0; m < 12; m++) {
+        if (monthBuckets[m] && monthBuckets[m].length > 0) {
+          const avg = monthBuckets[m].reduce((s, v) => s + v, 0) / monthBuckets[m].length;
+          seasonalIndex[m] = overallAvg > 0 ? avg / overallAvg : 1;
+        } else {
+          seasonalIndex[m] = 1;
+        }
+      }
+
+      // 3. Weighted moving average (recent 3m = 3x, 3-6m = 2x, 6-12m = 1x)
+      let wmaSum = 0, wmaWeight = 0;
+      for (let i = n - 1; i >= 0 && i >= n - 12; i--) {
+        const age = n - 1 - i; // 0 = most recent
+        const w = age < 3 ? 3 : age < 6 ? 2 : 1;
+        wmaSum += values[i] * w;
+        wmaWeight += w;
+      }
+      const wma = wmaWeight > 0 ? wmaSum / wmaWeight : 0;
+
+      // 4. Variance for confidence intervals
+      const recentValues = values.slice(-6);
+      const recentAvg = recentValues.reduce((s, v) => s + v, 0) / recentValues.length;
+      const variance = recentValues.reduce((s, v) => s + (v - recentAvg) ** 2, 0) / recentValues.length;
+      const stdDev = Math.sqrt(variance);
+
+      // 5. Compute forecast for each future month
+      const productForecasts = futureMonths.map((fm, fi) => {
+        const futureIdx = n + fi;
+        const calMonth = parseInt(fm.split("-")[1]) - 1;
+        const trendValue = intercept + slope * futureIdx;
+        const si = seasonalIndex[calMonth] || 1;
+
+        // Combine: weighted average as base, adjusted by seasonal index and trend
+        const baseForecast = wma;
+        const trendAdj = slope * (fi + 1); // incremental trend from last known month
+        const forecast = Math.max(0, Math.round((baseForecast + trendAdj) * si));
+
+        // Confidence range
+        const low = Math.max(0, Math.round(forecast - 1.5 * stdDev));
+        const high = Math.round(forecast + 1.5 * stdDev);
+
+        // Seasonal label
+        let seasonalNote = "";
+        if (si > 1.3) seasonalNote = "Historically strong month";
+        else if (si > 1.15) seasonalNote = "Above average";
+        else if (si < 0.7) seasonalNote = "Historically slow month";
+        else if (si < 0.85) seasonalNote = "Below average";
+        if (calMonth >= 9 && calMonth <= 11 && si > 1.1) seasonalNote = "Q4 holiday boost expected";
+
+        // Same month last year
+        const sameMonthLastYear = (() => {
+          const [fy, fmn] = fm.split("-").map(Number);
+          const lyKey = `${fy - 1}-${String(fmn).padStart(2, "0")}`;
+          return series.months[lyKey] || null;
+        })();
+
+        return {
+          month: fm,
+          monthLabel: monthNames[calMonth] + " " + fm.split("-")[0],
+          forecast,
+          low,
+          high,
+          seasonalIndex: Math.round(si * 100) / 100,
+          seasonalNote,
+          sameMonthLastYear,
+        };
+      });
+
+      // Seasonal pattern (all 12 months)
+      const seasonalPattern = [];
+      for (let m = 0; m < 12; m++) {
+        seasonalPattern.push({
+          month: m,
+          label: monthNames[m],
+          index: Math.round((seasonalIndex[m] || 1) * 100) / 100,
+          avgQty: monthBuckets[m] ? Math.round(monthBuckets[m].reduce((s, v) => s + v, 0) / monthBuckets[m].length) : 0,
+        });
+      }
+
+      // Find strongest/weakest months
+      const sortedSeasonal = [...seasonalPattern].sort((a, b) => b.index - a.index);
+      const strongestMonth = sortedSeasonal[0];
+      const weakestMonth = sortedSeasonal[sortedSeasonal.length - 1];
+
+      forecasts.push({
+        title,
+        channel: series.channel,
+        history: allMonths.map((m, i) => ({ month: m, quantity: values[i] })),
+        forecasts: productForecasts,
+        trend: slope > 0.5 ? "growing" : slope < -0.5 ? "declining" : "stable",
+        trendSlope: Math.round(slope * 100) / 100,
+        seasonalPattern,
+        strongestMonth: strongestMonth?.label,
+        weakestMonth: weakestMonth?.label,
+        totalHistorical: values.reduce((s, v) => s + v, 0),
+        recentMonthlyAvg: Math.round(recentAvg),
+      });
+    }
+
+    // Sort by total historical volume
+    forecasts.sort((a, b) => b.totalHistorical - a.totalHistorical);
+
+    return {
+      products: forecasts,
+      futureMonths,
+      generatedAt: new Date().toISOString(),
+    };
+  };
+
+  // Recompute forecast when salesHistory loaded from cache
+  useEffect(() => {
+    if (salesHistory?.history && !forecastData) {
+      const forecast = forecastDemand(salesHistory.history, 3);
+      setForecastData(forecast);
+    }
+  }, [salesHistory]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchShopifySalesPrices = async () => {
     const stores = getShopifyStores();
@@ -6875,6 +7146,316 @@ function BOMManager({ user }) {
                 })()}
               </>
             )}
+
+            {/* ══════════════════════════════════════
+                DEMAND FORECAST (Historical Analysis)
+            ══════════════════════════════════════ */}
+            <div style={{ marginTop:32, borderTop:"2px solid #e5e5ea", paddingTop:24 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:12 }}>
+                <div>
+                  <h3 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:18,fontWeight:800,marginBottom:4 }}>Demand Forecast</h3>
+                  <p style={{ color:"#86868b",fontSize:12,margin:0 }}>
+                    Predictive forecast based on {salesHistory ? `${salesHistory.history?.length || 0} months` : "up to 24 months"} of historical sales data from Shopify + Zoho.
+                    {salesHistory?.fetchedAt && <span style={{ marginLeft:8,fontSize:11 }}>Last loaded: {new Date(salesHistory.fetchedAt).toLocaleString()}</span>}
+                  </p>
+                </div>
+                <button className="btn-primary" style={{ background:"#5856d6" }}
+                  onClick={fetchSalesHistory}
+                  disabled={historyLoading}>
+                  {historyLoading ? <><span className="spinner" /> Loading History...</> : salesHistory ? "Refresh History" : "Load Sales History"}
+                </button>
+              </div>
+
+              {historyError && (
+                <div style={{ background:"#fff2f0",border:"1px solid #ff3b30",borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:12,color:"#ff3b30" }}>
+                  {historyError}
+                </div>
+              )}
+
+              {!salesHistory && !historyLoading && (
+                <div className="card" style={{ textAlign:"center",padding:40 }}>
+                  <div style={{ fontSize:36,marginBottom:10 }}>&#x1F4CA;</div>
+                  <div style={{ fontWeight:700,fontSize:14,marginBottom:6 }}>Load historical sales data to see forecasts</div>
+                  <p style={{ color:"#86868b",fontSize:12,marginBottom:14 }}>
+                    Pulls completed orders from Shopify and Zoho going back 24 months. Cached locally after first load.
+                  </p>
+                  <button className="btn-primary" style={{ background:"#5856d6" }} onClick={fetchSalesHistory} disabled={historyLoading}>
+                    Load Sales History
+                  </button>
+                </div>
+              )}
+
+              {forecastData && forecastData.products && forecastData.products.length > 0 && (() => {
+                const allProducts = forecastData.products;
+                const selectedProduct = forecastChartProduct === "__all__" ? null : allProducts.find(p => p.title === forecastChartProduct);
+
+                // Build chart data: historical + forecast
+                const chartProduct = selectedProduct || {
+                  history: (() => {
+                    // Aggregate all products per month
+                    const monthMap = {};
+                    for (const p of allProducts) {
+                      for (const h of p.history) {
+                        monthMap[h.month] = (monthMap[h.month] || 0) + h.quantity;
+                      }
+                    }
+                    return Object.entries(monthMap).sort(([a],[b]) => a.localeCompare(b)).map(([month, quantity]) => ({ month, quantity }));
+                  })(),
+                  forecasts: (() => {
+                    const monthMap = {};
+                    for (const p of allProducts) {
+                      for (const f of p.forecasts) {
+                        if (!monthMap[f.month]) monthMap[f.month] = { month: f.month, monthLabel: f.monthLabel, forecast: 0, low: 0, high: 0 };
+                        monthMap[f.month].forecast += f.forecast;
+                        monthMap[f.month].low += f.low;
+                        monthMap[f.month].high += f.high;
+                      }
+                    }
+                    return Object.values(monthMap);
+                  })(),
+                  title: "All Products",
+                };
+
+                const histData = chartProduct.history || [];
+                const fcastData = chartProduct.forecasts || [];
+                const allPoints = [...histData.map(h => ({ month: h.month, value: h.quantity, type: "actual" })), ...fcastData.map(f => ({ month: f.month, value: f.forecast, low: f.low, high: f.high, type: "forecast" }))];
+                if (allPoints.length === 0) return null;
+
+                const maxVal = Math.max(...allPoints.map(p => p.high || p.value), 1);
+                const chartW = 700;
+                const chartH = 220;
+                const padL = 50;
+                const padR = 20;
+                const padT = 20;
+                const padB = 50;
+                const plotW = chartW - padL - padR;
+                const plotH = chartH - padT - padB;
+
+                const toX = (i) => padL + (i / Math.max(allPoints.length - 1, 1)) * plotW;
+                const toY = (v) => padT + plotH - (v / maxVal) * plotH;
+
+                // Split into historical and forecast paths
+                const histPoints = allPoints.filter(p => p.type === "actual");
+                const fcastPoints = allPoints.filter(p => p.type === "forecast");
+                const lastHist = histPoints.length > 0 ? histPoints[histPoints.length - 1] : null;
+                const histStartIdx = 0;
+                const fcastStartIdx = histPoints.length;
+
+                const histLinePath = histPoints.map((p, i) => `${i === 0 ? "M" : "L"}${toX(i)},${toY(p.value)}`).join(" ");
+                const fcastLinePath = lastHist
+                  ? `M${toX(histPoints.length - 1)},${toY(lastHist.value)} ` + fcastPoints.map((p, i) => `L${toX(fcastStartIdx + i)},${toY(p.value)}`).join(" ")
+                  : fcastPoints.map((p, i) => `${i === 0 ? "M" : "L"}${toX(fcastStartIdx + i)},${toY(p.value)}`).join(" ");
+
+                // Confidence band path
+                const bandPoints = fcastPoints.map((p, i) => ({ x: toX(fcastStartIdx + i), low: toY(p.high), high: toY(p.low) }));
+                const bandPath = bandPoints.length > 0
+                  ? `M${bandPoints[0].x},${bandPoints[0].low} ` +
+                    bandPoints.map(bp => `L${bp.x},${bp.low}`).join(" ") + " " +
+                    [...bandPoints].reverse().map(bp => `L${bp.x},${bp.high}`).join(" ") + " Z"
+                  : "";
+
+                // Grid lines
+                const gridCount = 4;
+                const gridLines = [];
+                for (let i = 0; i <= gridCount; i++) {
+                  const val = (maxVal / gridCount) * i;
+                  gridLines.push({ y: toY(val), label: Math.round(val).toLocaleString() });
+                }
+
+                // X labels (show every few months)
+                const xStep = Math.max(1, Math.floor(allPoints.length / 8));
+                const xLabels = allPoints.filter((_, i) => i % xStep === 0 || i === allPoints.length - 1).map((p, _, arr) => {
+                  const idx = allPoints.indexOf(p);
+                  const parts = p.month.split("-");
+                  const monthNames2 = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                  return { x: toX(idx), label: monthNames2[parseInt(parts[1]) - 1] + " '" + parts[0].slice(2) };
+                });
+
+                // Seasonal pattern bar chart
+                const seasonalData = (() => {
+                  if (selectedProduct) return selectedProduct.seasonalPattern;
+                  // Average seasonal across all products
+                  const monthAvgs = [];
+                  const monthNamesShort = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                  for (let m = 0; m < 12; m++) {
+                    let totalQty = 0, count = 0;
+                    let totalIdx = 0;
+                    for (const p of allProducts) {
+                      const sp = p.seasonalPattern?.find(s => s.month === m);
+                      if (sp) { totalQty += sp.avgQty; totalIdx += sp.index; count++; }
+                    }
+                    monthAvgs.push({ month: m, label: monthNamesShort[m], avgQty: count > 0 ? Math.round(totalQty / count) : 0, index: count > 0 ? Math.round((totalIdx / count) * 100) / 100 : 1 });
+                  }
+                  return monthAvgs;
+                })();
+
+                const maxBarVal = Math.max(...seasonalData.map(s => s.avgQty), 1);
+
+                return (
+                  <>
+                  {/* Product selector */}
+                  <div style={{ display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center" }}>
+                    <span style={{ fontSize:11,color:"#86868b",fontWeight:600 }}>PRODUCT:</span>
+                    <select value={forecastChartProduct} onChange={e => setForecastChartProduct(e.target.value)}
+                      style={{ fontSize:12,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",background:"#fff",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                      <option value="__all__">All Products (Total)</option>
+                      {allProducts.map(p => <option key={p.title} value={p.title}>{p.title} ({p.totalHistorical.toLocaleString()} sold)</option>)}
+                    </select>
+                  </div>
+
+                  {/* Historical + Forecast Chart */}
+                  <div className="card" style={{ marginBottom:16 }}>
+                    <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:8 }}>
+                      MONTHLY SALES — {(selectedProduct || chartProduct).title?.toUpperCase()}
+                    </div>
+                    <div style={{ width:"100%" }}>
+                      <svg viewBox={`0 0 ${chartW} ${chartH}`} width="100%" height="auto"
+                        style={{ display:"block",overflow:"visible",background:"#fafafa",borderRadius:8,border:"1px solid #e5e5ea" }}>
+                        {/* Grid */}
+                        {gridLines.map((g, i) => (
+                          <g key={i}>
+                            <line x1={padL} y1={g.y} x2={chartW - padR} y2={g.y} stroke="#f0f0f2" strokeWidth="1" />
+                            <text x={padL - 6} y={g.y + 3} fontSize="9" fill="#86868b" textAnchor="end" fontFamily="-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif">{g.label}</text>
+                          </g>
+                        ))}
+                        {/* X axis */}
+                        <line x1={padL} y1={padT + plotH} x2={chartW - padR} y2={padT + plotH} stroke="#e5e5ea" strokeWidth="1" />
+                        {xLabels.map((l, i) => (
+                          <text key={i} x={l.x} y={chartH - 8} fontSize="9" fill="#86868b" textAnchor="middle"
+                            fontFamily="-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif">{l.label}</text>
+                        ))}
+                        {/* Confidence band */}
+                        {bandPath && <path d={bandPath} fill="rgba(88,86,214,0.1)" />}
+                        {/* Historical line */}
+                        {histLinePath && <path d={histLinePath} fill="none" stroke="#0071e3" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
+                        {/* Forecast line (dashed) */}
+                        {fcastLinePath && <path d={fcastLinePath} fill="none" stroke="#5856d6" strokeWidth="2" strokeDasharray="6,4" strokeLinejoin="round" strokeLinecap="round" />}
+                        {/* Historical dots */}
+                        {histPoints.map((p, i) => (
+                          <circle key={`h${i}`} cx={toX(i)} cy={toY(p.value)} r="2.5" fill="#0071e3" />
+                        ))}
+                        {/* Forecast dots */}
+                        {fcastPoints.map((p, i) => (
+                          <circle key={`f${i}`} cx={toX(fcastStartIdx + i)} cy={toY(p.value)} r="3.5" fill="#5856d6" stroke="#fff" strokeWidth="1.5" />
+                        ))}
+                        {/* Legend */}
+                        <line x1={padL + 10} y1={12} x2={padL + 30} y2={12} stroke="#0071e3" strokeWidth="2" />
+                        <text x={padL + 34} y={15} fontSize="9" fill="#86868b" fontFamily="-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif">Actual</text>
+                        <line x1={padL + 80} y1={12} x2={padL + 100} y2={12} stroke="#5856d6" strokeWidth="2" strokeDasharray="6,4" />
+                        <text x={padL + 104} y={15} fontSize="9" fill="#86868b" fontFamily="-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif">Forecast</text>
+                        <rect x={padL + 155} y={6} width={12} height={12} fill="rgba(88,86,214,0.1)" stroke="#5856d6" strokeWidth="0.5" rx="2" />
+                        <text x={padL + 171} y={15} fontSize="9" fill="#86868b" fontFamily="-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif">Confidence Range</text>
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Forecast Table */}
+                  <div className="card" style={{ marginBottom:16 }}>
+                    <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>
+                      FORECAST — NEXT {forecastData.futureMonths.length} MONTHS
+                    </div>
+                    <div style={{ overflowX:"auto" }}>
+                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                        <thead>
+                          <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>PRODUCT</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>TREND</th>
+                            {forecastData.futureMonths.map(m => {
+                              const parts = m.split("-");
+                              const mn = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(parts[1]) - 1];
+                              return <th key={m} style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center" }}>{mn} {parts[0]}</th>;
+                            })}
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>AVG/MO (RECENT)</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>SEASONALITY</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(selectedProduct ? [selectedProduct] : allProducts).map(p => (
+                            <tr key={p.title} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                              <td style={{ padding:"10px 10px" }}>
+                                <div style={{ fontWeight:600,color:"#1d1d1f",fontSize:12 }}>{p.title}</div>
+                                <div style={{ fontSize:10,color:"#86868b" }}>{p.channel} &middot; {p.totalHistorical.toLocaleString()} total sold</div>
+                              </td>
+                              <td style={{ padding:"10px 10px" }}>
+                                <span style={{ fontSize:11,fontWeight:700,
+                                  color: p.trend === "growing" ? "#34c759" : p.trend === "declining" ? "#ff3b30" : "#86868b" }}>
+                                  {p.trend === "growing" ? "Growing" : p.trend === "declining" ? "Declining" : "Stable"}
+                                  <span style={{ fontSize:9,fontWeight:500,marginLeft:3 }}>({p.trendSlope > 0 ? "+" : ""}{p.trendSlope}/mo)</span>
+                                </span>
+                              </td>
+                              {p.forecasts.map(f => (
+                                <td key={f.month} style={{ padding:"10px 10px",textAlign:"center" }}>
+                                  <div style={{ fontWeight:800,fontSize:15,color:"#5856d6",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                    {f.forecast.toLocaleString()}
+                                  </div>
+                                  <div style={{ fontSize:9,color:"#86868b" }}>{f.low.toLocaleString()} — {f.high.toLocaleString()}</div>
+                                  {f.seasonalNote && (
+                                    <div style={{ fontSize:9,color: f.seasonalIndex > 1.1 ? "#34c759" : f.seasonalIndex < 0.85 ? "#ff9500" : "#86868b",fontWeight:600,marginTop:2 }}>
+                                      {f.seasonalNote}
+                                    </div>
+                                  )}
+                                  {f.sameMonthLastYear != null && (
+                                    <div style={{ fontSize:9,color:"#aeaeb2",marginTop:1 }}>
+                                      Last yr: {f.sameMonthLastYear.toLocaleString()}
+                                    </div>
+                                  )}
+                                </td>
+                              ))}
+                              <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontSize:14,
+                                fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                {p.recentMonthlyAvg.toLocaleString()}
+                              </td>
+                              <td style={{ padding:"10px 10px",fontSize:11 }}>
+                                <span style={{ color:"#34c759",fontWeight:600 }}>Best: {p.strongestMonth}</span>
+                                <span style={{ color:"#86868b",margin:"0 4px" }}>/</span>
+                                <span style={{ color:"#ff9500",fontWeight:600 }}>Slow: {p.weakestMonth}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Seasonal Patterns Bar Chart */}
+                  <div className="card" style={{ marginBottom:16 }}>
+                    <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>
+                      SEASONAL PATTERNS — AVERAGE MONTHLY SALES{selectedProduct ? ` (${selectedProduct.title.toUpperCase()})` : " (ALL PRODUCTS)"}
+                    </div>
+                    <div style={{ display:"flex",gap:4,alignItems:"flex-end",height:120,padding:"0 8px" }}>
+                      {seasonalData.map(s => {
+                        const barH = maxBarVal > 0 ? (s.avgQty / maxBarVal) * 100 : 0;
+                        const isStrong = s.index > 1.15;
+                        const isWeak = s.index < 0.85;
+                        return (
+                          <div key={s.month} style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2 }}>
+                            <div style={{ fontSize:9,color:"#86868b",fontWeight:600 }}>{s.avgQty}</div>
+                            <div style={{
+                              width:"100%",maxWidth:40,
+                              height: Math.max(barH, 2),
+                              background: isStrong ? "#34c759" : isWeak ? "#ff9500" : "#0071e3",
+                              borderRadius:"4px 4px 0 0",
+                              opacity: 0.8,
+                              transition: "height 0.3s",
+                            }} />
+                            <div style={{ fontSize:9,color:"#86868b",fontWeight:500 }}>{s.label}</div>
+                            <div style={{ fontSize:8,color: isStrong ? "#34c759" : isWeak ? "#ff9500" : "#aeaeb2" }}>
+                              {s.index}x
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ marginTop:10,fontSize:10,color:"#aeaeb2",display:"flex",gap:16 }}>
+                      <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#34c759",marginRight:4 }} />Above average ({">"} 1.15x)</span>
+                      <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#0071e3",marginRight:4 }} />Average</span>
+                      <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#ff9500",marginRight:4 }} />Below average ({"<"} 0.85x)</span>
+                    </div>
+                  </div>
+                  </>
+                );
+              })()}
+            </div>
           </div>
           );
         })()}
@@ -9333,7 +9914,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.12 — built 2026-03-21 5:50pm 3:30pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.13</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>

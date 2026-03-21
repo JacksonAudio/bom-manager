@@ -6,6 +6,12 @@
     },
     "api/search-components.js": {
       "maxDuration": 120
+    },
+    "api/shopify-history.js": {
+      "maxDuration": 120
+    },
+    "api/zoho-history.js": {
+      "maxDuration": 120
     }
   },
   "crons": [
