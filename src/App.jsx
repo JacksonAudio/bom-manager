@@ -1118,7 +1118,7 @@ function BOMManager({ user }) {
   const [pricingSearch, setPricingSearch] = useState("");
   const [pasteText,   setPasteText]   = useState("");
   const [showImport,  setShowImport]  = useState(false);
-  const [partSort,    setPartSort]    = useState({ field: null, asc: true });
+  const [partSort,    setPartSort]    = useState({ field: "value", asc: true });
   const [showResGen,  setShowResGen]  = useState(false);
   const [resGenCfg,   setResGenCfg]   = useState({
     prefix: "0603WAF", suffix: "T5E", manufacturer: "Royalohm",
@@ -7918,7 +7918,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.55 — built 2026-03-20 11:35pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.56 — built 2026-03-20 11:40pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
