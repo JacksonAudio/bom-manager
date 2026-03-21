@@ -3591,7 +3591,6 @@ function BOMManager({ user }) {
                           </thead>
                           <tbody>
                             {compSearchResults.map((p, i) => {
-                              const valSpec = p.specs?.["Resistance"] || p.specs?.["Capacitance"] || p.specs?.["Inductance"] || "";
                               return (
                                 <tr key={i} style={{ borderBottom:"1px solid #f0f0f2",background:compSelectedParts.has(p.mpn)?"rgba(88,86,214,0.04)":"transparent",cursor:"pointer" }}
                                   onClick={()=>toggleOne(p.mpn)}>
@@ -3601,7 +3600,7 @@ function BOMManager({ user }) {
                                   </td>
                                   <td style={{ padding:"4px 10px",fontWeight:600,color:"#0071e3",fontFamily:"'SF Mono',monospace" }}>{p.mpn}</td>
                                   <td style={{ padding:"4px 10px" }}>{p.manufacturer}</td>
-                                  <td style={{ padding:"4px 10px",fontWeight:500 }}>{valSpec}</td>
+                                  <td style={{ padding:"4px 10px",fontWeight:600,color:"#1d1d1f" }}>{p.value || "—"}</td>
                                   <td style={{ padding:"4px 10px",color:"#86868b" }}>{p.description}</td>
                                 </tr>
                               );
@@ -7948,7 +7947,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.77 — built 2026-03-21 2:00am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.78 — built 2026-03-21 2:05am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
