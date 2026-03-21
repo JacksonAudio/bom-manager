@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v4.01
+// src/App.jsx — Jackson Audio BOM Manager v5.64
 // Thursday, March 12, 2026 — 9:43 PM
 //
 // Changelog:
@@ -1120,19 +1120,12 @@ function BOMManager({ user }) {
   const [showImport,  setShowImport]  = useState(false);
   const [partSort,    setPartSort]    = useState({ field: "value", asc: true });
   const [showResGen,  setShowResGen]  = useState(false);
-  const [resGenCfg,   setResGenCfg]   = useState({
-    prefix: "0603WAF", suffix: "T5E", manufacturer: "Royalohm",
-    descPrefix: "Resistor 0603 1% 1/10W Thick Film",
-    decades: { 0:true, 1:true, 2:true, 3:true, 4:true, 5:true, 6:true },
-  });
-  const [resGenPreview, setResGenPreview] = useState(false);
-  const [compGenType, setCompGenType] = useState("resistor"); // resistor | capacitor
-  const [capGenCfg, setCapGenCfg] = useState({
-    prefix: "GRM188R61E", suffix: "KA73D", manufacturer: "Murata",
-    descPrefix: "Capacitor 0603 X5R 25V MLCC",
-    decades: { 0:false, 1:true, 2:true, 3:true, 4:true, 5:true, 6:true },
-  });
-  const [capGenPreview, setCapGenPreview] = useState(false);
+  const [compSearchQuery, setCompSearchQuery] = useState("");
+  const [compSearchResults, setCompSearchResults] = useState([]);
+  const [compSearchLoading, setCompSearchLoading] = useState(false);
+  const [compSelectedParts, setCompSelectedParts] = useState(new Set());
+  const [compSearchMfr, setCompSearchMfr] = useState("");
+  const [compSearchDescPrefix, setCompSearchDescPrefix] = useState("");
   const [newProjName, setNewProjName] = useState("");
   const [importError, setImportError] = useState("");
   const [importOk,    setImportOk]    = useState("");
@@ -3376,268 +3369,181 @@ function BOMManager({ user }) {
               </div>
             )}
 
-            {/* ── Component Library Generator */}
+            {/* ── Component Library — Nexar Search */}
             {showResGen && (() => {
-              const E96 = [100,102,105,107,110,113,115,118,121,124,127,130,133,137,140,143,147,150,154,158,162,165,169,174,178,182,187,191,196,200,205,210,215,221,226,232,237,243,249,255,261,267,274,280,287,294,301,309,316,324,332,340,348,357,365,374,383,392,402,412,422,432,442,453,464,475,487,499,511,523,536,549,562,576,590,604,619,634,649,665,681,698,715,732,750,768,787,806,825,845,866,887,909,931,953,976];
-              const decadeLabels = ["1R–9.76R","10R–97.6R","100R–976R","1k–9.76k","10k–97.6k","100k–976k","1M–9.76M"];
-              const fmtRes = (ohms) => {
-                if (ohms >= 1000000) { const v = ohms/1000000; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"M"; }
-                if (ohms >= 1000) { const v = ohms/1000; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"k"; }
-                const v = ohms; return (Number.isInteger(v)?v:v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,""))+"R";
+              // Extract a numeric value from description or specs for sorting
+              const parseValue = (part) => {
+                const desc = (part.description || "").toLowerCase();
+                const specs = part.specs || {};
+                // Try specs first: "Resistance" or "Capacitance"
+                const resSpec = specs["Resistance"] || specs["Capacitance"] || "";
+                const specStr = resSpec || desc;
+                // Match patterns like 10kohm, 4.7uF, 100pF, 1M, 220R, etc.
+                const m = specStr.match(/([\d.]+)\s*(mohm|kohm|ohm|gohm|uf|nf|pf|mf|m|k|r|g)?/i);
+                if (!m) return Infinity;
+                const num = parseFloat(m[1]);
+                const unit = (m[2] || "").toLowerCase();
+                const multipliers = { "r":1, "ohm":1, "mohm":0.001, "k":1e3, "kohm":1e3, "m":1e6, "gohm":1e9, "g":1e9, "pf":1e-12, "nf":1e-9, "uf":1e-6, "mf":1e-3 };
+                return num * (multipliers[unit] || 1);
               };
-              const generateParts = () => {
-                const result = [];
-                for (let decade = 0; decade <= 6; decade++) {
-                  if (!resGenCfg.decades[decade]) continue;
-                  for (const base of E96) {
-                    let mpn, ohms;
-                    if (decade <= 1) {
-                      // Sub-100Ω: 3-digit code (value×10) + tolerance letter F (1%)
-                      // decade 0: 1R–9.76R, decade 1: 10R–97.6R
-                      ohms = (base / 100) * Math.pow(10, decade); // base=100,decade=0→1Ω; base=100,decade=1→10Ω
-                      const code3 = String(Math.round(ohms * 10)).padStart(3, "0"); // 1Ω→010, 10Ω→100, 24.9Ω→249
-                      mpn = resGenCfg.prefix + code3 + "J" + resGenCfg.suffix;
-                    } else {
-                      // ≥100Ω: standard 4-digit code (3 sig digits + multiplier)
-                      const mult = decade - 2; // decade 2→mult 0 (100Ω), decade 3→mult 1 (1kΩ)
-                      ohms = base * Math.pow(10, mult); // base=100,mult=0→100Ω; base=549,mult=2→54.9kΩ
-                      const code = String(base) + String(mult);
-                      mpn = resGenCfg.prefix + code + resGenCfg.suffix;
-                    }
-                    const value = fmtRes(ohms);
-                    result.push({ mpn, value, description: resGenCfg.descPrefix + " " + value, manufacturer: resGenCfg.manufacturer, quantity: 1, product_id: null });
-                  }
+
+              const handleCompSearch = async () => {
+                if (!compSearchQuery.trim()) return;
+                if (!nexarToken) { alert("Connect Nexar in Settings first."); return; }
+                setCompSearchLoading(true);
+                setCompSearchResults([]);
+                setCompSelectedParts(new Set());
+                try {
+                  const params = new URLSearchParams({ q: compSearchQuery.trim(), token: nexarToken, limit: "100" });
+                  const res = await fetch(`/api/search-components?${params}`);
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || `API error ${res.status}`);
+                  // Sort by parsed value (numeric-aware)
+                  const sorted = (data.results || []).sort((a, b) => parseValue(a) - parseValue(b));
+                  setCompSearchResults(sorted);
+                  // Pre-fill manufacturer from first result if available
+                  if (sorted.length > 0 && !compSearchMfr) setCompSearchMfr(sorted[0].manufacturer || "");
+                } catch (err) {
+                  alert("Search failed: " + err.message);
+                } finally {
+                  setCompSearchLoading(false);
                 }
-                return result;
               };
-              const genParts = generateParts();
-              const selectedCount = Object.values(resGenCfg.decades).filter(Boolean).length;
+
+              const allSelected = compSearchResults.length > 0 && compSelectedParts.size === compSearchResults.length;
+              const toggleAll = () => {
+                if (allSelected) { setCompSelectedParts(new Set()); }
+                else { setCompSelectedParts(new Set(compSearchResults.map(p => p.mpn))); }
+              };
+              const toggleOne = (mpn) => {
+                setCompSelectedParts(prev => {
+                  const next = new Set(prev);
+                  next.has(mpn) ? next.delete(mpn) : next.add(mpn);
+                  return next;
+                });
+              };
+
+              const importSelected = async () => {
+                const toImport = compSearchResults.filter(p => compSelectedParts.has(p.mpn));
+                if (toImport.length === 0) return;
+                if (!window.confirm(`Import ${toImport.length} parts into the master library?`)) return;
+                try {
+                  const dbRows = toImport.map(p => {
+                    const mfr = compSearchMfr || p.manufacturer;
+                    const desc = compSearchDescPrefix ? (compSearchDescPrefix + " " + p.description) : p.description;
+                    // Try to extract a value string from specs
+                    const valSpec = p.specs?.["Resistance"] || p.specs?.["Capacitance"] || p.specs?.["Inductance"] || "";
+                    return {
+                      mpn: p.mpn, value: valSpec, description: desc, manufacturer: mfr,
+                      quantity: 1, product_id: null, reference: "", footprint: "",
+                      unit_cost: null, reorder_qty: null, stock_qty: null, preferred_supplier: "mouser",
+                      order_qty: null, flagged_for_order: false,
+                      pricing_status: "idle", pricing_error: "",
+                    };
+                  });
+                  await upsertParts(dbRows, user.id);
+                  setImportOk(`Imported ${toImport.length} verified parts into master library.`);
+                  setShowResGen(false);
+                  setCompSearchResults([]);
+                  setCompSelectedParts(new Set());
+                } catch (err) { alert("Import failed: " + err.message); }
+              };
+
               return (
                 <div style={{ marginBottom:12,padding:"16px 20px",background:"#fff",borderRadius:10,border:"1px solid #d5d0f0",boxShadow:"0 1px 4px rgba(88,86,214,0.1)" }}>
-                  <div style={{ fontSize:14,fontWeight:700,marginBottom:4,color:"#5856d6" }}>Component Library Generator</div>
-                  <div style={{ display:"flex",gap:4,marginBottom:14 }}>
-                    {[{id:"resistor",label:"Resistors (E96)"},{id:"capacitor",label:"Capacitors (E12)"}].map(t=>(
-                      <button key={t.id} onClick={()=>setCompGenType(t.id)}
-                        style={{ padding:"5px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",
-                          background:compGenType===t.id?"#5856d6":"#f0f0f2",color:compGenType===t.id?"#fff":"#86868b" }}>
-                        {t.label}
-                      </button>
-                    ))}
-                  </div>
-                  {compGenType === "resistor" && <><div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:14 }}>
-                    <div style={{ flex:"1 1 140px" }}>
-                      <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>MPN Prefix</div>
-                      <input type="text" value={resGenCfg.prefix} onChange={e=>setResGenCfg(c=>({...c,prefix:e.target.value}))}
-                        style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
-                    </div>
-                    <div style={{ flex:"0 0 80px" }}>
-                      <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>MPN Suffix</div>
-                      <input type="text" value={resGenCfg.suffix} onChange={e=>setResGenCfg(c=>({...c,suffix:e.target.value}))}
-                        style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
-                    </div>
-                    <div style={{ flex:"1 1 120px" }}>
-                      <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Manufacturer</div>
-                      <input type="text" value={resGenCfg.manufacturer} onChange={e=>setResGenCfg(c=>({...c,manufacturer:e.target.value}))}
-                        style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
-                    </div>
-                    <div style={{ flex:"2 1 200px" }}>
-                      <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Description Prefix</div>
-                      <input type="text" value={resGenCfg.descPrefix} onChange={e=>setResGenCfg(c=>({...c,descPrefix:e.target.value}))}
-                        style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
-                    </div>
-                  </div>
-                  <div style={{ marginBottom:14 }}>
-                    <div style={{ fontSize:10,color:"#86868b",marginBottom:6 }}>Decades (96 values each)</div>
-                    <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
-                      {decadeLabels.map((label, i) => (
-                        <label key={i} style={{ display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer",
-                          padding:"4px 10px",borderRadius:6,border:"1px solid "+(resGenCfg.decades[i]?"#5856d6":"#d2d2d7"),
-                          background:resGenCfg.decades[i]?"rgba(88,86,214,0.06)":"transparent" }}>
-                          <input type="checkbox" checked={resGenCfg.decades[i]||false}
-                            onChange={e=>setResGenCfg(c=>({...c,decades:{...c.decades,[i]:e.target.checked}}))}
-                            style={{ width:13,height:13,accentColor:"#5856d6",cursor:"pointer" }} />
-                          {label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ display:"flex",gap:10,alignItems:"center",flexWrap:"wrap" }}>
-                    <span style={{ fontSize:12,color:"#86868b" }}>{genParts.length} resistors ({selectedCount} decade{selectedCount!==1?"s":""})</span>
-                    <button className="btn-ghost btn-sm" onClick={()=>setResGenPreview(!resGenPreview)}>
-                      {resGenPreview ? "Hide Preview" : "Preview"}
-                    </button>
-                    <button disabled={genParts.length===0}
-                      onClick={async () => {
-                        if (!window.confirm(`Import ${genParts.length} resistors into the master library?`)) return;
-                        try {
-                          const dbRows = genParts.map(p => ({
-                            mpn: p.mpn, value: p.value, description: p.description, manufacturer: p.manufacturer,
-                            quantity: p.quantity, product_id: null, reference: "", footprint: "",
-                            unit_cost: null, reorder_qty: null, stock_qty: null, preferred_supplier: "mouser",
-                            order_qty: null, flagged_for_order: false,
-                            pricing_status: "idle", pricing_error: "",
-                          }));
-                          await upsertParts(dbRows, user.id);
-                          setImportOk(`Imported ${genParts.length} resistors into master library.`);
-                          setShowResGen(false);
-                        } catch (err) { alert("Import failed: " + err.message); }
-                      }}
-                      style={{ padding:"7px 18px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
-                        border:"none",background:"#5856d6",color:"#fff",opacity:genParts.length>0?"1":"0.4" }}>
-                      Import All ({genParts.length})
-                    </button>
-                  </div>
-                  {resGenPreview && genParts.length > 0 && (
-                    <div style={{ marginTop:12,maxHeight:300,overflowY:"auto",border:"1px solid #e5e5ea",borderRadius:8 }}>
-                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
-                        <thead>
-                          <tr style={{ background:"#f5f5f7" }}>
-                            <th style={{ padding:"6px 10px",textAlign:"left" }}>MPN</th>
-                            <th style={{ padding:"6px 10px",textAlign:"left" }}>Value</th>
-                            <th style={{ padding:"6px 10px",textAlign:"left" }}>Description</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {genParts.slice(0, 200).map((p, i) => (
-                            <tr key={i} style={{ borderBottom:"1px solid #f0f0f2" }}>
-                              <td style={{ padding:"4px 10px",fontWeight:600,color:"#0071e3",fontFamily:"'SF Mono',monospace" }}>{p.mpn}</td>
-                              <td style={{ padding:"4px 10px" }}>{p.value}</td>
-                              <td style={{ padding:"4px 10px",color:"#86868b" }}>{p.description}</td>
-                            </tr>
-                          ))}
-                          {genParts.length > 200 && (
-                            <tr><td colSpan={3} style={{ padding:"8px 10px",textAlign:"center",color:"#aeaeb2",fontSize:11 }}>...and {genParts.length - 200} more</td></tr>
-                          )}
-                        </tbody>
-                      </table>
+                  <div style={{ fontSize:14,fontWeight:700,marginBottom:4,color:"#5856d6" }}>Component Library</div>
+                  <p style={{ color:"#86868b",fontSize:12,marginBottom:14 }}>Search Nexar/Octopart for real manufacturer part numbers. Every MPN is verified from the distributor database.</p>
+
+                  {!nexarToken && (
+                    <div style={{ padding:"12px 16px",background:"#fff3cd",borderRadius:8,border:"1px solid #ffc107",fontSize:12,marginBottom:14,color:"#856404" }}>
+                      Connect Nexar in Settings first to search for components.
                     </div>
                   )}
-                  </>}
 
-                  {/* ── Capacitor Generator */}
-                  {compGenType === "capacitor" && (() => {
-                    const E12 = [1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2];
-                    // Murata GRM encoding: value code = 3 digits where first 2 are significant, 3rd is multiplier (in pF)
-                    // 106 = 10 × 10^6 pF = 10uF, 105 = 10 × 10^5 pF = 1uF, 104 = 10 × 10^4 pF = 100nF
-                    const capDecadeLabels = ["1pF–8.2pF","10pF–82pF","100pF–820pF","1nF–8.2nF","10nF–82nF","100nF–820nF","1uF–8.2uF","10uF–82uF"];
-                    const fmtCap = (pf) => {
-                      if (pf >= 1000000) return (pf/1000000).toFixed(pf/1000000 < 10 && pf%1000000 ? 1 : 0).replace(/\.0$/,"") + "uF";
-                      if (pf >= 1000) return (pf/1000).toFixed(pf/1000 < 10 && pf%1000 ? 1 : 0).replace(/\.0$/,"") + "nF";
-                      return (Number.isInteger(pf) ? pf : pf.toFixed(1).replace(/\.0$/,"")) + "pF";
-                    };
-                    const capCode = (pf) => {
-                      // Convert pF to 3-digit code: significant digits + multiplier
-                      if (pf < 10) return String(Math.round(pf * 10)).padStart(2,"0") + "9"; // R notation for <10pF (special)
-                      const exp = Math.floor(Math.log10(pf));
-                      const sig = Math.round(pf / Math.pow(10, exp - 1));
-                      const mult = exp - 1;
-                      return String(sig).padStart(2,"0") + String(mult);
-                    };
-                    const generateCapParts = () => {
-                      const result = [];
-                      for (let decade = 0; decade <= 7; decade++) {
-                        if (!capGenCfg.decades[decade]) continue;
-                        for (const base of E12) {
-                          const pf = base * Math.pow(10, decade);
-                          const code = capCode(pf);
-                          const mpn = capGenCfg.prefix + code + capGenCfg.suffix;
-                          const value = fmtCap(pf);
-                          result.push({ mpn, value, description: capGenCfg.descPrefix + " " + value, manufacturer: capGenCfg.manufacturer, quantity: 1, product_id: null });
-                        }
-                      }
-                      return result;
-                    };
-                    const capParts = generateCapParts();
-                    const selectedCount = Object.values(capGenCfg.decades).filter(Boolean).length;
-                    return (<>
-                      <p style={{ color:"#86868b",fontSize:12,marginBottom:14 }}>Generate E12 standard capacitor values for any MLCC series. Murata GRM 0603 25V pre-configured.</p>
-                      <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:14 }}>
-                        <div style={{ flex:"1 1 140px" }}>
-                          <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>MPN Prefix</div>
-                          <input type="text" value={capGenCfg.prefix} onChange={e=>setCapGenCfg(c=>({...c,prefix:e.target.value}))}
-                            style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
-                        </div>
-                        <div style={{ flex:"0 0 80px" }}>
-                          <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>MPN Suffix</div>
-                          <input type="text" value={capGenCfg.suffix} onChange={e=>setCapGenCfg(c=>({...c,suffix:e.target.value}))}
-                            style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
-                        </div>
-                        <div style={{ flex:"1 1 120px" }}>
-                          <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Manufacturer</div>
-                          <input type="text" value={capGenCfg.manufacturer} onChange={e=>setCapGenCfg(c=>({...c,manufacturer:e.target.value}))}
-                            style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
-                        </div>
-                        <div style={{ flex:"2 1 200px" }}>
-                          <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Description Prefix</div>
-                          <input type="text" value={capGenCfg.descPrefix} onChange={e=>setCapGenCfg(c=>({...c,descPrefix:e.target.value}))}
-                            style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
-                        </div>
+                  {/* Search bar */}
+                  <div style={{ display:"flex",gap:8,marginBottom:14 }}>
+                    <input type="text" value={compSearchQuery} onChange={e=>setCompSearchQuery(e.target.value)}
+                      onKeyDown={e=>{ if(e.key==="Enter") handleCompSearch(); }}
+                      placeholder="Search by MPN prefix or series (e.g. 0603WAF, GRM188R61E, RC0603FR-07)"
+                      style={{ flex:1,padding:"9px 12px",borderRadius:8,fontSize:13,border:"1px solid #d2d2d7",boxSizing:"border-box",fontFamily:"inherit" }} />
+                    <button onClick={handleCompSearch} disabled={compSearchLoading || !nexarToken}
+                      style={{ padding:"9px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                        border:"none",background:"#5856d6",color:"#fff",opacity:(compSearchLoading||!nexarToken)?"0.5":"1",whiteSpace:"nowrap" }}>
+                      {compSearchLoading ? "Searching..." : "Search"}
+                    </button>
+                  </div>
+
+                  {/* Optional overrides */}
+                  <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:14 }}>
+                    <div style={{ flex:"1 1 160px" }}>
+                      <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Manufacturer Override</div>
+                      <input type="text" value={compSearchMfr} onChange={e=>setCompSearchMfr(e.target.value)}
+                        placeholder="Auto-filled from results"
+                        style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                    </div>
+                    <div style={{ flex:"2 1 240px" }}>
+                      <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Description Prefix (prepended to each part)</div>
+                      <input type="text" value={compSearchDescPrefix} onChange={e=>setCompSearchDescPrefix(e.target.value)}
+                        placeholder="e.g. Resistor 0603 1% 1/10W"
+                        style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                    </div>
+                  </div>
+
+                  {/* Results */}
+                  {compSearchResults.length > 0 && (
+                    <>
+                      <div style={{ display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:10 }}>
+                        <label style={{ display:"flex",alignItems:"center",gap:5,fontSize:12,cursor:"pointer" }}>
+                          <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                            style={{ width:14,height:14,accentColor:"#5856d6",cursor:"pointer" }} />
+                          <span style={{ fontWeight:600 }}>Select All ({compSearchResults.length})</span>
+                        </label>
+                        {compSelectedParts.size > 0 && (
+                          <button onClick={importSelected}
+                            style={{ padding:"7px 18px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                              border:"none",background:"#5856d6",color:"#fff" }}>
+                            Import Selected ({compSelectedParts.size})
+                          </button>
+                        )}
+                        <span style={{ fontSize:12,color:"#86868b" }}>{compSearchResults.length} results from Nexar</span>
                       </div>
-                      <div style={{ marginBottom:14 }}>
-                        <div style={{ fontSize:10,color:"#86868b",marginBottom:6 }}>Decades (12 values each)</div>
-                        <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
-                          {capDecadeLabels.map((label, i) => (
-                            <label key={i} style={{ display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer",
-                              padding:"4px 10px",borderRadius:6,border:"1px solid "+(capGenCfg.decades[i]?"#5856d6":"#d2d2d7"),
-                              background:capGenCfg.decades[i]?"rgba(88,86,214,0.06)":"transparent" }}>
-                              <input type="checkbox" checked={capGenCfg.decades[i]||false}
-                                onChange={e=>setCapGenCfg(c=>({...c,decades:{...c.decades,[i]:e.target.checked}}))}
-                                style={{ width:13,height:13,accentColor:"#5856d6",cursor:"pointer" }} />
-                              {label}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                      <div style={{ display:"flex",gap:10,alignItems:"center",flexWrap:"wrap" }}>
-                        <span style={{ fontSize:12,color:"#86868b" }}>{capParts.length} capacitors ({selectedCount} decade{selectedCount!==1?"s":""})</span>
-                        <button className="btn-ghost btn-sm" onClick={()=>setCapGenPreview(!capGenPreview)}>
-                          {capGenPreview ? "Hide Preview" : "Preview"}
-                        </button>
-                        <button disabled={capParts.length===0}
-                          onClick={async () => {
-                            if (!window.confirm(`Import ${capParts.length} capacitors into the master library?`)) return;
-                            try {
-                              const dbRows = capParts.map(p => ({
-                                mpn: p.mpn, value: p.value, description: p.description, manufacturer: p.manufacturer,
-                                quantity: p.quantity, product_id: null, reference: "", footprint: "0603",
-                                unit_cost: null, reorder_qty: null, stock_qty: null, preferred_supplier: "mouser",
-                                order_qty: null, flagged_for_order: false,
-                                pricing_status: "idle", pricing_error: "",
-                              }));
-                              await upsertParts(dbRows, user.id);
-                              setImportOk(`Imported ${capParts.length} capacitors into master library.`);
-                              setShowResGen(false);
-                            } catch (err) { alert("Import failed: " + err.message); }
-                          }}
-                          style={{ padding:"7px 18px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
-                            border:"none",background:"#5856d6",color:"#fff",opacity:capParts.length>0?"1":"0.4" }}>
-                          Import All ({capParts.length})
-                        </button>
-                      </div>
-                      {capGenPreview && capParts.length > 0 && (
-                        <div style={{ marginTop:12,maxHeight:300,overflowY:"auto",border:"1px solid #e5e5ea",borderRadius:8 }}>
-                          <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
-                            <thead>
-                              <tr style={{ background:"#f5f5f7" }}>
-                                <th style={{ padding:"6px 10px",textAlign:"left" }}>MPN</th>
-                                <th style={{ padding:"6px 10px",textAlign:"left" }}>Value</th>
-                                <th style={{ padding:"6px 10px",textAlign:"left" }}>Description</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {capParts.slice(0, 200).map((p, i) => (
-                                <tr key={i} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                      <div style={{ maxHeight:400,overflowY:"auto",border:"1px solid #e5e5ea",borderRadius:8 }}>
+                        <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
+                          <thead>
+                            <tr style={{ background:"#f5f5f7",position:"sticky",top:0 }}>
+                              <th style={{ padding:"6px 8px",width:30 }}></th>
+                              <th style={{ padding:"6px 10px",textAlign:"left" }}>MPN</th>
+                              <th style={{ padding:"6px 10px",textAlign:"left" }}>Manufacturer</th>
+                              <th style={{ padding:"6px 10px",textAlign:"left" }}>Value</th>
+                              <th style={{ padding:"6px 10px",textAlign:"left" }}>Description</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {compSearchResults.map((p, i) => {
+                              const valSpec = p.specs?.["Resistance"] || p.specs?.["Capacitance"] || p.specs?.["Inductance"] || "";
+                              return (
+                                <tr key={i} style={{ borderBottom:"1px solid #f0f0f2",background:compSelectedParts.has(p.mpn)?"rgba(88,86,214,0.04)":"transparent",cursor:"pointer" }}
+                                  onClick={()=>toggleOne(p.mpn)}>
+                                  <td style={{ padding:"4px 8px",textAlign:"center" }}>
+                                    <input type="checkbox" checked={compSelectedParts.has(p.mpn)} onChange={()=>toggleOne(p.mpn)}
+                                      style={{ width:13,height:13,accentColor:"#5856d6",cursor:"pointer" }} />
+                                  </td>
                                   <td style={{ padding:"4px 10px",fontWeight:600,color:"#0071e3",fontFamily:"'SF Mono',monospace" }}>{p.mpn}</td>
-                                  <td style={{ padding:"4px 10px" }}>{p.value}</td>
+                                  <td style={{ padding:"4px 10px" }}>{p.manufacturer}</td>
+                                  <td style={{ padding:"4px 10px",fontWeight:500 }}>{valSpec}</td>
                                   <td style={{ padding:"4px 10px",color:"#86868b" }}>{p.description}</td>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </>);
-                  })()}
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+
+                  {compSearchLoading && (
+                    <div style={{ textAlign:"center",padding:"20px",color:"#86868b",fontSize:13 }}>Searching Nexar/Octopart...</div>
+                  )}
                 </div>
               );
             })()}
@@ -7971,7 +7877,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.63 — built 2026-03-21 12:25am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.64 — built 2026-03-21 12:35am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
