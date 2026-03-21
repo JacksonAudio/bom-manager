@@ -68,7 +68,8 @@ const DEFAULT_KEYS = {
   fb_ja_ad_account_id: "",   // Facebook — Jackson Audio ad account (act_XXX)
   fb_ft_access_token: "",    // Facebook — Fulltone USA access token
   fb_ft_ad_account_id: "",   // Facebook — Fulltone USA ad account (act_XXX)
-  admin_emails: "brad@jacksonaudio.net", // comma-separated list of admin email addresses
+  admin_emails: "brad@jacksonaudio.net",
+  timezone: "America/Chicago",  // Central Time default // comma-separated list of admin email addresses
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -6820,14 +6821,16 @@ function BOMManager({ user }) {
               const todayDate = new Date(); todayDate.setHours(0,0,0,0);
 
               // Helper: format date as YYYY-MM-DD for comparison
-              const fmtISO = (d) => { const dd = new Date(d); dd.setHours(0,0,0,0); return dd.toISOString().slice(0,10); };
+              // Parse date string as local time (not UTC) to avoid timezone shift
+              const parseLocal = (s) => { if (!s) return null; if (s instanceof Date) return s; const [y,m,d] = String(s).slice(0,10).split("-"); return new Date(parseInt(y),parseInt(m)-1,parseInt(d)); };
+              const fmtISO = (d) => { const dd = d instanceof Date ? d : parseLocal(d); if (!dd) return ""; return dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0"); };
               const isSameDay = (a, b) => fmtISO(a) === fmtISO(b);
               const isToday = (d) => isSameDay(d, todayDate);
 
               // Get builds for a specific day
               const buildsForDay = (day) => buildOrders.filter(bo => {
                 if (!bo.due_date) return false;
-                return isSameDay(new Date(bo.due_date), day);
+                return isSameDay(parseLocal(bo.due_date), day);
               });
 
               // Capacity: sum build_minutes * quantity for builds on a day
@@ -6905,7 +6908,7 @@ function BOMManager({ user }) {
                 const done = bo.completed_count || 0;
                 const total = bo.quantity || 1;
                 const pct = Math.round(done / total * 100);
-                const dueDate = bo.due_date ? new Date(bo.due_date) : null;
+                const dueDate = bo.due_date ? parseLocal(bo.due_date) : null;
                 const isOverdue = dueDate && fmtISO(dueDate) < fmtISO(todayDate) && bo.status !== "completed";
                 return (
                   <div key={bo.id} style={{ padding:"6px 8px",borderRadius:8,marginBottom:4,fontSize:11,
@@ -6929,7 +6932,7 @@ function BOMManager({ user }) {
                     {calendarReschedule === bo.id && (
                       <div style={{ marginTop:6,borderTop:`1px solid ${borderColor}`,paddingTop:6 }} onClick={e => e.stopPropagation()}>
                         <label style={{ fontSize:9,fontWeight:700,color:textSecondary,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3 }}>Reschedule</label>
-                        <input type="date" defaultValue={bo.due_date ? fmtISO(new Date(bo.due_date)) : ""}
+                        <input type="date" defaultValue={bo.due_date ? fmtISO(parseLocal(bo.due_date)) : ""}
                           style={{ fontSize:11,padding:"4px 6px",borderRadius:5,border:`1px solid ${borderColor}`,
                             background:darkMode?"#1c1c1e":"#fff",color:textPrimary,width:"100%" }}
                           onChange={e => { if (e.target.value) handleReschedule(bo.id, e.target.value); }} />
@@ -7098,7 +7101,7 @@ function BOMManager({ user }) {
               const upcoming = buildOrders.filter(bo => {
                 if (bo.status === "completed") return false;
                 if (!bo.due_date) return false;
-                const d = new Date(bo.due_date);
+                const d = parseLocal(bo.due_date);
                 return d <= twoWeeksOut;
               });
               const shortages = [];
@@ -7381,7 +7384,7 @@ function BOMManager({ user }) {
                     const prod = products.find(p => p.id === bo.product_id);
                     const assignment = buildAssignments.find(a => a.build_order_id === bo.id && a.status !== "completed");
                     const assignedMember = assignment ? teamMembers.find(m => m.id === assignment.team_member_id) : null;
-                    const dueDate = bo.due_date ? new Date(bo.due_date) : null;
+                    const dueDate = bo.due_date ? parseLocal(bo.due_date) : null;
                     const isOverdue = dueDate && dueDate < new Date();
                     const done = bo.completed_count || 0;
                     const total = bo.quantity || 1;
@@ -8550,7 +8553,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.95 — built 2026-03-21 10:00am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.96 — built 2026-03-21 10:15am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
