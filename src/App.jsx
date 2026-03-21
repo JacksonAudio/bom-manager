@@ -4187,11 +4187,11 @@ function BOMManager({ user }) {
                             transition:"background 0.15s",background:isOpen?"rgba(0,0,0,0.02)":"transparent" }}
                           onMouseOver={e=>{if(!isOpen)e.currentTarget.style.background="rgba(0,0,0,0.02)"}}
                           onMouseOut={e=>{if(!isOpen)e.currentTarget.style.background="transparent"}}>
-                          <div style={{ flex:1,minWidth:0 }}>
+                          <div style={{ flex:2,minWidth:0 }}>
                             <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f" }}>
                               {part.mpn || part.reference}
                             </div>
-                            <div style={{ fontSize:12,color:"#86868b",marginTop:1,minHeight:18 }}>
+                            <div style={{ fontSize:12,color:"#86868b",marginTop:1 }}>
                               {[part.description, part.value].filter(Boolean).join(" — ") || "\u00A0"}
                             </div>
                           </div>
@@ -6143,7 +6143,7 @@ function BOMManager({ user }) {
                                 onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
                                 onBlur={e=>{e.target.style.background="transparent";}} />
                             </td>
-                            <td style={{ padding:"10px 10px",maxWidth:180 }}>
+                            <td style={{ padding:"10px 10px" }}>
                               <input type="text" value={part.description||""} onChange={e=>updatePart(part.id,"description",e.target.value)}
                                 style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#6e6e73",fontFamily:"inherit",outline:"none" }}
                                 onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
@@ -9233,7 +9233,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.04 — built 2026-03-21 3:00pm 3:30pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.05 — built 2026-03-21 3:25pm 3:30pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
