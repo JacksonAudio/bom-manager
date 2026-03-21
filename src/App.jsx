@@ -3924,13 +3924,31 @@ function BOMManager({ user }) {
                             </div>
                           </div>
                           <div style={{ flex:1,display:"flex",alignItems:"center",gap:6,justifyContent:"center" }}>
-                            <span style={{ fontSize:10,color:"#86868b",fontWeight:500,whiteSpace:"nowrap",letterSpacing:"0.5px",textTransform:"uppercase" }}>Quote Quantity</span>
+                            <span style={{ fontSize:10,color:"#86868b",fontWeight:500,whiteSpace:"nowrap",letterSpacing:"0.5px",textTransform:"uppercase" }}>Quote Qty</span>
                             <input type="text" inputMode="numeric" value={bq}
                               onClick={(e)=>e.stopPropagation()}
                               onChange={(e)=>{e.stopPropagation();const v=e.target.value.replace(/[^0-9]/g,"");setBuyQtys(q=>({...q,[part.id]:parseInt(v)||1}));}}
                               style={{ width:72,padding:"2px 4px",border:"none",borderBottom:"1px solid transparent",fontSize:15,textAlign:"center",fontFamily:"inherit",fontWeight:600,color:"#1d1d1f",background:"transparent",outline:"none",transition:"border-color 0.15s" }}
                               onFocus={(e)=>{e.target.style.borderBottom="1px solid #0071e3";e.target.select();}}
                               onBlur={(e)=>{e.target.style.borderBottom="1px solid transparent";}} />
+                            {(() => {
+                              const rq = getReelQty(part);
+                              if (!rq) return null;
+                              const isReel = bq === rq;
+                              return (
+                                <label onClick={e=>e.stopPropagation()}
+                                  style={{ display:"flex",alignItems:"center",gap:3,cursor:"pointer",fontSize:10,
+                                    padding:"3px 8px",borderRadius:4,
+                                    border:isReel?"1px solid #34c759":"1px solid #d2d2d7",
+                                    background:isReel?"rgba(52,199,89,0.08)":"transparent",
+                                    color:isReel?"#34c759":"#86868b",fontWeight:600,whiteSpace:"nowrap" }}>
+                                  <input type="checkbox" checked={isReel}
+                                    onChange={()=>setBuyQtys(q=>({...q,[part.id]:isReel?(parseInt(part.quantity)||1):rq}))}
+                                    style={{ width:11,height:11,accentColor:"#34c759",cursor:"pointer" }} />
+                                  Reel ({rq.toLocaleString()})
+                                </label>
+                              );
+                            })()}
                           </div>
                           <div style={{ flex:1,textAlign:"right" }}>
                             {effectiveStatus === "done" && bestDisplayPrice ? (
@@ -7918,7 +7936,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.56 — built 2026-03-20 11:40pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.57 — built 2026-03-20 11:50pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
