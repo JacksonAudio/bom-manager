@@ -3485,10 +3485,10 @@ function BOMManager({ user }) {
                   {compGenType === "capacitor" && (() => {
                     const E12 = [1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2];
                     // Murata GRM encoding: value code = 3 digits where first 2 are significant, 3rd is multiplier (in pF)
-                    // 106 = 10 × 10^6 pF = 10µF, 105 = 10 × 10^5 pF = 1µF, 104 = 10 × 10^4 pF = 100nF
-                    const capDecadeLabels = ["1pF–8.2pF","10pF–82pF","100pF–820pF","1nF–8.2nF","10nF–82nF","100nF–820nF","1µF–8.2µF","10µF–82µF"];
+                    // 106 = 10 × 10^6 pF = 10uF, 105 = 10 × 10^5 pF = 1uF, 104 = 10 × 10^4 pF = 100nF
+                    const capDecadeLabels = ["1pF–8.2pF","10pF–82pF","100pF–820pF","1nF–8.2nF","10nF–82nF","100nF–820nF","1uF–8.2uF","10uF–82uF"];
                     const fmtCap = (pf) => {
-                      if (pf >= 1000000) return (pf/1000000).toFixed(pf/1000000 < 10 && pf%1000000 ? 1 : 0).replace(/\.0$/,"") + "µF";
+                      if (pf >= 1000000) return (pf/1000000).toFixed(pf/1000000 < 10 && pf%1000000 ? 1 : 0).replace(/\.0$/,"") + "uF";
                       if (pf >= 1000) return (pf/1000).toFixed(pf/1000 < 10 && pf%1000 ? 1 : 0).replace(/\.0$/,"") + "nF";
                       return (Number.isInteger(pf) ? pf : pf.toFixed(1).replace(/\.0$/,"")) + "pF";
                     };
@@ -7878,7 +7878,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.49 — built 2026-03-20 10:55pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.50 — built 2026-03-20 11:05pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
