@@ -147,13 +147,18 @@ export async function deletePart(id) {
 }
 
 // Delete multiple parts by id array — used for bulk select delete
+// Batches in groups of 100 to avoid query size limits
 export async function deletePartsMany(ids) {
   if (!ids.length) return
-  const { error } = await supabase
-    .from('parts')
-    .delete()
-    .in('id', ids)
-  check(error, 'deletePartsMany')
+  const batchSize = 100
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const batch = ids.slice(i, i + batchSize)
+    const { error } = await supabase
+      .from('parts')
+      .delete()
+      .in('id', batch)
+    check(error, 'deletePartsMany')
+  }
 }
 
 // Upsert a batch of parts (used during BOM CSV import)
