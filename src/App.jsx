@@ -1183,6 +1183,7 @@ function BOMManager({ user }) {
   const [pricingSearch, setPricingSearch] = useState("");
   const [pasteText,   setPasteText]   = useState("");
   const [showImport,  setShowImport]  = useState(false);
+  const [expandedPartRow, setExpandedPartRow] = useState(null);
   const [bulkField,   setBulkField]   = useState("manufacturer");
   const [bulkValue,   setBulkValue]   = useState("");
   const [partSort,    setPartSort]    = useState({ field: "value", asc: true });
@@ -4001,10 +4002,11 @@ function BOMManager({ user }) {
                         transition:"border-color 0.15s, background 0.15s" };
                       const focusIn = (e) => { e.target.style.borderColor="#d2d2d7"; e.target.style.background="#fff"; };
                       const focusOut = (e) => { e.target.style.borderColor="transparent"; e.target.style.background="transparent"; };
-                      return (
+                      return (<>
                         <tr key={part.id} className="table-row"
-                          style={{ borderBottom:"1px solid #ededf0",
-                            background: selectedParts.has(part.id) ? "rgba(0,113,227,0.05)" : "transparent" }}>
+                          onClick={()=>setExpandedPartRow(expandedPartRow===part.id?null:part.id)}
+                          style={{ borderBottom:"1px solid #ededf0",cursor:"pointer",
+                            background: selectedParts.has(part.id) ? "rgba(0,113,227,0.05)" : expandedPartRow===part.id ? "rgba(0,0,0,0.02)" : "transparent" }}>
                           <td style={{ padding:"10px 10px",width:28 }}>
                             <input type="checkbox"
                               style={{ width:15,height:15,cursor:"pointer",accentColor:"#0071e3" }}
@@ -4074,7 +4076,52 @@ function BOMManager({ user }) {
                               onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>✕</button>
                           </td>
                         </tr>
-                      );
+                        {expandedPartRow === part.id && <tr>
+                            <td colSpan={10} style={{ padding:"12px 20px",background:darkMode?"#1c1c1e":"#f9f9fb",borderBottom:"2px solid #0071e3" }}>
+                              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,fontSize:12 }}>
+                                <div>
+                                  <div style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Full Description</div>
+                                  <div style={{ color:darkMode?"#f5f5f7":"#1d1d1f",lineHeight:1.4 }}>{part.description || "—"}</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Details</div>
+                                  <div style={{ color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                                    <div>MPN: <strong>{part.mpn || "—"}</strong></div>
+                                    <div>Value: {part.value || "—"}</div>
+                                    <div>Manufacturer: {part.manufacturer || "—"}</div>
+                                    <div>Reference: {part.reference || "—"}</div>
+                                    <div>Footprint: {part.footprint || "—"}</div>
+                                  </div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Inventory</div>
+                                  <div style={{ color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                                    <div>Stock: <strong style={{ color:isLow?"#ff3b30":"#34c759" }}>{sn}</strong></div>
+                                    <div>Reorder Point: {part.reorderQty || "—"}</div>
+                                    <div>Reel Qty: {part.reelQty || "—"}</div>
+                                    <div>Unit Cost: {priceAtQty(part) > 0 ? "$"+fmtPrice(priceAtQty(part)) : "—"}</div>
+                                    <div>Stock Value: {sn * priceAtQty(part) > 0 ? "$"+fmtDollar(sn * priceAtQty(part)) : "—"}</div>
+                                    <div>Supplier: {part.preferredSupplier || "—"}</div>
+                                  </div>
+                                </div>
+                              </div>
+                              {/* Products using this part */}
+                              {(() => {
+                                const usingProducts = products.filter(pr => parts.some(p => p.mpn === part.mpn && p.projectId === pr.id));
+                                return usingProducts.length > 0 ? (
+                                  <div style={{ marginTop:10,paddingTop:10,borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                                    <span style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Used in: </span>
+                                    {usingProducts.map(pr => (
+                                      <span key={pr.id} style={{ display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:600,color:"#0071e3",marginRight:10 }}>
+                                        <span style={{ width:6,height:6,borderRadius:"50%",background:pr.color }} />{pr.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : null;
+                              })()}
+                            </td>
+                          </tr>}
+                      </>);
                     })}
                   </tbody>
                 </table>
@@ -9233,7 +9280,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.05 — built 2026-03-21 3:25pm 3:30pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.06 — built 2026-03-21 3:35pm 3:30pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
