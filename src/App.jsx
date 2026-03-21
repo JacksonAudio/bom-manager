@@ -3399,24 +3399,30 @@ function BOMManager({ user }) {
               // Extract human-readable value from description
               const extractDisplayValue = (part) => {
                 const desc = part.description || "";
-                // Try to find resistance: "2000ohm" → "2k", "100ohm" → "100R", "10K Ohm" → "10k"
-                const m = desc.match(/([\d.]+)\s*(Mohm|Kohm|kohm|ohm|Ohm|MΩ|kΩ|Ω)?/i);
-                if (!m) return "";
-                const num = parseFloat(m[1]);
-                const unit = (m[2] || "").toLowerCase();
-                if (unit.includes("m")) { // Megaohm
-                  return num + "M";
-                } else if (unit.includes("k")) { // Kilohm
-                  return num + "k";
-                } else if (unit.includes("ohm") || unit.includes("ω")) {
-                  // Raw ohms — convert
+                // Try resistance with unit attached: "2000ohm", "10K Ohm", "4.7Mohm"
+                const rm = desc.match(/([\d.]+)\s*(Mohm|Kohm|kohm|mohm|ohm|Ohm|MΩ|kΩ|Ω)/);
+                if (rm) {
+                  const num = parseFloat(rm[1]);
+                  const u = rm[2].toLowerCase();
+                  if (u.startsWith("m") && !u.startsWith("mo")) return num + "M"; // Mohm but not mohm (milliohm)
+                  if (u.startsWith("k")) return num + "k";
+                  // Raw ohms
                   if (num >= 1000000) return (num/1000000) + "M";
                   if (num >= 1000) { const v = num/1000; return (Number.isInteger(v) ? v : v.toFixed(v<10?2:1).replace(/0+$/,"").replace(/\.$/,"")) + "k"; }
+                  if (num === 0) return "0R";
                   return (Number.isInteger(num) ? num : num.toFixed(num<10?2:1).replace(/0+$/,"").replace(/\.$/,"")) + "R";
+                }
+                // Try "10K Ohm" or "5.6K" pattern
+                const km = desc.match(/([\d.]+)\s*([KkMm])\s*[Oo]?[Hh]?[Mm]?/);
+                if (km) {
+                  const num = parseFloat(km[1]);
+                  const u = km[2];
+                  if (u === "K" || u === "k") return num + "k";
+                  if (u === "M" || u === "m") return num + "M";
                 }
                 // Try capacitance: "10uF", "100nF", "47pF"
                 const cm = desc.match(/([\d.]+)\s*(uF|nF|pF|µF)/i);
-                if (cm) return cm[1] + cm[2].toLowerCase();
+                if (cm) return cm[1] + cm[2].replace("µ","u").toLowerCase();
                 return "";
               };
 
@@ -7925,7 +7931,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.74 — built 2026-03-21 1:45am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v5.75 — built 2026-03-21 1:50am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
