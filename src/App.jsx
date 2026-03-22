@@ -6778,7 +6778,7 @@ function BOMManager({ user }) {
               </div>
             </div>
 
-            {shopifyDemand?.error && (
+            {shopifyDemand?.error && !shopifyDemand?.products?.length && !shopifyDemand?.loading && (
               <div style={{ background:"#fff2f0",border:"1px solid #ff3b30",borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:12,color:"#ff3b30" }}>
                 {shopifyDemand.error.includes("configured") || shopifyDemand.error.includes("No Shopify") ? (
                   <>No Shopify stores configured. <button className="btn-ghost" style={{ fontSize:11,marginLeft:8 }}
@@ -6786,7 +6786,7 @@ function BOMManager({ user }) {
                 ) : shopifyDemand.error}
               </div>
             )}
-            {zohoDemand?.error && (
+            {zohoDemand?.error && !zohoDemand?.products?.length && !zohoDemand?.loading && (
               <div style={{ background:"#fff2f0",border:"1px solid #ff3b30",borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:12,color:"#ff3b30" }}>
                 {zohoDemand.error.includes("configured") || zohoDemand.error.includes("credentials") ? (
                   <>Zoho Books not configured. <button className="btn-ghost" style={{ fontSize:11,marginLeft:8 }}
@@ -10015,7 +10015,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.19 — built 2026-03-21 8:25pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.20 — built 2026-03-21 8:35pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>

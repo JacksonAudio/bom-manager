@@ -37,7 +37,8 @@
       "mcp__mcp-registry__search_mcp_registry",
       "WebFetch(domain:www.royalohm.com)",
       "WebFetch(domain:www.yageo.com)",
-      "WebFetch(domain:www.ti.com)"
+      "WebFetch(domain:www.ti.com)",
+      "mcp__claude_ai_Slack__slack_send_message"
     ]
   }
 }
