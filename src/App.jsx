@@ -868,11 +868,11 @@ function buildPurchaseOrders(parts) {
   return grouped;
 }
 
-function genPONumber(sid) {
+function genPONumber(sid, displayName) {
   const d = new Date();
   const dateStr = `${String(d.getFullYear()).slice(2)}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
-  const supplierName = (SUPPLIERS.find(s => s.id === sid)?.name || sid).toUpperCase().replace(/[^A-Z0-9]/g,"");
-  return `JA-PO-${dateStr}-${supplierName}`;
+  const name = (displayName || SUPPLIERS.find(s => s.id === sid)?.name || sid).toUpperCase().replace(/[^A-Z0-9]/g,"");
+  return `JA-PO-${dateStr}-${name}`;
 }
 
 function buildPOEmailDraft(supplierName, lines, poNumber, companyInfo) {
@@ -5224,7 +5224,7 @@ function BOMManager({ user }) {
                 let distNames = {}; try { distNames = JSON.parse(apiKeys.distributor_names || "{}"); } catch {}
                 const baseSup = SUPPLIERS.find(s => s.id === sid) || { id: sid, name: sid, color: "#86868b", bg: "#f5f5f7", logo: "?" };
                 const sup = { ...baseSup, name: distNames[sid] || baseSup.name };
-                const poNum = genPONumber(sid);
+                const poNum = genPONumber(sid, sup.name);
                 // Compute reel-adjusted totals
                 const getItemQty = (d) => { const isReel = fullReelParts.has(d.part.id); const rq = getReelQty(d.part); return isReel && rq ? rq : d.net; };
                 const getItemPrice = (d) => {
@@ -10029,7 +10029,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.23 — built 2026-03-21 9:05pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.24 — built 2026-03-21 9:10pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
