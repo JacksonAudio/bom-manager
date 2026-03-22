@@ -16,22 +16,30 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Exchange client credentials for access token (shared by all actions)
-    const tokenRes = await fetch(`https://${domain}/admin/oauth/access_token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `grant_type=client_credentials&client_id=${encodeURIComponent(client_id)}&client_secret=${encodeURIComponent(client_secret)}`,
-    });
-
-    if (!tokenRes.ok) {
-      const errText = await tokenRes.text().catch(() => "");
-      return res.status(tokenRes.status).json({
-        error: `Token exchange failed: ${tokenRes.status}`,
-        detail: errText.slice(0, 500),
+    // Get access token — try OAuth client_credentials first, fall back to using secret directly (custom apps)
+    let access_token;
+    if (client_secret && client_secret.startsWith("shpss_")) {
+      // Custom app — the secret IS the access token
+      access_token = client_secret;
+    } else {
+      // OAuth app — exchange client credentials
+      const tokenRes = await fetch(`https://${domain}/admin/oauth/access_token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `grant_type=client_credentials&client_id=${encodeURIComponent(client_id)}&client_secret=${encodeURIComponent(client_secret)}`,
       });
-    }
 
-    const { access_token } = await tokenRes.json();
+      if (!tokenRes.ok) {
+        const errText = await tokenRes.text().catch(() => "");
+        return res.status(tokenRes.status).json({
+          error: `Token exchange failed: ${tokenRes.status}`,
+          detail: errText.slice(0, 500),
+        });
+      }
+
+      const tokenData = await tokenRes.json();
+      access_token = tokenData.access_token;
+    }
 
     switch (action) {
       case "orders":
