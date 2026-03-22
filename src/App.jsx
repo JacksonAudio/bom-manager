@@ -796,7 +796,7 @@ function exportPOasCSV(supplier, lines, poNumber) {
   const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = `PO-${poNumber}-${supplier.name}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.href = url; a.download = `${poNumber}-${new Date().toISOString().slice(0,10)}.csv`;
   a.click(); URL.revokeObjectURL(url);
 }
 
@@ -829,7 +829,7 @@ function printPO(supplier, lines, poNumber, companyInfo) {
   .tot td{font-weight:800;border-top:2px solid #000}
   @media print{body{padding:20px}}</style></head><body>
   <div class="header"><div><div class="company">${coName.toUpperCase()}</div><div style="font-size:10px;color:#666;letter-spacing:2px;margin-top:2px">PURCHASE ORDER</div></div>
-  <div class="po-num">PO-${poNumber}<br><span style="font-size:11px;font-weight:400;color:#666">${today}</span></div></div>
+  <div class="po-num">${poNumber}<br><span style="font-size:11px;font-weight:400;color:#666">${today}</span></div></div>
   <div class="addr-row">
     <div class="addr-box"><strong>Ship To</strong>${coAddr || "Address not configured"}</div>
     <div class="addr-box" style="border-left:4px solid ${supplier.color}"><strong style="color:${supplier.color}">${supplier.name}</strong>${supAddr || ""}</div>
@@ -10029,7 +10029,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.22 — built 2026-03-21 8:55pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.23 — built 2026-03-21 9:05pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
