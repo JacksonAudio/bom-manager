@@ -5225,6 +5225,7 @@ function BOMManager({ user }) {
                 const baseSup = SUPPLIERS.find(s => s.id === sid) || { id: sid, name: sid, color: "#86868b", bg: "#f5f5f7", logo: "?" };
                 const sup = { ...baseSup, name: distNames[sid] || baseSup.name };
                 const poNum = genPONumber(sid, sup.name);
+                console.log("[PO] sid:", sid, "sup.name:", sup.name, "distNames[sid]:", distNames[sid], "poNum:", poNum);
                 // Compute reel-adjusted totals
                 const getItemQty = (d) => { const isReel = fullReelParts.has(d.part.id); const rq = getReelQty(d.part); return isReel && rq ? rq : d.net; };
                 const getItemPrice = (d) => {
@@ -10029,7 +10030,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.24 — built 2026-03-21 9:10pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.25 — built 2026-03-21 10:15pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
