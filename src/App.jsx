@@ -1469,15 +1469,9 @@ function BOMManager({ user }) {
         // Pre-fetch exchange rates so they're cached for pricing
         fetchExchangeRates().catch(() => {});
 
-        // Restore demand data from DB cache
+        // Restore demand data from DB cache (no auto-sync — user clicks Sync when they want fresh data)
         fetchDemandCache("shopify").then(row => { if (row?.data) setShopifyDemand(row.data); }).catch(() => {});
         fetchDemandCache("zoho").then(row => { if (row?.data) setZohoDemand(row.data); }).catch(() => {});
-
-        // Auto-sync demand in background after boot
-        setTimeout(() => {
-          if (mergedKeys.shopify_stores_json) syncShopifyOrders().catch(() => {});
-          if (mergedKeys.zoho_org_id || mergedKeys.zoho_books_json) syncZohoOrders().catch(() => {});
-        }, 2000);
 
         // Auto-connect APIs silently on page load if keys exist in DB
         // Avoids user having to press "Save & Connect" every session
@@ -10015,7 +10009,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.20 — built 2026-03-21 8:35pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.21 — built 2026-03-21 8:40pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
