@@ -5223,9 +5223,10 @@ function BOMManager({ user }) {
               {Object.entries(supplierGroups).map(([sid, items]) => {
                 let distNames = {}; try { distNames = JSON.parse(apiKeys.distributor_names || "{}"); } catch {}
                 const baseSup = SUPPLIERS.find(s => s.id === sid) || { id: sid, name: sid, color: "#86868b", bg: "#f5f5f7", logo: "?" };
-                const sup = { ...baseSup, name: distNames[sid] || baseSup.name };
+                // Get display name from: distributor_names setting → pricing data → SUPPLIERS array → raw key
+                const pricingDisplayName = items[0]?.part?.pricing?.[sid]?.displayName;
+                const sup = { ...baseSup, name: distNames[sid] || pricingDisplayName || baseSup.name };
                 const poNum = genPONumber(sid, sup.name);
-                console.log("[PO] sid:", sid, "sup.name:", sup.name, "distNames[sid]:", distNames[sid], "poNum:", poNum);
                 // Compute reel-adjusted totals
                 const getItemQty = (d) => { const isReel = fullReelParts.has(d.part.id); const rq = getReelQty(d.part); return isReel && rq ? rq : d.net; };
                 const getItemPrice = (d) => {
@@ -10030,7 +10031,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.25 — built 2026-03-21 10:15pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.26 — built 2026-03-21 10:20pm</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
