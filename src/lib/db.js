@@ -488,6 +488,18 @@ export async function createPORecord(fields, userId) {
   return data
 }
 
+// Find a PO by its PO number
+export async function findPOByNumber(poNumber) {
+  if (!poNumber) return null
+  const { data, error } = await supabase
+    .from('po_history')
+    .select('*')
+    .ilike('po_number', poNumber)
+    .limit(1)
+  if (error) { console.error('[db:findPOByNumber]', error.message); return null; }
+  return data?.[0] || null
+}
+
 // Update a PO history record
 export async function updatePORecord(id, fields) {
   const { error } = await supabase
