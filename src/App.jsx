@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.48
+// src/App.jsx — Jackson Audio BOM Manager v6.49
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1248,6 +1248,7 @@ function BOMManager({ user }) {
   const [selectedParts, setSelectedParts] = useState(new Set());
   const [expandedPricingParts, setExpandedPricingParts] = useState(new Set());
   const [countryFilter, setCountryFilter] = useState("us"); // "us" or "rest"
+  const [pricingTariffFreeOnly, setPricingTariffFreeOnly] = useState(false); // hide parts with tariffed country of origin
   const [buyQtys, setBuyQtys] = useState({}); // { [partId]: number } — qty to price at per part
   const [simUsOnly, setSimUsOnly] = useState(false); // simulation: US suppliers only
   const [shopifyDemand, setShopifyDemand] = useState(null); // { products, orders, syncedAt, loading, error }
@@ -4608,6 +4609,15 @@ function BOMManager({ user }) {
                     The Rest
                   </button>
                 </div>
+                <label style={{ display:"flex",alignItems:"center",gap:5,cursor:"pointer",fontSize:12,fontWeight:600,
+                  padding:"6px 14px",borderRadius:980,
+                  border:pricingTariffFreeOnly?"1px solid #34c759":"1px solid #d2d2d7",
+                  background:pricingTariffFreeOnly?"rgba(52,199,89,0.08)":"transparent",
+                  color:pricingTariffFreeOnly?"#34c759":"#86868b" }}>
+                  <input type="checkbox" checked={pricingTariffFreeOnly} onChange={() => setPricingTariffFreeOnly(v => !v)}
+                    style={{ width:14,height:14,accentColor:"#34c759",cursor:"pointer" }} />
+                  Tariff-Free Only
+                </label>
               </div>
             </div>
 
@@ -4620,13 +4630,30 @@ function BOMManager({ user }) {
                 {/* Part list */}
                 <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden" }}>
                   {(() => {
+                    let filtered = parts;
                     const pq = pricingSearch.trim();
-                    if (!pq) return parts;
-                    const words = pq.toLowerCase().split(/\s+/).filter(Boolean);
-                    return parts.filter(p => {
-                      const blob = [p.reference, p.value, p.mpn, p.description, p.manufacturer].join(" ").toLowerCase();
-                      return words.every(w => blob.includes(w));
-                    });
+                    if (pq) {
+                      const words = pq.toLowerCase().split(/\s+/).filter(Boolean);
+                      filtered = filtered.filter(p => {
+                        const blob = [p.reference, p.value, p.mpn, p.description, p.manufacturer].join(" ").toLowerCase();
+                        return words.every(w => blob.includes(w));
+                      });
+                    }
+                    if (pricingTariffFreeOnly) {
+                      const tfTariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
+                      filtered = filtered.filter(p => {
+                        const pr = p.pricing && typeof p.pricing === "object" ? p.pricing : null;
+                        if (!pr) return true; // no pricing = unknown origin, keep it
+                        let origin = "";
+                        for (const [k, data] of Object.entries(pr)) {
+                          if (k.startsWith("_") || !data || typeof data !== "object") continue;
+                          if (data.countryOfOrigin) { origin = data.countryOfOrigin.toUpperCase(); break; }
+                        }
+                        if (!origin) origin = p.countryOfOrigin || "";
+                        return !origin || getTariffRate(origin, tfTariffs) === 0;
+                      });
+                    }
+                    return filtered;
                   })().map((part, partIdx) => {
                     const pricingObj = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
                     const hasPricing = pricingObj && Object.keys(pricingObj).length > 0;
@@ -10817,7 +10844,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.48 — built 2026-03-24 5:02am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.49 — built 2026-03-24 5:30am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
