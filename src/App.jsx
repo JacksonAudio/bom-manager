@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.51
+// src/App.jsx — Jackson Audio BOM Manager v6.52
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1222,6 +1222,7 @@ function BOMManager({ user }) {
   const [compSearchMfr, setCompSearchMfr] = useState("");
   const [compSearchDescPrefix, setCompSearchDescPrefix] = useState("");
   const [compSearchLimit, setCompSearchLimit] = useState("10");
+  const [compSearchSource, setCompSearchSource] = useState("auto"); // "auto" | "mouser" | "nexar"
   const [compTariffFreeOnly, setCompTariffFreeOnly] = useState(false); // filter component library to tariff-free parts
   const [nexarUsed, setNexarUsed] = useState(() => { try { return parseInt(localStorage.getItem("nexar_used")||"6557"); } catch { return 6557; } });
   const [newProjName, setNewProjName] = useState("");
@@ -4089,9 +4090,14 @@ function BOMManager({ user }) {
                 setCompSearchResults([]);
                 setCompSelectedParts(new Set());
                 try {
-                  // Use Nexar API (Pro account)
-                  if (!nexarToken) throw new Error("Connect Nexar in Settings first");
-                  const params = new URLSearchParams({ q: compSearchQuery.trim(), token: nexarToken, limit: compSearchLimit || "10" });
+                  // Determine search source
+                  const useMouser = compSearchSource === "mouser" || (compSearchSource === "auto" && apiKeys.mouser_api_key);
+                  const useNexar = compSearchSource === "nexar" || (compSearchSource === "auto" && !apiKeys.mouser_api_key);
+                  if (useNexar && !nexarToken) throw new Error("Connect Nexar in Settings first");
+                  if (useMouser && !apiKeys.mouser_api_key) throw new Error("Add Mouser API key in Settings first");
+                  const params = new URLSearchParams({ q: compSearchQuery.trim(), limit: compSearchLimit || "10" });
+                  if (useMouser) params.set("mouserKey", apiKeys.mouser_api_key);
+                  else params.set("token", nexarToken);
                   const searchRes = await fetch(`/api/search-components?${params}`);
                   const searchData = await searchRes.json();
                   if (!searchRes.ok) throw new Error(searchData.error || `API error ${searchRes.status}`);
@@ -4220,19 +4226,34 @@ function BOMManager({ user }) {
                   )}
 
                   {/* Search bar */}
-                  <div style={{ display:"flex",gap:8,marginBottom:14,alignItems:"center" }}>
+                  <div style={{ display:"flex",gap:8,marginBottom:14,alignItems:"center",flexWrap:"wrap" }}>
                     <input type="text" value={compSearchQuery} onChange={e=>setCompSearchQuery(e.target.value)}
                       onKeyDown={e=>{ if(e.key==="Enter") handleCompSearch(); }}
                       placeholder="Search by MPN prefix or series (e.g. 0603WAF, GRM188R61E)"
-                      style={{ flex:1,padding:"9px 12px",borderRadius:8,fontSize:13,border:"1px solid #d2d2d7",boxSizing:"border-box",fontFamily:"inherit" }} />
+                      style={{ flex:1,padding:"9px 12px",borderRadius:8,fontSize:13,border:"1px solid #d2d2d7",boxSizing:"border-box",fontFamily:"inherit",minWidth:200 }} />
+                    <div style={{ display:"flex",borderRadius:980,overflow:"hidden",border:"1px solid #d2d2d7" }}>
+                      {[
+                        { id:"auto", label:"Auto", tip:"Mouser if key exists, else Nexar" },
+                        { id:"mouser", label:"Mouser", tip:"Mouser Search API — includes country of origin, stock, pricing" },
+                        { id:"nexar", label:"Nexar", tip:"Nexar/Octopart — broader catalog, no COO in search" },
+                      ].map((s, i) => (
+                        <button key={s.id} title={s.tip} onClick={() => setCompSearchSource(s.id)}
+                          style={{ padding:"7px 12px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",
+                            borderLeft:i>0?"1px solid #d2d2d7":"none",
+                            background:compSearchSource===s.id?"#5856d6":"transparent",
+                            color:compSearchSource===s.id?"#fff":"#86868b",transition:"all 0.15s" }}>
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
                     <div style={{ display:"flex",alignItems:"center",gap:4 }}>
                       <span style={{ fontSize:10,color:"#86868b" }}>Limit:</span>
                       <input type="number" min="1" max="1000" value={compSearchLimit} onChange={e=>setCompSearchLimit(e.target.value)}
                         style={{ width:60,padding:"8px 6px",borderRadius:8,fontSize:13,border:"1px solid #d2d2d7",textAlign:"center",fontFamily:"inherit" }} />
                     </div>
-                    <button onClick={handleCompSearch} disabled={compSearchLoading || !nexarToken}
+                    <button onClick={handleCompSearch} disabled={compSearchLoading || (!nexarToken && (compSearchSource !== "mouser")) || (compSearchSource === "mouser" && !apiKeys.mouser_api_key)}
                       style={{ padding:"9px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
-                        border:"none",background:"#5856d6",color:"#fff",opacity:(compSearchLoading||!nexarToken)?"0.5":"1",whiteSpace:"nowrap" }}>
+                        border:"none",background:"#5856d6",color:"#fff",opacity:compSearchLoading?"0.5":"1",whiteSpace:"nowrap" }}>
                       {compSearchLoading ? "Searching..." : "Search"}
                     </button>
                   </div>
@@ -4299,7 +4320,7 @@ function BOMManager({ user }) {
                             Import Selected ({compSelectedParts.size})
                           </button>
                         )}
-                        <span style={{ fontSize:12,color:"#86868b" }}>{displayResults.length}{compTariffFreeOnly && displayResults.length !== compSearchResults.length ? ` of ${compSearchResults.length}` : ""} results from Nexar · ~{(15000 - nexarUsed).toLocaleString()} pulls remaining</span>
+                        <span style={{ fontSize:12,color:"#86868b" }}>{displayResults.length}{compTariffFreeOnly && displayResults.length !== compSearchResults.length ? ` of ${compSearchResults.length}` : ""} results{compSearchSource === "mouser" || (compSearchSource === "auto" && apiKeys.mouser_api_key) ? " from Mouser" : ` from Nexar · ~${(15000 - nexarUsed).toLocaleString()} pulls remaining`}</span>
                       </div>
                       <div style={{ maxHeight:400,overflowY:"auto",border:"1px solid #e5e5ea",borderRadius:8 }}>
                         <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
@@ -10898,7 +10919,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.51 — built 2026-03-24 6:10am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.52 — built 2026-03-24 6:25am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
