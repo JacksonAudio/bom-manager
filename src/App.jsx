@@ -4807,7 +4807,7 @@ function BOMManager({ user }) {
                               <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:14 }}>
                                 {sorted.map(([key, data], idx) => {
                                   const isBest = idx === 0;
-                                  const ctry = getCountry(data);
+                                  const ctry = getDistCountry(data);
                                   const displayPrice = pAtQty(data);
                                   const origin = (ctry && ctry !== "US") ? ctry : "";
                                   const tariffRate = getTariffRate(origin, userTariffs);
