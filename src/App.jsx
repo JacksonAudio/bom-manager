@@ -3248,9 +3248,9 @@ function BOMManager({ user }) {
                 {[
                   { step:1, title:"Add Parts", desc:"Import a CSV or manually add parts to your Parts Library with MPNs, values, and quantities.", tab:"bom", color:"#0071e3" },
                   { step:2, title:"Create Products", desc:"Group parts into products (pedals, amps, etc). Assign each part to the product it belongs to.", tab:"projects", color:"#5856d6" },
-                  { step:3, title:"Get Pricing", desc:"Refresh prices from Nexar/Octopart to pull live quotes from 900+ distributors automatically.", tab:"pricing", color:"#ff9500" },
-                  { step:4, title:"Check Demand", desc:"Connect Shopify/Zoho to see unfulfilled orders. Queue builds on the Products page to generate parts demand.", tab:"demand", color:"#34c759" },
-                  { step:5, title:"Review & Purchase", desc:"The Purchasing tab aggregates parts, groups by supplier, and generates POs. Print, email, or CSV export.", tab:"purchasing", color:"#ff3b30" },
+                  { step:3, title:"Get Pricing", desc:"Live quotes from 900+ distributors. Landed costs include tariffs by country of origin. Mouser preferred within 5% of cheapest.", tab:"pricing", color:"#ff9500" },
+                  { step:4, title:"Check Demand", desc:"Shopify + Zoho orders with due dates, fulfillment tracking, and ShipStation shipment data. Track dealer POs and direct orders.", tab:"demand", color:"#34c759" },
+                  { step:5, title:"Review & Purchase", desc:"Aggregated POs by supplier with tariff visibility. Skip tariffed parts, check Mouser tariffs via Cart API, or export/email POs.", tab:"purchasing", color:"#ff3b30" },
                   { step:6, title:"Receive & Scan", desc:"When parts arrive, scan invoices to update stock quantities and close out open POs.", tab:"scan", color:"#00c7be" },
                 ].map((s, i, arr) => (
                   <div key={s.step} style={{ display:"flex",alignItems:"flex-start" }}>
@@ -4573,7 +4573,7 @@ function BOMManager({ user }) {
                 <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:"#1d1d1f",margin:0 }}>Live Pricing</h2>
               </div>
               <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",margin:0 }}>
-                Live quotes from 900+ distributors worldwide, powered by Nexar/Octopart. Pricing updates ensure you're always buying at the best available rate, with price breaks calculated at your actual order quantities. This saves the company money on every build and gives purchasing full visibility into market pricing before committing to a PO.
+                Live quotes from 900+ distributors worldwide, powered by Nexar/Octopart. Prices include landed costs with tariff calculations based on each part's country of origin. Mouser is automatically preferred when their price is within 5% of the cheapest option (configurable in Settings). Price breaks are calculated at your actual order quantities so you always see the real cost before committing to a PO.
               </p>
             </div>
             <div style={{ marginBottom:16 }}>
@@ -5237,7 +5237,7 @@ function BOMManager({ user }) {
                 <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:"#1d1d1f",margin:0 }}>Purchasing</h2>
               </div>
               <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",margin:0 }}>
-                Your checkout page for parts. The build queue aggregates every part needed across all queued products, deduplicates shared components, subtracts current stock, and groups the remaining demand by supplier. From here you generate purchase orders, email them to your reps, export CSVs, or push directly to Mouser's cart — all in one place. This eliminates manual spreadsheet work and ensures nothing falls through the cracks.
+                Your checkout page for parts. The build queue aggregates every part needed across all queued products, deduplicates shared components, subtracts current stock, and groups the remaining demand by supplier. Each line item shows tariff exposure by country of origin — use "Skip Tariffed Parts" to hold back tariffed components and order tariff-free parts first. For Mouser orders, "Check Tariffs" queries their Cart API for actual surcharges before you commit. Generate POs, email reps, export CSVs, or push directly to Mouser's cart.
               </p>
             </div>
 
@@ -6289,7 +6289,7 @@ function BOMManager({ user }) {
                 <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",margin:0 }}>Products</h2>
               </div>
               <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",margin:0 }}>
-                Products are the pedals, amps, and gear you build. Each product has a bill of materials — the parts required for one unit. This is where you manage what you manufacture, queue build orders, and see the true cost of each product. When it's time to order, enter a quantity and click Order to send it to the Purchasing tab.
+                Products are the pedals, amps, and gear you build. Each product has a bill of materials — the parts required for one unit. This is where you manage what you manufacture, queue build orders linked to specific dealer POs or direct orders, and see the true cost of each product including tariffs and shipping. When it's time to order parts, enter a quantity and click Order to send it to the Purchasing tab.
               </p>
             </div>
             <div style={{ marginBottom:16 }}>
@@ -7070,7 +7070,7 @@ function BOMManager({ user }) {
                 <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:20,fontWeight:700,margin:0 }}>Order Demand</h2>
               </div>
               <p style={{ color:"#6e6e73",fontSize:13,lineHeight:"20px",margin:0 }}>
-                This is where customer orders meet your inventory. Demand pulls unfulfilled orders from Shopify (direct-to-consumer) and Zoho Books (dealer/wholesale), then calculates exactly which parts you need and how many. Instead of guessing what to build, your team sees real demand data driving every purchasing decision — no overbuying, no missed orders.
+                This is where customer orders meet your inventory. Dealer PO Tracker and Direct Order Tracker show every open order with due dates, fulfillment progress, and overdue alerts. Demand pulls unfulfilled orders from Shopify (direct-to-consumer) and Zoho Books (dealer/wholesale), with ShipStation data showing what's already shipped. Dismiss fulfilled orders, assign builds to specific POs, and see exactly which parts you need — real demand data driving every purchasing decision.
               </p>
             </div>
             <div style={{ display:"flex",justifyContent:"flex-end",marginBottom:16,flexWrap:"wrap",gap:6 }}>
