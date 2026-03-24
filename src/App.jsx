@@ -4616,7 +4616,7 @@ function BOMManager({ user }) {
                   color:pricingTariffFreeOnly?"#34c759":"#86868b" }}>
                   <input type="checkbox" checked={pricingTariffFreeOnly} onChange={() => setPricingTariffFreeOnly(v => !v)}
                     style={{ width:14,height:14,accentColor:"#34c759",cursor:"pointer" }} />
-                  Tariff-Free Only
+                  Highlight Tariffs
                 </label>
               </div>
             </div>
@@ -4640,31 +4640,20 @@ function BOMManager({ user }) {
                       });
                     }
                     if (pricingTariffFreeOnly) {
+                      // Sort tariff-free parts to top, tariffed to bottom
                       const tfTariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
-                      filtered = filtered.filter(p => {
+                      const getPartTariff = (p) => {
                         const pr = p.pricing && typeof p.pricing === "object" ? p.pricing : null;
-                        if (!pr) return true; // no pricing = can't determine, keep it
-                        // Check country of origin from pricing entries
+                        if (!pr) return 0;
                         let origin = "";
                         for (const [k, data] of Object.entries(pr)) {
                           if (k.startsWith("_") || !data || typeof data !== "object") continue;
                           if (data.countryOfOrigin) { origin = data.countryOfOrigin.toUpperCase(); break; }
                         }
                         if (!origin) origin = p.countryOfOrigin || "";
-                        // If we have an origin, filter by tariff rate
-                        if (origin) return getTariffRate(origin, tfTariffs) === 0;
-                        // No origin known — check if best supplier is from a tariffed country
-                        // (e.g., LCSC = CN, so parts sourced from LCSC likely have CN tariffs)
-                        const bestKey = p.bestSupplier || bestPriceSupplier(pr, apiKeys.preferred_supplier, apiKeys.preferred_margin);
-                        if (bestKey) {
-                          const bestData = pr[bestKey];
-                          const supplierCountry = bestData?.country || DIST_COUNTRY[bestData?.displayName] || DIST_COUNTRY[bestKey] || "";
-                          if (supplierCountry && supplierCountry !== "US") {
-                            return getTariffRate(supplierCountry, tfTariffs) === 0;
-                          }
-                        }
-                        return true; // truly unknown, keep visible
-                      });
+                        return origin ? getTariffRate(origin, tfTariffs) : 0;
+                      };
+                      filtered.sort((a, b) => getPartTariff(a) - getPartTariff(b));
                     }
                     return filtered;
                   })().map((part, partIdx) => {
@@ -4711,17 +4700,21 @@ function BOMManager({ user }) {
                     const filteredBestData = sorted.length > 0 ? sorted[0][1] : null;
                     const bestDisplayPrice = filteredBestData ? landedAt(filteredBestData) : null;
 
+                    const isTariffDimmed = pricingTariffFreeOnly && partTariffRate > 0;
+
                     return (
-                      <div key={part.id} style={{ borderBottom: partIdx < parts.length-1 ? "1px solid #f0f0f2" : "none" }}>
+                      <div key={part.id} style={{ borderBottom: partIdx < parts.length-1 ? "1px solid #f0f0f2" : "none",
+                        opacity: isTariffDimmed ? 0.4 : 1, transition:"opacity 0.2s" }}>
                         {/* Collapsed row — click to expand */}
                         <div onClick={() => setExpandedPart(isOpen ? null : part.id)}
                           style={{ display:"flex",alignItems:"center",padding:"14px 22px",cursor:"pointer",
-                            transition:"background 0.15s",background:isOpen?"rgba(0,0,0,0.02)":"transparent" }}
-                          onMouseOver={e=>{if(!isOpen)e.currentTarget.style.background="rgba(0,0,0,0.02)"}}
-                          onMouseOut={e=>{if(!isOpen)e.currentTarget.style.background="transparent"}}>
+                            transition:"background 0.15s",background:isTariffDimmed?"rgba(255,149,0,0.04)":isOpen?"rgba(0,0,0,0.02)":"transparent" }}
+                          onMouseOver={e=>{if(!isOpen&&!isTariffDimmed)e.currentTarget.style.background="rgba(0,0,0,0.02)"}}
+                          onMouseOut={e=>{if(!isOpen&&!isTariffDimmed)e.currentTarget.style.background=isTariffDimmed?"rgba(255,149,0,0.04)":"transparent"}}>
                           <div style={{ flex:2,minWidth:0 }}>
-                            <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f" }}>
+                            <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f",display:"flex",alignItems:"center",gap:8 }}>
                               {part.mpn || part.reference}
+                              {isTariffDimmed && <span style={{ fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(255,149,0,0.15)",color:"#ff9500" }}>{partOrigin} +{partTariffRate}%</span>}
                             </div>
                             <div style={{ fontSize:12,color:"#86868b",marginTop:1 }}>
                               {[part.description, part.value].filter(Boolean).join(" — ") || "\u00A0"}
