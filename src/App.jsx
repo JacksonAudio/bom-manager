@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.59
+// src/App.jsx — Jackson Audio BOM Manager v6.60
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -284,7 +284,7 @@ async function fetchNexarToken(clientId, clientSecret) {
 function buildNexarQuery(mpn) {
   // Escape any quotes in the MPN just in case
   const safe = mpn.replace(/"/g, '\\"');
-  return `{ supSearchMpn(q: "${safe}", limit: 3) { hits results { part { mpn countryOfOrigin manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
+  return `{ supSearchMpn(q: "${safe}", limit: 3) { hits results { part { mpn manufacturer { name } specs { attribute { name shortname } displayValue } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
 }
 
 async function fetchNexarPricing(mpn, quantity, token) {
@@ -313,9 +313,15 @@ async function fetchNexarPricing(mpn, quantity, token) {
   let detectedOrigin = null;
 
   for (const result of results) {
-    // Capture country of origin from part data (for tariff calculation)
-    if (result?.part?.countryOfOrigin && !detectedOrigin) {
-      detectedOrigin = result.part.countryOfOrigin.toUpperCase();
+    // Capture country of origin from specs (Nexar returns it as a spec attribute, not a top-level field)
+    if (!detectedOrigin && result?.part?.specs) {
+      for (const spec of result.part.specs) {
+        const attrName = (spec?.attribute?.name || spec?.attribute?.shortname || "").toLowerCase();
+        if (attrName.includes("country") && attrName.includes("origin") && spec.displayValue) {
+          detectedOrigin = spec.displayValue.toUpperCase();
+          break;
+        }
+      }
     }
     for (const seller of (result?.part?.sellers || [])) {
       const distName = seller?.company?.name || "";
@@ -11282,7 +11288,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.59 — built 2026-03-24</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.60 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
