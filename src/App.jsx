@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.54
+// src/App.jsx — Jackson Audio BOM Manager v6.55
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -2233,29 +2233,37 @@ function BOMManager({ user }) {
       const mpn = parsePartUrlToMpn(input);
       if (!mpn) throw new Error("Could not extract part number from URL");
 
-      // Fetch part data via Mouser Search API (best data source)
+      // Fetch part data via Mouser Search API (best data source — includes COO, pricing, datasheets)
       let partData = null;
+      let source = "";
       if (apiKeys.mouser_api_key) {
         partData = await fetchMouserPricing(mpn, 1, apiKeys.mouser_api_key);
+        if (partData) source = "mouser";
       }
       // Fallback: try Nexar if Mouser didn't find it
       if (!partData && nexarToken) {
         const pricing = await fetchNexarPricing(mpn, 1, nexarToken);
         if (pricing) {
-          // Get the first supplier's data
           const firstKey = Object.keys(pricing).find(k => !k.startsWith("_"));
           if (firstKey) partData = { ...pricing[firstKey], mpn };
           if (pricing._countryOfOrigin) partData.countryOfOrigin = pricing._countryOfOrigin;
+          source = firstKey || "nexar"; // use actual distributor name from Nexar results
         }
       }
 
       if (!partData) throw new Error(`No results found for "${mpn}". Try pasting just the MPN instead.`);
 
+      // Calculate tariff exposure
+      const origin = (partData.countryOfOrigin || "").toUpperCase();
+      const quTariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
+      const tariffRate = origin ? getTariffRate(origin, quTariffs) : 0;
+      const landedPrice = tariffRate > 0 && partData.unitPrice ? partData.unitPrice * (1 + tariffRate / 100) : partData.unitPrice || 0;
+
       setQuickUrlResult({
         mpn: partData.mouserPartNumber ? mpn : (partData.mpn || mpn),
         manufacturer: partData.manufacturer || "",
         description: partData.partDescription || "",
-        countryOfOrigin: partData.countryOfOrigin || "",
+        countryOfOrigin: origin,
         datasheetUrl: partData.datasheetUrl || "",
         stock: partData.stock || 0,
         unitPrice: partData.unitPrice || 0,
@@ -2267,6 +2275,9 @@ function BOMManager({ user }) {
         imagePath: partData.imagePath || "",
         mouserPartNumber: partData.mouserPartNumber || "",
         sourceUrl: input,
+        source,
+        tariffRate,
+        landedPrice,
       });
     } catch (e) {
       setQuickUrlError(e.message);
@@ -4153,6 +4164,31 @@ function BOMManager({ user }) {
                 {/* ── Result Preview Card */}
                 {quickUrlResult && (
                   <div style={{ marginTop:12,padding:"14px 16px",background:"#fff",borderRadius:8,border:"1px solid #e5e5ea" }}>
+                    {/* Source badge */}
+                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                      <span style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",padding:"2px 8px",borderRadius:4,
+                        background: quickUrlResult.source === "mouser" ? "#e8f5e9" : "#e3f2fd",
+                        color: quickUrlResult.source === "mouser" ? "#2e7d32" : "#1565c0" }}>
+                        via {quickUrlResult.source || "unknown"}
+                      </span>
+                      {/* Tariff alert */}
+                      {quickUrlResult.tariffRate > 0 && (
+                        <span style={{ fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:6,background:"#fff3e0",color:"#e65100",border:"1px solid #ffcc80" }}>
+                          ⚠ {quickUrlResult.tariffRate}% TARIFF ({quickUrlResult.countryOfOrigin})
+                        </span>
+                      )}
+                      {quickUrlResult.countryOfOrigin && quickUrlResult.tariffRate === 0 && (
+                        <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:6,background:"#e8f5e9",color:"#2e7d32" }}>
+                          Tariff-Free ({quickUrlResult.countryOfOrigin})
+                        </span>
+                      )}
+                      {!quickUrlResult.countryOfOrigin && (
+                        <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:6,background:"#f5f5f7",color:"#86868b" }}>
+                          Origin unknown — tariff status unclear
+                        </span>
+                      )}
+                    </div>
+
                     <div style={{ display:"flex",gap:12,alignItems:"flex-start" }}>
                       {quickUrlResult.imagePath && (
                         <img src={quickUrlResult.imagePath} alt="" style={{ width:64,height:64,objectFit:"contain",borderRadius:6,border:"1px solid #f0f0f0" }} />
@@ -4163,21 +4199,41 @@ function BOMManager({ user }) {
                         {quickUrlResult.description && <div style={{ fontSize:12,color:"#48484a",marginBottom:6 }}>{quickUrlResult.description}</div>}
 
                         <div style={{ display:"flex",gap:16,flexWrap:"wrap",fontSize:12,color:"#48484a" }}>
-                          {quickUrlResult.unitPrice > 0 && <span><strong>${quickUrlResult.unitPrice.toFixed(4)}</strong>/ea</span>}
+                          {quickUrlResult.unitPrice > 0 && (
+                            <span>
+                              <strong>${quickUrlResult.unitPrice.toFixed(4)}</strong>/ea
+                              {quickUrlResult.tariffRate > 0 && (
+                                <span style={{ color:"#e65100",marginLeft:4 }}>→ <strong>${quickUrlResult.landedPrice.toFixed(4)}</strong> landed</span>
+                              )}
+                            </span>
+                          )}
                           {quickUrlResult.stock > 0 && <span>{quickUrlResult.stock.toLocaleString()} in stock</span>}
                           {quickUrlResult.countryOfOrigin && <span>Origin: <strong>{quickUrlResult.countryOfOrigin}</strong></span>}
                           {quickUrlResult.rohsStatus && <span>RoHS: {quickUrlResult.rohsStatus}</span>}
                           {quickUrlResult.leadTime && <span>Lead: {quickUrlResult.leadTime}</span>}
                         </div>
 
+                        {/* Tariff cost breakdown */}
+                        {quickUrlResult.tariffRate > 0 && quickUrlResult.unitPrice > 0 && (
+                          <div style={{ marginTop:8,padding:"6px 10px",background:"#fff8e1",borderRadius:6,border:"1px solid #ffe082",fontSize:11,color:"#6d4c00" }}>
+                            Tariff adds <strong>${(quickUrlResult.landedPrice - quickUrlResult.unitPrice).toFixed(4)}</strong>/ea ({quickUrlResult.tariffRate}% on {quickUrlResult.countryOfOrigin} origin).
+                            At qty 100 = <strong>${((quickUrlResult.landedPrice - quickUrlResult.unitPrice) * 100).toFixed(2)}</strong> extra.
+                            {quickUrlResult.priceBreaks?.length > 1 && (() => {
+                              const best = quickUrlResult.priceBreaks[quickUrlResult.priceBreaks.length - 1];
+                              const bestLanded = best.price * (1 + quickUrlResult.tariffRate / 100);
+                              return ` Best break (${best.qty}+): $${best.price.toFixed(4)} → $${bestLanded.toFixed(4)} landed.`;
+                            })()}
+                          </div>
+                        )}
+
                         {/* Price Breaks */}
                         {quickUrlResult.priceBreaks?.length > 1 && (
                           <div style={{ marginTop:8 }}>
-                            <div style={{ fontSize:11,fontWeight:600,color:"#86868b",marginBottom:4 }}>QUANTITY PRICING</div>
+                            <div style={{ fontSize:11,fontWeight:600,color:"#86868b",marginBottom:4 }}>QUANTITY PRICING{quickUrlResult.tariffRate > 0 ? " (pre-tariff → landed)" : ""}</div>
                             <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
                               {quickUrlResult.priceBreaks.map((pb,i)=>(
-                                <span key={i} style={{ padding:"2px 8px",background:"#f5f5f7",borderRadius:4,fontSize:11 }}>
-                                  {pb.qty}+ @ ${pb.price.toFixed(4)}
+                                <span key={i} style={{ padding:"2px 8px",background: quickUrlResult.tariffRate > 0 ? "#fff8e1" : "#f5f5f7",borderRadius:4,fontSize:11 }}>
+                                  {pb.qty}+ @ ${pb.price.toFixed(4)}{quickUrlResult.tariffRate > 0 && <span style={{ color:"#e65100" }}> → ${(pb.price * (1 + quickUrlResult.tariffRate / 100)).toFixed(4)}</span>}
                                 </span>
                               ))}
                             </div>
@@ -11164,7 +11220,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.54 — built 2026-03-24</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.55 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
