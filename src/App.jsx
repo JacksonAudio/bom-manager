@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.64
+// src/App.jsx — Jackson Audio BOM Manager v6.65
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -2293,24 +2293,39 @@ function BOMManager({ user }) {
         dbg.push("[2] Skipped Nexar — no token");
       }
 
-      // Try Mouser Cart API → Order Options to detect tariffs
+      // Try Mouser Keyword Search (different endpoint, sometimes has COO when part search doesn't)
+      if (!partData.countryOfOrigin && apiKeys.mouser_api_key) {
+        try {
+          dbg.push("[3] Trying Mouser Keyword Search API...");
+          const kwParams = new URLSearchParams({ q: mpn, mouserKey: apiKeys.mouser_api_key, limit: "5" });
+          const kwRes = await fetch(`/api/search-components?${kwParams.toString()}`);
+          if (kwRes.ok) {
+            const kwData = await kwRes.json();
+            const kwMatch = (kwData.results || []).find(r => r.mpn?.toUpperCase() === mpn.toUpperCase()) || (kwData.results || [])[0];
+            dbg.push(`[3] Keyword results: ${kwData.count || 0} parts, match COO=${kwMatch?.countryOfOrigin || "NONE"}`);
+            if (kwMatch?.countryOfOrigin) {
+              partData.countryOfOrigin = kwMatch.countryOfOrigin.toUpperCase();
+              dbg.push(`[3] GOT COO from keyword search: ${partData.countryOfOrigin}`);
+            }
+          } else {
+            dbg.push(`[3] Keyword search HTTP ${kwRes.status}`);
+          }
+        } catch (e) { dbg.push(`[3] Keyword search FAILED: ${e.message}`); }
+      }
+
+      // Try Mouser Cart API → Order Options to detect tariffs (requires Order API key)
       let cartTariffDetected = false;
       let cartTariffAmount = 0;
-      const orderApiKey = apiKeys.mouser_order_api_key || apiKeys.mouser_api_key; // fallback to search key
       const mouserPN = partData.mouserPartNumber;
-      if (!partData.countryOfOrigin && orderApiKey && mouserPN) {
+      if (!partData.countryOfOrigin && apiKeys.mouser_order_api_key && mouserPN) {
         try {
-          dbg.push(`[3] Cart API: creating cart for ${mouserPN} (key=${apiKeys.mouser_order_api_key ? "order" : "search"})...`);
-          const cart = await mouserCreateCart(orderApiKey, [{ mouserPartNumber: mouserPN, quantity: 1 }]);
-          dbg.push(`[3] Cart key=${cart.cartKey}, cartItems=${(cart.cartItems||[]).length}`);
-          const options = await mouserGetOrderOptions(orderApiKey, cart.cartKey);
-          const optKeys = Object.keys(options || {}).join(",");
-          dbg.push(`[3] Options keys: ${optKeys}`);
-          dbg.push(`[3] Options.CartItems=${(options.CartItems||[]).length}, AdditionalFeesTotal=${options.AdditionalFeesTotal || "N/A"}`);
-          // Dump first cart item fully for debugging
+          dbg.push(`[4] Cart API: creating cart for ${mouserPN}...`);
+          const cart = await mouserCreateCart(apiKeys.mouser_order_api_key, [{ mouserPartNumber: mouserPN, quantity: 1 }]);
+          dbg.push(`[4] Cart key=${cart.cartKey}, cartItems=${(cart.cartItems||[]).length}`);
+          const options = await mouserGetOrderOptions(apiKeys.mouser_order_api_key, cart.cartKey);
+          dbg.push(`[4] Options keys: ${Object.keys(options || {}).join(",")}`);
           const allItems = [...(cart.cartItems || []), ...(options.CartItems || [])];
-          if (allItems[0]) dbg.push(`[3] Item[0] keys: ${Object.keys(allItems[0]).join(",")}`);
-          if (allItems[0]) dbg.push(`[3] Item[0] dump: ${JSON.stringify(allItems[0]).slice(0, 400)}`);
+          if (allItems[0]) dbg.push(`[4] Item[0] dump: ${JSON.stringify(allItems[0]).slice(0, 400)}`);
           for (const ci of allItems) {
             const fees = ci.AdditionalFees || ci.CartAdditionalFee || [];
             for (const fee of (Array.isArray(fees) ? fees : [])) {
@@ -2318,19 +2333,16 @@ function BOMManager({ user }) {
               if (amt > 0) {
                 cartTariffDetected = true;
                 cartTariffAmount += amt;
-                dbg.push(`[3] TARIFF FEE: ${fee.Description || fee.Code} $${amt}`);
+                dbg.push(`[4] TARIFF FEE: ${fee.Description || fee.Code} $${amt}`);
               }
             }
           }
           const summaryFees = parseFloat(options.AdditionalFeesTotal || 0);
-          if (summaryFees > 0 && !cartTariffDetected) {
-            cartTariffDetected = true;
-            cartTariffAmount = summaryFees;
-          }
-          if (!cartTariffDetected) dbg.push("[3] No tariff fees found in cart/options");
-        } catch (e) { dbg.push(`[3] Cart API FAILED: ${e.message}`); }
+          if (summaryFees > 0 && !cartTariffDetected) { cartTariffDetected = true; cartTariffAmount = summaryFees; }
+          if (!cartTariffDetected) dbg.push("[4] No tariff fees found in cart/options");
+        } catch (e) { dbg.push(`[4] Cart API FAILED: ${e.message}`); }
       } else if (!partData.countryOfOrigin) {
-        dbg.push(`[3] Skipped Cart API — orderApiKey=${!!orderApiKey}, mouserPN=${mouserPN || "NONE"}`);
+        dbg.push(`[4] Skipped Cart API — orderKey=${!!apiKeys.mouser_order_api_key}, mouserPN=${mouserPN || "NONE"}`);
       }
 
       // Calculate tariff exposure
@@ -11340,7 +11352,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.64 — built 2026-03-24</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.65 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
