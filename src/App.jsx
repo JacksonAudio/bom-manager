@@ -192,6 +192,15 @@ const DIST_COUNTRY = {
   "QuestComponents":"US","SemiStar Electronics":"HK","EBV Elektronik":"DE","WPG Holdings":"TW",
 };
 
+const COUNTRY_NAMES = {
+  US:"United States",CA:"Canada",CN:"China",HK:"Hong Kong",TW:"Taiwan",SG:"Singapore",JP:"Japan",
+  KR:"South Korea",UK:"United Kingdom",GB:"United Kingdom",DE:"Germany",FR:"France",IT:"Italy",
+  NL:"Netherlands",PL:"Poland",AU:"Australia",IN:"India",TH:"Thailand",MY:"Malaysia",PH:"Philippines",
+  VN:"Vietnam",MX:"Mexico",BR:"Brazil",IL:"Israel",SE:"Sweden",CH:"Switzerland",AT:"Austria",
+  CZ:"Czech Republic",HU:"Hungary",IE:"Ireland",DK:"Denmark",FI:"Finland",NO:"Norway",ES:"Spain",
+  PT:"Portugal",BE:"Belgium",RO:"Romania",SK:"Slovakia",SI:"Slovenia",BG:"Bulgaria",HR:"Croatia",
+};
+
 // Format price: up to 4 decimals, strip trailing zeroes, keep min 2
 const fmtPrice = (v) => { const s = parseFloat(v).toFixed(4); return s.replace(/0{1,2}$/, ""); };
 const fmtDollar = (v) => parseFloat(v).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
@@ -4363,7 +4372,7 @@ function BOMManager({ user }) {
                           <div key={d.id} style={{ display:"flex",alignItems:"center",gap:6,fontSize:11,padding:"3px 6px",borderRadius:4,
                             background: isBest ? "#e8f5e9" : "transparent" }}>
                             <span style={{ flex:1,fontWeight: isBest ? 700 : 400,color: isBest ? "#2e7d32" : "#48484a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
-                              {isBest && "★ "}{d.name}{cc ? ` (${cc})` : ""}
+                              {isBest && "★ "}{d.name}{cc ? ` (${COUNTRY_NAMES[cc] || cc})` : ""}
                             </span>
                             <span style={{ fontWeight:600,minWidth:65,textAlign:"right" }}>${d.unitPrice.toFixed(4)}</span>
                             {quickUrlResult.tariffRate > 0 && <span style={{ color:"#e65100",fontSize:10,minWidth:75,textAlign:"right" }}>→ ${landed.toFixed(4)}</span>}
