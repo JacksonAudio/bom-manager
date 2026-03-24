@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.56
+// src/App.jsx — Jackson Audio BOM Manager v6.57
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -2233,6 +2233,10 @@ function BOMManager({ user }) {
       const mpn = parsePartUrlToMpn(input);
       if (!mpn) throw new Error("Could not extract part number from URL");
 
+      // Detect if input is a URL (for scraping fallback)
+      const isUrl = input.trim().startsWith("http");
+      const inputHost = (() => { try { return new URL(input.trim()).hostname.toLowerCase(); } catch { return ""; } })();
+
       // Fetch part data via Mouser Search API (best data source — includes COO, pricing, datasheets)
       let partData = null;
       let source = "";
@@ -2247,11 +2251,32 @@ function BOMManager({ user }) {
           const firstKey = Object.keys(pricing).find(k => !k.startsWith("_"));
           if (firstKey) partData = { ...pricing[firstKey], mpn };
           if (pricing._countryOfOrigin) partData.countryOfOrigin = pricing._countryOfOrigin;
-          source = firstKey || "nexar"; // use actual distributor name from Nexar results
+          source = firstKey || "nexar";
         }
       }
 
       if (!partData) throw new Error(`No results found for "${mpn}". Try pasting just the MPN instead.`);
+
+      // Build a proper product URL if the API returned one, or use the input URL
+      let productUrl = partData.url || "";
+      if (!productUrl && isUrl) productUrl = input.trim();
+      if (!productUrl && source === "mouser" && partData.mouserPartNumber) {
+        productUrl = `https://www.mouser.com/ProductDetail/${encodeURIComponent(partData.mouserPartNumber)}`;
+      }
+
+      // If API didn't return COO, scrape the product page to get it
+      let scrapedData = null;
+      const scrapeUrl = isUrl ? input.trim() : productUrl;
+      if (!partData.countryOfOrigin && scrapeUrl) {
+        try {
+          const scrapeRes = await fetch(`/api/scrape-part?url=${encodeURIComponent(scrapeUrl)}`);
+          if (scrapeRes.ok) {
+            scrapedData = await scrapeRes.json();
+            if (scrapedData.countryOfOrigin) partData.countryOfOrigin = scrapedData.countryOfOrigin;
+            if (!productUrl && scrapedData.url) productUrl = scrapedData.url;
+          }
+        } catch (e) { console.warn("[quickAdd] Scrape fallback failed:", e.message); }
+      }
 
       // Calculate tariff exposure
       const origin = (partData.countryOfOrigin || "").toUpperCase();
@@ -2264,11 +2289,13 @@ function BOMManager({ user }) {
         manufacturer: partData.manufacturer || "",
         description: partData.partDescription || "",
         countryOfOrigin: origin,
+        countryOfAssembly: scrapedData?.countryOfAssembly || "",
+        countryOfDiffusion: scrapedData?.countryOfDiffusion || "",
         datasheetUrl: partData.datasheetUrl || "",
         stock: partData.stock || 0,
         unitPrice: partData.unitPrice || 0,
         priceBreaks: partData.priceBreaks || [],
-        url: partData.url || input,
+        url: productUrl,
         category: partData.category || "",
         rohsStatus: partData.rohsStatus || "",
         leadTime: partData.leadTime || "",
@@ -4214,6 +4241,8 @@ function BOMManager({ user }) {
                           )}
                           {quickUrlResult.stock > 0 && <span>{quickUrlResult.stock.toLocaleString()} in stock</span>}
                           {quickUrlResult.countryOfOrigin && <span>Origin: <strong>{quickUrlResult.countryOfOrigin}</strong></span>}
+                          {quickUrlResult.countryOfAssembly && quickUrlResult.countryOfAssembly !== quickUrlResult.countryOfOrigin && <span>Assembly: <strong>{quickUrlResult.countryOfAssembly}</strong></span>}
+                          {quickUrlResult.countryOfDiffusion && <span>Diffusion: <strong>{quickUrlResult.countryOfDiffusion}</strong></span>}
                           {quickUrlResult.rohsStatus && <span>RoHS: {quickUrlResult.rohsStatus}</span>}
                           {quickUrlResult.leadTime && <span>Lead: {quickUrlResult.leadTime}</span>}
                         </div>
@@ -11225,7 +11254,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.56 — built 2026-03-24</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.57 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
