@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.61
+// src/App.jsx — Jackson Audio BOM Manager v6.62
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -2294,22 +2294,43 @@ function BOMManager({ user }) {
           }
         } catch (e) { console.warn("[quickAdd] Nexar COO fallback failed:", e.message); }
       }
-      // If still no COO, try Mouser Cart API to detect tariffs via AdditionalFees
+      // If still no COO, try Mouser Cart API → Order Options to detect tariffs via AdditionalFees
       let cartTariffDetected = false;
-      if (!partData.countryOfOrigin && apiKeys.mouser_order_api_key && partData.mouserPartNumber) {
+      let cartTariffAmount = 0;
+      const orderApiKey = apiKeys.mouser_order_api_key;
+      const mouserPN = partData.mouserPartNumber;
+      if (!partData.countryOfOrigin && orderApiKey && mouserPN) {
         try {
-          console.log("[quickAdd] Trying Cart API tariff detection for:", partData.mouserPartNumber);
-          const cart = await mouserCreateCart(apiKeys.mouser_order_api_key, [{ mouserPartNumber: partData.mouserPartNumber, quantity: 1 }]);
-          const cartItems = cart.cartItems || [];
-          for (const ci of cartItems) {
+          console.log("[quickAdd] Trying Cart API tariff detection for:", mouserPN);
+          // Step 1: Create cart with 1 unit
+          const cart = await mouserCreateCart(orderApiKey, [{ mouserPartNumber: mouserPN, quantity: 1 }]);
+          console.log("[quickAdd] Cart created, key:", cart.cartKey, "items:", JSON.stringify(cart.cartItems).slice(0, 300));
+          // Step 2: Get order options (this is where AdditionalFees appear)
+          const options = await mouserGetOrderOptions(orderApiKey, cart.cartKey);
+          console.log("[quickAdd] Order options:", JSON.stringify(options).slice(0, 500));
+          // Check cart items from both responses
+          const allItems = [...(cart.cartItems || []), ...(options.CartItems || [])];
+          for (const ci of allItems) {
             const fees = ci.AdditionalFees || ci.CartAdditionalFee || [];
-            if (Array.isArray(fees) && fees.length > 0) {
-              cartTariffDetected = true;
-              console.log("[quickAdd] Cart API detected tariff fees:", JSON.stringify(fees));
-              break;
+            for (const fee of (Array.isArray(fees) ? fees : [])) {
+              const amt = parseFloat(fee.ExtendedAmount || fee.Amount || 0);
+              if (amt > 0) {
+                cartTariffDetected = true;
+                cartTariffAmount += amt;
+                console.log("[quickAdd] Tariff fee found:", fee.Description || fee.Code, "$" + amt);
+              }
             }
           }
+          // Also check order-level summary
+          const summaryFees = parseFloat(options.AdditionalFeesTotal || 0);
+          if (summaryFees > 0 && !cartTariffDetected) {
+            cartTariffDetected = true;
+            cartTariffAmount = summaryFees;
+            console.log("[quickAdd] Order-level tariff total:", summaryFees);
+          }
         } catch (e) { console.warn("[quickAdd] Cart tariff check failed:", e.message); }
+      } else if (!partData.countryOfOrigin) {
+        console.log("[quickAdd] Skipped Cart API — orderApiKey:", !!orderApiKey, "mouserPN:", mouserPN || "(empty)");
       }
 
       // Calculate tariff exposure
@@ -2324,6 +2345,7 @@ function BOMManager({ user }) {
         description: partData.partDescription || "",
         countryOfOrigin: origin,
         cartTariffDetected,
+        cartTariffAmount,
         datasheetUrl: partData.datasheetUrl || "",
         stock: partData.stock || 0,
         unitPrice: partData.unitPrice || 0,
@@ -4242,13 +4264,13 @@ function BOMManager({ user }) {
                           Tariff-Free ({quickUrlResult.countryOfOrigin})
                         </span>
                       )}
-                      {!quickUrlResult.countryOfOrigin && (
+                      {!quickUrlResult.countryOfOrigin && quickUrlResult.cartTariffDetected && (
+                        <span style={{ fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:6,background:"#fff3e0",color:"#e65100",border:"1px solid #ffcc80" }}>
+                          ⚠ TARIFF: ${quickUrlResult.cartTariffAmount.toFixed(2)} surcharge per unit (via Mouser checkout)
+                        </span>
+                      )}
+                      {!quickUrlResult.countryOfOrigin && !quickUrlResult.cartTariffDetected && (
                         <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                          {quickUrlResult.cartTariffDetected && (
-                            <span style={{ fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:6,background:"#fff3e0",color:"#e65100",border:"1px solid #ffcc80" }}>
-                              ⚠ Tariff detected by Cart API
-                            </span>
-                          )}
                           <span style={{ fontSize:11,color:"#86868b" }}>Origin:</span>
                           <input type="text" placeholder="e.g. CN" maxLength={3}
                             style={{ width:42,padding:"3px 6px",borderRadius:4,border:"1px solid #d1d1d6",fontSize:11,textTransform:"uppercase",textAlign:"center" }}
@@ -4264,7 +4286,7 @@ function BOMManager({ user }) {
                               }
                             }}
                           />
-                          <span style={{ fontSize:10,color:"#aeaeb2" }}>↵ to apply</span>
+                          <span style={{ fontSize:10,color:"#aeaeb2" }}>type country code ↵</span>
                         </div>
                       )}
                     </div>
@@ -11307,7 +11329,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.61 — built 2026-03-24</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.62 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
