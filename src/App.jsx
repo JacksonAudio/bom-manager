@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.58
+// src/App.jsx — Jackson Audio BOM Manager v6.59
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -2277,10 +2277,21 @@ function BOMManager({ user }) {
         productUrl = `https://www.mouser.com/ProductDetail/${encodeURIComponent(partData.mouserPartNumber)}`;
       }
 
-      // If API didn't return COO, use scrape-part endpoint (Mouser keyword search + HTML scrape fallback)
+      // If Mouser didn't return COO, try Nexar (supSearchMpn supports countryOfOrigin)
       let scrapedData = null;
-      const scrapeUrl = isUrl ? input.trim() : productUrl;
+      if (!partData.countryOfOrigin && nexarToken) {
+        try {
+          console.log("[quickAdd] Mouser missing COO, trying Nexar for:", mpn);
+          const nexarPricing = await fetchNexarPricing(mpn, 1, nexarToken);
+          if (nexarPricing?._countryOfOrigin) {
+            partData.countryOfOrigin = nexarPricing._countryOfOrigin;
+            console.log("[quickAdd] Nexar found COO:", partData.countryOfOrigin);
+          }
+        } catch (e) { console.warn("[quickAdd] Nexar COO fallback failed:", e.message); }
+      }
+      // Last resort: scrape-part endpoint (Mouser keyword search + HTML scrape)
       if (!partData.countryOfOrigin) {
+        const scrapeUrl = isUrl ? input.trim() : productUrl;
         try {
           const scrapeParams = new URLSearchParams();
           if (scrapeUrl) scrapeParams.set("url", scrapeUrl);
@@ -11271,7 +11282,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.58 — built 2026-03-24</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.59 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
