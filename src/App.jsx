@@ -2382,6 +2382,15 @@ function BOMManager({ user }) {
   const quickUrlAddToLibrary = async (productId) => {
     if (!quickUrlResult) return;
     const r = quickUrlResult;
+
+    // Duplicate check — block if MPN already exists in library
+    const existingMpn = parts.find(p => p.mpn && r.mpn && p.mpn.toUpperCase() === r.mpn.toUpperCase());
+    if (existingMpn) {
+      setQuickUrlError(`"${r.mpn}" is already in your library. Duplicate not added.`);
+      setTimeout(() => setQuickUrlError(""), 5000);
+      return;
+    }
+
     const uiPart = {
       reference: r.mpn, refs: [r.mpn], value: "", mpn: r.mpn,
       description: r.description, footprint: "", manufacturer: r.manufacturer,
