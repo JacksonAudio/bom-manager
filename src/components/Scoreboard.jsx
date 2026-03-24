@@ -193,6 +193,8 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
         total: bo.quantity || 0,
         priority: bo.priority,
         status: bo.status,
+        forOrder: bo.for_order || bo.notes || "",
+        dueDate: bo.due_date || "",
       };
     })
     .slice(0, 8);
@@ -385,11 +387,17 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
                   <div style={{ fontSize: standalone ? 15 : 12, fontWeight: 700, color: T.white, marginBottom: 2 }}>
                     {build.productName}
                   </div>
-                  <div style={{ fontSize: standalone ? 12 : 10, color: T.textDim, marginBottom: 8 }}>
+                  <div style={{ fontSize: standalone ? 12 : 10, color: T.textDim, marginBottom: 4 }}>
                     {build.builderName}
                     {build.priority === "urgent" && <span style={{ color: "#ff3b30", marginLeft: 6 }}>URGENT</span>}
                     {build.priority === "high" && <span style={{ color: "#ff9500", marginLeft: 6 }}>HIGH</span>}
                   </div>
+                  {build.forOrder && (
+                    <div style={{ fontSize: standalone ? 11 : 9, color: T.accent, marginBottom: 4, fontWeight: 600 }}>
+                      FOR: {build.forOrder}
+                      {build.dueDate && <span style={{ color: T.textDim, fontWeight: 400, marginLeft: 6 }}>Due {new Date(build.dueDate).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>}
+                    </div>
+                  )}
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{ flex: 1, height: 6, background: theme==="dark"?"#1a1a28":"#e5e5ea", borderRadius: 3, overflow: "hidden" }}>
                       <div style={{
@@ -421,7 +429,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
         alignItems: "center",
         flexShrink: 0,
       }}>
-        <div style={{ display: "flex", gap: standalone ? 48 : 32 }}>
+        <div style={{ display: "flex", gap: standalone ? 48 : 32, alignItems: "center", flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: standalone ? 12 : 10, color: T.textDim, letterSpacing: "2px", textTransform: "uppercase" }}>TOTAL UNITS</div>
             <div style={{ fontSize: standalone ? 32 : 22, fontWeight: 800, color: T.white }}>{totalUnits.toLocaleString()}</div>
@@ -434,6 +442,31 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
             <div style={{ fontSize: standalone ? 12 : 10, color: T.textDim, letterSpacing: "2px", textTransform: "uppercase" }}>BUILDERS ACTIVE</div>
             <div style={{ fontSize: standalone ? 32 : 22, fontWeight: 800, color: T.white }}>{rankings.length}</div>
           </div>
+          {(() => {
+            const orderBuilds = activeBuilds.filter(b => b.forOrder);
+            const uniqueOrders = [...new Set(orderBuilds.map(b => b.forOrder))];
+            if (uniqueOrders.length === 0) return null;
+            return (
+              <div style={{ borderLeft: `1px solid ${T.border}`, paddingLeft: standalone ? 24 : 16 }}>
+                <div style={{ fontSize: standalone ? 12 : 10, color: T.textDim, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 4 }}>BUILDING FOR ORDERS</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {uniqueOrders.map(order => {
+                    const builds = orderBuilds.filter(b => b.forOrder === order);
+                    const totalUnitsForOrder = builds.reduce((s, b) => s + b.total, 0);
+                    const completedForOrder = builds.reduce((s, b) => s + b.completed, 0);
+                    return (
+                      <span key={order} style={{
+                        fontSize: standalone ? 12 : 10, fontWeight: 700, padding: "3px 10px", borderRadius: 8,
+                        background: T.accent + "18", color: T.accent,
+                      }}>
+                        {order} ({completedForOrder}/{totalUnitsForOrder})
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
         <div style={{ fontSize: standalone ? 14 : 11, color: T.textDim }}>
           Week of {formatWeekLabel(monday)}

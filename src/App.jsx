@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.46
+// src/App.jsx — Jackson Audio BOM Manager v6.47
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1292,7 +1292,7 @@ function BOMManager({ user }) {
   const [prodTeamCollapsed, setProdTeamCollapsed] = useState(true);
   const [prodCompletedCollapsed, setProdCompletedCollapsed] = useState(true);
   const [newTeamMember,    setNewTeamMember]     = useState({ name:"", role:"assembler", phone:"", email:"", pin_code:"" });
-  const [newBuildOrder,    setNewBuildOrder]     = useState({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"" });
+  const [newBuildOrder,    setNewBuildOrder]     = useState({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"", for_order:"" });
   const [prodBusy,         setProdBusy]          = useState(false);
   // ── Production Calendar state
   const [calendarView,     setCalendarView]      = useState("week"); // "week" or "month"
@@ -8201,13 +8201,15 @@ function BOMManager({ user }) {
             if (!newBuildOrder.product_id || !newBuildOrder.quantity) return;
             setProdBusy(true);
             try {
+              const orderNote = newBuildOrder.for_order ? (newBuildOrder.notes ? `[${newBuildOrder.for_order}] ${newBuildOrder.notes.trim()}` : newBuildOrder.for_order) : newBuildOrder.notes.trim();
               const bo = await createBuildOrder({
                 product_id: newBuildOrder.product_id,
                 quantity: parseInt(newBuildOrder.quantity),
                 priority: newBuildOrder.priority,
                 status: newBuildOrder.team_member_id ? "assigned" : "pending",
                 due_date: newBuildOrder.due_date || null,
-                notes: newBuildOrder.notes.trim() || "",
+                notes: orderNote || "",
+                for_order: newBuildOrder.for_order.trim() || null,
                 completed_count: 0,
               }, user.id);
               if (newBuildOrder.team_member_id) {
@@ -8237,7 +8239,7 @@ function BOMManager({ user }) {
                   console.warn("[SMS] Skipped — phone:", member?.phone, "twilio_sid:", apiKeys.twilio_account_sid);
                 }
               }
-              setNewBuildOrder({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"" });
+              setNewBuildOrder({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"", for_order:"" });
             } catch (e) { console.error("Create build order failed:", e); alert("Failed: " + e.message); }
             setProdBusy(false);
           };
@@ -8950,6 +8952,10 @@ function BOMManager({ user }) {
                     <option value="">Unassigned</option>
                     {activeMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>For Order / PO</label>
+                  <input style={inputStyle} type="text" placeholder="e.g. #1234 or PO-5678" value={newBuildOrder.for_order} onChange={e => setNewBuildOrder({...newBuildOrder, for_order:e.target.value})} />
                 </div>
               </div>
               <div style={{ marginBottom:12 }}>
@@ -10634,7 +10640,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.46 — built 2026-03-24 3:55am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.47 — built 2026-03-24 4:15am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
