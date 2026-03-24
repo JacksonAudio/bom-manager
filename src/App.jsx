@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.62
+// src/App.jsx — Jackson Audio BOM Manager v6.63
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -2283,33 +2283,43 @@ function BOMManager({ user }) {
         productUrl = `https://www.mouser.com/ProductDetail/${encodeURIComponent(partData.mouserPartNumber)}`;
       }
 
+      // Debug log — displayed on page
+      const dbg = [];
+      dbg.push(`[1] Mouser Search API: COO=${partData.countryOfOrigin || "NONE"}, mouserPN=${partData.mouserPartNumber || "NONE"}, url=${partData.url || "NONE"}`);
+
       // If Mouser didn't return COO, try Nexar specs
       if (!partData.countryOfOrigin && nexarToken) {
         try {
-          console.log("[quickAdd] Mouser missing COO, trying Nexar specs for:", mpn);
+          dbg.push("[2] Trying Nexar supSearchMpn specs...");
           const nexarPricing = await fetchNexarPricing(mpn, 1, nexarToken);
-          if (nexarPricing?._countryOfOrigin) {
-            partData.countryOfOrigin = nexarPricing._countryOfOrigin;
-            console.log("[quickAdd] Nexar found COO:", partData.countryOfOrigin);
-          }
-        } catch (e) { console.warn("[quickAdd] Nexar COO fallback failed:", e.message); }
+          const nexarCoo = nexarPricing?._countryOfOrigin;
+          dbg.push(`[2] Nexar COO=${nexarCoo || "NONE"}, keys=${Object.keys(nexarPricing || {}).join(",")}`);
+          if (nexarCoo) partData.countryOfOrigin = nexarCoo;
+        } catch (e) { dbg.push(`[2] Nexar FAILED: ${e.message}`); }
+      } else if (partData.countryOfOrigin) {
+        dbg.push("[2] Skipped Nexar — already have COO");
+      } else {
+        dbg.push("[2] Skipped Nexar — no token");
       }
-      // If still no COO, try Mouser Cart API → Order Options to detect tariffs via AdditionalFees
+
+      // Try Mouser Cart API → Order Options to detect tariffs
       let cartTariffDetected = false;
       let cartTariffAmount = 0;
       const orderApiKey = apiKeys.mouser_order_api_key;
       const mouserPN = partData.mouserPartNumber;
       if (!partData.countryOfOrigin && orderApiKey && mouserPN) {
         try {
-          console.log("[quickAdd] Trying Cart API tariff detection for:", mouserPN);
-          // Step 1: Create cart with 1 unit
+          dbg.push(`[3] Cart API: creating cart for ${mouserPN}...`);
           const cart = await mouserCreateCart(orderApiKey, [{ mouserPartNumber: mouserPN, quantity: 1 }]);
-          console.log("[quickAdd] Cart created, key:", cart.cartKey, "items:", JSON.stringify(cart.cartItems).slice(0, 300));
-          // Step 2: Get order options (this is where AdditionalFees appear)
+          dbg.push(`[3] Cart key=${cart.cartKey}, cartItems=${(cart.cartItems||[]).length}`);
           const options = await mouserGetOrderOptions(orderApiKey, cart.cartKey);
-          console.log("[quickAdd] Order options:", JSON.stringify(options).slice(0, 500));
-          // Check cart items from both responses
+          const optKeys = Object.keys(options || {}).join(",");
+          dbg.push(`[3] Options keys: ${optKeys}`);
+          dbg.push(`[3] Options.CartItems=${(options.CartItems||[]).length}, AdditionalFeesTotal=${options.AdditionalFeesTotal || "N/A"}`);
+          // Dump first cart item fully for debugging
           const allItems = [...(cart.cartItems || []), ...(options.CartItems || [])];
+          if (allItems[0]) dbg.push(`[3] Item[0] keys: ${Object.keys(allItems[0]).join(",")}`);
+          if (allItems[0]) dbg.push(`[3] Item[0] dump: ${JSON.stringify(allItems[0]).slice(0, 400)}`);
           for (const ci of allItems) {
             const fees = ci.AdditionalFees || ci.CartAdditionalFee || [];
             for (const fee of (Array.isArray(fees) ? fees : [])) {
@@ -2317,20 +2327,19 @@ function BOMManager({ user }) {
               if (amt > 0) {
                 cartTariffDetected = true;
                 cartTariffAmount += amt;
-                console.log("[quickAdd] Tariff fee found:", fee.Description || fee.Code, "$" + amt);
+                dbg.push(`[3] TARIFF FEE: ${fee.Description || fee.Code} $${amt}`);
               }
             }
           }
-          // Also check order-level summary
           const summaryFees = parseFloat(options.AdditionalFeesTotal || 0);
           if (summaryFees > 0 && !cartTariffDetected) {
             cartTariffDetected = true;
             cartTariffAmount = summaryFees;
-            console.log("[quickAdd] Order-level tariff total:", summaryFees);
           }
-        } catch (e) { console.warn("[quickAdd] Cart tariff check failed:", e.message); }
+          if (!cartTariffDetected) dbg.push("[3] No tariff fees found in cart/options");
+        } catch (e) { dbg.push(`[3] Cart API FAILED: ${e.message}`); }
       } else if (!partData.countryOfOrigin) {
-        console.log("[quickAdd] Skipped Cart API — orderApiKey:", !!orderApiKey, "mouserPN:", mouserPN || "(empty)");
+        dbg.push(`[3] Skipped Cart API — orderApiKey=${!!orderApiKey}, mouserPN=${mouserPN || "NONE"}`);
       }
 
       // Calculate tariff exposure
@@ -2346,6 +2355,7 @@ function BOMManager({ user }) {
         countryOfOrigin: origin,
         cartTariffDetected,
         cartTariffAmount,
+        debugLog: dbg,
         datasheetUrl: partData.datasheetUrl || "",
         stock: partData.stock || 0,
         unitPrice: partData.unitPrice || 0,
@@ -4355,6 +4365,16 @@ function BOMManager({ user }) {
                         )}
                       </div>
                     </div>
+
+                    {/* Debug Log */}
+                    {quickUrlResult.debugLog?.length > 0 && (
+                      <div style={{ marginTop:10,padding:"8px 10px",background:"#1d1d1f",borderRadius:6,fontFamily:"monospace",fontSize:10,lineHeight:"16px",color:"#86e89a",maxHeight:200,overflowY:"auto" }}>
+                        <div style={{ color:"#aeaeb2",marginBottom:4,fontSize:9,textTransform:"uppercase",letterSpacing:1 }}>COO Detection Debug</div>
+                        {quickUrlResult.debugLog.map((line, i) => (
+                          <div key={i} style={{ color: line.includes("FAILED") || line.includes("NONE") ? "#ff6b6b" : line.includes("TARIFF") ? "#ffa94d" : "#86e89a" }}>{line}</div>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Add to Product */}
                     <div style={{ marginTop:12,display:"flex",gap:8,alignItems:"center",borderTop:"1px solid #f0f0f0",paddingTop:10 }}>
@@ -11329,7 +11349,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.62 — built 2026-03-24</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.63 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
