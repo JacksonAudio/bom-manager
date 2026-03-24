@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.37
+// src/App.jsx — Jackson Audio BOM Manager v6.38
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -3690,6 +3690,15 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "scan" && (
           <div>
+            <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
+                <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#00c7be",color:"#fff",fontSize:12,fontWeight:800 }}>6</span>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:"#1d1d1f",margin:0 }}>Receive & Scan</h2>
+              </div>
+              <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",margin:0 }}>
+                The final step — when parts arrive, scan barcodes to update stock instantly or upload supplier invoices for AI-powered extraction. This closes the loop on your purchase orders, keeps inventory accurate in real time, and means your team on the floor always has the latest stock counts without manual data entry.
+              </p>
+            </div>
             <ScannerView parts={parts} products={products} updatePart={updatePart} darkMode={darkMode} />
 
             {/* ── Invoice Scanning Section */}
@@ -3880,6 +3889,15 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "bom" && (
           <div>
+            <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
+                <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#0071e3",color:"#fff",fontSize:12,fontWeight:800 }}>1</span>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:"#1d1d1f",margin:0 }}>Parts Library</h2>
+              </div>
+              <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",margin:0 }}>
+                This is your master inventory — every component your company uses lives here. Import BOMs from KiCad, Altium, or Eagle, or add parts manually. Accurate part data with MPNs, stock levels, and reorder points ensures your team always knows what's on hand and what needs ordering, eliminating surprise stockouts that delay production.
+              </p>
+            </div>
             {/* ── Inventory Valuation Summary */}
             {parts.length > 0 && (
               <div style={{ display:"flex",gap:20,marginBottom:16,padding:"16px 20px",
@@ -4520,8 +4538,13 @@ function BOMManager({ user }) {
           <div style={{ background:"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
             {/* Header */}
             <div style={{ marginBottom:28 }}>
-              <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",marginBottom:4 }}>Live Pricing</h2>
-              <p style={{ fontSize:14,color:"#86868b" }}>Real-time pricing across all distributors. Click any part to expand.</p>
+              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:4 }}>
+                <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#ff9500",color:"#fff",fontSize:12,fontWeight:800 }}>3</span>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",margin:0 }}>Live Pricing</h2>
+              </div>
+              <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",marginBottom:0 }}>
+                Live quotes from 900+ distributors worldwide, powered by Nexar/Octopart. Pricing updates ensure you're always buying at the best available rate, with price breaks calculated at your actual order quantities. This saves the company money on every build and gives purchasing full visibility into market pricing before committing to a PO.
+              </p>
               <div style={{ display:"flex",gap:10,marginTop:14,flexWrap:"wrap",alignItems:"center" }}>
                 <div style={{ position:"relative",flex:"1 1 260px",maxWidth:400 }}>
                   <input type="text" placeholder="Search parts…" value={pricingSearch}
@@ -5161,8 +5184,13 @@ function BOMManager({ user }) {
           return (
           <div style={{ background:"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
             <div style={{ marginBottom:28 }}>
-              <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",marginBottom:4 }}>Purchasing</h2>
-              <p style={{ fontSize:14,color:"#86868b" }}>Add products on the Products page, then review and order parts here.</p>
+              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:4 }}>
+                <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#ff3b30",color:"#fff",fontSize:12,fontWeight:800 }}>5</span>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",margin:0 }}>Purchasing</h2>
+              </div>
+              <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",marginBottom:0 }}>
+                Your checkout page for parts. The build queue aggregates every part needed across all queued products, deduplicates shared components, subtracts current stock, and groups the remaining demand by supplier. From here you generate purchase orders, email them to your reps, export CSVs, or push directly to Mouser's cart — all in one place. This eliminates manual spreadsheet work and ensures nothing falls through the cracks.
+              </p>
             </div>
 
             {buildQueue.length === 0 ? (
@@ -6049,8 +6077,13 @@ function BOMManager({ user }) {
           <div style={{ background:darkMode?"#1c1c1e":"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
             {/* Header */}
             <div style={{ marginBottom:28 }}>
-              <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>Products</h2>
-              <p style={{ fontSize:14,color:"#86868b" }}>Click any product to view its BOM, add parts, and run simulations.</p>
+              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:4 }}>
+                <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#5856d6",color:"#fff",fontSize:12,fontWeight:800 }}>2</span>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f5f5f7":"#1d1d1f",margin:0 }}>Products</h2>
+              </div>
+              <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",marginBottom:0 }}>
+                Products are the pedals, amps, and gear you build. Each product has a bill of materials — the parts required for one unit. This is where you manage what you manufacture, queue build orders, and see the true cost of each product. When it's time to order, enter a quantity and click Order to send it to the Purchasing tab.
+              </p>
               <div style={{ display:"flex",gap:10,marginTop:14,flexWrap:"wrap",alignItems:"center" }}>
                 <input type="text" placeholder="New product name…" value={newProjName}
                   onChange={(e)=>setNewProjName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addProduct()}
@@ -6824,8 +6857,13 @@ function BOMManager({ user }) {
           <div style={{ maxWidth:"100%" }}>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12 }}>
               <div>
-                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Order Demand</h2>
-                <p style={{ color:"#86868b",fontSize:13 }}>Unfulfilled orders from Shopify (direct) and Zoho Books (dealer) → parts you need to build.</p>
+                <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:4 }}>
+                  <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#34c759",color:"#fff",fontSize:12,fontWeight:800 }}>4</span>
+                  <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,margin:0 }}>Order Demand</h2>
+                </div>
+                <p style={{ color:"#6e6e73",fontSize:13,lineHeight:"20px" }}>
+                  This is where customer orders meet your inventory. Demand pulls unfulfilled orders from Shopify (direct-to-consumer) and Zoho Books (dealer/wholesale), then calculates exactly which parts you need and how many. Instead of guessing what to build, your team sees real demand data driving every purchasing decision — no overbuying, no missed orders.
+                </p>
               </div>
               <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
                 <button className="btn-ghost btn-sm" onClick={syncShopifyOrders} disabled={shopifyDemand?.loading}
@@ -10142,7 +10180,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.37 — built 2026-03-24 1:10am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.38 — built 2026-03-24 1:20am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
