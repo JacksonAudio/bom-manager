@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.50
+// src/App.jsx — Jackson Audio BOM Manager v6.51
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1222,6 +1222,7 @@ function BOMManager({ user }) {
   const [compSearchMfr, setCompSearchMfr] = useState("");
   const [compSearchDescPrefix, setCompSearchDescPrefix] = useState("");
   const [compSearchLimit, setCompSearchLimit] = useState("10");
+  const [compTariffFreeOnly, setCompTariffFreeOnly] = useState(false); // filter component library to tariff-free parts
   const [nexarUsed, setNexarUsed] = useState(() => { try { return parseInt(localStorage.getItem("nexar_used")||"6557"); } catch { return 6557; } });
   const [newProjName, setNewProjName] = useState("");
   const [importError, setImportError] = useState("");
@@ -4094,16 +4095,16 @@ function BOMManager({ user }) {
                   const searchRes = await fetch(`/api/search-components?${params}`);
                   const searchData = await searchRes.json();
                   if (!searchRes.ok) throw new Error(searchData.error || `API error ${searchRes.status}`);
-                  const mparts = (searchData.results || []).map(r => ({ ManufacturerPartNumber: r.mpn, Manufacturer: r.manufacturer, Description: r.description, Category: r.category, MouserPartNumber: "", Availability: "0", PriceBreaks: [] }));
-                  const results = mparts.map(p => ({
-                    mpn: p.ManufacturerPartNumber || "",
-                    manufacturer: p.Manufacturer || "",
-                    description: p.Description || "",
-                    category: p.Category || "",
-                    mouserPN: p.MouserPartNumber || "",
-                    stock: parseInt(String(p.Availability || "0").replace(/[^0-9]/g, "")) || 0,
-                    price: (() => { const b = p.PriceBreaks || []; return b.length > 0 ? parseFloat(String(b[0].Price||"0").replace(/[^0-9.]/g,"")) || null : null; })(),
-                    reelQty: (() => { const b = p.PriceBreaks || []; return b.length > 0 ? parseInt(b[b.length-1].Quantity) || null : null; })(),
+                  const results = (searchData.results || []).map(r => ({
+                    mpn: r.mpn || "",
+                    manufacturer: r.manufacturer || "",
+                    description: r.description || "",
+                    category: r.category || "",
+                    mouserPN: r.mouserPN || "",
+                    countryOfOrigin: (r.countryOfOrigin || "").toUpperCase(),
+                    stock: r.stock || 0,
+                    price: r.price || null,
+                    reelQty: r.reelQty || null,
                   }));
                   // Extract display values, deduplicate by MPN, filter out unparseable (kits etc), and sort
                   const withValues = results.map(r => ({ ...r, value: extractDisplayValue(r) }));
@@ -4236,6 +4237,26 @@ function BOMManager({ user }) {
                     </button>
                   </div>
 
+                  {/* Tariff filter */}
+                  <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10 }}>
+                    <label style={{ display:"flex",alignItems:"center",gap:5,cursor:"pointer",fontSize:12,fontWeight:600,
+                      padding:"5px 12px",borderRadius:980,
+                      border:compTariffFreeOnly?"1px solid #34c759":"1px solid #d2d2d7",
+                      background:compTariffFreeOnly?"rgba(52,199,89,0.08)":"transparent",
+                      color:compTariffFreeOnly?"#34c759":"#86868b" }}>
+                      <input type="checkbox" checked={compTariffFreeOnly} onChange={() => setCompTariffFreeOnly(v => !v)}
+                        style={{ width:14,height:14,accentColor:"#34c759",cursor:"pointer" }} />
+                      Tariff-Free Only
+                    </label>
+                    {compTariffFreeOnly && compSearchResults.length > 0 && (() => {
+                      const clTariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
+                      const tariffed = compSearchResults.filter(r => r.countryOfOrigin && getTariffRate(r.countryOfOrigin, clTariffs) > 0);
+                      const free = compSearchResults.filter(r => r.countryOfOrigin && getTariffRate(r.countryOfOrigin, clTariffs) === 0);
+                      const unknown = compSearchResults.filter(r => !r.countryOfOrigin);
+                      return <span style={{ fontSize:11,color:"#86868b" }}>{free.length} tariff-free · {tariffed.length} tariffed (hidden) · {unknown.length} origin unknown</span>;
+                    })()}
+                  </div>
+
                   {/* Optional overrides */}
                   <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:14 }}>
                     <div style={{ flex:"1 1 160px" }}>
@@ -4253,13 +4274,23 @@ function BOMManager({ user }) {
                   </div>
 
                   {/* Results */}
-                  {compSearchResults.length > 0 && (
+                  {compSearchResults.length > 0 && (() => {
+                    const clTariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
+                    const displayResults = compTariffFreeOnly
+                      ? compSearchResults.filter(r => !r.countryOfOrigin || getTariffRate(r.countryOfOrigin, clTariffs) === 0)
+                      : compSearchResults;
+                    const filteredAllSelected = displayResults.length > 0 && displayResults.every(p => compSelectedParts.has(p.mpn));
+                    const toggleFilteredAll = () => {
+                      if (filteredAllSelected) { setCompSelectedParts(new Set()); }
+                      else { setCompSelectedParts(new Set(displayResults.map(p => p.mpn))); }
+                    };
+                    return (
                     <>
                       <div style={{ display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:10 }}>
                         <label style={{ display:"flex",alignItems:"center",gap:5,fontSize:12,cursor:"pointer" }}>
-                          <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                          <input type="checkbox" checked={filteredAllSelected} onChange={toggleFilteredAll}
                             style={{ width:14,height:14,accentColor:"#5856d6",cursor:"pointer" }} />
-                          <span style={{ fontWeight:600 }}>Select All ({compSearchResults.length})</span>
+                          <span style={{ fontWeight:600 }}>Select All ({displayResults.length})</span>
                         </label>
                         {compSelectedParts.size > 0 && (
                           <button onClick={importSelected}
@@ -4268,7 +4299,7 @@ function BOMManager({ user }) {
                             Import Selected ({compSelectedParts.size})
                           </button>
                         )}
-                        <span style={{ fontSize:12,color:"#86868b" }}>{compSearchResults.length} results from Nexar · ~{(15000 - nexarUsed).toLocaleString()} pulls remaining</span>
+                        <span style={{ fontSize:12,color:"#86868b" }}>{displayResults.length}{compTariffFreeOnly && displayResults.length !== compSearchResults.length ? ` of ${compSearchResults.length}` : ""} results from Nexar · ~{(15000 - nexarUsed).toLocaleString()} pulls remaining</span>
                       </div>
                       <div style={{ maxHeight:400,overflowY:"auto",border:"1px solid #e5e5ea",borderRadius:8 }}>
                         <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
@@ -4278,11 +4309,13 @@ function BOMManager({ user }) {
                               <th style={{ padding:"6px 10px",textAlign:"left" }}>MPN</th>
                               <th style={{ padding:"6px 10px",textAlign:"left" }}>Manufacturer</th>
                               <th style={{ padding:"6px 10px",textAlign:"left" }}>Value</th>
+                              <th style={{ padding:"6px 10px",textAlign:"left" }}>Origin</th>
                               <th style={{ padding:"6px 10px",textAlign:"left" }}>Description</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {compSearchResults.map((p, i) => {
+                            {displayResults.map((p, i) => {
+                              const pTariff = p.countryOfOrigin ? getTariffRate(p.countryOfOrigin, clTariffs) : 0;
                               return (
                                 <tr key={i} style={{ borderBottom:"1px solid #f0f0f2",background:compSelectedParts.has(p.mpn)?"rgba(88,86,214,0.04)":"transparent",cursor:"pointer" }}
                                   onClick={()=>toggleOne(p.mpn)}>
@@ -4293,6 +4326,15 @@ function BOMManager({ user }) {
                                   <td style={{ padding:"4px 10px",fontWeight:600,color:"#0071e3",fontFamily:"'SF Mono',monospace" }}>{p.mpn}</td>
                                   <td style={{ padding:"4px 10px" }}>{p.manufacturer}</td>
                                   <td style={{ padding:"4px 10px",fontWeight:600,color:"#1d1d1f" }}>{p.value || "—"}</td>
+                                  <td style={{ padding:"4px 10px" }}>
+                                    {p.countryOfOrigin ? (
+                                      <span style={{ fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:3,
+                                        background:pTariff > 0 ? "rgba(255,149,0,0.12)" : "rgba(52,199,89,0.12)",
+                                        color:pTariff > 0 ? "#ff9500" : "#34c759" }}>
+                                        {p.countryOfOrigin}{pTariff > 0 ? ` +${pTariff}%` : ""}
+                                      </span>
+                                    ) : <span style={{ fontSize:9,color:"#c7c7cc" }}>—</span>}
+                                  </td>
                                   <td style={{ padding:"4px 10px",color:"#86868b" }}>{p.description}</td>
                                 </tr>
                               );
@@ -4301,7 +4343,7 @@ function BOMManager({ user }) {
                         </table>
                       </div>
                     </>
-                  )}
+                  );})()}
 
                   {compSearchLoading && (
                     <div style={{ textAlign:"center",padding:"20px",color:"#86868b",fontSize:13 }}>Searching Mouser...</div>
@@ -10856,7 +10898,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.50 — built 2026-03-24 5:45am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.51 — built 2026-03-24 6:10am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>

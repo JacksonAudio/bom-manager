@@ -51,6 +51,7 @@ export default async function handler(req, res) {
         category: p.Category || "",
         datasheetUrl: p.DataSheetUrl || null,
         mouserPN: p.MouserPartNumber || "",
+        countryOfOrigin: (p.CountryOfOrigin || "").toUpperCase(),
         stock: parseInt(String(p.Availability || "0").replace(/[^0-9]/g, "")) || 0,
         price: (() => {
           const breaks = p.PriceBreaks || [];
@@ -81,6 +82,7 @@ export default async function handler(req, res) {
         results {
           part {
             mpn
+            countryOfOrigin
             manufacturer { name }
             shortDescription
             category { name }
@@ -123,6 +125,7 @@ export default async function handler(req, res) {
           manufacturer: r.part.manufacturer?.name || "",
           description: r.part.shortDescription || "",
           category: r.part.category?.name || "",
+          countryOfOrigin: (r.part.countryOfOrigin || "").toUpperCase(),
         })));
 
         start += pageSize;
