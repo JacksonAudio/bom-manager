@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.34
+// src/App.jsx — Jackson Audio BOM Manager v6.35
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -2556,10 +2556,16 @@ function BOMManager({ user }) {
     };
     visibleParts.sort((a, b) => {
       let va = a[partSort.field] || "", vb = b[partSort.field] || "";
-      const na = parseVal(va), nb = parseVal(vb);
       let cmp;
-      if (na !== null && nb !== null) cmp = na - nb;
-      else cmp = String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: "base" });
+      // Date fields — sort by timestamp
+      if (partSort.field === "createdAt" || partSort.field === "updatedAt") {
+        const da = va ? new Date(va).getTime() : 0, db = vb ? new Date(vb).getTime() : 0;
+        cmp = da - db;
+      } else {
+        const na = parseVal(va), nb = parseVal(vb);
+        if (na !== null && nb !== null) cmp = na - nb;
+        else cmp = String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: "base" });
+      }
       return partSort.asc ? cmp : -cmp;
     });
   }
@@ -10136,7 +10142,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.34 — built 2026-03-24 12:50am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.35 — built 2026-03-24 12:55am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
