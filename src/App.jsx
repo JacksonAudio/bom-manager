@@ -10133,13 +10133,12 @@ function BOMManager({ user }) {
 
             {/* ── Nexar / Octopart — PRIMARY */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+              <div style={{ background: nexarToken ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("nexar") ? s.delete("nexar") : s.add("nexar"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("nexar") ? "▶" : "▼"}</span>
-                  Nexar / Octopart — Primary
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: nexarToken ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("nexar") ? "▶" : "▼"}</span>
+                  Nexar / Octopart — Primary {nexarToken ? "✓" : ""}
                 </div>
-                {nexarToken && <span style={{ fontSize:11,fontWeight:600,color:"#34c759" }}>Connected</span>}
               </div>
               {!collapsedSettings.has("nexar") && <div style={{ padding:"16px 20px" }}>
                 <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
@@ -10165,11 +10164,11 @@ function BOMManager({ user }) {
 
             {/* ── Mouser Direct */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background: apiKeys.mouser_api_key ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("mouser") ? s.delete("mouser") : s.add("mouser"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("mouser") ? "▶" : "▼"}</span>
-                  Mouser Direct
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: apiKeys.mouser_api_key ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("mouser") ? "▶" : "▼"}</span>
+                  Mouser Direct {apiKeys.mouser_api_key ? "✓" : ""}
                 </div>
               </div>
               {!collapsedSettings.has("mouser") && <div style={{ padding:"16px 20px" }}>
@@ -10196,11 +10195,11 @@ function BOMManager({ user }) {
 
             {/* ── DigiKey Direct */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background: dkToken ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("digikey") ? s.delete("digikey") : s.add("digikey"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("digikey") ? "▶" : "▼"}</span>
-                  Digi-Key Direct
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: dkToken ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("digikey") ? "▶" : "▼"}</span>
+                  Digi-Key Direct {dkToken ? "✓" : ""}
                 </div>
               </div>
               {!collapsedSettings.has("digikey") && <div style={{ padding:"16px 20px" }}>
@@ -10227,11 +10226,11 @@ function BOMManager({ user }) {
 
             {/* ── Arrow Direct */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background: (apiKeys.arrow_api_key && apiKeys.arrow_login) ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("arrow") ? s.delete("arrow") : s.add("arrow"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("arrow") ? "▶" : "▼"}</span>
-                  Arrow Direct
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: (apiKeys.arrow_api_key && apiKeys.arrow_login) ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("arrow") ? "▶" : "▼"}</span>
+                  Arrow Direct {(apiKeys.arrow_api_key && apiKeys.arrow_login) ? "✓" : ""}
                 </div>
               </div>
               {!collapsedSettings.has("arrow") && <div style={{ padding:"16px 20px" }}>
@@ -10258,11 +10257,11 @@ function BOMManager({ user }) {
 
             {/* ── Texas Instruments Direct */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#c12b2b",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background: (apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("ti") ? s.delete("ti") : s.add("ti"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: (apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("ti") ? "▶" : "▼"}</span>
-                  Texas Instruments Direct
+                  Texas Instruments Direct {(apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "✓" : ""}
                 </div>
               </div>
               {!collapsedSettings.has("ti") && <div style={{ padding:"16px 20px" }}>
