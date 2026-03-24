@@ -128,6 +128,7 @@ async function handleOrders(req, res, org_id, access_token) {
       name: order.salesorder_number || order.reference_number || `SO-${order.salesorder_id}`,
       referenceNumber: order.reference_number || "",
       dealerPO: orderDetail.reference_number || order.reference_number || "",
+      dueDate: orderDetail.delivery_date || orderDetail.shipment_date || order.delivery_date || "",
       date: order.date || order.created_time,
       createdAt: order.created_time || order.date,
       status: order.status,

@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.43
+// src/App.jsx — Jackson Audio BOM Manager v6.44
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -83,6 +83,8 @@ const DEFAULT_KEYS = {
   ti_api_secret: "",       // ti.com — Texas Instruments Store API
   shipstation_api_key: "", // shipstation.com — Settings > Account > API Settings
   shipstation_api_secret: "", // shipstation.com — API Secret
+  direct_ship_goal: "1",     // days — target turnaround for direct (Shopify) orders
+  dealer_ship_goal: "14",    // days — target turnaround for dealer (Zoho) orders
   admin_emails: "brad@jacksonaudio.net",
   timezone: "America/Chicago",  // Central Time default // comma-separated list of admin email addresses
 };
@@ -6990,6 +6992,257 @@ function BOMManager({ user }) {
                   ))}
                 </div>
 
+                {/* ── Unified Order Tracker (Dealer + Direct) — TOP PRIORITY */}
+                {(zohoDemand?.orders?.length > 0 || shopifyDemand?.orders?.length > 0) && (() => {
+                  const __skipWords = ["shipping","gift card","tip","gratuity","donation","insurance","handling","gift wrap","express shipping"];
+                  const __isNonProduct = (title) => { const t = (title||"").toLowerCase(); return __skipWords.some(w => t.includes(w)); };
+                  const directGoalDays = parseInt(apiKeys.direct_ship_goal) || 1;
+                  const dealerGoalDays = parseInt(apiKeys.dealer_ship_goal) || 14;
+                  const now = new Date();
+
+                  const computeDueStatus = (order) => {
+                    if (order.pctComplete === 100) return { label: "Complete", color: "#34c759", urgent: false };
+                    let dueDate = order.dueDate ? new Date(order.dueDate) : null;
+                    if (!dueDate || isNaN(dueDate.getTime())) {
+                      // Fall back to goal-based deadline
+                      const goalDays = order.channel === "Dealer" ? dealerGoalDays : directGoalDays;
+                      dueDate = new Date(new Date(order.createdAt).getTime() + goalDays * 86400000);
+                    }
+                    const daysLeft = Math.ceil((dueDate - now) / 86400000);
+                    if (daysLeft < 0) return { label: `${Math.abs(daysLeft)}d overdue`, color: "#ff3b30", urgent: true, dueDate };
+                    if (daysLeft === 0) return { label: "Due today", color: "#ff3b30", urgent: true, dueDate };
+                    if (daysLeft <= 2) return { label: `${daysLeft}d left`, color: "#ff9500", urgent: true, dueDate };
+                    return { label: `${daysLeft}d left`, color: "#86868b", urgent: false, dueDate };
+                  };
+
+                  // Process Zoho (Dealer) orders
+                  const dealerOrders = (zohoDemand?.orders || []).filter(o => o.lineItems?.length > 0).map(order => {
+                    const totalQty = order.lineItems.reduce((s, li) => s + (li.quantity || 0), 0);
+                    const totalFulfilled = order.lineItems.reduce((s, li) => s + (li.quantityShipped || 0), 0);
+                    const pctComplete = totalQty > 0 ? Math.round((totalFulfilled / totalQty) * 100) : 0;
+                    const blockers = [];
+                    for (const li of order.lineItems) {
+                      const remaining = (li.quantity || 0) - (li.quantityShipped || 0);
+                      if (remaining <= 0) continue;
+                      const bomProduct = products.find(p => p.zohoProductId === li.productId || li.title.toLowerCase().includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(li.title.toLowerCase()));
+                      if (!bomProduct) continue;
+                      const bomParts = parts.filter(p => p.productId === bomProduct.id || (p.products && p.products.includes(bomProduct.id)));
+                      for (const bp of bomParts) {
+                        const stock = parseInt(bp.stockQty) || 0;
+                        const perUnit = parseInt(bp.quantity) || 1;
+                        const needed = perUnit * remaining;
+                        if (needed > stock) blockers.push({ partRef: bp.reference, mpn: bp.mpn, deficit: needed - stock, forProduct: li.title });
+                      }
+                    }
+                    const base = {
+                      id: order.id, channel: "Dealer", accentColor: "#4bc076",
+                      customer: order.customerName || order.companyName || "—",
+                      orderName: order.name, dealerPO: order.dealerPO || "",
+                      dueDate: order.dueDate || "",
+                      date: order.date || order.createdAt, createdAt: order.createdAt,
+                      lineItems: order.lineItems.map(li => ({ title: li.title, quantity: li.quantity || 0, fulfilled: li.quantityShipped || 0 })),
+                      totalQty, totalFulfilled, pctComplete, blockers,
+                      storeName: order.companyName || "",
+                    };
+                    base.due = computeDueStatus(base);
+                    return base;
+                  });
+
+                  // Process Shopify (Direct) orders
+                  const directOrders = (shopifyDemand?.orders || []).filter(o => {
+                    const items = (o.lineItems || []).filter(li => !__isNonProduct(li.title));
+                    return items.length > 0 && o.fulfillmentStatus !== "fulfilled";
+                  }).map(order => {
+                    const items = (order.lineItems || []).filter(li => !__isNonProduct(li.title));
+                    const totalQty = items.reduce((s, li) => s + (li.quantity || 0), 0);
+                    const totalFulfilled = items.reduce((s, li) => s + (li.fulfilledQty || 0), 0);
+                    const pctComplete = totalQty > 0 ? Math.round((totalFulfilled / totalQty) * 100) : 0;
+                    const blockers = [];
+                    for (const li of items) {
+                      const remaining = (li.unfulfilled || 0);
+                      if (remaining <= 0) continue;
+                      const bomProduct = products.find(p => p.shopifyProductId === li.productId || li.title.toLowerCase().includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(li.title.toLowerCase()));
+                      if (!bomProduct) continue;
+                      const bomParts = parts.filter(p => p.productId === bomProduct.id || (p.products && p.products.includes(bomProduct.id)));
+                      for (const bp of bomParts) {
+                        const stock = parseInt(bp.stockQty) || 0;
+                        const perUnit = parseInt(bp.quantity) || 1;
+                        const needed = perUnit * remaining;
+                        if (needed > stock) blockers.push({ partRef: bp.reference, mpn: bp.mpn, deficit: needed - stock, forProduct: li.title });
+                      }
+                    }
+                    const base = {
+                      id: order.id, channel: "Direct", accentColor: "#0071e3",
+                      customer: order.name, orderName: order.name, dealerPO: "", dueDate: "",
+                      date: order.createdAt, createdAt: order.createdAt,
+                      lineItems: items.map(li => ({ title: li.title, quantity: li.quantity || 0, fulfilled: li.fulfilledQty || 0 })),
+                      totalQty, totalFulfilled, pctComplete, blockers,
+                      storeName: order.storeName || "",
+                    };
+                    base.due = computeDueStatus(base);
+                    return base;
+                  });
+
+                  const renderOrderSection = (sectionOrders, sectionKey, title, color, count, openCount, overdueCount) => {
+                    if (sectionOrders.length === 0) return null;
+                    const isCollapsed = collapsedDemandSections.has(sectionKey);
+                    return (
+                      <div key={sectionKey} className="card" style={{ marginBottom:16, overflow:"hidden" }}>
+                        <div
+                          onClick={() => setCollapsedDemandSections(prev => { const s = new Set(prev); s.has(sectionKey) ? s.delete(sectionKey) : s.add(sectionKey); return s; })}
+                          style={{
+                            padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
+                            background: overdueCount > 0 ? "#ff3b3008" : color+"08",
+                            borderBottom: isCollapsed ? "none" : `2px solid ${overdueCount > 0 ? "#ff3b3033" : color+"33"}`,
+                            borderRadius: isCollapsed ? 12 : "12px 12px 0 0",transition:"all 0.2s",
+                          }}>
+                          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                            <div style={{ width:8,height:8,borderRadius:"50%",background:color,flexShrink:0 }} />
+                            <span style={{ fontSize:13,fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                              {title}
+                            </span>
+                            <span style={{ fontSize:11,color:"#86868b",fontWeight:500 }}>
+                              ({count} order{count !== 1 ? "s" : ""} · {openCount} open)
+                            </span>
+                            {overdueCount > 0 && (
+                              <span style={{ fontSize:10,fontWeight:700,color:"#ff3b30",background:"#ff3b3015",padding:"2px 8px",borderRadius:10 }}>
+                                {overdueCount} overdue
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ fontSize:11,color:"#86868b",transform:isCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
+                        </div>
+                        {!isCollapsed && (
+                          <div style={{ overflowX:"auto" }}>
+                            <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                              <thead>
+                                <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>CUSTOMER</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>ORDER</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>DUE</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>PRODUCTS</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center" }}>PROGRESS</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>BLOCKERS</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center" }}>ACTION</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {sectionOrders.map(po => (
+                                  <tr key={po.id} style={{ borderBottom:"1px solid #f0f0f2",opacity: po.pctComplete === 100 ? 0.5 : 1,
+                                    background: po.due.urgent && po.pctComplete < 100 ? "#ff3b3005" : "transparent" }}>
+                                    <td style={{ padding:"10px 10px" }}>
+                                      <div style={{ fontWeight:700,color:"#1d1d1f" }}>{po.customer}</div>
+                                      <div style={{ fontSize:10,color:"#86868b" }}>
+                                        {po.date ? new Date(po.date).toLocaleDateString() : ""}
+                                        {po.storeName && po.channel === "Direct" && <span style={{ marginLeft:4,color:po.accentColor }}>{po.storeName}</span>}
+                                      </div>
+                                    </td>
+                                    <td style={{ padding:"10px 10px" }}>
+                                      <div style={{ fontWeight:600,color:po.accentColor }}>{po.orderName}</div>
+                                      {po.dealerPO && <div style={{ fontSize:10,color:"#86868b" }}>PO: {po.dealerPO}</div>}
+                                    </td>
+                                    <td style={{ padding:"10px 10px",whiteSpace:"nowrap" }}>
+                                      <div style={{ fontWeight:700,fontSize:11,color:po.due.color }}>
+                                        {po.due.label}
+                                      </div>
+                                      {po.due.dueDate && (
+                                        <div style={{ fontSize:9,color:"#86868b" }}>
+                                          {new Date(po.due.dueDate).toLocaleDateString()}
+                                          {po.dueDate ? "" : " (goal)"}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td style={{ padding:"10px 10px" }}>
+                                      <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
+                                        {po.lineItems.map((li,i) => {
+                                          const done = li.fulfilled >= li.quantity;
+                                          return (
+                                            <span key={i} className="badge" style={{ background: done ? "#34c75922" : "#ff950022", color: done ? "#34c759" : "#ff9500", fontSize:10 }}>
+                                              {li.title} ({li.fulfilled}/{li.quantity})
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    </td>
+                                    <td style={{ padding:"10px 10px",textAlign:"center" }}>
+                                      <div style={{ display:"flex",alignItems:"center",gap:6,justifyContent:"center" }}>
+                                        <div style={{ width:60,height:6,borderRadius:3,background:"#e5e5ea",overflow:"hidden" }}>
+                                          <div style={{ width:`${po.pctComplete}%`,height:"100%",borderRadius:3,
+                                            background: po.pctComplete === 100 ? "#34c759" : po.pctComplete >= 50 ? "#ff9500" : "#ff3b30",
+                                            transition:"width 0.3s" }} />
+                                        </div>
+                                        <span style={{ fontSize:11,fontWeight:700,color: po.pctComplete === 100 ? "#34c759" : "#1d1d1f" }}>
+                                          {po.totalFulfilled}/{po.totalQty}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td style={{ padding:"10px 10px" }}>
+                                      {po.pctComplete === 100 ? (
+                                        <span style={{ fontSize:11,color:"#34c759",fontWeight:700 }}>Complete</span>
+                                      ) : po.blockers.length > 0 ? (
+                                        <div style={{ display:"flex",gap:3,flexWrap:"wrap" }}>
+                                          {po.blockers.slice(0, 3).map((b,i) => (
+                                            <span key={i} className="badge" style={{ background:"#ff3b3015",color:"#ff3b30",fontSize:9 }}>
+                                              {b.partRef || b.mpn} (need {b.deficit})
+                                            </span>
+                                          ))}
+                                          {po.blockers.length > 3 && <span style={{ fontSize:9,color:"#86868b" }}>+{po.blockers.length - 3} more</span>}
+                                        </div>
+                                      ) : (
+                                        <span style={{ fontSize:11,color:"#86868b" }}>Awaiting build</span>
+                                      )}
+                                    </td>
+                                    <td style={{ padding:"10px 10px",textAlign:"center" }}>
+                                      {po.pctComplete < 100 && (
+                                        <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
+                                          onClick={() => {
+                                            const newQueue = [];
+                                            for (const li of po.lineItems) {
+                                              const remaining = li.quantity - li.fulfilled;
+                                              if (remaining <= 0) continue;
+                                              const bomProduct = products.find(p => li.title.toLowerCase().includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(li.title.toLowerCase()));
+                                              if (bomProduct && !buildQueue.find(q => q.productId === bomProduct.id)) {
+                                                newQueue.push({ productId: bomProduct.id, name: bomProduct.name, qty: remaining, color: bomProduct.color, forOrder: po.orderName });
+                                              }
+                                            }
+                                            if (newQueue.length > 0) { setBuildQueue(prev => [...prev, ...newQueue]); setActiveView("purchasing"); }
+                                            else { alert("No matching BOM products found for this order's line items. Map them in Products first."); }
+                                          }}>
+                                          Build for Order
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  };
+
+                  const sortOrders = (arr) => arr.sort((a, b) => {
+                    if (a.pctComplete === 100 && b.pctComplete < 100) return 1;
+                    if (a.pctComplete < 100 && b.pctComplete === 100) return -1;
+                    // Urgent/overdue first
+                    if (a.due.urgent && !b.due.urgent) return -1;
+                    if (!a.due.urgent && b.due.urgent) return 1;
+                    return new Date(b.createdAt) - new Date(a.createdAt);
+                  });
+
+                  return (<>
+                    {renderOrderSection(sortOrders(dealerOrders), "dealer-pos", "Dealer PO Tracker", "#4bc076",
+                      dealerOrders.length, dealerOrders.filter(o => o.pctComplete < 100).length,
+                      dealerOrders.filter(o => o.due.urgent && o.pctComplete < 100).length
+                    )}
+                    {renderOrderSection(sortOrders(directOrders), "direct-orders", "Direct Order Tracker", "#0071e3",
+                      directOrders.length, directOrders.filter(o => o.pctComplete < 100).length,
+                      directOrders.filter(o => o.due.urgent && o.pctComplete < 100).length
+                    )}
+                  </>);
+                })()}
+
                 {/* ── Unmapped Shopify products */}
                 {unmapped.length > 0 && (
                   <div style={{ background:"#fff8e6",border:"1px solid #ff9500",borderRadius:8,padding:"12px 16px",marginBottom:16 }}>
@@ -7436,240 +7689,7 @@ function BOMManager({ user }) {
               </>
             )}
 
-            {/* ── Unified Order Tracker (Dealer + Direct) */}
-            {(zohoDemand?.orders?.length > 0 || shopifyDemand?.orders?.length > 0) && (() => {
-              const _skipWords = ["shipping","gift card","tip","gratuity","donation","insurance","handling","gift wrap","express shipping"];
-              const _isNonProduct = (title) => { const t = (title||"").toLowerCase(); return _skipWords.some(w => t.includes(w)); };
-
-              // Process Zoho (Dealer) orders
-              const dealerOrders = (zohoDemand?.orders || []).filter(o => o.lineItems?.length > 0).map(order => {
-                const totalQty = order.lineItems.reduce((s, li) => s + (li.quantity || 0), 0);
-                const totalFulfilled = order.lineItems.reduce((s, li) => s + (li.quantityShipped || 0), 0);
-                const pctComplete = totalQty > 0 ? Math.round((totalFulfilled / totalQty) * 100) : 0;
-                const blockers = [];
-                for (const li of order.lineItems) {
-                  const remaining = (li.quantity || 0) - (li.quantityShipped || 0);
-                  if (remaining <= 0) continue;
-                  const bomProduct = products.find(p =>
-                    p.zohoProductId === li.productId ||
-                    li.title.toLowerCase().includes(p.name.toLowerCase()) ||
-                    p.name.toLowerCase().includes(li.title.toLowerCase())
-                  );
-                  if (!bomProduct) continue;
-                  const bomParts = parts.filter(p => p.productId === bomProduct.id || (p.products && p.products.includes(bomProduct.id)));
-                  for (const bp of bomParts) {
-                    const stock = parseInt(bp.stockQty) || 0;
-                    const perUnit = parseInt(bp.quantity) || 1;
-                    const needed = perUnit * remaining;
-                    if (needed > stock) blockers.push({ partRef: bp.reference, partValue: bp.value, mpn: bp.mpn, needed, inStock: stock, deficit: needed - stock, forProduct: li.title });
-                  }
-                }
-                return {
-                  id: order.id, channel: "Dealer", accentColor: "#4bc076",
-                  customer: order.customerName || order.companyName || "—",
-                  orderName: order.name, dealerPO: order.dealerPO || "",
-                  date: order.date || order.createdAt, createdAt: order.createdAt,
-                  lineItems: order.lineItems.map(li => ({ title: li.title, quantity: li.quantity || 0, fulfilled: li.quantityShipped || 0 })),
-                  totalQty, totalFulfilled, pctComplete, blockers,
-                  storeName: order.companyName || "",
-                };
-              });
-
-              // Process Shopify (Direct) orders
-              const directOrders = (shopifyDemand?.orders || []).filter(o => {
-                const items = (o.lineItems || []).filter(li => !_isNonProduct(li.title));
-                return items.length > 0 && o.fulfillmentStatus !== "fulfilled";
-              }).map(order => {
-                const items = (order.lineItems || []).filter(li => !_isNonProduct(li.title));
-                const totalQty = items.reduce((s, li) => s + (li.quantity || 0), 0);
-                const totalFulfilled = items.reduce((s, li) => s + (li.fulfilledQty || 0), 0);
-                const pctComplete = totalQty > 0 ? Math.round((totalFulfilled / totalQty) * 100) : 0;
-                const blockers = [];
-                for (const li of items) {
-                  const remaining = (li.unfulfilled || 0);
-                  if (remaining <= 0) continue;
-                  const bomProduct = products.find(p =>
-                    p.shopifyProductId === li.productId ||
-                    li.title.toLowerCase().includes(p.name.toLowerCase()) ||
-                    p.name.toLowerCase().includes(li.title.toLowerCase())
-                  );
-                  if (!bomProduct) continue;
-                  const bomParts = parts.filter(p => p.productId === bomProduct.id || (p.products && p.products.includes(bomProduct.id)));
-                  for (const bp of bomParts) {
-                    const stock = parseInt(bp.stockQty) || 0;
-                    const perUnit = parseInt(bp.quantity) || 1;
-                    const needed = perUnit * remaining;
-                    if (needed > stock) blockers.push({ partRef: bp.reference, partValue: bp.value, mpn: bp.mpn, needed, inStock: stock, deficit: needed - stock, forProduct: li.title });
-                  }
-                }
-                return {
-                  id: order.id, channel: "Direct", accentColor: "#0071e3",
-                  customer: order.name,
-                  orderName: order.name, dealerPO: "",
-                  date: order.createdAt, createdAt: order.createdAt,
-                  lineItems: items.map(li => ({ title: li.title, quantity: li.quantity || 0, fulfilled: li.fulfilledQty || 0 })),
-                  totalQty, totalFulfilled, pctComplete, blockers,
-                  storeName: order.storeName || "",
-                };
-              });
-
-              const allOrders = [...dealerOrders, ...directOrders]
-                .sort((a, b) => (a.pctComplete === 100 ? 1 : 0) - (b.pctComplete === 100 ? 1 : 0) || new Date(b.createdAt) - new Date(a.createdAt));
-
-              if (allOrders.length === 0) return null;
-              const openOrders = allOrders.filter(o => o.pctComplete < 100);
-              const dealerCount = dealerOrders.length;
-              const directCount = directOrders.length;
-
-              // Render a section for each channel
-              const renderOrderSection = (sectionOrders, sectionKey, title, color, count, openCount) => {
-                if (sectionOrders.length === 0) return null;
-                const isCollapsed = collapsedDemandSections.has(sectionKey);
-                return (
-                  <div key={sectionKey} className="card" style={{ marginBottom:16, overflow:"hidden" }}>
-                    <div
-                      onClick={() => setCollapsedDemandSections(prev => { const s = new Set(prev); s.has(sectionKey) ? s.delete(sectionKey) : s.add(sectionKey); return s; })}
-                      style={{
-                        padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
-                        background:color+"08",borderBottom: isCollapsed ? "none" : `2px solid ${color}33`,
-                        borderRadius: isCollapsed ? 12 : "12px 12px 0 0",transition:"all 0.2s",
-                      }}>
-                      <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                        <div style={{ width:8,height:8,borderRadius:"50%",background:color,flexShrink:0 }} />
-                        <span style={{ fontSize:13,fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                          {title}
-                        </span>
-                        <span style={{ fontSize:11,color:"#86868b",fontWeight:500 }}>
-                          ({count} order{count !== 1 ? "s" : ""} · {openCount} open)
-                        </span>
-                      </div>
-                      <span style={{ fontSize:11,color:"#86868b",transform:isCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
-                    </div>
-                    {!isCollapsed && (
-                      <div style={{ overflowX:"auto" }}>
-                        <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
-                          <thead>
-                            <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
-                              <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>CUSTOMER</th>
-                              <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>ORDER</th>
-                              <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>PRODUCTS</th>
-                              <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center" }}>PROGRESS</th>
-                              <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>FULFILLED</th>
-                              <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>BLOCKERS</th>
-                              <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center" }}>ACTION</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sectionOrders.map(po => (
-                              <tr key={po.id} style={{ borderBottom:"1px solid #f0f0f2",opacity: po.pctComplete === 100 ? 0.5 : 1 }}>
-                                <td style={{ padding:"10px 10px" }}>
-                                  <div style={{ fontWeight:700,color:"#1d1d1f" }}>{po.customer}</div>
-                                  <div style={{ fontSize:10,color:"#86868b" }}>
-                                    {po.date ? new Date(po.date).toLocaleDateString() : ""}
-                                    {po.storeName && <span style={{ marginLeft:4,color:po.accentColor }}>{po.storeName}</span>}
-                                  </div>
-                                </td>
-                                <td style={{ padding:"10px 10px" }}>
-                                  <div style={{ fontWeight:600,color:po.accentColor }}>{po.orderName}</div>
-                                  {po.dealerPO && <div style={{ fontSize:10,color:"#86868b" }}>PO: {po.dealerPO}</div>}
-                                </td>
-                                <td style={{ padding:"10px 10px" }}>
-                                  <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
-                                    {po.lineItems.map((li,i) => {
-                                      const done = li.fulfilled >= li.quantity;
-                                      return (
-                                        <span key={i} className="badge" style={{ background: done ? "#34c75922" : "#ff950022", color: done ? "#34c759" : "#ff9500", fontSize:10 }}>
-                                          {li.title} ({li.fulfilled}/{li.quantity})
-                                        </span>
-                                      );
-                                    })}
-                                  </div>
-                                </td>
-                                <td style={{ padding:"10px 10px",textAlign:"center" }}>
-                                  <div style={{ display:"flex",alignItems:"center",gap:6,justifyContent:"center" }}>
-                                    <div style={{ width:60,height:6,borderRadius:3,background:"#e5e5ea",overflow:"hidden" }}>
-                                      <div style={{ width:`${po.pctComplete}%`,height:"100%",borderRadius:3,
-                                        background: po.pctComplete === 100 ? "#34c759" : po.pctComplete >= 50 ? "#ff9500" : "#ff3b30",
-                                        transition:"width 0.3s" }} />
-                                    </div>
-                                    <span style={{ fontSize:11,fontWeight:700,color: po.pctComplete === 100 ? "#34c759" : "#1d1d1f" }}>
-                                      {po.pctComplete}%
-                                    </span>
-                                  </div>
-                                </td>
-                                <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
-                                  color: po.pctComplete === 100 ? "#34c759" : "#1d1d1f" }}>
-                                  {po.totalFulfilled} / {po.totalQty}
-                                </td>
-                                <td style={{ padding:"10px 10px" }}>
-                                  {po.pctComplete === 100 ? (
-                                    <span style={{ fontSize:11,color:"#34c759",fontWeight:700 }}>Complete</span>
-                                  ) : po.blockers.length > 0 ? (
-                                    <div style={{ display:"flex",gap:3,flexWrap:"wrap" }}>
-                                      {po.blockers.slice(0, 3).map((b,i) => (
-                                        <span key={i} className="badge" style={{ background:"#ff3b3015",color:"#ff3b30",fontSize:9 }}>
-                                          {b.partRef || b.mpn} (need {b.deficit})
-                                        </span>
-                                      ))}
-                                      {po.blockers.length > 3 && <span style={{ fontSize:9,color:"#86868b" }}>+{po.blockers.length - 3} more</span>}
-                                    </div>
-                                  ) : (
-                                    <span style={{ fontSize:11,color:"#86868b" }}>Awaiting build</span>
-                                  )}
-                                </td>
-                                <td style={{ padding:"10px 10px",textAlign:"center" }}>
-                                  {po.pctComplete < 100 && (
-                                    <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
-                                      onClick={() => {
-                                        // Queue unfulfilled line items as build tasks
-                                        const newQueue = [];
-                                        for (const li of po.lineItems) {
-                                          const remaining = li.quantity - li.fulfilled;
-                                          if (remaining <= 0) continue;
-                                          const bomProduct = products.find(p =>
-                                            li.title.toLowerCase().includes(p.name.toLowerCase()) ||
-                                            p.name.toLowerCase().includes(li.title.toLowerCase())
-                                          );
-                                          if (bomProduct) {
-                                            // Check if already in build queue
-                                            const existing = buildQueue.find(q => q.productId === bomProduct.id);
-                                            if (!existing) {
-                                              newQueue.push({ productId: bomProduct.id, name: bomProduct.name, qty: remaining, color: bomProduct.color, forOrder: po.orderName });
-                                            }
-                                          }
-                                        }
-                                        if (newQueue.length > 0) {
-                                          setBuildQueue(prev => [...prev, ...newQueue]);
-                                          setActiveView("purchasing");
-                                        } else {
-                                          alert("No matching BOM products found for this order's line items. Map them in Products first.");
-                                        }
-                                      }}>
-                                      Build for Order
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                );
-              };
-
-              return (<>
-                {renderOrderSection(
-                  dealerOrders.sort((a, b) => (a.pctComplete === 100 ? 1 : 0) - (b.pctComplete === 100 ? 1 : 0) || new Date(b.createdAt) - new Date(a.createdAt)),
-                  "dealer-pos", "Dealer PO Tracker", "#4bc076", dealerCount, dealerOrders.filter(o => o.pctComplete < 100).length
-                )}
-                {renderOrderSection(
-                  directOrders.sort((a, b) => (a.pctComplete === 100 ? 1 : 0) - (b.pctComplete === 100 ? 1 : 0) || new Date(b.createdAt) - new Date(a.createdAt)),
-                  "direct-orders", "Direct Order Tracker", "#0071e3", directCount, directOrders.filter(o => o.pctComplete < 100).length
-                )}
-              </>);
-            })()}
+            {/* Order Tracker moved above — now appears after summary cards */}
 
             {/* ── ShipStation: Units Shipped */}
             {shipstationData && !shipstationData?.error && shipstationData?.shipments?.length > 0 && (
@@ -9662,7 +9682,29 @@ function BOMManager({ user }) {
                       style={{ width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #d1d1d6",fontSize:12,fontFamily:"monospace" }} placeholder="Your ShipStation API Secret" />
                   </div>
                 </div>
-                <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+                <div style={{ borderTop:"1px solid #e5e5ea",marginTop:12,paddingTop:12 }}>
+                  <div style={{ fontSize:11,color:"#6e6e73",fontWeight:600,marginBottom:8 }}>Fulfillment Goals (days to ship)</div>
+                  <div style={{ display:"flex",gap:12,flexWrap:"wrap",marginBottom:8 }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                      <span style={{ fontSize:12,color:"#3a3f51",fontWeight:600,minWidth:100 }}>Direct orders</span>
+                      <input type="number" min="0" step="1" value={apiKeys.direct_ship_goal||"1"}
+                        onChange={e => setApiKeys(k=>({...k,direct_ship_goal:e.target.value}))}
+                        style={{ width:50,padding:"4px 6px",borderRadius:4,fontSize:12,border:"1px solid #d1d1d6",textAlign:"center" }} />
+                      <span style={{ fontSize:11,color:"#86868b" }}>days</span>
+                    </div>
+                    <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                      <span style={{ fontSize:12,color:"#3a3f51",fontWeight:600,minWidth:100 }}>Dealer orders</span>
+                      <input type="number" min="0" step="1" value={apiKeys.dealer_ship_goal||"14"}
+                        onChange={e => setApiKeys(k=>({...k,dealer_ship_goal:e.target.value}))}
+                        style={{ width:50,padding:"4px 6px",borderRadius:4,fontSize:12,border:"1px solid #d1d1d6",textAlign:"center" }} />
+                      <span style={{ fontSize:11,color:"#86868b" }}>days</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize:10,color:"#aeaeb2" }}>
+                    Used when no due date is set on a dealer PO. Direct defaults to same-day (1). Overdue orders are flagged red in the Demand tab.
+                  </div>
+                </div>
+                <div style={{ display:"flex",gap:8,alignItems:"center",marginTop:12 }}>
                   {sectionSaveBtn("shipstation", "ShipStation")}
                   <button className="btn-ghost btn-sm" onClick={syncShipStation} disabled={shipstationData?.loading}
                     style={{ fontSize:11 }}>
@@ -10573,7 +10615,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.43 — built 2026-03-24 3:10am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.44 — built 2026-03-24 3:30am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
