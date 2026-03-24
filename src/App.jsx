@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.35
+// src/App.jsx — Jackson Audio BOM Manager v6.36
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -4446,7 +4446,7 @@ function BOMManager({ user }) {
                             })()}
                           </td>
                           <td style={{ padding:"6px 8px",fontSize:11,color:"#86868b",whiteSpace:"nowrap" }}>
-                            {part.createdAt ? new Date(part.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"2-digit"}) : "—"}
+                            {part.createdAt ? new Date(part.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}
                           </td>
                           <td style={{ padding:"6px 4px",width:56,whiteSpace:"nowrap" }}>
                             <button onClick={()=>{console.log("[QR] Opening label for",part.mpn);setQrModalParts([part]);}} title="QR Label"
@@ -10142,7 +10142,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.35 — built 2026-03-24 12:55am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.36 — built 2026-03-24 1:00am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
