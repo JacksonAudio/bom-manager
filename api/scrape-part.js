@@ -1,9 +1,9 @@
 // ============================================================
-// api/scrape-part.js — Scrape part details from distributor pages
+// api/scrape-part.js — Extract Country of Origin from distributor pages
 //
-// Fetches the product page HTML and extracts structured data
-// that APIs often miss: Country of Origin, Country of Assembly,
-// Country of Diffusion, and the canonical product URL.
+// Two strategies:
+// 1. Mouser Keyword Search API (reliable, structured data)
+// 2. HTML scrape fallback for non-Mouser URLs
 // ============================================================
 
 export default async function handler(req, res) {
@@ -13,85 +13,129 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
-  const { url } = req.query;
-  if (!url) return res.status(400).json({ error: "url parameter is required" });
+  const { url, mpn, mouserKey } = req.query;
+  if (!url && !mpn) return res.status(400).json({ error: "url or mpn parameter is required" });
 
   try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase();
+    const result = {};
 
-    // Only allow known distributor domains
-    const allowed = ["mouser.com", "www.mouser.com", "digikey.com", "www.digikey.com", "arrow.com", "www.arrow.com", "lcsc.com", "www.lcsc.com"];
-    if (!allowed.some(d => host === d || host.endsWith("." + d))) {
-      return res.status(400).json({ error: "Unsupported distributor domain" });
-    }
+    // Strategy 1: Use Mouser Keyword Search API (returns COO more reliably than part number search)
+    if (mouserKey && mpn) {
+      try {
+        const mouserRes = await fetch(`https://api.mouser.com/api/v1/search/keyword?apiKey=${encodeURIComponent(mouserKey)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            SearchByKeywordRequest: {
+              keyword: mpn,
+              records: 5,
+              startingRecord: 0,
+              searchOptions: "",
+              searchWithYourSignUpLanguage: "",
+            },
+          }),
+        });
 
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-    });
+        if (mouserRes.ok) {
+          const data = await mouserRes.json();
+          const parts = data?.SearchResults?.Parts || [];
+          // Find exact MPN match
+          const mpnUpper = mpn.toUpperCase();
+          const match = parts.find(p => (p.ManufacturerPartNumber || "").toUpperCase() === mpnUpper)
+            || parts.find(p => (p.ManufacturerPartNumber || "").toUpperCase().includes(mpnUpper))
+            || parts[0];
 
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `Failed to fetch page: ${response.status}` });
-    }
+          if (match) {
+            if (match.CountryOfOrigin) result.countryOfOrigin = match.CountryOfOrigin.toUpperCase();
 
-    const html = await response.text();
-    const result = { url: parsed.href };
+            // Check ProductCompliance array
+            if (!result.countryOfOrigin && Array.isArray(match.ProductCompliance)) {
+              for (const comp of match.ProductCompliance) {
+                if (comp.ComplianceName && /country.*origin/i.test(comp.ComplianceName) && comp.ComplianceValue) {
+                  result.countryOfOrigin = comp.ComplianceValue.toUpperCase();
+                }
+                if (comp.ComplianceName && /country.*assembly/i.test(comp.ComplianceName) && comp.ComplianceValue) {
+                  result.countryOfAssembly = comp.ComplianceValue.toUpperCase();
+                }
+                if (comp.ComplianceName && /country.*diffusion/i.test(comp.ComplianceName) && comp.ComplianceValue) {
+                  result.countryOfDiffusion = comp.ComplianceValue.toUpperCase();
+                }
+              }
+            }
 
-    if (host.includes("mouser.com")) {
-      // Extract Country of Origin
-      const cooMatch = html.match(/Country\s+of\s+Origin[:\s]*<\/(?:td|th|dt|span|div|b|strong)[^>]*>\s*<(?:td|dd|span|div)[^>]*>\s*([A-Z]{2})/i)
-        || html.match(/Country\s+of\s+Origin[:\s]*(?:<[^>]*>)*\s*([A-Z]{2,3})/i)
-        || html.match(/"countryOfOrigin"\s*:\s*"([^"]+)"/i);
-      if (cooMatch) result.countryOfOrigin = cooMatch[1].toUpperCase();
+            // Log what we got for debugging
+            console.log("[scrape-part] Mouser keyword search for", mpn, "→ COO:", result.countryOfOrigin || "not found",
+              "| Fields present:", Object.keys(match).filter(k => k.toLowerCase().includes("country")).join(", ") || "none",
+              "| Compliance:", JSON.stringify(match.ProductCompliance || []).slice(0, 300));
 
-      // Extract Country of Assembly
-      const coaMatch = html.match(/Country\s+of\s+Assembly[:\s]*<\/(?:td|th|dt|span|div|b|strong)[^>]*>\s*<(?:td|dd|span|div)[^>]*>\s*([A-Z]{2})/i)
-        || html.match(/Country\s+of\s+Assembly[:\s]*(?:<[^>]*>)*\s*([A-Z]{2,3})/i);
-      if (coaMatch) result.countryOfAssembly = coaMatch[1].toUpperCase();
-
-      // Extract Country of Diffusion
-      const codMatch = html.match(/Country\s+of\s+Diffusion[:\s]*<\/(?:td|th|dt|span|div|b|strong)[^>]*>\s*<(?:td|dd|span|div)[^>]*>\s*([A-Z]{2})/i)
-        || html.match(/Country\s+of\s+Diffusion[:\s]*(?:<[^>]*>)*\s*([A-Z]{2,3})/i);
-      if (codMatch) result.countryOfDiffusion = codMatch[1].toUpperCase();
-
-      // Try JSON-LD or embedded structured data
-      const jsonLdMatch = html.match(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi);
-      if (jsonLdMatch) {
-        for (const block of jsonLdMatch) {
-          try {
-            const jsonStr = block.replace(/<\/?script[^>]*>/gi, "");
-            const ld = JSON.parse(jsonStr);
-            if (ld.countryOfOrigin && !result.countryOfOrigin) result.countryOfOrigin = String(ld.countryOfOrigin).toUpperCase();
-            if (ld.countryOfAssembly && !result.countryOfAssembly) result.countryOfAssembly = String(ld.countryOfAssembly).toUpperCase();
-          } catch {}
+            if (match.ProductDetailUrl) result.url = match.ProductDetailUrl;
+          }
         }
+      } catch (e) {
+        console.warn("[scrape-part] Mouser keyword search failed:", e.message);
       }
+    }
 
-      // Extract from meta tags or data attributes as additional fallback
-      const metaCoo = html.match(/data-country-of-origin="([^"]+)"/i)
-        || html.match(/name="countryOfOrigin"\s+content="([^"]+)"/i);
-      if (metaCoo && !result.countryOfOrigin) result.countryOfOrigin = metaCoo[1].toUpperCase();
+    // Strategy 2: If we still don't have COO and have a URL, try scraping the page
+    if (!result.countryOfOrigin && url) {
+      try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.toLowerCase();
 
-      // Try to find in the specifications table (common Mouser layout)
-      // Look for table rows with these labels
-      const specRows = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
-      for (const row of specRows) {
-        if (/Country\s+of\s+Origin/i.test(row) && !result.countryOfOrigin) {
-          const val = row.match(/<td[^>]*>\s*([A-Z]{2,3})\s*<\/td>/i);
-          if (val) result.countryOfOrigin = val[1].toUpperCase();
+        // Only allow known distributor domains
+        const allowed = ["mouser.com", "digikey.com", "arrow.com", "lcsc.com"];
+        if (!allowed.some(d => host.includes(d))) {
+          if (!Object.keys(result).length) {
+            return res.status(400).json({ error: "Unsupported distributor domain" });
+          }
+        } else {
+          const response = await fetch(url, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+              "Accept-Language": "en-US,en;q=0.9",
+              "Accept-Encoding": "identity",
+              "Cache-Control": "no-cache",
+              "Sec-Fetch-Dest": "document",
+              "Sec-Fetch-Mode": "navigate",
+              "Sec-Fetch-Site": "none",
+              "Sec-Fetch-User": "?1",
+              "Upgrade-Insecure-Requests": "1",
+            },
+            redirect: "follow",
+          });
+
+          if (response.ok) {
+            const html = await response.text();
+            console.log("[scrape-part] Page fetched, length:", html.length, "| Contains 'Country of Origin':", html.includes("Country of Origin"));
+
+            // Very broad regex patterns to catch any HTML structure
+            // Pattern: "Country of Origin" followed eventually by a 2-letter code
+            if (!result.countryOfOrigin) {
+              const m = html.match(/Country\s+of\s+Origin[\s\S]{0,200}?([A-Z]{2})(?=[\s<",.])/i);
+              if (m) result.countryOfOrigin = m[1].toUpperCase();
+            }
+            if (!result.countryOfAssembly) {
+              const m = html.match(/Country\s+of\s+Assembly[\s\S]{0,200}?([A-Z]{2})(?=[\s<",.])/i);
+              if (m) result.countryOfAssembly = m[1].toUpperCase();
+            }
+            if (!result.countryOfDiffusion) {
+              const m = html.match(/Country\s+of\s+Diffusion[\s\S]{0,200}?([A-Z]{2})(?=[\s<",.])/i);
+              if (m) result.countryOfDiffusion = m[1].toUpperCase();
+            }
+
+            // JSON embedded in page (React state, Next.js data, etc.)
+            const jsonMatches = html.match(/"countryOfOrigin"\s*:\s*"([^"]{2,3})"/gi);
+            if (jsonMatches && !result.countryOfOrigin) {
+              const val = jsonMatches[0].match(/"([^"]{2,3})"$/);
+              if (val) result.countryOfOrigin = val[1].toUpperCase();
+            }
+          } else {
+            console.warn("[scrape-part] Page fetch failed:", response.status);
+          }
         }
-        if (/Country\s+of\s+Assembly/i.test(row) && !result.countryOfAssembly) {
-          const val = row.match(/<td[^>]*>\s*([A-Z]{2,3})\s*<\/td>/i);
-          if (val) result.countryOfAssembly = val[1].toUpperCase();
-        }
-        if (/Country\s+of\s+Diffusion/i.test(row) && !result.countryOfDiffusion) {
-          const val = row.match(/<td[^>]*>\s*([A-Z]{2,3})\s*<\/td>/i);
-          if (val) result.countryOfDiffusion = val[1].toUpperCase();
-        }
+      } catch (e) {
+        console.warn("[scrape-part] HTML scrape failed:", e.message);
       }
     }
 

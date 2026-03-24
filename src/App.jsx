@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.57
+// src/App.jsx — Jackson Audio BOM Manager v6.58
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -414,6 +414,19 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
   if (part.SuggestedReplacement) result.suggestedReplacement = part.SuggestedReplacement;
   if (part.ImagePath) result.imagePath = part.ImagePath;
   if (part.ProductCompliance) result.compliance = part.ProductCompliance;
+  // Parse COO from ProductCompliance array if not found in top-level field
+  if (!result.countryOfOrigin && Array.isArray(part.ProductCompliance)) {
+    for (const comp of part.ProductCompliance) {
+      if (comp.ComplianceName && /country.*origin/i.test(comp.ComplianceName) && comp.ComplianceValue) {
+        result.countryOfOrigin = comp.ComplianceValue.toUpperCase();
+        break;
+      }
+    }
+  }
+  // Also check UnitWeightKg.CountryOfOrigin path and other nested locations
+  if (!result.countryOfOrigin && part.UnitWeightKg?.CountryOfOrigin) {
+    result.countryOfOrigin = part.UnitWeightKg.CountryOfOrigin.toUpperCase();
+  }
   return result;
 }
 
@@ -2264,12 +2277,16 @@ function BOMManager({ user }) {
         productUrl = `https://www.mouser.com/ProductDetail/${encodeURIComponent(partData.mouserPartNumber)}`;
       }
 
-      // If API didn't return COO, scrape the product page to get it
+      // If API didn't return COO, use scrape-part endpoint (Mouser keyword search + HTML scrape fallback)
       let scrapedData = null;
       const scrapeUrl = isUrl ? input.trim() : productUrl;
-      if (!partData.countryOfOrigin && scrapeUrl) {
+      if (!partData.countryOfOrigin) {
         try {
-          const scrapeRes = await fetch(`/api/scrape-part?url=${encodeURIComponent(scrapeUrl)}`);
+          const scrapeParams = new URLSearchParams();
+          if (scrapeUrl) scrapeParams.set("url", scrapeUrl);
+          scrapeParams.set("mpn", mpn);
+          if (apiKeys.mouser_api_key) scrapeParams.set("mouserKey", apiKeys.mouser_api_key);
+          const scrapeRes = await fetch(`/api/scrape-part?${scrapeParams.toString()}`);
           if (scrapeRes.ok) {
             scrapedData = await scrapeRes.json();
             if (scrapedData.countryOfOrigin) partData.countryOfOrigin = scrapedData.countryOfOrigin;
@@ -11254,7 +11271,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.57 — built 2026-03-24</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.58 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
