@@ -1,6 +1,6 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.17
-// Saturday, March 21, 2026 — 10:30 AM
+// src/App.jsx — Jackson Audio BOM Manager v6.29
+// Sunday, March 23, 2026
 //
 // Changelog:
 //   [1] Fix Nexar query — inline MPN string instead of GraphQL variable (fixes 400)
