@@ -1,6 +1,6 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.31
-// Sunday, March 23, 2026
+// src/App.jsx — Jackson Audio BOM Manager v6.32
+// Monday, March 24, 2026
 //
 // Changelog:
 //   [1] Fix Nexar query — inline MPN string instead of GraphQL variable (fixes 400)
@@ -3197,6 +3197,40 @@ function BOMManager({ user }) {
                   <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>{card.sub}</div>
                 </div>
               ))}
+            </div>
+
+            {/* ── Workflow Flowchart */}
+            <div style={{ background:"#fff",borderRadius:14,padding:"24px 28px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
+              <div style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",marginBottom:4,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>How It Works</div>
+              <div style={{ fontSize:12,color:"#86868b",marginBottom:20 }}>Follow this workflow from setup to receiving parts.</div>
+              <div style={{ display:"flex",flexWrap:"wrap",alignItems:"flex-start",gap:0 }}>
+                {[
+                  { step:1, title:"Add Parts", desc:"Import a CSV or manually add parts to your Parts Library with MPNs, values, and quantities.", tab:"bom", color:"#0071e3" },
+                  { step:2, title:"Create Products", desc:"Group parts into products (pedals, amps, etc). Assign each part to the product it belongs to.", tab:"projects", color:"#5856d6" },
+                  { step:3, title:"Get Pricing", desc:"Refresh prices from Nexar/Octopart to pull live quotes from 900+ distributors automatically.", tab:"pricing", color:"#ff9500" },
+                  { step:4, title:"Check Demand", desc:"Connect Shopify/Zoho to see unfulfilled orders. The system calculates exactly what parts you need.", tab:"demand", color:"#34c759" },
+                  { step:5, title:"Queue Builds", desc:"On the Products page, enter a quantity and click Order to add products to the build queue.", tab:"projects", color:"#af52de" },
+                  { step:6, title:"Review & Purchase", desc:"The Purchasing tab aggregates parts across products, groups by supplier, and generates POs.", tab:"purchasing", color:"#ff3b30" },
+                  { step:7, title:"Send POs", desc:"Print, email, or CSV export purchase orders. Use the Email PO button to send directly to your rep.", tab:"purchasing", color:"#ff2d55" },
+                  { step:8, title:"Receive & Scan", desc:"When parts arrive, scan invoices to update stock quantities and close out open POs.", tab:"scan", color:"#00c7be" },
+                ].map((s, i, arr) => (
+                  <div key={s.step} style={{ display:"flex",alignItems:"flex-start" }}>
+                    <div onClick={()=>setActiveView(s.tab)}
+                      style={{ width:130,cursor:"pointer",textAlign:"center",padding:"10px 6px",borderRadius:10,transition:"background 0.15s" }}
+                      onMouseOver={e=>e.currentTarget.style.background="#f5f5f7"}
+                      onMouseOut={e=>e.currentTarget.style.background="transparent"}>
+                      <div style={{ width:36,height:36,borderRadius:"50%",background:s.color,color:"#fff",fontWeight:800,fontSize:16,
+                        display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 8px",
+                        fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>{s.step}</div>
+                      <div style={{ fontSize:12,fontWeight:700,color:"#1d1d1f",marginBottom:4 }}>{s.title}</div>
+                      <div style={{ fontSize:10,color:"#86868b",lineHeight:"14px" }}>{s.desc}</div>
+                    </div>
+                    {i < arr.length - 1 && (
+                      <div style={{ display:"flex",alignItems:"center",paddingTop:22,color:"#d2d2d7",fontSize:18,fontWeight:300,userSelect:"none" }}>&rarr;</div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* ── Low stock table */}
@@ -10096,7 +10130,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.31 — built 2026-03-23 11:45pm</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.32 — built 2026-03-24 12:00am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
