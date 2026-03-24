@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.53
+// src/App.jsx — Jackson Audio BOM Manager v6.54
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1215,6 +1215,11 @@ function BOMManager({ user }) {
   const [bulkValue,   setBulkValue]   = useState("");
   const [partSort,    setPartSort]    = useState({ field: "createdAt", asc: false });
   const [showResGen,  setShowResGen]  = useState(false);
+  const [showQuickUrl, setShowQuickUrl] = useState(false);
+  const [quickUrlInput, setQuickUrlInput] = useState("");
+  const [quickUrlLoading, setQuickUrlLoading] = useState(false);
+  const [quickUrlResult, setQuickUrlResult] = useState(null); // parsed part data from URL
+  const [quickUrlError, setQuickUrlError] = useState("");
   const [compSearchQuery, setCompSearchQuery] = useState("");
   const [compSearchResults, setCompSearchResults] = useState([]);
   const [compSearchLoading, setCompSearchLoading] = useState(false);
@@ -2168,6 +2173,140 @@ function BOMManager({ user }) {
       setParts((prev) => prev.filter((p) => p.id !== tempId));
       setQAField(productId, "_error", `Failed to add part: ${e.message}`);
       setTimeout(() => setQAField(productId, "_error", ""), 5000);
+    }
+  };
+
+  // ── Quick Add from URL — paste a Mouser/DigiKey/supplier URL, auto-parse MPN and fetch part data
+  const parsePartUrlToMpn = (url) => {
+    try {
+      const u = new URL(url.trim());
+      const host = u.hostname.toLowerCase();
+      // Mouser: mouser.com/ProductDetail/MPN or /ProductDetail/Mfr/MPN
+      if (host.includes("mouser.com")) {
+        const seg = u.pathname.split("/").filter(Boolean);
+        const pdIdx = seg.findIndex(s => s.toLowerCase() === "productdetail");
+        if (pdIdx >= 0 && seg[pdIdx + 1]) {
+          // Could be /ProductDetail/MPN or /ProductDetail/Manufacturer/MPN
+          return seg[seg.length - 1].replace(/-/g, ""); // last segment is usually the MPN
+        }
+      }
+      // DigiKey: digikey.com/en/products/detail/mfr/mpn/dkPN
+      if (host.includes("digikey.com")) {
+        const seg = u.pathname.split("/").filter(Boolean);
+        const detIdx = seg.findIndex(s => s === "detail");
+        if (detIdx >= 0 && seg[detIdx + 2]) return seg[detIdx + 2]; // MPN segment
+      }
+      // Arrow: arrow.com/en/products/MPN/manufacturer
+      if (host.includes("arrow.com")) {
+        const seg = u.pathname.split("/").filter(Boolean);
+        const prodIdx = seg.findIndex(s => s === "products");
+        if (prodIdx >= 0 && seg[prodIdx + 1]) return seg[prodIdx + 1];
+      }
+      // LCSC: lcsc.com/product-detail/Category/MPN_CxxxxPart.html
+      if (host.includes("lcsc.com")) {
+        const seg = u.pathname.split("/").filter(Boolean);
+        const last = seg[seg.length - 1]?.replace(/\.html$/, "") || "";
+        if (last.includes("_")) return last.split("_")[0]; // MPN before underscore
+      }
+      // Newark/element14/Farnell: similar /p/ pattern
+      if (host.includes("newark.com") || host.includes("element14.com") || host.includes("farnell.com")) {
+        const seg = u.pathname.split("/").filter(Boolean);
+        // Usually last meaningful segment
+        return seg[seg.length - 1]?.replace(/\.html$/, "") || "";
+      }
+      // Fallback: try the last meaningful path segment
+      const seg = u.pathname.split("/").filter(Boolean);
+      if (seg.length > 0) return seg[seg.length - 1].replace(/\.html$/, "");
+      return "";
+    } catch { return url.trim(); } // Not a URL — treat as raw MPN
+  };
+
+  const quickAddFromUrl = async () => {
+    const input = quickUrlInput.trim();
+    if (!input) return;
+    setQuickUrlLoading(true);
+    setQuickUrlError("");
+    setQuickUrlResult(null);
+
+    try {
+      // Parse MPN from the URL
+      const mpn = parsePartUrlToMpn(input);
+      if (!mpn) throw new Error("Could not extract part number from URL");
+
+      // Fetch part data via Mouser Search API (best data source)
+      let partData = null;
+      if (apiKeys.mouser_api_key) {
+        partData = await fetchMouserPricing(mpn, 1, apiKeys.mouser_api_key);
+      }
+      // Fallback: try Nexar if Mouser didn't find it
+      if (!partData && nexarToken) {
+        const pricing = await fetchNexarPricing(mpn, 1, nexarToken);
+        if (pricing) {
+          // Get the first supplier's data
+          const firstKey = Object.keys(pricing).find(k => !k.startsWith("_"));
+          if (firstKey) partData = { ...pricing[firstKey], mpn };
+          if (pricing._countryOfOrigin) partData.countryOfOrigin = pricing._countryOfOrigin;
+        }
+      }
+
+      if (!partData) throw new Error(`No results found for "${mpn}". Try pasting just the MPN instead.`);
+
+      setQuickUrlResult({
+        mpn: partData.mouserPartNumber ? mpn : (partData.mpn || mpn),
+        manufacturer: partData.manufacturer || "",
+        description: partData.partDescription || "",
+        countryOfOrigin: partData.countryOfOrigin || "",
+        datasheetUrl: partData.datasheetUrl || "",
+        stock: partData.stock || 0,
+        unitPrice: partData.unitPrice || 0,
+        priceBreaks: partData.priceBreaks || [],
+        url: partData.url || input,
+        category: partData.category || "",
+        rohsStatus: partData.rohsStatus || "",
+        leadTime: partData.leadTime || "",
+        imagePath: partData.imagePath || "",
+        mouserPartNumber: partData.mouserPartNumber || "",
+        sourceUrl: input,
+      });
+    } catch (e) {
+      setQuickUrlError(e.message);
+    } finally {
+      setQuickUrlLoading(false);
+    }
+  };
+
+  const quickUrlAddToLibrary = async (productId) => {
+    if (!quickUrlResult) return;
+    const r = quickUrlResult;
+    const uiPart = {
+      reference: r.mpn, refs: [r.mpn], value: "", mpn: r.mpn,
+      description: r.description, footprint: "", manufacturer: r.manufacturer,
+      quantity: 1, unitCost: r.unitPrice ? String(r.unitPrice) : "",
+      projectId: productId || null,
+      reorderQty: "", stockQty: "", preferredSupplier: "mouser",
+      orderQty: "", flaggedForOrder: false, isInternal: false,
+      countryOfOrigin: r.countryOfOrigin,
+      pricing: null, pricingStatus: "idle", pricingError: "", bestSupplier: null,
+    };
+
+    const tempId = "temp_" + Date.now();
+    const optimisticPart = { ...uiPart, id: tempId };
+    setParts((prev) => [...prev, optimisticPart]);
+    setQuickUrlResult(null);
+    setQuickUrlInput("");
+
+    try {
+      const created = await createPart(uiPartToDB(uiPart), user.id);
+      setParts((prev) => {
+        const withoutTemp = prev.filter((p) => p.id !== tempId);
+        if (withoutTemp.find((p) => p.id === created.id)) return withoutTemp;
+        return [...withoutTemp, dbPartToUI(created)];
+      });
+    } catch (e) {
+      console.error("quickUrlAdd failed:", e);
+      setParts((prev) => prev.filter((p) => p.id !== tempId));
+      setQuickUrlError(`Failed to add part: ${e.message}`);
+      setTimeout(() => setQuickUrlError(""), 5000);
     }
   };
 
@@ -3250,7 +3389,7 @@ function BOMManager({ user }) {
               <div style={{ fontSize:12,color:"#86868b",marginBottom:20 }}>Follow this workflow from setup to receiving parts.</div>
               <div style={{ display:"flex",flexWrap:"wrap",alignItems:"flex-start",gap:0 }}>
                 {[
-                  { step:1, title:"Add Parts", desc:"Import a CSV or manually add parts to your Parts Library with MPNs, values, and quantities.", tab:"bom", color:"#0071e3" },
+                  { step:1, title:"Add Parts", desc:"Import CSV, use Component Library, or Quick Add from a supplier URL to auto-fetch pricing, datasheets, and specs.", tab:"bom", color:"#0071e3" },
                   { step:2, title:"Create Products", desc:"Group parts into products (pedals, amps, etc). Assign each part to the product it belongs to.", tab:"projects", color:"#5856d6" },
                   { step:3, title:"Get Pricing", desc:"Live quotes from 900+ distributors. Landed costs include tariffs by country of origin. Mouser preferred within 5% of cheapest.", tab:"pricing", color:"#ff9500" },
                   { step:4, title:"Check Demand", desc:"Shopify + Zoho orders with due dates, fulfillment tracking, and ShipStation shipment data. Track dealer POs and direct orders.", tab:"demand", color:"#34c759" },
@@ -3929,7 +4068,7 @@ function BOMManager({ user }) {
                 <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:"#1d1d1f",margin:0 }}>Parts Library</h2>
               </div>
               <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",margin:0 }}>
-                This is your master inventory — every component your company uses lives here. Import BOMs from KiCad, Altium, or Eagle, or add parts manually. Accurate part data with MPNs, stock levels, and reorder points ensures your team always knows what's on hand and what needs ordering, eliminating surprise stockouts that delay production.
+                This is your master inventory — every component your company uses lives here. Import BOMs from KiCad, Altium, or Eagle, add parts manually, search the Component Library, or use Quick Add URL to paste a Mouser/DigiKey/Arrow link and auto-import the part with pricing, description, datasheet, country of origin, and quantity price breaks. Accurate part data with MPNs, stock levels, and reorder points ensures your team always knows what's on hand and what needs ordering.
               </p>
             </div>
             {/* ── Inventory Valuation Summary */}
@@ -3990,8 +4129,84 @@ function BOMManager({ user }) {
               </select>
               <span style={{ color:"#aeaeb2",fontSize:12,marginLeft:"auto" }}>{visibleParts.length}/{parts.length} parts</span>
               <button className="btn-ghost btn-sm" onClick={()=>setShowImport(!showImport)}>{showImport ? "Close Import" : "+ Import"}</button>
+              <button className="btn-ghost btn-sm" onClick={()=>{ setShowQuickUrl(!showQuickUrl); if(showQuickUrl){ setQuickUrlResult(null); setQuickUrlError(""); }}} style={{ color:"#34c759" }}>{showQuickUrl ? "Close Quick Add" : "Quick Add URL"}</button>
               <button className="btn-ghost btn-sm" onClick={()=>setShowResGen(!showResGen)} style={{ color:"#5856d6" }}>{showResGen ? "Close Component Library" : "Component Library"}</button>
             </div>
+
+            {/* ── Quick Add from URL Section */}
+            {showQuickUrl && (
+              <div style={{ marginBottom:12,padding:"16px 20px",background:"linear-gradient(135deg,#f0fdf4,#ecfdf5)",borderRadius:10,border:"1px solid #bbf7d0",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div style={{ fontSize:14,fontWeight:700,marginBottom:4 }}>Quick Add from URL</div>
+                <p style={{ color:"#6e6e73",fontSize:12,marginBottom:10 }}>Paste a Mouser, DigiKey, Arrow, LCSC, or any supplier URL — or just a bare MPN. We'll auto-fetch pricing, description, datasheet, and more.</p>
+                <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+                  <input type="text" placeholder="https://www.mouser.com/ProductDetail/... or paste MPN"
+                    value={quickUrlInput} onChange={e=>setQuickUrlInput(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==="Enter" && !quickUrlLoading) quickAddFromUrl(); }}
+                    style={{ flex:1,padding:"8px 12px",borderRadius:6,border:"1px solid #d1d1d6",fontSize:13,fontFamily:"monospace" }} />
+                  <button onClick={quickAddFromUrl} disabled={quickUrlLoading || !quickUrlInput.trim()}
+                    style={{ padding:"8px 18px",borderRadius:6,background:quickUrlLoading?"#86868b":"#34c759",color:"#fff",border:"none",fontSize:13,fontWeight:600,cursor:quickUrlLoading?"wait":"pointer",whiteSpace:"nowrap" }}>
+                    {quickUrlLoading ? "Looking up…" : "Fetch Part"}
+                  </button>
+                </div>
+                {quickUrlError && <div style={{ marginTop:8,padding:"8px 12px",background:"#fff0f0",borderRadius:6,color:"#ff3b30",fontSize:12 }}>{quickUrlError}</div>}
+
+                {/* ── Result Preview Card */}
+                {quickUrlResult && (
+                  <div style={{ marginTop:12,padding:"14px 16px",background:"#fff",borderRadius:8,border:"1px solid #e5e5ea" }}>
+                    <div style={{ display:"flex",gap:12,alignItems:"flex-start" }}>
+                      {quickUrlResult.imagePath && (
+                        <img src={quickUrlResult.imagePath} alt="" style={{ width:64,height:64,objectFit:"contain",borderRadius:6,border:"1px solid #f0f0f0" }} />
+                      )}
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ fontSize:15,fontWeight:700,marginBottom:2 }}>{quickUrlResult.mpn}</div>
+                        <div style={{ fontSize:12,color:"#6e6e73",marginBottom:4 }}>{quickUrlResult.manufacturer}{quickUrlResult.category ? ` · ${quickUrlResult.category}` : ""}</div>
+                        {quickUrlResult.description && <div style={{ fontSize:12,color:"#48484a",marginBottom:6 }}>{quickUrlResult.description}</div>}
+
+                        <div style={{ display:"flex",gap:16,flexWrap:"wrap",fontSize:12,color:"#48484a" }}>
+                          {quickUrlResult.unitPrice > 0 && <span><strong>${quickUrlResult.unitPrice.toFixed(4)}</strong>/ea</span>}
+                          {quickUrlResult.stock > 0 && <span>{quickUrlResult.stock.toLocaleString()} in stock</span>}
+                          {quickUrlResult.countryOfOrigin && <span>Origin: <strong>{quickUrlResult.countryOfOrigin}</strong></span>}
+                          {quickUrlResult.rohsStatus && <span>RoHS: {quickUrlResult.rohsStatus}</span>}
+                          {quickUrlResult.leadTime && <span>Lead: {quickUrlResult.leadTime}</span>}
+                        </div>
+
+                        {/* Price Breaks */}
+                        {quickUrlResult.priceBreaks?.length > 1 && (
+                          <div style={{ marginTop:8 }}>
+                            <div style={{ fontSize:11,fontWeight:600,color:"#86868b",marginBottom:4 }}>QUANTITY PRICING</div>
+                            <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
+                              {quickUrlResult.priceBreaks.map((pb,i)=>(
+                                <span key={i} style={{ padding:"2px 8px",background:"#f5f5f7",borderRadius:4,fontSize:11 }}>
+                                  {pb.qty}+ @ ${pb.price.toFixed(4)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {quickUrlResult.datasheetUrl && (
+                          <a href={quickUrlResult.datasheetUrl} target="_blank" rel="noreferrer"
+                            style={{ display:"inline-block",marginTop:6,fontSize:11,color:"#007aff" }}>View Datasheet ↗</a>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Add to Product */}
+                    <div style={{ marginTop:12,display:"flex",gap:8,alignItems:"center",borderTop:"1px solid #f0f0f0",paddingTop:10 }}>
+                      <span style={{ fontSize:12,color:"#6e6e73" }}>Add to:</span>
+                      <select id="quickUrlProduct" style={{ padding:"5px 8px",borderRadius:5,fontSize:12,flex:1,maxWidth:220 }}>
+                        <option value="">No product (unassigned)</option>
+                        {products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                      <button onClick={()=>{ const sel=document.getElementById("quickUrlProduct")?.value||null; quickUrlAddToLibrary(sel); }}
+                        style={{ padding:"7px 20px",borderRadius:6,background:"#34c759",color:"#fff",border:"none",fontSize:13,fontWeight:600,cursor:"pointer" }}>
+                        Add to Library
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── Inline Import Section */}
             {showImport && (
@@ -10949,7 +11164,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.53 — built 2026-03-24 6:40am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.54 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
