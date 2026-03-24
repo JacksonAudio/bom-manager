@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.60
+// src/App.jsx — Jackson Audio BOM Manager v6.61
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -2283,11 +2283,10 @@ function BOMManager({ user }) {
         productUrl = `https://www.mouser.com/ProductDetail/${encodeURIComponent(partData.mouserPartNumber)}`;
       }
 
-      // If Mouser didn't return COO, try Nexar (supSearchMpn supports countryOfOrigin)
-      let scrapedData = null;
+      // If Mouser didn't return COO, try Nexar specs
       if (!partData.countryOfOrigin && nexarToken) {
         try {
-          console.log("[quickAdd] Mouser missing COO, trying Nexar for:", mpn);
+          console.log("[quickAdd] Mouser missing COO, trying Nexar specs for:", mpn);
           const nexarPricing = await fetchNexarPricing(mpn, 1, nexarToken);
           if (nexarPricing?._countryOfOrigin) {
             partData.countryOfOrigin = nexarPricing._countryOfOrigin;
@@ -2295,21 +2294,22 @@ function BOMManager({ user }) {
           }
         } catch (e) { console.warn("[quickAdd] Nexar COO fallback failed:", e.message); }
       }
-      // Last resort: scrape-part endpoint (Mouser keyword search + HTML scrape)
-      if (!partData.countryOfOrigin) {
-        const scrapeUrl = isUrl ? input.trim() : productUrl;
+      // If still no COO, try Mouser Cart API to detect tariffs via AdditionalFees
+      let cartTariffDetected = false;
+      if (!partData.countryOfOrigin && apiKeys.mouser_order_api_key && partData.mouserPartNumber) {
         try {
-          const scrapeParams = new URLSearchParams();
-          if (scrapeUrl) scrapeParams.set("url", scrapeUrl);
-          scrapeParams.set("mpn", mpn);
-          if (apiKeys.mouser_api_key) scrapeParams.set("mouserKey", apiKeys.mouser_api_key);
-          const scrapeRes = await fetch(`/api/scrape-part?${scrapeParams.toString()}`);
-          if (scrapeRes.ok) {
-            scrapedData = await scrapeRes.json();
-            if (scrapedData.countryOfOrigin) partData.countryOfOrigin = scrapedData.countryOfOrigin;
-            if (!productUrl && scrapedData.url) productUrl = scrapedData.url;
+          console.log("[quickAdd] Trying Cart API tariff detection for:", partData.mouserPartNumber);
+          const cart = await mouserCreateCart(apiKeys.mouser_order_api_key, [{ mouserPartNumber: partData.mouserPartNumber, quantity: 1 }]);
+          const cartItems = cart.cartItems || [];
+          for (const ci of cartItems) {
+            const fees = ci.AdditionalFees || ci.CartAdditionalFee || [];
+            if (Array.isArray(fees) && fees.length > 0) {
+              cartTariffDetected = true;
+              console.log("[quickAdd] Cart API detected tariff fees:", JSON.stringify(fees));
+              break;
+            }
           }
-        } catch (e) { console.warn("[quickAdd] Scrape fallback failed:", e.message); }
+        } catch (e) { console.warn("[quickAdd] Cart tariff check failed:", e.message); }
       }
 
       // Calculate tariff exposure
@@ -2323,8 +2323,7 @@ function BOMManager({ user }) {
         manufacturer: partData.manufacturer || "",
         description: partData.partDescription || "",
         countryOfOrigin: origin,
-        countryOfAssembly: scrapedData?.countryOfAssembly || "",
-        countryOfDiffusion: scrapedData?.countryOfDiffusion || "",
+        cartTariffDetected,
         datasheetUrl: partData.datasheetUrl || "",
         stock: partData.stock || 0,
         unitPrice: partData.unitPrice || 0,
@@ -4244,9 +4243,29 @@ function BOMManager({ user }) {
                         </span>
                       )}
                       {!quickUrlResult.countryOfOrigin && (
-                        <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:6,background:"#f5f5f7",color:"#86868b" }}>
-                          Origin unknown — tariff status unclear
-                        </span>
+                        <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                          {quickUrlResult.cartTariffDetected && (
+                            <span style={{ fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:6,background:"#fff3e0",color:"#e65100",border:"1px solid #ffcc80" }}>
+                              ⚠ Tariff detected by Cart API
+                            </span>
+                          )}
+                          <span style={{ fontSize:11,color:"#86868b" }}>Origin:</span>
+                          <input type="text" placeholder="e.g. CN" maxLength={3}
+                            style={{ width:42,padding:"3px 6px",borderRadius:4,border:"1px solid #d1d1d6",fontSize:11,textTransform:"uppercase",textAlign:"center" }}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") {
+                                const val = e.target.value.trim().toUpperCase();
+                                if (val.length >= 2) {
+                                  const quTariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
+                                  const rate = getTariffRate(val, quTariffs);
+                                  const landed = rate > 0 && quickUrlResult.unitPrice ? quickUrlResult.unitPrice * (1 + rate / 100) : quickUrlResult.unitPrice;
+                                  setQuickUrlResult(prev => ({ ...prev, countryOfOrigin: val, tariffRate: rate, landedPrice: landed }));
+                                }
+                              }
+                            }}
+                          />
+                          <span style={{ fontSize:10,color:"#aeaeb2" }}>↵ to apply</span>
+                        </div>
                       )}
                     </div>
 
@@ -11288,7 +11307,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.60 — built 2026-03-24</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.61 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
