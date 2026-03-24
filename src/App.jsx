@@ -1561,17 +1561,35 @@ function BOMManager({ user }) {
 
         // Auto-connect APIs silently on page load if keys exist in DB
         // Avoids user having to press "Save & Connect" every session
+        const bootMsgs = [];
         if (mergedKeys.nexar_client_id && mergedKeys.nexar_client_secret) {
           console.log("[Boot] Auto-connecting Nexar...");
           try {
             const nToken = await fetchNexarToken(mergedKeys.nexar_client_id, mergedKeys.nexar_client_secret);
             setNexarToken(nToken);
-            setTokenStatus("ok");
-            setTokenMsg("✓ Nexar/Octopart auto-connected");
+            bootMsgs.push("✓ Nexar/Octopart connected");
             console.log("[Boot] Nexar auto-connect OK, token length:", nToken?.length);
           } catch (e) {
             console.warn("[Boot] Nexar auto-connect failed:", e.message);
+            bootMsgs.push("✗ Nexar: " + e.message);
           }
+        }
+        if (mergedKeys.digikey_client_id && mergedKeys.digikey_client_secret) {
+          console.log("[Boot] Auto-connecting DigiKey...");
+          try {
+            const dToken = await fetchDigiKeyToken(mergedKeys.digikey_client_id, mergedKeys.digikey_client_secret);
+            setDkToken(dToken);
+            bootMsgs.push("✓ Digi-Key connected");
+            console.log("[Boot] DigiKey auto-connect OK, token length:", dToken?.length);
+          } catch (e) {
+            console.warn("[Boot] DigiKey auto-connect failed:", e.message);
+            bootMsgs.push("✗ DigiKey: " + e.message);
+          }
+        }
+        if (mergedKeys.mouser_api_key) bootMsgs.push("✓ Mouser key saved");
+        if (bootMsgs.length) {
+          setTokenStatus(bootMsgs.some(m => m.startsWith("✓")) ? "ok" : "error");
+          setTokenMsg(bootMsgs.join(" · "));
         }
       } catch (e) {
         console.error("Boot fetch failed:", e);
