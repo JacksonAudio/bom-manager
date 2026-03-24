@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.36
+// src/App.jsx — Jackson Audio BOM Manager v6.37
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -3184,7 +3184,7 @@ function BOMManager({ user }) {
             DASHBOARD — Overview & Key Metrics
         ══════════════════════════════════════ */}
         {activeView === "dashboard" && (
-          <div style={{ maxWidth:1000 }}>
+          <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",marginBottom:4 }}>Dashboard</h2>
             <p style={{ fontSize:14,color:"#86868b",marginBottom:24 }}>Overview of your inventory, orders, and production status.</p>
 
@@ -5914,7 +5914,7 @@ function BOMManager({ user }) {
           const pctColor = (val) => val == null ? textSecondary : val >= 80 ? "#34c759" : val >= 50 ? "#ff9500" : "#ff3b30";
 
           return (
-            <div style={{ maxWidth:1100 }}>
+            <div style={{ maxWidth:"100%" }}>
               <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Supplier Scorecards</h2>
               <p style={{ fontSize:14,color:textSecondary,marginBottom:24 }}>Performance metrics and analytics for all suppliers.</p>
 
@@ -6821,7 +6821,7 @@ function BOMManager({ user }) {
             );
           }) || [];
           return (
-          <div style={{ maxWidth:1100 }}>
+          <div style={{ maxWidth:"100%" }}>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12 }}>
               <div>
                 <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Order Demand</h2>
@@ -7652,7 +7652,7 @@ function BOMManager({ user }) {
         })()}
 
         {activeView === "alerts" && (
-          <div style={{ maxWidth:860 }}>
+          <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:6 }}>Low Stock Alerts</h2>
             <p style={{ color:"#86868b",fontSize:13,marginBottom:22 }}>Parts at or below reorder threshold.</p>
             {lowStockParts.length===0 ? (
@@ -7913,7 +7913,7 @@ function BOMManager({ user }) {
           const fmtHours = (h) => h < 1 ? `${Math.round(h*60)}m` : `${h.toFixed(1)}h`;
 
           return (
-          <div style={{ maxWidth:1000 }}>
+          <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>Production Floor</h2>
             <p style={{ fontSize:14,color:"#86868b",marginBottom:12 }}>Manage build orders, team assignments, and track production progress.</p>
 
@@ -9574,7 +9574,7 @@ function BOMManager({ user }) {
           });
 
           return (
-          <div style={{ maxWidth:1800 }}>
+          <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",marginBottom:4 }}>Admin</h2>
             <p style={{ fontSize:14,color:"#86868b",marginBottom:24 }}>Manage team rates, profit analysis, and admin-only settings.</p>
 
@@ -10142,7 +10142,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.36 — built 2026-03-24 1:00am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.37 — built 2026-03-24 1:10am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
