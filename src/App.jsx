@@ -58,6 +58,7 @@ const DEFAULT_KEYS = {
   company_address: "",   // Your company address for POs
   distributor_names: "",  // JSON: { "raw_key": "Display Name", ... } — rename distributors
   supplier_contacts: "",  // JSON: { "mouser": "John Smith", ... } — personal contact per distributor
+  supplier_po_names: "",  // JSON: { "mouser": "MOUSER", ... } — short name used in PO numbers
   supplier_order_modes: "", // JSON: { "mouser": "api", "digikey": "api", "arrow": "rep", ... } — api|rep|manual
   anthropic_api_key: "",  // anthropic.com — Claude AI for invoice parsing
   twilio_account_sid: "", // twilio.com — SMS notifications to builders
@@ -880,11 +881,11 @@ function buildPurchaseOrders(parts) {
   return grouped;
 }
 
-function genPONumber(sid, displayName) {
+function genPONumber(sid, poName) {
   const d = new Date();
   const dateStr = `${String(d.getFullYear()).slice(2)}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
-  const name = (displayName || SUPPLIERS.find(s => s.id === sid)?.name || sid).toUpperCase().replace(/[^A-Z0-9]/g,"");
-  return `JA-PO-${dateStr}-${name}`;
+  const tag = poName || (SUPPLIERS.find(s => s.id === sid)?.name || sid).toUpperCase().replace(/[^A-Z0-9]/g,"");
+  return `JA-PO-${dateStr}-${tag}`;
 }
 
 function buildPOEmailDraft(supplierName, lines, poNumber, companyInfo, contactName) {
@@ -5250,7 +5251,8 @@ function BOMManager({ user }) {
                 // Get display name from: distributor_names setting → pricing data → SUPPLIERS array → raw key
                 const pricingDisplayName = items[0]?.part?.pricing?.[sid]?.displayName;
                 const sup = { ...baseSup, name: distNames[sid] || pricingDisplayName || baseSup.name };
-                const poNum = genPONumber(sid, sup.name);
+                let poNames = {}; try { poNames = JSON.parse(apiKeys.supplier_po_names || "{}"); } catch {}
+                const poNum = genPONumber(sid, poNames[sid]);
                 // Compute reel-adjusted totals
                 const getItemQty = (d) => { const isReel = fullReelParts.has(d.part.id); const rq = getReelQty(d.part); return isReel && rq ? rq : d.net; };
                 const getItemPrice = (d) => {
@@ -8772,6 +8774,8 @@ function BOMManager({ user }) {
               try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
               let contacts = {};
               try { contacts = JSON.parse(apiKeys.supplier_contacts || "{}"); } catch {}
+              let poNames = {};
+              try { poNames = JSON.parse(apiKeys.supplier_po_names || "{}"); } catch {}
               let orderModes = {};
               try { orderModes = JSON.parse(apiKeys.supplier_order_modes || "{}"); } catch {}
               let preferredDists = [];
@@ -8790,6 +8794,7 @@ function BOMManager({ user }) {
                       <div style={{ width:50,textAlign:"center" }}>Pref</div>
                       <div style={{ width:120 }}>Raw Key</div>
                       <div style={{ flex:1 }}>Display Name</div>
+                      <div style={{ width:90 }}>PO Name</div>
                       <div style={{ flex:1 }}>Contact</div>
                       <div style={{ flex:1 }}>Sales Email</div>
                       <div style={{ width:90 }}>Order Mode</div>
@@ -8816,6 +8821,13 @@ function BOMManager({ user }) {
                               setApiKeys(k => ({ ...k, distributor_names: JSON.stringify(updated) }));
                             }}
                             placeholder={distMap[key]} />
+                          <input style={{ width:90,padding:"4px 8px",border:"1px solid #d2d2d7",borderRadius:5,fontSize:12,boxSizing:"border-box",textTransform:"uppercase",fontWeight:600 }}
+                            value={poNames[key] ?? (nameOverrides[key] ?? distMap[key] ?? key).toUpperCase().replace(/[^A-Z0-9]/g,"")}
+                            onChange={e => {
+                              const updated = { ...poNames, [key]: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"") };
+                              setApiKeys(k => ({ ...k, supplier_po_names: JSON.stringify(updated) }));
+                            }}
+                            placeholder="MOUSER" />
                           <input style={{ flex:1,padding:"4px 8px",border:"1px solid #d2d2d7",borderRadius:5,fontSize:12,boxSizing:"border-box" }}
                             value={contacts[key] || ""}
                             onChange={e => {
