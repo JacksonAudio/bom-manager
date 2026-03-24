@@ -4331,35 +4331,72 @@ function BOMManager({ user }) {
                       </div>
                     </div>
 
-                    {/* Distributor Comparison */}
-                    {quickUrlResult.distributors?.length > 1 && (
-                      <div style={{ marginTop:10,borderTop:"1px solid #f0f0f0",paddingTop:8 }}>
-                        <div style={{ fontSize:11,fontWeight:600,color:"#86868b",marginBottom:6 }}>DISTRIBUTOR PRICING ({quickUrlResult.distributors.length} sources)</div>
-                        <div style={{ display:"flex",flexDirection:"column",gap:3 }}>
-                          {quickUrlResult.distributors.slice(0, 8).map((d, i) => {
-                            const landed = quickUrlResult.tariffRate > 0 ? d.unitPrice * (1 + quickUrlResult.tariffRate / 100) : d.unitPrice;
-                            const isBest = i === 0;
-                            return (
-                              <div key={d.id} style={{ display:"flex",alignItems:"center",gap:8,fontSize:11,padding:"3px 6px",borderRadius:4,
-                                background: isBest ? "#e8f5e9" : "transparent" }}>
-                                <span style={{ width:140,fontWeight: isBest ? 700 : 400,color: isBest ? "#2e7d32" : "#48484a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
-                                  {isBest && "★ "}{d.name}
-                                </span>
-                                <span style={{ width:80,fontWeight:600 }}>${d.unitPrice.toFixed(4)}</span>
-                                {quickUrlResult.tariffRate > 0 && <span style={{ width:90,color:"#e65100",fontSize:10 }}>→ ${landed.toFixed(4)} landed</span>}
-                                <span style={{ width:70,color:"#86868b" }}>{d.stock > 0 ? d.stock.toLocaleString() + " stk" : "—"}</span>
-                                {d.url && <a href={d.url} target="_blank" rel="noreferrer" style={{ color:"#007aff",fontSize:10,textDecoration:"none" }}>view ↗</a>}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {quickUrlResult.tariffRate > 0 && (
-                          <div style={{ marginTop:4,fontSize:10,color:"#6e6e73",fontStyle:"italic" }}>
-                            Tariff of {quickUrlResult.tariffRate}% applies to all distributors (based on part origin, not seller)
+                    {/* Distributor Comparison — Domestic vs International */}
+                    {quickUrlResult.distributors?.length > 1 && (() => {
+                      const domestic = quickUrlResult.distributors.filter(d => {
+                        const cc = (d.country || DIST_COUNTRY[d.name] || DIST_COUNTRY[d.id] || "").toUpperCase();
+                        return cc === "US" || cc === "CA";
+                      }).sort((a, b) => (a.unitPrice || Infinity) - (b.unitPrice || Infinity));
+                      const international = quickUrlResult.distributors.filter(d => {
+                        const cc = (d.country || DIST_COUNTRY[d.name] || DIST_COUNTRY[d.id] || "").toUpperCase();
+                        return cc && cc !== "US" && cc !== "CA";
+                      }).sort((a, b) => (a.unitPrice || Infinity) - (b.unitPrice || Infinity));
+                      const unknown = quickUrlResult.distributors.filter(d => {
+                        const cc = (d.country || DIST_COUNTRY[d.name] || DIST_COUNTRY[d.id] || "").toUpperCase();
+                        return !cc;
+                      }).sort((a, b) => (a.unitPrice || Infinity) - (b.unitPrice || Infinity));
+                      // Put unknowns into domestic (most are US-based marketplaces)
+                      const domesticAll = [...domestic, ...unknown];
+                      const bestPrice = quickUrlResult.distributors[0]?.unitPrice || 0;
+                      const renderRow = (d) => {
+                        const landed = quickUrlResult.tariffRate > 0 ? d.unitPrice * (1 + quickUrlResult.tariffRate / 100) : d.unitPrice;
+                        const isBest = d.unitPrice === bestPrice && d.unitPrice > 0;
+                        const cc = (d.country || DIST_COUNTRY[d.name] || DIST_COUNTRY[d.id] || "").toUpperCase();
+                        return (
+                          <div key={d.id} style={{ display:"flex",alignItems:"center",gap:6,fontSize:11,padding:"3px 6px",borderRadius:4,
+                            background: isBest ? "#e8f5e9" : "transparent" }}>
+                            <span style={{ flex:1,fontWeight: isBest ? 700 : 400,color: isBest ? "#2e7d32" : "#48484a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                              {isBest && "★ "}{d.name}{cc ? ` (${cc})` : ""}
+                            </span>
+                            <span style={{ fontWeight:600,minWidth:65,textAlign:"right" }}>${d.unitPrice.toFixed(4)}</span>
+                            {quickUrlResult.tariffRate > 0 && <span style={{ color:"#e65100",fontSize:10,minWidth:75,textAlign:"right" }}>→ ${landed.toFixed(4)}</span>}
+                            <span style={{ color:"#86868b",minWidth:55,textAlign:"right" }}>{d.stock > 0 ? d.stock.toLocaleString() : "—"}</span>
+                            {d.url ? <a href={d.url} target="_blank" rel="noreferrer" style={{ color:"#007aff",fontSize:10,textDecoration:"none",minWidth:24 }}>↗</a> : <span style={{ minWidth:24 }}/>}
                           </div>
-                        )}
-                      </div>
-                    )}
+                        );
+                      };
+                      return (
+                        <div style={{ marginTop:10,borderTop:"1px solid #f0f0f0",paddingTop:8 }}>
+                          <div style={{ display:"flex",gap:16 }}>
+                            {/* Domestic column */}
+                            <div style={{ flex:1,minWidth:0 }}>
+                              <div style={{ fontSize:10,fontWeight:700,color:"#2e7d32",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.5px" }}>
+                                Domestic ({domesticAll.length})
+                              </div>
+                              <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
+                                {domesticAll.length > 0 ? domesticAll.map(renderRow) : <span style={{ fontSize:11,color:"#aeaeb2" }}>No domestic sources</span>}
+                              </div>
+                            </div>
+                            {/* International column */}
+                            {international.length > 0 && (
+                              <div style={{ flex:1,minWidth:0 }}>
+                                <div style={{ fontSize:10,fontWeight:700,color:"#1565c0",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.5px" }}>
+                                  International ({international.length})
+                                </div>
+                                <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
+                                  {international.map(renderRow)}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          {quickUrlResult.tariffRate > 0 && (
+                            <div style={{ marginTop:6,fontSize:10,color:"#6e6e73",fontStyle:"italic" }}>
+                              Tariff of {quickUrlResult.tariffRate}% applies to all distributors — based on where the part is manufactured, not who sells it.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Add to Product */}
                     <div style={{ marginTop:12,display:"flex",gap:8,alignItems:"center",borderTop:"1px solid #f0f0f0",paddingTop:10 }}>
