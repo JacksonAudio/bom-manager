@@ -213,21 +213,24 @@ export async function saveApiKey(keyName, keyValue, userId) {
 }
 
 // Save all api keys at once (used by settings save button)
-// Upserts: inserts new rows if they don't exist, updates if they do
+// Only updates rows that already exist — seed-api-keys endpoint creates missing rows first
 export async function saveAllApiKeys(keysObj, userId) {
-  const rows = Object.entries(keysObj)
-    .filter(([, v]) => v !== undefined)
-    .map(([key_name, key_value]) => ({
-      key_name,
-      key_value: key_value ?? "",
-      updated_by: userId,
-    }))
+  const { data: existing } = await supabase
+    .from('api_keys')
+    .select('key_name')
+  const existingNames = new Set((existing || []).map(r => r.key_name))
 
-  if (rows.length) {
-    const { error } = await supabase
-      .from('api_keys')
-      .upsert(rows, { onConflict: 'key_name' })
-    check(error, 'saveAllApiKeys')
+  const updates = Object.entries(keysObj)
+    .filter(([key_name]) => existingNames.has(key_name))
+    .map(([key_name, key_value]) =>
+      supabase.from('api_keys')
+        .update({ key_value: key_value ?? "", updated_by: userId })
+        .eq('key_name', key_name)
+    )
+
+  if (updates.length) {
+    const results = await Promise.all(updates)
+    for (const { error } of results) check(error, 'saveAllApiKeys')
   }
 }
 

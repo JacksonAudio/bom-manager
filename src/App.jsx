@@ -1389,6 +1389,8 @@ function BOMManager({ user }) {
         onClick={async () => {
           setSettingsSaving(sectionId); setSettingsSaved("");
           try {
+            // Ensure all key rows exist in DB (service role bypasses RLS for inserts)
+            await fetch("/api/seed-api-keys", { method: "POST" }).catch(() => {});
             await saveAllApiKeys(apiKeys, user.id);
             authenticateAPIs();
             setSettingsSaved(sectionId);
