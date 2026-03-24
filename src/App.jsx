@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.69
+// src/App.jsx — Jackson Audio BOM Manager v6.70
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -2267,66 +2267,83 @@ function BOMManager({ user }) {
       const mpn = parsePartUrlToMpn(input);
       if (!mpn) throw new Error("Could not extract part number from URL");
 
-      // Detect if input is a URL (for scraping fallback)
       const isUrl = input.trim().startsWith("http");
-      const inputHost = (() => { try { return new URL(input.trim()).hostname.toLowerCase(); } catch { return ""; } })();
 
-      // Fetch part data via Mouser Search API (best data source — includes COO, pricing, datasheets)
-      let partData = null;
-      let source = "";
-      if (apiKeys.mouser_api_key) {
-        partData = await fetchMouserPricing(mpn, 1, apiKeys.mouser_api_key);
-        if (partData) source = "mouser";
-      }
-      // Fallback: try Nexar if Mouser didn't find it
-      if (!partData && nexarToken) {
-        const pricing = await fetchNexarPricing(mpn, 1, nexarToken);
-        if (pricing) {
-          const firstKey = Object.keys(pricing).find(k => !k.startsWith("_"));
-          if (firstKey) partData = { ...pricing[firstKey], mpn };
-          if (pricing._countryOfOrigin) partData.countryOfOrigin = pricing._countryOfOrigin;
-          source = firstKey || "nexar";
+      // Query Mouser AND Nexar in parallel — Mouser for tariff data, Nexar for all distributors
+      const [mouserData, nexarData] = await Promise.all([
+        apiKeys.mouser_api_key ? fetchMouserPricing(mpn, 1, apiKeys.mouser_api_key).catch(() => null) : null,
+        nexarToken ? fetchNexarPricing(mpn, 1, nexarToken).catch(() => null) : null,
+      ]);
+
+      if (!mouserData && !nexarData) throw new Error(`No results found for "${mpn}". Try pasting just the MPN instead.`);
+
+      // Use Mouser as primary part info source (best metadata: image, datasheet, description)
+      const partData = mouserData || {};
+      const origin = (partData.countryOfOrigin || nexarData?._countryOfOrigin || "").toUpperCase();
+
+      // Build distributor comparison table from Nexar results
+      const distributors = [];
+      if (nexarData) {
+        for (const [key, d] of Object.entries(nexarData)) {
+          if (key.startsWith("_") || !d || typeof d !== "object") continue;
+          distributors.push({
+            id: key,
+            name: d.displayName || key,
+            unitPrice: d.unitPrice || 0,
+            stock: d.stock || 0,
+            moq: d.moq || 1,
+            url: d.url || "",
+            priceBreaks: d.priceBreaks || [],
+            country: d.country || "",
+          });
         }
       }
-
-      if (!partData) throw new Error(`No results found for "${mpn}". Try pasting just the MPN instead.`);
-
-      // Build a proper product URL if the API returned one, or use the input URL
-      let productUrl = partData.url || "";
-      if (!productUrl && isUrl) productUrl = input.trim();
-      if (!productUrl && source === "mouser" && partData.mouserPartNumber) {
-        productUrl = `https://www.mouser.com/ProductDetail/${encodeURIComponent(partData.mouserPartNumber)}`;
+      // Add Mouser from its own API if not already in Nexar results
+      if (mouserData && !distributors.find(d => d.id === "mouser")) {
+        distributors.push({
+          id: "mouser",
+          name: "Mouser Electronics",
+          unitPrice: mouserData.unitPrice || 0,
+          stock: mouserData.stock || 0,
+          moq: mouserData.moq || 1,
+          url: mouserData.url || "",
+          priceBreaks: mouserData.priceBreaks || [],
+          country: "US",
+        });
       }
+      // Sort by price (cheapest first)
+      distributors.sort((a, b) => (a.unitPrice || Infinity) - (b.unitPrice || Infinity));
 
-      // If Mouser didn't return COO, try Nexar
-      if (!partData.countryOfOrigin && nexarToken) {
-        try {
-          const nexarPricing = await fetchNexarPricing(mpn, 1, nexarToken);
-          if (nexarPricing?._countryOfOrigin) partData.countryOfOrigin = nexarPricing._countryOfOrigin;
-        } catch (e) { /* Nexar COO fallback failed */ }
-      }
+      // Best price and source
+      const best = distributors[0] || {};
+      const bestSource = best.name || (mouserData ? "Mouser" : "unknown");
 
-      // Calculate tariff exposure — prefer Mouser's own tariff rate from SurchargeMessages
-      const origin = (partData.countryOfOrigin || "").toUpperCase();
+      // Tariff rate from Mouser SurchargeMessages (applies regardless of which distributor you buy from)
       const quTariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
       let tariffRate = origin ? getTariffRate(origin, quTariffs) : 0;
-      if (partData.mouserTariffRate && partData.mouserTariffRate > 0) {
-        tariffRate = partData.mouserTariffRate;
+      if (mouserData?.mouserTariffRate > 0) tariffRate = mouserData.mouserTariffRate;
+      const bestPrice = best.unitPrice || mouserData?.unitPrice || 0;
+      const landedPrice = tariffRate > 0 && bestPrice ? bestPrice * (1 + tariffRate / 100) : bestPrice;
+
+      // Build product URL
+      let productUrl = mouserData?.url || best.url || "";
+      if (!productUrl && isUrl) productUrl = input.trim();
+      if (!productUrl && mouserData?.mouserPartNumber) {
+        productUrl = `https://www.mouser.com/ProductDetail/${encodeURIComponent(mouserData.mouserPartNumber)}`;
       }
-      const landedPrice = tariffRate > 0 && partData.unitPrice ? partData.unitPrice * (1 + tariffRate / 100) : partData.unitPrice || 0;
 
       setQuickUrlResult({
-        mpn: partData.mouserPartNumber ? mpn : (partData.mpn || mpn),
-        manufacturer: partData.manufacturer || "",
+        mpn,
+        manufacturer: partData.manufacturer || partData.partDescription?.match(/^(\S+)/)?.[1] || "",
         description: partData.partDescription || "",
         countryOfOrigin: origin,
-        mouserTariffRate: partData.mouserTariffRate || 0,
-        mouserTariffMessage: partData.mouserTariffMessage || "",
-        htsCode: partData.htsCode || "",
+        mouserTariffRate: mouserData?.mouserTariffRate || 0,
+        mouserTariffMessage: mouserData?.mouserTariffMessage || "",
+        htsCode: mouserData?.htsCode || "",
         datasheetUrl: partData.datasheetUrl || "",
-        stock: partData.stock || 0,
-        unitPrice: partData.unitPrice || 0,
-        priceBreaks: partData.priceBreaks || [],
+        stock: best.stock || partData.stock || 0,
+        unitPrice: bestPrice,
+        priceBreaks: best.priceBreaks || partData.priceBreaks || [],
         url: productUrl,
         category: partData.category || "",
         rohsStatus: partData.rohsStatus || "",
@@ -2334,9 +2351,10 @@ function BOMManager({ user }) {
         imagePath: partData.imagePath || "",
         mouserPartNumber: partData.mouserPartNumber || "",
         sourceUrl: input,
-        source,
+        source: bestSource,
         tariffRate,
         landedPrice,
+        distributors,
       });
     } catch (e) {
       setQuickUrlError(e.message);
@@ -4226,9 +4244,9 @@ function BOMManager({ user }) {
                     {/* Source badge */}
                     <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
                       <span style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",padding:"2px 8px",borderRadius:4,
-                        background: quickUrlResult.source === "mouser" ? "#e8f5e9" : "#e3f2fd",
-                        color: quickUrlResult.source === "mouser" ? "#2e7d32" : "#1565c0" }}>
-                        via {quickUrlResult.source || "unknown"}
+                        background: quickUrlResult.distributors?.length > 1 ? "#e8f5e9" : quickUrlResult.source?.toLowerCase().includes("mouser") ? "#e8f5e9" : "#e3f2fd",
+                        color: quickUrlResult.distributors?.length > 1 ? "#2e7d32" : "#1565c0" }}>
+                        {quickUrlResult.distributors?.length > 1 ? `Best: ${quickUrlResult.source} (${quickUrlResult.distributors.length} checked)` : `via ${quickUrlResult.source || "unknown"}`}
                       </span>
                       {/* Tariff alert */}
                       {quickUrlResult.tariffRate > 0 && (
@@ -4312,6 +4330,36 @@ function BOMManager({ user }) {
                         )}
                       </div>
                     </div>
+
+                    {/* Distributor Comparison */}
+                    {quickUrlResult.distributors?.length > 1 && (
+                      <div style={{ marginTop:10,borderTop:"1px solid #f0f0f0",paddingTop:8 }}>
+                        <div style={{ fontSize:11,fontWeight:600,color:"#86868b",marginBottom:6 }}>DISTRIBUTOR PRICING ({quickUrlResult.distributors.length} sources)</div>
+                        <div style={{ display:"flex",flexDirection:"column",gap:3 }}>
+                          {quickUrlResult.distributors.slice(0, 8).map((d, i) => {
+                            const landed = quickUrlResult.tariffRate > 0 ? d.unitPrice * (1 + quickUrlResult.tariffRate / 100) : d.unitPrice;
+                            const isBest = i === 0;
+                            return (
+                              <div key={d.id} style={{ display:"flex",alignItems:"center",gap:8,fontSize:11,padding:"3px 6px",borderRadius:4,
+                                background: isBest ? "#e8f5e9" : "transparent" }}>
+                                <span style={{ width:140,fontWeight: isBest ? 700 : 400,color: isBest ? "#2e7d32" : "#48484a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                                  {isBest && "★ "}{d.name}
+                                </span>
+                                <span style={{ width:80,fontWeight:600 }}>${d.unitPrice.toFixed(4)}</span>
+                                {quickUrlResult.tariffRate > 0 && <span style={{ width:90,color:"#e65100",fontSize:10 }}>→ ${landed.toFixed(4)} landed</span>}
+                                <span style={{ width:70,color:"#86868b" }}>{d.stock > 0 ? d.stock.toLocaleString() + " stk" : "—"}</span>
+                                {d.url && <a href={d.url} target="_blank" rel="noreferrer" style={{ color:"#007aff",fontSize:10,textDecoration:"none" }}>view ↗</a>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {quickUrlResult.tariffRate > 0 && (
+                          <div style={{ marginTop:4,fontSize:10,color:"#6e6e73",fontStyle:"italic" }}>
+                            Tariff of {quickUrlResult.tariffRate}% applies to all distributors (based on part origin, not seller)
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Add to Product */}
                     <div style={{ marginTop:12,display:"flex",gap:8,alignItems:"center",borderTop:"1px solid #f0f0f0",paddingTop:10 }}>
@@ -11286,7 +11334,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.69 — built 2026-03-24</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.70 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
