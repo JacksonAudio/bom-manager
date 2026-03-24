@@ -57,6 +57,7 @@ const DEFAULT_KEYS = {
   company_name:    "Jackson Audio",
   company_address: "",   // Your company address for POs
   distributor_names: "",  // JSON: { "raw_key": "Display Name", ... } — rename distributors
+  supplier_contacts: "",  // JSON: { "mouser": "John Smith", ... } — personal contact per distributor
   supplier_order_modes: "", // JSON: { "mouser": "api", "digikey": "api", "arrow": "rep", ... } — api|rep|manual
   anthropic_api_key: "",  // anthropic.com — Claude AI for invoice parsing
   twilio_account_sid: "", // twilio.com — SMS notifications to builders
@@ -886,12 +887,13 @@ function genPONumber(sid, displayName) {
   return `JA-PO-${dateStr}-${name}`;
 }
 
-function buildPOEmailDraft(supplierName, lines, poNumber, companyInfo) {
+function buildPOEmailDraft(supplierName, lines, poNumber, companyInfo, contactName) {
   const coName = companyInfo?.name || "Jackson Audio";
   const coAddr = companyInfo?.address || "";
   const subject = `Purchase Order ${poNumber} — ${coName}`;
+  const greeting = contactName ? `Hi ${contactName},` : `Hi ${supplierName} Team,`;
   const body = [
-    `Hi ${supplierName} Team,`,
+    greeting,
     ``,
     `Please quote / process the following order:`,
     ``,
@@ -5267,6 +5269,8 @@ function BOMManager({ user }) {
                 let supplierEmails = {}; try { supplierEmails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
                 const repEmail = supplierEmails[sid] || "";
                 const repName = distNames[sid] || sup.name;
+                let supplierContacts = {}; try { supplierContacts = JSON.parse(apiKeys.supplier_contacts || "{}"); } catch {}
+                const contactName = supplierContacts[sid] || "";
                 // Find last order date for this supplier from PO history
                 const lastOrder = poHistory.filter(po => (po.supplier||"").toLowerCase().includes(sid)).sort((a,b) => new Date(b.ordered_at||b.created_at) - new Date(a.ordered_at||a.created_at))[0];
                 return (
@@ -5296,7 +5300,7 @@ function BOMManager({ user }) {
                           Print PO
                         </button>
                         <button onClick={() => {
-                            const draft = buildPOEmailDraft(sup.name, poLines, poNum, {name:apiKeys.company_name,address:apiKeys.company_address});
+                            const draft = buildPOEmailDraft(sup.name, poLines, poNum, {name:apiKeys.company_name,address:apiKeys.company_address}, contactName);
                             window.location.href = `mailto:${repEmail}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
                           }}
                           style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
@@ -5355,7 +5359,7 @@ function BOMManager({ user }) {
                         )}
                         {orderMode === "rep" && (
                           <button onClick={async () => {
-                              const draft = buildPOEmailDraft(repName, poLines, poNum, {name:apiKeys.company_name,address:apiKeys.company_address});
+                              const draft = buildPOEmailDraft(repName, poLines, poNum, {name:apiKeys.company_name,address:apiKeys.company_address}, contactName);
                               window.location.href = `mailto:${repEmail}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
                               addTrackedOrder({ supplier: sup.name, supplierColor: sup.color, poNumber: poNum,
                                 items: items.map(d => ({ mpn: d.part.mpn, reference: d.part.reference, qty: d.net, unitPrice: d.bestPrice })),
@@ -8766,6 +8770,8 @@ function BOMManager({ user }) {
               try { nameOverrides = JSON.parse(apiKeys.distributor_names || "{}"); } catch {}
               let emails = {};
               try { emails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
+              let contacts = {};
+              try { contacts = JSON.parse(apiKeys.supplier_contacts || "{}"); } catch {}
               let orderModes = {};
               try { orderModes = JSON.parse(apiKeys.supplier_order_modes || "{}"); } catch {}
               let preferredDists = [];
@@ -8784,6 +8790,7 @@ function BOMManager({ user }) {
                       <div style={{ width:50,textAlign:"center" }}>Pref</div>
                       <div style={{ width:120 }}>Raw Key</div>
                       <div style={{ flex:1 }}>Display Name</div>
+                      <div style={{ flex:1 }}>Contact</div>
                       <div style={{ flex:1 }}>Sales Email</div>
                       <div style={{ width:90 }}>Order Mode</div>
                     </div>
@@ -8809,6 +8816,13 @@ function BOMManager({ user }) {
                               setApiKeys(k => ({ ...k, distributor_names: JSON.stringify(updated) }));
                             }}
                             placeholder={distMap[key]} />
+                          <input style={{ flex:1,padding:"4px 8px",border:"1px solid #d2d2d7",borderRadius:5,fontSize:12,boxSizing:"border-box" }}
+                            value={contacts[key] || ""}
+                            onChange={e => {
+                              const updated = { ...contacts, [key]: e.target.value };
+                              setApiKeys(k => ({ ...k, supplier_contacts: JSON.stringify(updated) }));
+                            }}
+                            placeholder="Contact name" />
                           <input type="email" style={{ flex:1,padding:"4px 8px",border:"1px solid #d2d2d7",borderRadius:5,fontSize:12,boxSizing:"border-box" }}
                             value={emails[key] || ""}
                             onChange={e => {
