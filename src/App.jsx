@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.67
+// src/App.jsx — Jackson Audio BOM Manager v6.68
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -424,12 +424,27 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
   if (!result.countryOfOrigin && part.UnitWeightKg?.CountryOfOrigin) {
     result.countryOfOrigin = part.UnitWeightKg.CountryOfOrigin.toUpperCase();
   }
-  // Check SurchargeMessages for tariff indicators
-  if (!result.countryOfOrigin && Array.isArray(part.SurchargeMessages)) {
+  // Parse SurchargeMessages for tariff rate (e.g. "A tariff of 56 % may be applied.")
+  if (Array.isArray(part.SurchargeMessages)) {
     for (const msg of part.SurchargeMessages) {
-      const text = (typeof msg === "string" ? msg : msg.Message || msg.message || JSON.stringify(msg)).toLowerCase();
-      if (text.includes("tariff") || text.includes("surcharge") || text.includes("duty") || text.includes("additional fee")) {
+      const code = msg.code || msg.Code || "";
+      const text = msg.message || msg.Message || (typeof msg === "string" ? msg : "");
+      if (code.includes("TARIFF") || text.toLowerCase().includes("tariff")) {
         result._hasSurcharge = true;
+        result.mouserTariffMessage = text;
+        // Extract tariff percentage from message
+        const pctMatch = text.match(/(\d+(?:\.\d+)?)\s*%/);
+        if (pctMatch) {
+          result.mouserTariffRate = parseFloat(pctMatch[1]);
+        }
+      }
+    }
+  }
+  // Parse HTS code from ProductCompliance
+  if (Array.isArray(part.ProductCompliance)) {
+    for (const comp of part.ProductCompliance) {
+      if (comp.ComplianceName === "USHTS" && comp.ComplianceValue) {
+        result.htsCode = comp.ComplianceValue;
       }
     }
   }
@@ -2368,10 +2383,21 @@ function BOMManager({ user }) {
         dbg.push(`[4] Skipped Cart API — orderKey=${!!apiKeys.mouser_order_api_key}, mouserPN=${mouserPN || "NONE"}`);
       }
 
-      // Calculate tariff exposure
+      // Calculate tariff exposure — prefer Mouser's own tariff rate from SurchargeMessages
       const origin = (partData.countryOfOrigin || "").toUpperCase();
       const quTariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
-      const tariffRate = origin ? getTariffRate(origin, quTariffs) : 0;
+      let tariffRate = origin ? getTariffRate(origin, quTariffs) : 0;
+      // Use Mouser's tariff rate if available (more accurate — comes from their surcharge system)
+      if (partData.mouserTariffRate && partData.mouserTariffRate > 0) {
+        tariffRate = partData.mouserTariffRate;
+        dbg.push(`[✓] Using Mouser tariff rate: ${tariffRate}% (from SurchargeMessages)`);
+      } else if (tariffRate > 0) {
+        dbg.push(`[✓] Using COO-based tariff rate: ${tariffRate}% (${origin})`);
+      }
+      // Also flag if cart API found tariff
+      if (cartTariffDetected) {
+        dbg.push(`[✓] Cart API confirmed tariff: $${cartTariffAmount}`);
+      }
       const landedPrice = tariffRate > 0 && partData.unitPrice ? partData.unitPrice * (1 + tariffRate / 100) : partData.unitPrice || 0;
 
       setQuickUrlResult({
@@ -2381,6 +2407,9 @@ function BOMManager({ user }) {
         countryOfOrigin: origin,
         cartTariffDetected,
         cartTariffAmount,
+        mouserTariffRate: partData.mouserTariffRate || 0,
+        mouserTariffMessage: partData.mouserTariffMessage || "",
+        htsCode: partData.htsCode || "",
         debugLog: dbg,
         datasheetUrl: partData.datasheetUrl || "",
         stock: partData.stock || 0,
@@ -4292,20 +4321,15 @@ function BOMManager({ user }) {
                       {/* Tariff alert */}
                       {quickUrlResult.tariffRate > 0 && (
                         <span style={{ fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:6,background:"#fff3e0",color:"#e65100",border:"1px solid #ffcc80" }}>
-                          ⚠ {quickUrlResult.tariffRate}% TARIFF ({quickUrlResult.countryOfOrigin})
+                          ⚠ {quickUrlResult.tariffRate}% TARIFF{quickUrlResult.countryOfOrigin ? ` (${quickUrlResult.countryOfOrigin})` : ""}{quickUrlResult.htsCode ? ` · HTS ${quickUrlResult.htsCode}` : ""}
                         </span>
                       )}
-                      {quickUrlResult.countryOfOrigin && quickUrlResult.tariffRate === 0 && (
+                      {!quickUrlResult.tariffRate && quickUrlResult.countryOfOrigin && (
                         <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:6,background:"#e8f5e9",color:"#2e7d32" }}>
                           Tariff-Free ({quickUrlResult.countryOfOrigin})
                         </span>
                       )}
-                      {!quickUrlResult.countryOfOrigin && quickUrlResult.cartTariffDetected && (
-                        <span style={{ fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:6,background:"#fff3e0",color:"#e65100",border:"1px solid #ffcc80" }}>
-                          ⚠ TARIFF: ${quickUrlResult.cartTariffAmount.toFixed(2)} surcharge per unit (via Mouser checkout)
-                        </span>
-                      )}
-                      {!quickUrlResult.countryOfOrigin && !quickUrlResult.cartTariffDetected && (
+                      {!quickUrlResult.tariffRate && !quickUrlResult.countryOfOrigin && (
                         <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                           <span style={{ fontSize:11,color:"#86868b" }}>Origin:</span>
                           <input type="text" placeholder="e.g. CN" maxLength={3}
@@ -11375,7 +11399,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.67 — built 2026-03-24</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.68 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
