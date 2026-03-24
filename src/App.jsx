@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.32
+// src/App.jsx — Jackson Audio BOM Manager v6.33
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1918,6 +1918,7 @@ function BOMManager({ user }) {
       createdBy:         row.created_by,
       updatedBy:         row.updated_by,
       updatedAt:         row.updated_at || null,
+      createdAt:         row.created_at || null,
     };
   }
 
@@ -4350,7 +4351,7 @@ function BOMManager({ user }) {
                       {[
                         {label:"MPN",field:"mpn"},{label:"Value",field:"value"},{label:"Description",field:"description"},
                         {label:"Manufacturer",field:"manufacturer"},{label:"Stock",field:"stockQty"},
-                        {label:"Reorder Pt",field:"reorderQty"},{label:"Reel Qty",field:"reelQty"},{label:"Stock Value",field:null},{label:"",field:null}
+                        {label:"Reorder Pt",field:"reorderQty"},{label:"Reel Qty",field:"reelQty"},{label:"Stock Value",field:null},{label:"Added",field:"createdAt"},{label:"",field:null}
                       ].map((h,hi,arr)=>(
                         <th key={hi} onClick={h.field ? ()=>setPartSort(prev=>({field:h.field,asc:prev.field===h.field?!prev.asc:true})) : undefined}
                           style={{ textAlign:"left",padding:"12px 14px",
@@ -4436,6 +4437,9 @@ function BOMManager({ user }) {
                                 : <span style={{ fontSize:13,color:"#aeaeb2" }}>—</span>;
                             })()}
                           </td>
+                          <td style={{ padding:"6px 8px",fontSize:11,color:"#86868b",whiteSpace:"nowrap" }}>
+                            {part.createdAt ? new Date(part.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"2-digit"}) : "—"}
+                          </td>
                           <td style={{ padding:"6px 4px",width:56,whiteSpace:"nowrap" }}>
                             <button onClick={()=>{console.log("[QR] Opening label for",part.mpn);setQrModalParts([part]);}} title="QR Label"
                               style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:13,padding:"2px 4px",borderRadius:4,transition:"color 0.15s" }}
@@ -4448,7 +4452,7 @@ function BOMManager({ user }) {
                           </td>
                         </tr>
                         {expandedPartRow === part.id && <tr>
-                            <td colSpan={10} style={{ padding:"12px 20px",background:darkMode?"#1c1c1e":"#f9f9fb",borderBottom:"2px solid #0071e3" }}>
+                            <td colSpan={11} style={{ padding:"12px 20px",background:darkMode?"#1c1c1e":"#f9f9fb",borderBottom:"2px solid #0071e3" }}>
                               <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,fontSize:12 }}>
                                 <div>
                                   <div style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Full Description</div>
@@ -10130,7 +10134,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.32 — built 2026-03-24 12:00am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.33 — built 2026-03-24 12:05am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
