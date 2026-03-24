@@ -65,6 +65,8 @@ const DEFAULT_KEYS = {
   labor_rate_hourly: "25", // $/hr labor rate for profit analysis
   ad_spend_pct: "35",     // % of sales price spent on ads (Facebook, Google, etc.)
   preferred_distributors: '["mouser"]', // JSON array of preferred supplier IDs — get priority in pricing
+  preferred_supplier: "mouser",  // Supplier ID to prefer when prices are close
+  preferred_margin:   "5",       // % margin — prefer this supplier if within this % of cheapest
   shipping_cost_per_unit: "8", // avg shipping cost per unit sold
   fb_ja_access_token: "",    // Facebook — Jackson Audio access token
   fb_ja_ad_account_id: "",   // Facebook — Jackson Audio ad account (act_XXX)
@@ -772,14 +774,23 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
 // ─────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────
-function bestPriceSupplier(pricing) {
+function bestPriceSupplier(pricing, prefId, prefMargin) {
   if (!pricing) return null;
   let best = null, bestPrice = Infinity, bestStock = 0;
   for (const [key, data] of Object.entries(pricing)) {
+    if (key.startsWith("_")) continue;
     if (data.unitPrice > 0 && data.stock > 0) {
       if (data.unitPrice < bestPrice || (data.unitPrice === bestPrice && (data.stock||0) > bestStock)) {
         bestPrice = data.unitPrice; bestStock = data.stock||0; best = key;
       }
+    }
+  }
+  // If preferred supplier is in stock and within margin%, pick them instead
+  if (prefId && best !== prefId && pricing[prefId]) {
+    const pref = pricing[prefId];
+    const margin = parseFloat(prefMargin) || 0;
+    if (pref.unitPrice > 0 && pref.stock > 0 && pref.unitPrice <= bestPrice * (1 + margin / 100)) {
+      return prefId;
     }
   }
   return best;
@@ -1699,7 +1710,7 @@ function BOMManager({ user }) {
     // Parts with no MPN but custom pricing should still show as "done"
     if (!part.mpn) {
       if (Object.keys(customEntries).length > 0) {
-        const best = bestPriceSupplier(customEntries);
+        const best = bestPriceSupplier(customEntries, apiKeys.preferred_supplier, apiKeys.preferred_margin);
         const bestPrice = customEntries[best]?.unitPrice;
         setParts((prev) => prev.map((p) => p.id === partId ? {
           ...p, pricing: customEntries, pricingStatus: "done", bestSupplier: best,
@@ -1732,7 +1743,7 @@ function BOMManager({ user }) {
       const pricing = { ...apiPricing, ...latestCustom };
       // If an exclusive custom supplier exists, always prefer it
       const exclusiveKey = Object.keys(latestCustom).find(k => latestCustom[k].exclusive);
-      const best     = exclusiveKey || bestPriceSupplier(pricing);
+      const best     = exclusiveKey || bestPriceSupplier(pricing, apiKeys.preferred_supplier, apiKeys.preferred_margin);
       const bestPrice = pricing[best]?.unitPrice;
       const newUnitCost = part.unitCost || (bestPrice ? fmtPrice(bestPrice) : part.unitCost);
       const newPref     = exclusiveKey || best || part.preferredSupplier;
@@ -1988,7 +1999,7 @@ function BOMManager({ user }) {
           if (editKey && editKey !== key) delete pricing[editKey];
           pricing[key] = entry;
           built = pricing;
-          const best = bestPriceSupplier(pricing);
+          const best = bestPriceSupplier(pricing, apiKeys.preferred_supplier, apiKeys.preferred_margin);
           return { ...p, pricing, bestSupplier: best, pricingStatus: "done", ...(newPref ? { preferredSupplier: newPref } : {}) };
         });
         resolve(built);
@@ -2000,7 +2011,7 @@ function BOMManager({ user }) {
     setTimeout(() => recentLocalWrites.current.delete(partId), 5000);
     // Persist to DB
     if (newPricing) {
-      const dbFields = { pricing: newPricing, pricing_status: "done", best_supplier: bestPriceSupplier(newPricing) };
+      const dbFields = { pricing: newPricing, pricing_status: "done", best_supplier: bestPriceSupplier(newPricing, apiKeys.preferred_supplier, apiKeys.preferred_margin) };
       if (newPref) dbFields.preferred_supplier = newPref;
       try {
         await dbUpdatePart(partId, dbFields, user.id);
@@ -2038,14 +2049,14 @@ function BOMManager({ user }) {
       if (p.id !== partId) return p;
       const pricing = { ...p.pricing };
       delete pricing[supplierKey];
-      const best = bestPriceSupplier(pricing);
+      const best = bestPriceSupplier(pricing, apiKeys.preferred_supplier, apiKeys.preferred_margin);
       return { ...p, pricing, bestSupplier: best };
     }));
     const part = parts.find(p => p.id === partId);
     const newPricing = { ...(part?.pricing || {}) };
     delete newPricing[supplierKey];
     try {
-      await dbUpdatePart(partId, { pricing: newPricing, best_supplier: bestPriceSupplier(newPricing) }, user.id);
+      await dbUpdatePart(partId, { pricing: newPricing, best_supplier: bestPriceSupplier(newPricing, apiKeys.preferred_supplier, apiKeys.preferred_margin) }, user.id);
     } catch (e) { console.error("removeCustomSupplier failed:", e); }
   };
 
@@ -4515,7 +4526,7 @@ function BOMManager({ user }) {
                   })().map((part, partIdx) => {
                     const pricingObj = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
                     const hasPricing = pricingObj && Object.keys(pricingObj).length > 0;
-                    const best = part.bestSupplier || (hasPricing ? bestPriceSupplier(pricingObj) : null);
+                    const best = part.bestSupplier || (hasPricing ? bestPriceSupplier(pricingObj, apiKeys.preferred_supplier, apiKeys.preferred_margin) : null);
                     const bestData = hasPricing && best ? pricingObj[best] : null;
                     const effectiveStatus = hasPricing ? "done" : part.pricingStatus;
                     const isOpen = expandedPart === part.id;
@@ -5062,13 +5073,24 @@ function BOMManager({ user }) {
             let bestSupplier = d.part.preferredSupplier || "mouser";
             let bestSupplierName = "";
             if (pr) {
-              const entries = Object.entries(pr).filter(([,dd]) => dd.stock > 0);
+              const entries = Object.entries(pr).filter(([k,dd]) => !k.startsWith("_") && dd.stock > 0);
               if (entries.length) {
                 const calc = (dd) => { let p = dd.unitPrice; if (dd.priceBreaks?.length) { for (const pb of dd.priceBreaks) { if (net >= pb.qty) p = pb.price; } } return parseFloat(p) || dd.unitPrice; };
                 entries.sort((a,b) => (calc(a[1])||Infinity) - (calc(b[1])||Infinity));
                 bestPrice = calc(entries[0][1]);
                 bestSupplier = entries[0][0];
                 bestSupplierName = entries[0][1].displayName || entries[0][0];
+                // Prefer supplier if within margin%
+                const prefId = apiKeys.preferred_supplier;
+                const prefMargin = parseFloat(apiKeys.preferred_margin) || 0;
+                if (prefId && bestSupplier !== prefId) {
+                  const prefEntry = entries.find(([k]) => k === prefId);
+                  if (prefEntry && calc(prefEntry[1]) <= bestPrice * (1 + prefMargin / 100)) {
+                    bestPrice = calc(prefEntry[1]);
+                    bestSupplier = prefId;
+                    bestSupplierName = prefEntry[1].displayName || prefId;
+                  }
+                }
               }
             }
             return { ...d, stock, net, bestPrice, bestSupplier, bestSupplierName, isInternal: d.part.isInternal || false };
@@ -8705,6 +8727,23 @@ function BOMManager({ user }) {
                   <option value="America/Anchorage">Alaska (AKT)</option>
                   <option value="Pacific/Honolulu">Hawaii (HT)</option>
                 </select>
+                <div style={{ borderTop:"1px solid #f0f0f2",marginTop:16,paddingTop:16 }}>
+                  <label style={{ display:"block",fontSize:13,fontWeight:600,color:"#3a3f51",marginBottom:6 }}>Preferred Supplier</label>
+                  <div style={{ display:"flex",gap:10,alignItems:"center" }}>
+                    <select style={{ flex:1,padding:"8px 12px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:14,boxSizing:"border-box",fontFamily:"inherit" }}
+                      value={apiKeys.preferred_supplier || "mouser"}
+                      onChange={e => setApiKeys(k => ({ ...k, preferred_supplier: e.target.value }))}>
+                      {SUPPLIERS.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                    <div style={{ display:"flex",alignItems:"center",gap:4 }}>
+                      <input type="number" min="0" max="25" style={{ width:60,padding:"8px 10px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:14,textAlign:"center",boxSizing:"border-box" }}
+                        value={apiKeys.preferred_margin ?? "5"}
+                        onChange={e => setApiKeys(k => ({ ...k, preferred_margin: e.target.value }))} />
+                      <span style={{ fontSize:13,color:"#3a3f51" }}>%</span>
+                    </div>
+                  </div>
+                  <p style={{ fontSize:12,color:"#86868b",marginTop:6 }}>If this supplier's price is within the margin % of the cheapest, they win the order automatically.</p>
+                </div>
                 {sectionSaveBtn("company", "Company Info")}
               </div>}
             </div>
