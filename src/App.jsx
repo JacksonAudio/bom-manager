@@ -2285,13 +2285,16 @@ function BOMManager({ user }) {
 
       const isUrl = input.trim().startsWith("http");
 
-      // Query Mouser AND Nexar in parallel — Mouser for tariff data, Nexar for all distributors
-      const [mouserData, nexarData] = await Promise.all([
-        apiKeys.mouser_api_key ? fetchMouserPricing(mpn, 1, apiKeys.mouser_api_key).catch(() => null) : null,
-        nexarToken ? fetchNexarPricing(mpn, 1, nexarToken).catch(() => null) : null,
+      // Query all available APIs in parallel — Mouser for tariff data, Nexar for all distributors, DigiKey/Arrow/TI for direct stock
+      const [mouserData, nexarData, dkData, arrowData, tiData] = await Promise.all([
+        apiKeys.mouser_api_key ? fetchMouserPricing(mpn, 1, apiKeys.mouser_api_key).catch(e => { console.warn("[QuickAdd] Mouser failed:", e.message); return null; }) : null,
+        nexarToken ? fetchNexarPricing(mpn, 1, nexarToken).catch(e => { console.warn("[QuickAdd] Nexar failed:", e.message); return null; }) : null,
+        dkToken && apiKeys.digikey_client_id ? fetchDigiKeyPricing(mpn, 1, apiKeys.digikey_client_id, dkToken).catch(e => { console.warn("[QuickAdd] DigiKey failed:", e.message); return null; }) : null,
+        apiKeys.arrow_api_key && apiKeys.arrow_login ? fetchArrowPricing(mpn, 1, apiKeys.arrow_login, apiKeys.arrow_api_key).catch(e => { console.warn("[QuickAdd] Arrow failed:", e.message); return null; }) : null,
+        apiKeys.ti_api_key && apiKeys.ti_api_secret ? fetchTIPricing(mpn, 1, apiKeys.ti_api_key, apiKeys.ti_api_secret).catch(e => { console.warn("[QuickAdd] TI failed:", e.message); return null; }) : null,
       ]);
 
-      if (!mouserData && !nexarData) throw new Error(`No results found for "${mpn}". Try pasting just the MPN instead.`);
+      if (!mouserData && !nexarData && !dkData && !arrowData && !tiData) throw new Error(`No results found for "${mpn}". Try pasting just the MPN instead.`);
 
       // Use Mouser as primary part info source (best metadata: image, datasheet, description)
       const partData = mouserData || {};
@@ -2314,19 +2317,23 @@ function BOMManager({ user }) {
           });
         }
       }
-      // Add Mouser from its own API if not already in Nexar results
-      if (mouserData && !distributors.find(d => d.id === "mouser")) {
-        distributors.push({
-          id: "mouser",
-          name: "Mouser Electronics",
-          unitPrice: mouserData.unitPrice || 0,
-          stock: mouserData.stock || 0,
-          moq: mouserData.moq || 1,
-          url: mouserData.url || "",
-          priceBreaks: mouserData.priceBreaks || [],
-          country: "US",
-        });
-      }
+      // Merge direct API results — these have accurate stock, so replace Nexar entries
+      const mergeDirectApi = (data, id, name, country) => {
+        if (!data) return;
+        const idx = distributors.findIndex(d => d.id === id);
+        const entry = {
+          id, name: data.displayName || name,
+          unitPrice: data.unitPrice || 0, stock: data.stock || 0,
+          moq: data.moq || 1, url: data.url || "",
+          priceBreaks: data.priceBreaks || [], country,
+        };
+        if (idx >= 0) distributors[idx] = entry;
+        else distributors.push(entry);
+      };
+      mergeDirectApi(mouserData, "mouser", "Mouser Electronics", "US");
+      mergeDirectApi(dkData, "digikey", "Digi-Key", "US");
+      mergeDirectApi(arrowData, "arrow", "Arrow Electronics", "US");
+      mergeDirectApi(tiData, "ti", "Texas Instruments", "US");
       // Sort by price (cheapest first)
       distributors.sort((a, b) => (a.unitPrice || Infinity) - (b.unitPrice || Infinity));
 
