@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.47
+// src/App.jsx — Jackson Audio BOM Manager v6.48
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1262,6 +1262,8 @@ function BOMManager({ user }) {
   const [shopifySalesPrices, setShopifySalesPrices] = useState(null); // { products: [{ shopifyProductId, title, avgPrice, minPrice, maxPrice, unitsSold, totalRevenue }] }
   const [customSupplierForm, setCustomSupplierForm] = useState(null); // { partId, name, url, country, stock, breaks: [{qty,price}] }
   const [mouserCartStatus, setMouserCartStatus] = useState(null); // { loading, error, cartUrl, cartKey, items }
+  const [mouserTariffPreview, setMouserTariffPreview] = useState(null); // { loading, fees: [{mpn,fee,code}], totalFees, merchandiseTotal, orderTotal }
+  const [skipTariffedParts, setSkipTariffedParts] = useState(false); // toggle to exclude tariffed parts from Mouser PO
   // Order tracker — DB-backed via poHistory
   const [trackedOrders, setTrackedOrders] = useState([]);
   const [poHistory, setPoHistory] = useState([]); // DB-backed PO history
@@ -5195,14 +5197,23 @@ function BOMManager({ user }) {
                 }
               }
             }
-            return { ...d, stock, net, bestPrice, bestSupplier, bestSupplierName, isInternal: d.part.isInternal || false };
+            // Determine tariff info from country of origin
+            const origin = d.part.pricing?.mouser?.countryOfOrigin || d.part.countryOfOrigin || pr?._countryOfOrigin || "";
+            const poTariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
+            const tariffRate = origin ? getTariffRate(origin, poTariffs) : 0;
+            const hasTariff = tariffRate > 0;
+            const landedPrice = hasTariff ? bestPrice * (1 + tariffRate / 100) : bestPrice;
+            return { ...d, stock, net, bestPrice, bestSupplier, bestSupplierName, isInternal: d.part.isInternal || false, origin, tariffRate, hasTariff, landedPrice };
           }).filter(d => d.net > 0);
 
-          // Group by supplier
+          // Group by supplier (with optional tariff filtering)
           const supplierGroups = {};
           const internalItems = [];
+          const tariffSkippedItems = []; // parts excluded by the tariff toggle
           for (const d of demandList) {
             if (d.isInternal) { internalItems.push(d); continue; }
+            // If skip-tariffed is on and this part has a tariff on the assigned supplier, hold it aside
+            if (skipTariffedParts && d.hasTariff) { tariffSkippedItems.push(d); continue; }
             const sid = d.bestSupplier;
             if (!supplierGroups[sid]) supplierGroups[sid] = [];
             supplierGroups[sid].push(d);
@@ -5289,11 +5300,65 @@ function BOMManager({ user }) {
                 </div>
               </div>
 
+              {/* ── Tariff Controls */}
+              {demandList.some(d => d.hasTariff) && (
+                <div style={{ display:"flex",alignItems:"center",gap:16,padding:"14px 22px",background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",marginBottom:16,flexWrap:"wrap" }}>
+                  <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                    <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,fontWeight:600,color:skipTariffedParts?"#ff9500":"#1d1d1f" }}>
+                      <input type="checkbox" checked={skipTariffedParts} onChange={() => setSkipTariffedParts(v => !v)}
+                        style={{ width:16,height:16,accentColor:"#ff9500",cursor:"pointer" }} />
+                      Skip Tariffed Parts
+                    </label>
+                    <span style={{ fontSize:11,color:"#86868b" }}>
+                      {demandList.filter(d => d.hasTariff).length} parts have tariffs ({demandList.filter(d => d.hasTariff).map(d => d.origin).filter((v,i,a)=>a.indexOf(v)===i).join(", ")})
+                    </span>
+                  </div>
+                  {(() => {
+                    const tariffCost = demandList.filter(d => d.hasTariff).reduce((s,d) => s + (d.landedPrice - d.bestPrice) * d.net, 0);
+                    return tariffCost > 0 ? (
+                      <span style={{ fontSize:12,fontWeight:700,color:"#ff3b30",marginLeft:"auto" }}>
+                        Est. tariff exposure: {"$"}{fmtDollar(tariffCost)}
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
+              )}
+
+              {/* ── Tariff-Skipped Parts (shown when toggle is on) */}
+              {skipTariffedParts && tariffSkippedItems.length > 0 && (
+                <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:16,border:"2px dashed #ff9500" }}>
+                  <div style={{ padding:"14px 22px",borderBottom:"1px solid #f0f0f2",background:"rgba(255,149,0,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                    <div>
+                      <div style={{ fontSize:12,fontWeight:700,color:"#ff9500",letterSpacing:"0.5px",textTransform:"uppercase" }}>Tariffed Parts — Held Back</div>
+                      <div style={{ fontSize:11,color:"#86868b",marginTop:2 }}>{tariffSkippedItems.length} parts excluded from POs due to tariffs. Order these separately or find tariff-free alternatives.</div>
+                    </div>
+                    <div style={{ fontSize:16,fontWeight:700,color:"#ff3b30" }}>
+                      {"$"}{fmtDollar(tariffSkippedItems.reduce((s,d) => s + d.landedPrice * d.net, 0))} landed
+                    </div>
+                  </div>
+                  {tariffSkippedItems.map((d, idx) => (
+                    <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"12px 22px",borderBottom:idx<tariffSkippedItems.length-1?"1px solid #f0f0f2":"none",gap:12 }}>
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ fontSize:14,fontWeight:600,color:"#1d1d1f" }}>{d.part.mpn || d.part.reference}</div>
+                        <div style={{ fontSize:11,color:"#86868b" }}>{[d.part.description, d.part.value].filter(Boolean).join(" — ")}</div>
+                      </div>
+                      <span style={{ fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:4,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
+                        {d.origin} +{d.tariffRate}%
+                      </span>
+                      <div style={{ textAlign:"right",minWidth:80 }}>
+                        <div style={{ fontSize:13,fontWeight:600,color:"#1d1d1f" }}>{d.net.toLocaleString()} pcs</div>
+                        <div style={{ fontSize:10,color:"#86868b" }}>${fmtPrice(d.bestPrice)} + ${fmtPrice(d.landedPrice - d.bestPrice)} tariff</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* ── Parts Needed (aggregated across all products) */}
               {demandList.length > 0 && (
                 <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:24 }}>
                   <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2" }}>
-                    <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Parts to Order — {demandList.length} items</div>
+                    <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Parts to Order — {demandList.filter(d => !skipTariffedParts || !d.hasTariff).length} items{skipTariffedParts && tariffSkippedItems.length > 0 ? ` (${tariffSkippedItems.length} tariffed held back)` : ""}</div>
                   </div>
                   {demandList.map((d, idx) => (
                     <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"14px 22px",
@@ -5320,11 +5385,16 @@ function BOMManager({ user }) {
                           ? <span style={{ fontSize:10,color:"#86868b" }}>{d.bestSupplierName}</span>
                           : null}
                       </div>
+                      {d.hasTariff && (
+                        <span style={{ flex:"0 0 auto",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:4,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
+                          {d.origin} +{d.tariffRate}%
+                        </span>
+                      )}
                       <div style={{ flex:"0 0 auto",textAlign:"right",minWidth:90 }}>
                         {d.bestPrice > 0
                           ? <>
-                              <div style={{ fontSize:18,fontWeight:600,color:"#1d1d1f" }}>{"$"}{fmtDollar(d.bestPrice * d.net)}</div>
-                              <div style={{ fontSize:11,color:"#86868b" }}>${fmtPrice(d.bestPrice)} ea</div>
+                              <div style={{ fontSize:18,fontWeight:600,color:d.hasTariff?"#ff9500":"#1d1d1f" }}>{"$"}{fmtDollar(d.landedPrice * d.net)}</div>
+                              <div style={{ fontSize:11,color:"#86868b" }}>${fmtPrice(d.bestPrice)} ea{d.hasTariff ? ` + $${fmtPrice(d.landedPrice - d.bestPrice)} tariff` : ""}</div>
                             </>
                           : <div style={{ fontSize:14,color:"#c7c7cc" }}>—</div>}
                       </div>
@@ -5413,6 +5483,49 @@ function BOMManager({ user }) {
                           Email PO
                         </button>
 
+                        {/* ── Tariff Check Button (Mouser Cart API) */}
+                        {sup.id === "mouser" && apiKeys.mouser_order_api_key && (
+                          <button disabled={mouserTariffPreview?.loading}
+                            onClick={async () => {
+                              setMouserTariffPreview({ loading: true });
+                              try {
+                                const cartItems = items.map(d => ({
+                                  mouserPartNumber: d.part.pricing?.mouser?.mouserPartNumber || d.part.mpn,
+                                  quantity: getItemQty(d),
+                                }));
+                                const cartResult = await mouserCreateCart(apiKeys.mouser_order_api_key, cartItems);
+                                // Fetch order options to get tariff/fee breakdown
+                                const options = await mouserGetOrderOptions(apiKeys.mouser_order_api_key, cartResult.cartKey);
+                                // Parse fees from cart items
+                                const fees = [];
+                                let totalFees = 0;
+                                const cartItemsList = cartResult.cartItems || options.CartItems || [];
+                                for (const ci of cartItemsList) {
+                                  const itemFees = ci.AdditionalFees || ci.CartAdditionalFee || [];
+                                  for (const fee of (Array.isArray(itemFees) ? itemFees : [])) {
+                                    const amt = parseFloat(fee.ExtendedAmount || fee.Amount || 0);
+                                    if (amt > 0) {
+                                      fees.push({ mpn: ci.MouserPartNumber || ci.PartNumber || "", fee: amt, code: fee.Code || "tariff", desc: fee.Description || "Tariff/Surcharge" });
+                                      totalFees += amt;
+                                    }
+                                  }
+                                }
+                                // Also check order-level summary
+                                const merchandiseTotal = parseFloat(options.MerchandiseTotal || options.SubTotal || 0);
+                                const orderTotal = parseFloat(options.OrderTotal || options.Total || 0);
+                                const summaryFees = parseFloat(options.AdditionalFeesTotal || 0);
+                                if (summaryFees > 0 && totalFees === 0) totalFees = summaryFees;
+                                setMouserTariffPreview({ loading: false, fees, totalFees, merchandiseTotal, orderTotal, cartKey: cartResult.cartKey, cartUrl: cartResult.cartUrl });
+                              } catch (e) {
+                                console.error("[Mouser Tariff Check]", e);
+                                setMouserTariffPreview({ loading: false, error: e.message, fees: [], totalFees: 0 });
+                              }
+                            }}
+                            style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"1px solid #ff9500",background:"rgba(255,149,0,0.08)",color:"#ff9500" }}>
+                            {mouserTariffPreview?.loading ? "Checking..." : "Check Tariffs"}
+                          </button>
+                        )}
+
                         {/* ── Order Mode Action Button */}
                         {orderMode === "api" && sup.id === "mouser" && apiKeys.mouser_order_api_key && (
                           <button disabled={mouserCartStatus?.loading}
@@ -5488,6 +5601,34 @@ function BOMManager({ user }) {
                       </div>
                     </div>
 
+                    {/* ── Mouser Tariff Preview Results */}
+                    {sup.id === "mouser" && mouserTariffPreview && !mouserTariffPreview.loading && (
+                      <div style={{ padding:"12px 22px",borderBottom:"1px solid #f0f0f2",background:mouserTariffPreview.totalFees > 0 ? "rgba(255,59,48,0.04)" : "rgba(52,199,89,0.04)" }}>
+                        {mouserTariffPreview.error ? (
+                          <div style={{ fontSize:12,color:"#ff3b30" }}>Tariff check failed: {mouserTariffPreview.error}</div>
+                        ) : mouserTariffPreview.totalFees > 0 ? (
+                          <div>
+                            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
+                              <span style={{ fontSize:12,fontWeight:700,color:"#ff3b30" }}>Mouser Cart API — Tariffs/Surcharges Detected</span>
+                              <span style={{ fontSize:14,fontWeight:800,color:"#ff3b30" }}>+{"$"}{fmtDollar(mouserTariffPreview.totalFees)}</span>
+                            </div>
+                            {mouserTariffPreview.fees.length > 0 && mouserTariffPreview.fees.map((f, fi) => (
+                              <div key={fi} style={{ display:"flex",justifyContent:"space-between",fontSize:11,color:"#86868b",padding:"2px 0" }}>
+                                <span>{f.mpn} — {f.desc || f.code}</span>
+                                <span style={{ fontWeight:600,color:"#ff9500" }}>+{"$"}{fmtDollar(f.fee)}</span>
+                              </div>
+                            ))}
+                            <div style={{ display:"flex",justifyContent:"space-between",marginTop:8,paddingTop:6,borderTop:"1px solid #f0f0f2",fontSize:12 }}>
+                              <span style={{ color:"#86868b" }}>Parts: {"$"}{fmtDollar(mouserTariffPreview.merchandiseTotal || poTotal)}</span>
+                              <span style={{ fontWeight:700,color:"#1d1d1f" }}>Actual Total: {"$"}{fmtDollar(mouserTariffPreview.orderTotal || (poTotal + mouserTariffPreview.totalFees))}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize:12,color:"#34c759",fontWeight:600 }}>No tariffs or surcharges detected by Mouser Cart API</div>
+                        )}
+                      </div>
+                    )}
+
                     {/* ── Rep Contact Info (for rep-managed suppliers) */}
                     {orderMode === "rep" && (repEmail || lastOrder) && (
                       <div style={{ padding:"8px 22px",background:"rgba(0,113,227,0.04)",borderBottom:"1px solid #f0f0f2",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",fontSize:11,color:"#6e6e73" }}>
@@ -5533,12 +5674,17 @@ function BOMManager({ user }) {
                             Reel{reelQty ? ` (${reelQty.toLocaleString()})` : ""}
                           </label>
                         </div>
+                        {d.hasTariff && (
+                          <span style={{ flex:"0 0 auto",fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
+                            {d.origin} +{d.tariffRate}%
+                          </span>
+                        )}
                         <div style={{ flex:"0 0 auto",fontWeight:700,fontSize:14,color:isFullReel?"#34c759":"#1d1d1f",minWidth:60,textAlign:"center" }}>
                           {qty.toLocaleString()}
                         </div>
                         <div style={{ flex:"0 0 auto",textAlign:"right",minWidth:80 }}>
-                          <div style={{ fontWeight:600,color:"#1d1d1f" }}>{"$"}{fmtDollar(priceAtReel * qty)}</div>
-                          <div style={{ fontSize:10,color:isFullReel?"#34c759":"#86868b" }}>${fmtPrice(priceAtReel)} ea{isFullReel && priceAtReel < d.bestPrice ? " (reel price)" : ""}</div>
+                          <div style={{ fontWeight:600,color:d.hasTariff?"#ff9500":"#1d1d1f" }}>{"$"}{fmtDollar(priceAtReel * qty)}</div>
+                          <div style={{ fontSize:10,color:isFullReel?"#34c759":"#86868b" }}>${fmtPrice(priceAtReel)} ea{d.hasTariff ? ` +${d.tariffRate}%` : ""}{isFullReel && priceAtReel < d.bestPrice ? " (reel price)" : ""}</div>
                         </div>
                       </div>
                     );})}
@@ -5556,13 +5702,28 @@ function BOMManager({ user }) {
                 );
               })}
 
-              {/* Grand total */}
-              <div style={{ display:"flex",justifyContent:"flex-end",padding:"16px 0",gap:20,alignItems:"center" }}>
-                <span style={{ fontSize:14,color:"#86868b" }}>Estimated Total</span>
-                <span style={{ fontSize:24,fontWeight:800,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
-                  {"$"}{fmtDollar(grandTotal)}
-                </span>
-              </div>
+              {/* Grand total with tariff breakdown */}
+              {(() => {
+                const activeItems = demandList.filter(d => !d.isInternal && (!skipTariffedParts || !d.hasTariff));
+                const partsSubtotal = activeItems.reduce((s,d) => s + d.bestPrice * d.net, 0);
+                const tariffAdded = activeItems.reduce((s,d) => s + (d.hasTariff ? (d.landedPrice - d.bestPrice) * d.net : 0), 0);
+                const landedTotal = partsSubtotal + tariffAdded;
+                return (
+                  <div style={{ display:"flex",justifyContent:"flex-end",padding:"16px 0",gap:20,alignItems:"center",flexWrap:"wrap" }}>
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ fontSize:12,color:"#86868b" }}>Parts: {"$"}{fmtDollar(partsSubtotal)}</div>
+                      {tariffAdded > 0 && <div style={{ fontSize:12,color:"#ff9500",fontWeight:600 }}>Est. Tariffs: +{"$"}{fmtDollar(tariffAdded)}</div>}
+                      {skipTariffedParts && tariffSkippedItems.length > 0 && <div style={{ fontSize:11,color:"#86868b" }}>{tariffSkippedItems.length} tariffed parts held back</div>}
+                    </div>
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ fontSize:11,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.5px",fontWeight:500 }}>Estimated Landed Total</div>
+                      <span style={{ fontSize:24,fontWeight:800,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                        {"$"}{fmtDollar(landedTotal)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </>)}
           </div>
           );
@@ -10640,7 +10801,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.47 — built 2026-03-24 4:15am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.48 — built 2026-03-24 5:02am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
