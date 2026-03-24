@@ -176,13 +176,20 @@ const NEXAR_DIST_MAP = {
 // Known distributor countries — fallback when API doesn't return country
 const DIST_COUNTRY = {
   "mouser":"US","digikey":"US","arrow":"US","allied":"US","newark":"US","amazon":"US","ti":"US","Texas Instruments":"US",
-  "Mouser Electronics":"US","Digi-Key":"US","Arrow Electronics":"US","Allied Electronics":"US","Newark":"US",
+  "Mouser Electronics":"US","Digi-Key":"US","Digi-Key Electronics":"US","Arrow Electronics":"US","Allied Electronics":"US","Newark":"US",
   "Farnell":"UK","element14":"AU","Schukat":"DE","TTI Europe":"DE","Maritex":"IT",
   "Bravo Electro":"US","JRH Electronics":"US","TRC Electronics":"US",
-  "LCSC":"CN","TME":"PL","Verical":"US","Avnet":"US","Future Electronics":"CA",
-  "RS Components":"UK","Chip1Stop":"JP","CoreStaff":"JP","Heilind":"US","Master Electronics":"US",
+  "LCSC":"CN","TME":"PL","Verical":"US","Avnet":"US","Avnet Americas":"US","Avnet Asia":"HK","Future Electronics":"CA",
+  "RS Components":"UK","Chip1Stop":"JP","CoreStaff":"JP","Heilind":"US","Heilind Electronics":"US","Master Electronics":"US",
   "Rutronik":"DE","Sager Electronics":"US","Symmetry Electronics":"US","Bisco Industries":"US",
   "Ameya360":"CN","Win Source":"CN","OnlineComponents.com":"US",
+  "Fmall Co., Limited":"HK","Worldway Electronics":"HK","SHENGYU ELECTRONICS":"CN","UnikeyIC":"SG",
+  "Bettlink":"HK","Weyland Electronics Group Pte. Ltd.":"SG","Lixinc":"CN","Ansinor":"CN","Lingto Electronic Ltd.":"CN",
+  "Rochester Electronics":"US","Microchip Technology":"US","Microchip Direct":"US","Sensata Technologies":"US",
+  "TTI Inc.":"US","TTI, Inc.":"US","Richardson RFPD":"US","Galco":"US","Mouser":"US",
+  "Power & Signal":"US","Powell Electronics":"US","Electro Sonic":"CA","Sourceability":"US",
+  "Sierra IC":"US","America II Electronics":"US","Smith & Associates":"US","Classic Components":"US",
+  "QuestComponents":"US","SemiStar Electronics":"HK","EBV Elektronik":"DE","WPG Holdings":"TW",
 };
 
 // Format price: up to 4 decimals, strip trailing zeroes, keep min 2
