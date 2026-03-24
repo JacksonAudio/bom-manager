@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.29
+// src/App.jsx — Jackson Audio BOM Manager v6.30
 // Sunday, March 23, 2026
 //
 // Changelog:
@@ -8700,7 +8700,7 @@ function BOMManager({ user }) {
             API KEYS / SETTINGS
         ══════════════════════════════════════ */}
         {activeView === "settings" && (
-          <div style={{ maxWidth:760 }}>
+          <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:6,color:"#1d1d1f" }}>Settings</h2>
             <p style={{ color:"#86868b",fontSize:13,marginBottom:24 }}>
               Keys are stored in the shared team database — one set for everyone.
