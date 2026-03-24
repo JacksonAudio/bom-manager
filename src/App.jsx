@@ -1297,6 +1297,8 @@ function BOMManager({ user }) {
   const [dkToken,     setDkToken]     = useState(null);
   const [tokenStatus, setTokenStatus] = useState("idle");
   const [tokenMsg,    setTokenMsg]    = useState("");
+  const [bootLog,     setBootLog]     = useState([]);  // [{text, ok}] — on-page API debug log
+  const [showBootLog, setShowBootLog] = useState(false);
   const [fetchingAll, setFetchingAll] = useState(false);
 
   // quickAdd state — one per product card: { partNumber, qty, description, value, manufacturer }
@@ -1563,36 +1565,37 @@ function BOMManager({ user }) {
 
         // Auto-connect APIs silently on page load if keys exist in DB
         // Avoids user having to press "Save & Connect" every session
-        const bootMsgs = [];
+        const log = [];
+        const addLog = (text, ok) => { log.push({ text, ok }); setBootLog([...log]); };
+
         if (mergedKeys.nexar_client_id && mergedKeys.nexar_client_secret) {
-          console.log("[Boot] Auto-connecting Nexar...");
+          addLog("Connecting Nexar/Octopart...", null);
           try {
             const nToken = await fetchNexarToken(mergedKeys.nexar_client_id, mergedKeys.nexar_client_secret);
             setNexarToken(nToken);
-            bootMsgs.push("✓ Nexar/Octopart connected");
-            console.log("[Boot] Nexar auto-connect OK, token length:", nToken?.length);
+            addLog("Nexar/Octopart connected (900+ distributors)", true);
           } catch (e) {
-            console.warn("[Boot] Nexar auto-connect failed:", e.message);
-            bootMsgs.push("✗ Nexar: " + e.message);
+            addLog("Nexar failed: " + e.message, false);
           }
         }
         if (mergedKeys.digikey_client_id && mergedKeys.digikey_client_secret) {
-          console.log("[Boot] Auto-connecting DigiKey...");
+          addLog("Connecting Digi-Key...", null);
           try {
             const dToken = await fetchDigiKeyToken(mergedKeys.digikey_client_id, mergedKeys.digikey_client_secret);
             setDkToken(dToken);
-            bootMsgs.push("✓ Digi-Key connected");
-            console.log("[Boot] DigiKey auto-connect OK, token length:", dToken?.length);
+            addLog("Digi-Key connected (direct API — real-time stock)", true);
           } catch (e) {
-            console.warn("[Boot] DigiKey auto-connect failed:", e.message);
-            bootMsgs.push("✗ DigiKey: " + e.message);
+            addLog("DigiKey failed: " + e.message, false);
           }
         }
-        if (mergedKeys.mouser_api_key) bootMsgs.push("✓ Mouser key saved");
-        if (bootMsgs.length) {
-          setTokenStatus(bootMsgs.some(m => m.startsWith("✓")) ? "ok" : "error");
-          setTokenMsg(bootMsgs.join(" · "));
-        }
+        if (mergedKeys.mouser_api_key) addLog("Mouser key loaded (direct API — tariff detection)", true);
+        if (mergedKeys.arrow_api_key && mergedKeys.arrow_login) addLog("Arrow key loaded", true);
+        if (mergedKeys.ti_api_key && mergedKeys.ti_api_secret) addLog("Texas Instruments key loaded", true);
+
+        const okCount = log.filter(l => l.ok === true).length;
+        const failCount = log.filter(l => l.ok === false).length;
+        setTokenStatus(okCount > 0 ? "ok" : "error");
+        setTokenMsg(`${okCount} API${okCount !== 1 ? "s" : ""} connected` + (failCount ? ` · ${failCount} failed` : ""));
       } catch (e) {
         console.error("Boot fetch failed:", e);
       } finally {
@@ -2334,6 +2337,7 @@ function BOMManager({ user }) {
             url: d.url || "",
             priceBreaks: d.priceBreaks || [],
             country: d.country || "",
+            source: "nexar",
           });
         }
       }
@@ -2346,6 +2350,7 @@ function BOMManager({ user }) {
           unitPrice: data.unitPrice || 0, stock: data.stock || 0,
           moq: data.moq || 1, url: data.url || "",
           priceBreaks: data.priceBreaks || [], country,
+          source: "direct",
         };
         if (idx >= 0) distributors[idx] = entry;
         else distributors.push(entry);
@@ -3434,13 +3439,27 @@ function BOMManager({ user }) {
               <div style={{ fontSize:9,color:"#aeaeb2",letterSpacing:"0.08em" }}>{s.label.toUpperCase()}</div>
             </div>
           ))}
-          {/* API status indicator */}
-          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          {/* API status indicator — click to expand log */}
+          <div style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", position:"relative" }}
+            onClick={() => setShowBootLog(prev => !prev)}>
             <div style={{ width:8,height:8,borderRadius:"50%",
-              background: tokenStatus==="ok" ? "#34c759" : tokenStatus==="loading" ? "#0071e3" : "#aeaeb2" }} />
+              background: tokenStatus==="ok" ? "#34c759" : tokenStatus==="loading" ? "#0071e3" : tokenStatus==="error" ? "#ff3b30" : "#aeaeb2" }} />
             <span style={{ fontSize:10, color:"#aeaeb2" }}>
-              {tokenStatus==="ok" ? "APIs live" : tokenStatus==="loading" ? "connecting…" : "no API keys"}
+              {tokenMsg || (tokenStatus==="loading" ? "connecting…" : "no API keys")}
             </span>
+            {showBootLog && bootLog.length > 0 && (
+              <div style={{ position:"absolute",top:24,right:0,background:"#1c1c1e",color:"#e5e5ea",borderRadius:8,padding:"10px 14px",
+                fontSize:11,fontFamily:"'SF Mono',Menlo,monospace",lineHeight:1.8,minWidth:360,maxWidth:500,zIndex:9999,
+                boxShadow:"0 4px 20px rgba(0,0,0,0.3)",border:"1px solid #3a3a3c" }}
+                onClick={e => e.stopPropagation()}>
+                <div style={{ fontWeight:700,marginBottom:6,color:"#aeaeb2",fontSize:10,textTransform:"uppercase",letterSpacing:"0.5px" }}>API Connection Log</div>
+                {bootLog.map((entry, i) => (
+                  <div key={i} style={{ color: entry.ok === true ? "#34c759" : entry.ok === false ? "#ff453a" : "#aeaeb2" }}>
+                    {entry.ok === true ? "✓" : entry.ok === false ? "✗" : "…"} {entry.text}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           {/* User + sign out */}
           <div style={{ display:"flex",alignItems:"center",gap:10,borderLeft:"1px solid #e5e5ea",paddingLeft:14 }}>
@@ -4410,6 +4429,10 @@ function BOMManager({ user }) {
                             <span style={{ flex:1,fontWeight: isBest ? 700 : 400,color: isBest ? "#2e7d32" : "#48484a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
                               {isBest && "★ "}{d.name}{cc ? ` (${COUNTRY_NAMES[cc] || cc})` : ""}
                             </span>
+                            <span style={{ fontSize:9,padding:"1px 4px",borderRadius:3,fontWeight:600,
+                              background: d.source === "direct" ? "#e8f5e9" : "#f0f0f5",
+                              color: d.source === "direct" ? "#2e7d32" : "#86868b",
+                              minWidth:32,textAlign:"center" }}>{d.source === "direct" ? "API" : "Nexar"}</span>
                             <span style={{ fontWeight:600,minWidth:65,textAlign:"right" }}>${d.unitPrice.toFixed(4)}</span>
                             {quickUrlResult.tariffRate > 0 && <span style={{ color:"#e65100",fontSize:10,minWidth:75,textAlign:"right" }}>→ ${landed.toFixed(4)}</span>}
                             <span style={{ color:"#86868b",minWidth:55,textAlign:"right" }}>{d.stock > 0 ? d.stock.toLocaleString() : "—"}</span>
