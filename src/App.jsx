@@ -284,7 +284,7 @@ async function fetchNexarToken(clientId, clientSecret) {
 function buildNexarQuery(mpn) {
   // Escape any quotes in the MPN just in case
   const safe = mpn.replace(/"/g, '\\"');
-  return `{ supSearchMpn(q: "${safe}", limit: 3) { hits results { part { mpn manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
+  return `{ supSearchMpn(q: "${safe}", limit: 10) { hits results { part { mpn manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
 }
 
 async function fetchNexarPricing(mpn, quantity, token) {
@@ -4374,7 +4374,7 @@ function BOMManager({ user }) {
                                 Domestic ({domesticAll.length})
                               </div>
                               <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
-                                {domesticAll.length > 0 ? domesticAll.map(renderRow) : <span style={{ fontSize:11,color:"#aeaeb2" }}>No domestic sources</span>}
+                                {domesticAll.length > 0 ? domesticAll.slice(0, 10).map(renderRow) : <span style={{ fontSize:11,color:"#aeaeb2" }}>No domestic sources</span>}
                               </div>
                             </div>
                             {/* International column */}
@@ -4384,7 +4384,7 @@ function BOMManager({ user }) {
                                   International ({international.length})
                                 </div>
                                 <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
-                                  {international.map(renderRow)}
+                                  {international.slice(0, 10).map(renderRow)}
                                 </div>
                               </div>
                             )}
