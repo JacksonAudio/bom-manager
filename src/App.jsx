@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.40
+// src/App.jsx — Jackson Audio BOM Manager v6.41
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -3727,7 +3727,7 @@ function BOMManager({ user }) {
             <ScannerView parts={parts} products={products} updatePart={updatePart} darkMode={darkMode} />
 
             {/* ── Invoice Scanning Section */}
-            <div style={{ maxWidth:600,margin:"20px auto 0" }}>
+            <div style={{ maxWidth:600,margin:"16px auto 0" }}>
               <div style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",paddingTop:24,marginTop:8 }}>
                 <h3 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",
                   fontSize:20,fontWeight:700,letterSpacing:"-0.3px",color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>
@@ -4571,8 +4571,8 @@ function BOMManager({ user }) {
                 Live quotes from 900+ distributors worldwide, powered by Nexar/Octopart. Pricing updates ensure you're always buying at the best available rate, with price breaks calculated at your actual order quantities. This saves the company money on every build and gives purchasing full visibility into market pricing before committing to a PO.
               </p>
             </div>
-            <div style={{ marginBottom:28 }}>
-              <div style={{ display:"flex",gap:10,marginTop:14,flexWrap:"wrap",alignItems:"center" }}>
+            <div style={{ marginBottom:16 }}>
+              <div style={{ display:"flex",gap:10,flexWrap:"wrap",alignItems:"center" }}>
                 <div style={{ position:"relative",flex:"1 1 260px",maxWidth:400 }}>
                   <input type="text" placeholder="Search parts…" value={pricingSearch}
                     onChange={(e) => setPricingSearch(e.target.value)}
@@ -5233,7 +5233,7 @@ function BOMManager({ user }) {
               </div>
             ) : (<>
               {/* ── Build Queue */}
-              <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:24 }}>
+              <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:16 }}>
                 <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                   <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Build Queue — {buildQueue.length} product{buildQueue.length!==1?"s":""}</div>
                   <button onClick={() => setBuildQueue([])}
@@ -6112,8 +6112,8 @@ function BOMManager({ user }) {
                 Products are the pedals, amps, and gear you build. Each product has a bill of materials — the parts required for one unit. This is where you manage what you manufacture, queue build orders, and see the true cost of each product. When it's time to order, enter a quantity and click Order to send it to the Purchasing tab.
               </p>
             </div>
-            <div style={{ marginBottom:28 }}>
-              <div style={{ display:"flex",gap:10,marginTop:14,flexWrap:"wrap",alignItems:"center" }}>
+            <div style={{ marginBottom:16 }}>
+              <div style={{ display:"flex",gap:10,flexWrap:"wrap",alignItems:"center" }}>
                 <input type="text" placeholder="New product name…" value={newProjName}
                   onChange={(e)=>setNewProjName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addProduct()}
                   style={{ padding:"8px 14px",borderRadius:980,fontSize:13,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:220,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
@@ -6909,7 +6909,11 @@ function BOMManager({ user }) {
                 </button>
                 {(shopifyDemand?.syncedAt || zohoDemand?.syncedAt || shipstationData?.syncedAt) && (
                   <span style={{ fontSize:10,color:"#aeaeb2" }}>
-                    Last sync: {new Date(shopifyDemand?.syncedAt || zohoDemand?.syncedAt || shipstationData?.syncedAt).toLocaleTimeString()}
+                    {shopifyDemand?.syncedAt && <>Shopify {new Date(shopifyDemand.syncedAt).toLocaleTimeString()}</>}
+                    {shopifyDemand?.syncedAt && (zohoDemand?.syncedAt || shipstationData?.syncedAt) && " · "}
+                    {zohoDemand?.syncedAt && <>Zoho {new Date(zohoDemand.syncedAt).toLocaleTimeString()}</>}
+                    {zohoDemand?.syncedAt && shipstationData?.syncedAt && " · "}
+                    {shipstationData?.syncedAt && <>ShipStation {new Date(shipstationData.syncedAt).toLocaleTimeString()}</>}
                   </span>
                 )}
                 {partsDemand.length > 0 && (
@@ -10443,7 +10447,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.40 — built 2026-03-24 2:30am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.41 — built 2026-03-24 2:45am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
