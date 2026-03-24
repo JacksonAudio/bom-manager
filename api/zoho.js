@@ -116,6 +116,8 @@ async function handleOrders(req, res, org_id, access_token) {
         title: li.name || li.description || "",
         productId: String(li.item_id || ""),
         quantity: Math.round(li.quantity) || 0,
+        quantityShipped: Math.round(li.quantity_shipped || 0),
+        quantityPacked: Math.round(li.quantity_packed || 0),
         rate: li.rate || 0,
         amount: li.item_total || 0,
       }));
@@ -124,6 +126,8 @@ async function handleOrders(req, res, org_id, access_token) {
     orderSummaries.push({
       id: String(order.salesorder_id),
       name: order.salesorder_number || order.reference_number || `SO-${order.salesorder_id}`,
+      referenceNumber: order.reference_number || "",
+      dealerPO: orderDetail.reference_number || order.reference_number || "",
       date: order.date || order.created_time,
       createdAt: order.created_time || order.date,
       status: order.status,

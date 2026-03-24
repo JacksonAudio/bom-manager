@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.39
+// src/App.jsx — Jackson Audio BOM Manager v6.40
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -7410,6 +7410,137 @@ function BOMManager({ user }) {
               </>
             )}
 
+            {/* ── Dealer PO Tracker */}
+            {zohoDemand?.orders?.length > 0 && (() => {
+              const dealerPOs = zohoDemand.orders.filter(o => o.lineItems?.length > 0).map(order => {
+                const totalQty = order.lineItems.reduce((s, li) => s + (li.quantity || 0), 0);
+                const totalShipped = order.lineItems.reduce((s, li) => s + (li.quantityShipped || 0), 0);
+                const pctComplete = totalQty > 0 ? Math.round((totalShipped / totalQty) * 100) : 0;
+                // Find which BOM parts are short for this order's products
+                const blockers = [];
+                for (const li of order.lineItems) {
+                  const remaining = (li.quantity || 0) - (li.quantityShipped || 0);
+                  if (remaining <= 0) continue;
+                  const bomProduct = products.find(p =>
+                    p.zohoProductId === li.productId ||
+                    li.title.toLowerCase().includes(p.name.toLowerCase()) ||
+                    p.name.toLowerCase().includes(li.title.toLowerCase())
+                  );
+                  if (!bomProduct) continue;
+                  const bomParts = parts.filter(p => p.productId === bomProduct.id || (p.products && p.products.includes(bomProduct.id)));
+                  for (const bp of bomParts) {
+                    const stock = parseInt(bp.stockQty) || 0;
+                    const perUnit = parseInt(bp.quantity) || 1;
+                    const needed = perUnit * remaining;
+                    if (needed > stock) {
+                      blockers.push({ partRef: bp.reference, partValue: bp.value, mpn: bp.mpn, needed, inStock: stock, deficit: needed - stock, forProduct: li.title });
+                    }
+                  }
+                }
+                return { ...order, totalQty, totalShipped, pctComplete, blockers };
+              }).sort((a, b) => (a.pctComplete === 100 ? 1 : 0) - (b.pctComplete === 100 ? 1 : 0) || new Date(b.createdAt) - new Date(a.createdAt));
+
+              if (dealerPOs.length === 0) return null;
+              const isCollapsed = collapsedDemandSections.has("dealer-pos");
+              return (
+                <div className="card" style={{ marginBottom:16, overflow:"hidden" }}>
+                  <div
+                    onClick={() => setCollapsedDemandSections(prev => { const s = new Set(prev); s.has("dealer-pos") ? s.delete("dealer-pos") : s.add("dealer-pos"); return s; })}
+                    style={{
+                      padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
+                      background:"#4bc07608",borderBottom: isCollapsed ? "none" : "2px solid #4bc07633",
+                      borderRadius: isCollapsed ? 12 : "12px 12px 0 0",transition:"all 0.2s",
+                    }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                      <div style={{ width:8,height:8,borderRadius:"50%",background:"#4bc076",flexShrink:0 }} />
+                      <span style={{ fontSize:13,fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                        Dealer PO Tracker
+                      </span>
+                      <span style={{ fontSize:11,color:"#86868b",fontWeight:500 }}>
+                        ({dealerPOs.length} order{dealerPOs.length !== 1 ? "s" : ""} · {dealerPOs.filter(p => p.pctComplete < 100).length} open)
+                      </span>
+                    </div>
+                    <span style={{ fontSize:11,color:"#86868b",transform:isCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
+                  </div>
+                  {!isCollapsed && (
+                    <div style={{ overflowX:"auto" }}>
+                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                        <thead>
+                          <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>DEALER</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>ORDER / PO#</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>PRODUCTS</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center" }}>PROGRESS</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>SHIPPED / TOTAL</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>BLOCKERS</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dealerPOs.map(po => (
+                            <tr key={po.id} style={{ borderBottom:"1px solid #f0f0f2",opacity: po.pctComplete === 100 ? 0.5 : 1 }}>
+                              <td style={{ padding:"10px 10px" }}>
+                                <div style={{ fontWeight:700,color:"#1d1d1f" }}>{po.customerName || po.companyName || "—"}</div>
+                                <div style={{ fontSize:10,color:"#86868b" }}>{po.date ? new Date(po.date).toLocaleDateString() : ""}</div>
+                              </td>
+                              <td style={{ padding:"10px 10px" }}>
+                                <div style={{ fontWeight:600,color:"#4bc076" }}>{po.name}</div>
+                                {po.dealerPO && <div style={{ fontSize:10,color:"#86868b" }}>PO: {po.dealerPO}</div>}
+                              </td>
+                              <td style={{ padding:"10px 10px" }}>
+                                <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
+                                  {po.lineItems.map((li,i) => {
+                                    const shipped = li.quantityShipped || 0;
+                                    const done = shipped >= li.quantity;
+                                    return (
+                                      <span key={i} className="badge" style={{ background: done ? "#34c75922" : "#ff950022", color: done ? "#34c759" : "#ff9500", fontSize:10 }}>
+                                        {li.title} ({shipped}/{li.quantity})
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </td>
+                              <td style={{ padding:"10px 10px",textAlign:"center" }}>
+                                <div style={{ display:"flex",alignItems:"center",gap:6,justifyContent:"center" }}>
+                                  <div style={{ width:60,height:6,borderRadius:3,background:"#e5e5ea",overflow:"hidden" }}>
+                                    <div style={{ width:`${po.pctComplete}%`,height:"100%",borderRadius:3,
+                                      background: po.pctComplete === 100 ? "#34c759" : po.pctComplete >= 50 ? "#ff9500" : "#ff3b30",
+                                      transition:"width 0.3s" }} />
+                                  </div>
+                                  <span style={{ fontSize:11,fontWeight:700,color: po.pctComplete === 100 ? "#34c759" : "#1d1d1f" }}>
+                                    {po.pctComplete}%
+                                  </span>
+                                </div>
+                              </td>
+                              <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                                color: po.pctComplete === 100 ? "#34c759" : "#1d1d1f" }}>
+                                {po.totalShipped} / {po.totalQty}
+                              </td>
+                              <td style={{ padding:"10px 10px" }}>
+                                {po.pctComplete === 100 ? (
+                                  <span style={{ fontSize:11,color:"#34c759",fontWeight:700 }}>Ready to ship</span>
+                                ) : po.blockers.length > 0 ? (
+                                  <div style={{ display:"flex",gap:3,flexWrap:"wrap" }}>
+                                    {po.blockers.slice(0, 3).map((b,i) => (
+                                      <span key={i} className="badge" style={{ background:"#ff3b3015",color:"#ff3b30",fontSize:9 }}>
+                                        {b.partRef || b.mpn} (need {b.deficit})
+                                      </span>
+                                    ))}
+                                    {po.blockers.length > 3 && <span style={{ fontSize:9,color:"#86868b" }}>+{po.blockers.length - 3} more</span>}
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize:11,color:"#86868b" }}>Awaiting build</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* ── ShipStation: Units Shipped */}
             {shipstationData && !shipstationData?.error && shipstationData?.shipments?.length > 0 && (
               <div className="card" style={{ marginBottom:16 }}>
@@ -10312,7 +10443,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.39 — built 2026-03-24 2:15am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.40 — built 2026-03-24 2:30am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
