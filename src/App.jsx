@@ -5197,8 +5197,15 @@ function BOMManager({ user }) {
                 }
               }
             }
-            // Determine tariff info from country of origin
-            const origin = d.part.pricing?.mouser?.countryOfOrigin || d.part.countryOfOrigin || pr?._countryOfOrigin || "";
+            // Determine tariff info from country of origin — check all pricing entries
+            let origin = "";
+            if (pr) {
+              for (const [k, data] of Object.entries(pr)) {
+                if (k.startsWith("_") || !data || typeof data !== "object") continue;
+                if (data.countryOfOrigin) { origin = data.countryOfOrigin.toUpperCase(); break; }
+              }
+            }
+            if (!origin) origin = d.part.countryOfOrigin || "";
             const poTariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
             const tariffRate = origin ? getTariffRate(origin, poTariffs) : 0;
             const hasTariff = tariffRate > 0;
@@ -5300,29 +5307,38 @@ function BOMManager({ user }) {
                 </div>
               </div>
 
-              {/* ── Tariff Controls */}
-              {demandList.some(d => d.hasTariff) && (
-                <div style={{ display:"flex",alignItems:"center",gap:16,padding:"14px 22px",background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",marginBottom:16,flexWrap:"wrap" }}>
-                  <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                    <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,fontWeight:600,color:skipTariffedParts?"#ff9500":"#1d1d1f" }}>
-                      <input type="checkbox" checked={skipTariffedParts} onChange={() => setSkipTariffedParts(v => !v)}
-                        style={{ width:16,height:16,accentColor:"#ff9500",cursor:"pointer" }} />
-                      Skip Tariffed Parts
-                    </label>
-                    <span style={{ fontSize:11,color:"#86868b" }}>
-                      {demandList.filter(d => d.hasTariff).length} parts have tariffs ({demandList.filter(d => d.hasTariff).map(d => d.origin).filter((v,i,a)=>a.indexOf(v)===i).join(", ")})
-                    </span>
+              {/* ── Tariff Controls — always visible when there are parts to order */}
+              {demandList.filter(d => !d.isInternal).length > 0 && (() => {
+                const tariffed = demandList.filter(d => d.hasTariff);
+                const unknownOrigin = demandList.filter(d => !d.isInternal && !d.origin);
+                const tariffFree = demandList.filter(d => !d.isInternal && d.origin && !d.hasTariff);
+                const tariffCost = tariffed.reduce((s,d) => s + (d.landedPrice - d.bestPrice) * d.net, 0);
+                return (
+                  <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:16,padding:"14px 22px",flexWrap:"wrap" }}>
+                      <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,fontWeight:600,color:skipTariffedParts?"#ff9500":"#1d1d1f" }}>
+                        <input type="checkbox" checked={skipTariffedParts} onChange={() => setSkipTariffedParts(v => !v)}
+                          style={{ width:16,height:16,accentColor:"#ff9500",cursor:"pointer" }} />
+                        Skip Tariffed Parts
+                      </label>
+                      <div style={{ display:"flex",gap:12,fontSize:11,color:"#86868b",flexWrap:"wrap" }}>
+                        {tariffed.length > 0 && (
+                          <span style={{ color:"#ff9500",fontWeight:600 }}>
+                            {tariffed.length} tariffed ({tariffed.map(d => d.origin).filter((v,i,a)=>a.indexOf(v)===i).join(", ")})
+                          </span>
+                        )}
+                        {tariffFree.length > 0 && <span style={{ color:"#34c759" }}>{tariffFree.length} tariff-free</span>}
+                        {unknownOrigin.length > 0 && <span>{unknownOrigin.length} origin unknown</span>}
+                      </div>
+                      {tariffCost > 0 && (
+                        <span style={{ fontSize:12,fontWeight:700,color:"#ff3b30",marginLeft:"auto" }}>
+                          Est. tariff exposure: {"$"}{fmtDollar(tariffCost)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  {(() => {
-                    const tariffCost = demandList.filter(d => d.hasTariff).reduce((s,d) => s + (d.landedPrice - d.bestPrice) * d.net, 0);
-                    return tariffCost > 0 ? (
-                      <span style={{ fontSize:12,fontWeight:700,color:"#ff3b30",marginLeft:"auto" }}>
-                        Est. tariff exposure: {"$"}{fmtDollar(tariffCost)}
-                      </span>
-                    ) : null;
-                  })()}
-                </div>
-              )}
+                );
+              })()}
 
               {/* ── Tariff-Skipped Parts (shown when toggle is on) */}
               {skipTariffedParts && tariffSkippedItems.length > 0 && (
