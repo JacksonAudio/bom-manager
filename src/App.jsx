@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.41
+// src/App.jsx — Jackson Audio BOM Manager v6.42
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1201,7 +1201,7 @@ function BOMManager({ user }) {
   const [selProject,  setSelProject]  = useState("all");
   const [selBrand,    setSelBrand]    = useState("all");
   const [collapsedBrands, setCollapsedBrands] = useState(new Set());
-  const [collapsedDemandSections, setCollapsedDemandSections] = useState(new Set());
+  const [collapsedDemandSections, setCollapsedDemandSections] = useState(new Set(["direct-forecast"]));
   const [newProjBrand, setNewProjBrand] = useState("Jackson Audio");
   const [search,      setSearch]      = useState("");
   const [pricingSearch, setPricingSearch] = useState("");
@@ -7341,73 +7341,95 @@ function BOMManager({ user }) {
                   return (
                     <>
                     {/* Sales Forecast */}
-                    {forecasts.length > 0 && (
-                      <div className="card">
-                        <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>
-                          DIRECT SALES FORECAST — BASED ON {shopifyDemand?.orders?.length || 0} SHOPIFY ORDERS
+                    {forecasts.length > 0 && (() => {
+                      const isForecastCollapsed = collapsedDemandSections.has("direct-forecast");
+                      return (
+                      <div className="card" style={{ marginBottom:16, overflow:"hidden" }}>
+                        <div
+                          onClick={() => setCollapsedDemandSections(prev => { const s = new Set(prev); s.has("direct-forecast") ? s.delete("direct-forecast") : s.add("direct-forecast"); return s; })}
+                          style={{
+                            padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
+                            background:"#0071e30a",borderBottom: isForecastCollapsed ? "none" : "2px solid #0071e333",
+                            borderRadius: isForecastCollapsed ? 12 : "12px 12px 0 0",transition:"all 0.2s",
+                          }}>
+                          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                            <div style={{ width:8,height:8,borderRadius:"50%",background:"#0071e3",flexShrink:0 }} />
+                            <span style={{ fontSize:13,fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                              Direct Sales Forecast
+                            </span>
+                            <span style={{ fontSize:11,color:"#86868b",fontWeight:500 }}>
+                              ({forecasts.length} product{forecasts.length !== 1 ? "s" : ""} · {shopifyDemand?.orders?.length || 0} orders)
+                            </span>
+                          </div>
+                          <span style={{ fontSize:11,color:"#86868b",transform:isForecastCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
                         </div>
-                        <div style={{ overflowX:"auto" }}>
-                          <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
-                            <thead>
-                              <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
-                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>PRODUCT</th>
-                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>DAILY AVG</th>
-                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>WEEKLY</th>
-                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>MONTHLY</th>
-                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center",background:"#f0f7ff",borderRadius:"6px 0 0 0" }}>30 DAY</th>
-                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center",background:"#fff8f0" }}>60 DAY</th>
-                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center",background:"#fff2f0",borderRadius:"0 6px 0 0" }}>90 DAY</th>
-                                <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>UNFULFILLED</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {forecasts.map(f => (
-                                <tr key={f.title} style={{ borderBottom:"1px solid #f0f0f2" }}>
-                                  <td style={{ padding:"10px 10px" }}>
-                                    <div style={{ fontWeight:600,color:"#1d1d1f" }}>{f.title}</div>
-                                    <div style={{ fontSize:10,color:"#86868b" }}>
-                                      {f.totalOrdered.toLocaleString()} sold over {f.daySpan} days
-                                      {f.storeName && <span style={{ color:"#5856d6",fontWeight:600,marginLeft:4 }}>{f.storeName}</span>}
-                                    </div>
-                                  </td>
-                                  <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:600,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                                    {f.dailyRate.toFixed(1)}
-                                  </td>
-                                  <td style={{ padding:"10px 10px",textAlign:"right",color:"#86868b" }}>
-                                    {f.weeklyRate.toFixed(1)}
-                                  </td>
-                                  <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:600 }}>
-                                    {Math.round(f.monthlyRate).toLocaleString()}
-                                  </td>
-                                  <td style={{ padding:"10px 10px",textAlign:"center",fontWeight:700,fontSize:14,
-                                    background:"#f0f7ff",color:"#0071e3",
-                                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                                    {f.forecast30.toLocaleString()}
-                                  </td>
-                                  <td style={{ padding:"10px 10px",textAlign:"center",fontWeight:700,fontSize:14,
-                                    background:"#fff8f0",color:"#ff9500",
-                                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                                    {f.forecast60.toLocaleString()}
-                                  </td>
-                                  <td style={{ padding:"10px 10px",textAlign:"center",fontWeight:700,fontSize:14,
-                                    background:"#fff2f0",color:"#ff3b30",
-                                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                                    {f.forecast90.toLocaleString()}
-                                  </td>
-                                  <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,
-                                    color:f.unfulfilled > 0 ? "#ff3b30" : "#34c759" }}>
-                                    {f.unfulfilled > 0 ? f.unfulfilled.toLocaleString() : "✓"}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div style={{ marginTop:10,fontSize:10,color:"#aeaeb2",fontStyle:"italic" }}>
-                          Forecast based on average daily sell rate across all open orders in the sync window. Rates update each time you sync.
-                        </div>
+                        {!isForecastCollapsed && (
+                          <div>
+                            <div style={{ overflowX:"auto" }}>
+                              <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                                <thead>
+                                  <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>PRODUCT</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>DAILY AVG</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>WEEKLY</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>MONTHLY</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center",background:"#f0f7ff",borderRadius:"6px 0 0 0" }}>30 DAY</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center",background:"#fff8f0" }}>60 DAY</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center",background:"#fff2f0",borderRadius:"0 6px 0 0" }}>90 DAY</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>UNFULFILLED</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {forecasts.map(f => (
+                                    <tr key={f.title} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                                      <td style={{ padding:"10px 10px" }}>
+                                        <div style={{ fontWeight:600,color:"#1d1d1f" }}>{f.title}</div>
+                                        <div style={{ fontSize:10,color:"#86868b" }}>
+                                          {f.totalOrdered.toLocaleString()} sold over {f.daySpan} days
+                                          {f.storeName && <span style={{ color:"#5856d6",fontWeight:600,marginLeft:4 }}>{f.storeName}</span>}
+                                        </div>
+                                      </td>
+                                      <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:600,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                        {f.dailyRate.toFixed(1)}
+                                      </td>
+                                      <td style={{ padding:"10px 10px",textAlign:"right",color:"#86868b" }}>
+                                        {f.weeklyRate.toFixed(1)}
+                                      </td>
+                                      <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:600 }}>
+                                        {Math.round(f.monthlyRate).toLocaleString()}
+                                      </td>
+                                      <td style={{ padding:"10px 10px",textAlign:"center",fontWeight:700,fontSize:14,
+                                        background:"#f0f7ff",color:"#0071e3",
+                                        fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                        {f.forecast30.toLocaleString()}
+                                      </td>
+                                      <td style={{ padding:"10px 10px",textAlign:"center",fontWeight:700,fontSize:14,
+                                        background:"#fff8f0",color:"#ff9500",
+                                        fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                        {f.forecast60.toLocaleString()}
+                                      </td>
+                                      <td style={{ padding:"10px 10px",textAlign:"center",fontWeight:700,fontSize:14,
+                                        background:"#fff2f0",color:"#ff3b30",
+                                        fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                        {f.forecast90.toLocaleString()}
+                                      </td>
+                                      <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,
+                                        color:f.unfulfilled > 0 ? "#ff3b30" : "#34c759" }}>
+                                        {f.unfulfilled > 0 ? f.unfulfilled.toLocaleString() : "✓"}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <div style={{ padding:"10px 16px",fontSize:10,color:"#aeaeb2",fontStyle:"italic" }}>
+                              Forecast based on average daily sell rate across all open orders in the sync window. Rates update each time you sync.
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
+                      );
+                    })()}
                     </>
                   );
                 })()}
@@ -10447,7 +10469,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.41 — built 2026-03-24 2:45am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.42 — built 2026-03-24 2:55am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
