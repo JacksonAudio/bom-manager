@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.52
+// src/App.jsx — Jackson Audio BOM Manager v6.53
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1223,6 +1223,7 @@ function BOMManager({ user }) {
   const [compSearchDescPrefix, setCompSearchDescPrefix] = useState("");
   const [compSearchLimit, setCompSearchLimit] = useState("10");
   const [compSearchSource, setCompSearchSource] = useState("auto"); // "auto" | "mouser" | "nexar"
+  const [compSort, setCompSort] = useState({ field: "value", asc: true }); // sortable columns in component library
   const [compTariffFreeOnly, setCompTariffFreeOnly] = useState(false); // filter component library to tariff-free parts
   const [nexarUsed, setNexarUsed] = useState(() => { try { return parseInt(localStorage.getItem("nexar_used")||"6557"); } catch { return 6557; } });
   const [newProjName, setNewProjName] = useState("");
@@ -4258,6 +4259,13 @@ function BOMManager({ user }) {
                     </button>
                   </div>
 
+                  {/* Nexar usage warning */}
+                  {(compSearchSource === "nexar" || (compSearchSource === "auto" && !apiKeys.mouser_api_key)) && (
+                    <div style={{ fontSize:11,color:"#ff9500",background:"rgba(255,149,0,0.06)",border:"1px solid rgba(255,149,0,0.2)",borderRadius:8,padding:"8px 12px",marginBottom:10,lineHeight:"18px" }}>
+                      <strong>Nexar has a monthly search limit</strong> (~15,000 parts/month on the free tier). You've used ~{nexarUsed.toLocaleString()} so far. Switch to <strong>Mouser</strong> for unlimited searches — Mouser also returns country of origin for tariff filtering.
+                    </div>
+                  )}
+
                   {/* Tariff filter */}
                   <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10 }}>
                     <label style={{ display:"flex",alignItems:"center",gap:5,cursor:"pointer",fontSize:12,fontWeight:600,
@@ -4297,9 +4305,23 @@ function BOMManager({ user }) {
                   {/* Results */}
                   {compSearchResults.length > 0 && (() => {
                     const clTariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
-                    const displayResults = compTariffFreeOnly
+                    const filtered = compTariffFreeOnly
                       ? compSearchResults.filter(r => !r.countryOfOrigin || getTariffRate(r.countryOfOrigin, clTariffs) === 0)
-                      : compSearchResults;
+                      : [...compSearchResults];
+                    // Sort
+                    const sortDir = compSort.asc ? 1 : -1;
+                    filtered.sort((a, b) => {
+                      switch (compSort.field) {
+                        case "value": return (parseValue(a) - parseValue(b)) * sortDir;
+                        case "mpn": return (a.mpn || "").localeCompare(b.mpn || "") * sortDir;
+                        case "manufacturer": return (a.manufacturer || "").localeCompare(b.manufacturer || "") * sortDir;
+                        case "origin": return (a.countryOfOrigin || "").localeCompare(b.countryOfOrigin || "") * sortDir;
+                        case "description": return (a.description || "").localeCompare(b.description || "") * sortDir;
+                        default: return 0;
+                      }
+                    });
+                    const displayResults = filtered;
+                    const toggleCompSort = (field) => setCompSort(prev => prev.field === field ? { field, asc: !prev.asc } : { field, asc: true });
                     const filteredAllSelected = displayResults.length > 0 && displayResults.every(p => compSelectedParts.has(p.mpn));
                     const toggleFilteredAll = () => {
                       if (filteredAllSelected) { setCompSelectedParts(new Set()); }
@@ -4325,13 +4347,21 @@ function BOMManager({ user }) {
                       <div style={{ maxHeight:400,overflowY:"auto",border:"1px solid #e5e5ea",borderRadius:8 }}>
                         <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
                           <thead>
-                            <tr style={{ background:"#f5f5f7",position:"sticky",top:0 }}>
+                            <tr style={{ background:"#f5f5f7",position:"sticky",top:0,zIndex:1 }}>
                               <th style={{ padding:"6px 8px",width:30 }}></th>
-                              <th style={{ padding:"6px 10px",textAlign:"left" }}>MPN</th>
-                              <th style={{ padding:"6px 10px",textAlign:"left" }}>Manufacturer</th>
-                              <th style={{ padding:"6px 10px",textAlign:"left" }}>Value</th>
-                              <th style={{ padding:"6px 10px",textAlign:"left" }}>Origin</th>
-                              <th style={{ padding:"6px 10px",textAlign:"left" }}>Description</th>
+                              {[
+                                { id:"mpn", label:"MPN" },
+                                { id:"manufacturer", label:"Manufacturer" },
+                                { id:"value", label:"Value" },
+                                { id:"origin", label:"Origin" },
+                                { id:"description", label:"Description" },
+                              ].map(col => (
+                                <th key={col.id} onClick={() => toggleCompSort(col.id)}
+                                  style={{ padding:"6px 10px",textAlign:"left",cursor:"pointer",userSelect:"none",whiteSpace:"nowrap",
+                                    color:compSort.field===col.id?"#5856d6":"inherit" }}>
+                                  {col.label} {compSort.field===col.id ? (compSort.asc ? "▲" : "▼") : ""}
+                                </th>
+                              ))}
                             </tr>
                           </thead>
                           <tbody>
@@ -10919,7 +10949,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.52 — built 2026-03-24 6:25am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.53 — built 2026-03-24 6:40am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
