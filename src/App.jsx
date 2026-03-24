@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.33
+// src/App.jsx — Jackson Audio BOM Manager v6.34
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -3145,24 +3145,28 @@ function BOMManager({ user }) {
         borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
         background:darkMode?"#1c1c1e":"#fff" }}>
         {[
-          { id:"dashboard", label:"Dashboard" },
-          { id:"bom",       label:`Parts (${parts.length})` },
-          { id:"scan",      label:"Scan In" },
-          { id:"pricing",   label:`Pricing${pricedCount>0?` (${pricedCount}/${parts.length})`:""}` },
-          { id:"purchasing",label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}` },
-          { id:"suppliers", label:"Suppliers" },
-          { id:"orders",    label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}` },
-          { id:"demand",    label:`Demand${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)?` (${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)})`:""}` },
-          { id:"production",label:`Production${buildOrders.filter(b=>b.status!=="completed").length>0?` (${buildOrders.filter(b=>b.status!=="completed").length})`:""}` },
-          { id:"scoreboard",label:"Scoreboard" },
-          { id:"projects",  label:"Products" },
-          { id:"alerts",    label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}` },
-          { id:"settings",  label:"Settings" },
-          { id:"admin",     label:"Admin" },
+          { id:"dashboard", label:"Dashboard",  step:null, color:null },
+          { id:"bom",       label:`Parts (${parts.length})`, step:1, color:"#0071e3" },
+          { id:"projects",  label:"Products",   step:2, color:"#5856d6" },
+          { id:"pricing",   label:`Pricing${pricedCount>0?` (${pricedCount}/${parts.length})`:""}`, step:3, color:"#ff9500" },
+          { id:"demand",    label:`Demand${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)?` (${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)})`:""}`, step:4, color:"#34c759" },
+          { id:"purchasing",label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}`, step:5, color:"#ff3b30" },
+          { id:"scan",      label:"Scan In",    step:6, color:"#00c7be" },
+          { id:"orders",    label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}`, step:null, color:null },
+          { id:"production",label:`Production${buildOrders.filter(b=>b.status!=="completed").length>0?` (${buildOrders.filter(b=>b.status!=="completed").length})`:""}`, step:null, color:null },
+          { id:"scoreboard",label:"Scoreboard", step:null, color:null },
+          { id:"suppliers", label:"Suppliers",   step:null, color:null },
+          { id:"alerts",    label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}`, step:null, color:null },
+          { id:"settings",  label:"Settings",   step:null, color:null },
+          { id:"admin",     label:"Admin",       step:null, color:null },
         ].filter(tab => tab.id !== "admin" || isAdmin).map((tab) => (
           <button key={tab.id}
             className={`nav-btn ${activeView===tab.id?"active":""}`}
-            onClick={() => setActiveView(tab.id)}>
+            onClick={() => setActiveView(tab.id)}
+            style={{ display:"inline-flex",alignItems:"center",gap:5 }}>
+            {tab.step && <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",
+              width:18,height:18,borderRadius:"50%",background:tab.color,color:"#fff",fontSize:9,fontWeight:800,
+              lineHeight:1,flexShrink:0 }}>{tab.step}</span>}
             {tab.label}
           </button>
         ))}
@@ -3209,11 +3213,9 @@ function BOMManager({ user }) {
                   { step:1, title:"Add Parts", desc:"Import a CSV or manually add parts to your Parts Library with MPNs, values, and quantities.", tab:"bom", color:"#0071e3" },
                   { step:2, title:"Create Products", desc:"Group parts into products (pedals, amps, etc). Assign each part to the product it belongs to.", tab:"projects", color:"#5856d6" },
                   { step:3, title:"Get Pricing", desc:"Refresh prices from Nexar/Octopart to pull live quotes from 900+ distributors automatically.", tab:"pricing", color:"#ff9500" },
-                  { step:4, title:"Check Demand", desc:"Connect Shopify/Zoho to see unfulfilled orders. The system calculates exactly what parts you need.", tab:"demand", color:"#34c759" },
-                  { step:5, title:"Queue Builds", desc:"On the Products page, enter a quantity and click Order to add products to the build queue.", tab:"projects", color:"#af52de" },
-                  { step:6, title:"Review & Purchase", desc:"The Purchasing tab aggregates parts across products, groups by supplier, and generates POs.", tab:"purchasing", color:"#ff3b30" },
-                  { step:7, title:"Send POs", desc:"Print, email, or CSV export purchase orders. Use the Email PO button to send directly to your rep.", tab:"purchasing", color:"#ff2d55" },
-                  { step:8, title:"Receive & Scan", desc:"When parts arrive, scan invoices to update stock quantities and close out open POs.", tab:"scan", color:"#00c7be" },
+                  { step:4, title:"Check Demand", desc:"Connect Shopify/Zoho to see unfulfilled orders. Queue builds on the Products page to generate parts demand.", tab:"demand", color:"#34c759" },
+                  { step:5, title:"Review & Purchase", desc:"The Purchasing tab aggregates parts, groups by supplier, and generates POs. Print, email, or CSV export.", tab:"purchasing", color:"#ff3b30" },
+                  { step:6, title:"Receive & Scan", desc:"When parts arrive, scan invoices to update stock quantities and close out open POs.", tab:"scan", color:"#00c7be" },
                 ].map((s, i, arr) => (
                   <div key={s.step} style={{ display:"flex",alignItems:"flex-start" }}>
                     <div onClick={()=>setActiveView(s.tab)}
@@ -10134,7 +10136,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.33 — built 2026-03-24 12:05am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.34 — built 2026-03-24 12:50am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
