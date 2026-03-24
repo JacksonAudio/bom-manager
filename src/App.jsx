@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.45
+// src/App.jsx — Jackson Audio BOM Manager v6.46
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1203,7 +1203,7 @@ function BOMManager({ user }) {
   const [selProject,  setSelProject]  = useState("all");
   const [selBrand,    setSelBrand]    = useState("all");
   const [collapsedBrands, setCollapsedBrands] = useState(new Set());
-  const [collapsedDemandSections, setCollapsedDemandSections] = useState(new Set(["direct-forecast","dealer-pos","direct-orders"]));
+  const [expandedDemandSections, setExpandedDemandSections] = useState(new Set());
   const [dismissedOrders, setDismissedOrders] = useState(() => { try { return new Set(JSON.parse(localStorage.getItem("ja_dismissed_orders") || "[]")); } catch { return new Set(); } });
   const [newProjBrand, setNewProjBrand] = useState("Jackson Audio");
   const [search,      setSearch]      = useState("");
@@ -7091,11 +7091,11 @@ function BOMManager({ user }) {
 
                   const renderOrderSection = (sectionOrders, sectionKey, title, color, count, openCount, overdueCount) => {
                     if (sectionOrders.length === 0) return null;
-                    const isCollapsed = collapsedDemandSections.has(sectionKey);
+                    const isCollapsed = !expandedDemandSections.has(sectionKey);
                     return (
                       <div key={sectionKey} className="card" style={{ marginBottom:16, overflow:"hidden" }}>
                         <div
-                          onClick={() => setCollapsedDemandSections(prev => { const s = new Set(prev); s.has(sectionKey) ? s.delete(sectionKey) : s.add(sectionKey); return s; })}
+                          onClick={() => setExpandedDemandSections(prev => { const s = new Set(prev); s.has(sectionKey) ? s.delete(sectionKey) : s.add(sectionKey); return s; })}
                           style={{
                             padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
                             background: overdueCount > 0 ? "#ff3b3008" : color+"08",
@@ -7501,12 +7501,12 @@ function BOMManager({ user }) {
                   }
                   if (demandSections.length === 0) return null;
                   return demandSections.map(section => {
-                    const isCollapsed = collapsedDemandSections.has(section.key);
+                    const isCollapsed = !expandedDemandSections.has(section.key);
                     return (
                       <div key={section.key} className="card" style={{ marginBottom:16, overflow:"hidden" }}>
                         {/* Collapsible header */}
                         <div
-                          onClick={() => setCollapsedDemandSections(prev => { const s = new Set(prev); s.has(section.key) ? s.delete(section.key) : s.add(section.key); return s; })}
+                          onClick={() => setExpandedDemandSections(prev => { const s = new Set(prev); s.has(section.key) ? s.delete(section.key) : s.add(section.key); return s; })}
                           style={{
                             padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
                             background: darkMode ? "#1c1c1e" : (section.accentColor + "0a"),
@@ -7614,11 +7614,11 @@ function BOMManager({ user }) {
                     <>
                     {/* Sales Forecast */}
                     {forecasts.length > 0 && (() => {
-                      const isForecastCollapsed = collapsedDemandSections.has("direct-forecast");
+                      const isForecastCollapsed = !expandedDemandSections.has("direct-forecast");
                       return (
                       <div className="card" style={{ marginBottom:16, overflow:"hidden" }}>
                         <div
-                          onClick={() => setCollapsedDemandSections(prev => { const s = new Set(prev); s.has("direct-forecast") ? s.delete("direct-forecast") : s.add("direct-forecast"); return s; })}
+                          onClick={() => setExpandedDemandSections(prev => { const s = new Set(prev); s.has("direct-forecast") ? s.delete("direct-forecast") : s.add("direct-forecast"); return s; })}
                           style={{
                             padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
                             background:"#0071e30a",borderBottom: isForecastCollapsed ? "none" : "2px solid #0071e333",
@@ -10634,7 +10634,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.45 — built 2026-03-24 3:50am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.46 — built 2026-03-24 3:55am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
