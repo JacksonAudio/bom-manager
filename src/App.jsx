@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.49
+// src/App.jsx — Jackson Audio BOM Manager v6.50
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -284,7 +284,7 @@ async function fetchNexarToken(clientId, clientSecret) {
 function buildNexarQuery(mpn) {
   // Escape any quotes in the MPN just in case
   const safe = mpn.replace(/"/g, '\\"');
-  return `{ supSearchMpn(q: "${safe}", limit: 3) { hits results { part { mpn manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
+  return `{ supSearchMpn(q: "${safe}", limit: 3) { hits results { part { mpn countryOfOrigin manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
 }
 
 async function fetchNexarPricing(mpn, quantity, token) {
@@ -4643,14 +4643,27 @@ function BOMManager({ user }) {
                       const tfTariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
                       filtered = filtered.filter(p => {
                         const pr = p.pricing && typeof p.pricing === "object" ? p.pricing : null;
-                        if (!pr) return true; // no pricing = unknown origin, keep it
+                        if (!pr) return true; // no pricing = can't determine, keep it
+                        // Check country of origin from pricing entries
                         let origin = "";
                         for (const [k, data] of Object.entries(pr)) {
                           if (k.startsWith("_") || !data || typeof data !== "object") continue;
                           if (data.countryOfOrigin) { origin = data.countryOfOrigin.toUpperCase(); break; }
                         }
                         if (!origin) origin = p.countryOfOrigin || "";
-                        return !origin || getTariffRate(origin, tfTariffs) === 0;
+                        // If we have an origin, filter by tariff rate
+                        if (origin) return getTariffRate(origin, tfTariffs) === 0;
+                        // No origin known — check if best supplier is from a tariffed country
+                        // (e.g., LCSC = CN, so parts sourced from LCSC likely have CN tariffs)
+                        const bestKey = p.bestSupplier || bestPriceSupplier(pr, apiKeys.preferred_supplier, apiKeys.preferred_margin);
+                        if (bestKey) {
+                          const bestData = pr[bestKey];
+                          const supplierCountry = bestData?.country || DIST_COUNTRY[bestData?.displayName] || DIST_COUNTRY[bestKey] || "";
+                          if (supplierCountry && supplierCountry !== "US") {
+                            return getTariffRate(supplierCountry, tfTariffs) === 0;
+                          }
+                        }
+                        return true; // truly unknown, keep visible
                       });
                     }
                     return filtered;
@@ -4665,17 +4678,24 @@ function BOMManager({ user }) {
                     // Sort suppliers — price at buy qty
                     const bq = buyQtys[part.id] || parseInt(part.quantity) || 1;
                     const pAtQty = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (bq >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
-                    const getCountry = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
-                    const isNonUS = (d) => { const c = getCountry(d); return c && c !== "US"; };
-                    // Tariff helpers (needed for sorting by landed price)
+                    const getDistCountry = (d) => d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[d.supplierId] || "";
+                    const isNonUS = (d) => { const c = getDistCountry(d); return c && c !== "US"; };
+                    // Tariff helpers — tariff is based on PART's manufacturing origin, not distributor location
                     let userTariffs; try { userTariffs = { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { userTariffs = { ...DEFAULT_TARIFFS }; }
-                    // Landed price = unit price + tariff for non-US suppliers
+                    // Get part's country of origin from any pricing entry
+                    let partOrigin = "";
+                    if (pricingObj) {
+                      for (const [k, data] of Object.entries(pricingObj)) {
+                        if (k.startsWith("_") || !data || typeof data !== "object") continue;
+                        if (data.countryOfOrigin) { partOrigin = data.countryOfOrigin.toUpperCase(); break; }
+                      }
+                    }
+                    if (!partOrigin) partOrigin = part.countryOfOrigin || "";
+                    const partTariffRate = partOrigin ? getTariffRate(partOrigin, userTariffs) : 0;
+                    // Landed price = unit price + tariff (same tariff applies regardless of which distributor you buy from)
                     const landedAt = (d) => {
                       const p = pAtQty(d);
-                      const c = getCountry(d);
-                      const origin = (c && c !== "US") ? c : "";
-                      const rate = getTariffRate(origin, userTariffs);
-                      return origin ? p * (1 + rate / 100) : p;
+                      return partTariffRate > 0 ? p * (1 + partTariffRate / 100) : p;
                     };
                     // If an exclusive custom supplier exists, only show that one
                     const exclusiveSupplier = hasPricing ? Object.entries(pricingObj).find(([,d]) => d.isCustom && d.exclusive) : null;
@@ -4738,17 +4758,16 @@ function BOMManager({ user }) {
                             {effectiveStatus === "done" && bestDisplayPrice ? (
                               (() => {
                                 const basePrice = filteredBestData ? pAtQty(filteredBestData) : bestDisplayPrice;
-                                const bestCtry = filteredBestData ? getCountry(filteredBestData) : "";
-                                const bestOrigin = (bestCtry && bestCtry !== "US") ? bestCtry : "";
-                                const bestTariffRate = bestOrigin ? getTariffRate(bestOrigin, userTariffs) : 0;
                                 return <>
-                                  <div style={{ fontSize:20,fontWeight:600,letterSpacing:"-0.3px",color:"#1d1d1f" }}>{"$"}{fmtPrice(bestDisplayPrice)}</div>
-                                  {bestTariffRate > 0 ? (
+                                  <div style={{ fontSize:20,fontWeight:600,letterSpacing:"-0.3px",color:partTariffRate > 0 ? "#ff9500" : "#1d1d1f" }}>{"$"}{fmtPrice(bestDisplayPrice)}</div>
+                                  {partTariffRate > 0 ? (
                                     <div style={{ fontSize:10,color:"#ff9500",marginTop:1 }}>
-                                      {"$"}{fmtPrice(basePrice)} + {bestTariffRate}% tariff = landed
+                                      {"$"}{fmtPrice(basePrice)} + {partTariffRate}% tariff ({partOrigin}) = landed
                                     </div>
+                                  ) : partOrigin ? (
+                                    <div style={{ fontSize:10,color:"#34c759",marginTop:1 }}>Landed Cost — {partOrigin} (0% tariff)</div>
                                   ) : (
-                                    <div style={{ fontSize:10,color:"#34c759",marginTop:1 }}>Landed Cost (0% tariff)</div>
+                                    <div style={{ fontSize:10,color:"#86868b",marginTop:1 }}>Origin unknown</div>
                                   )}
                                   <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>
                                     <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#34c759",marginRight:4,verticalAlign:"middle" }}></span>
@@ -10844,7 +10863,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.49 — built 2026-03-24 5:30am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.50 — built 2026-03-24 5:45am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
