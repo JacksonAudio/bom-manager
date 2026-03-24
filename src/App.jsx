@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.65
+// src/App.jsx — Jackson Audio BOM Manager v6.66
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -424,6 +424,9 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
   if (!result.countryOfOrigin && part.UnitWeightKg?.CountryOfOrigin) {
     result.countryOfOrigin = part.UnitWeightKg.CountryOfOrigin.toUpperCase();
   }
+  // Attach raw API response keys for debugging
+  result._rawKeys = Object.keys(part).join(", ");
+  result._rawDump = JSON.stringify(part).slice(0, 800);
   return result;
 }
 
@@ -2276,7 +2279,9 @@ function BOMManager({ user }) {
 
       // Debug log — displayed on page
       const dbg = [];
-      dbg.push(`[1] Mouser Search API: COO=${partData.countryOfOrigin || "NONE"}, mouserPN=${partData.mouserPartNumber || "NONE"}, url=${partData.url || "NONE"}`);
+      dbg.push(`[1] Mouser Search API: COO=${partData.countryOfOrigin || "NONE"}, mouserPN=${partData.mouserPartNumber || "NONE"}`);
+      if (partData._rawKeys) dbg.push(`[1] Raw fields: ${partData._rawKeys}`);
+      if (!partData.countryOfOrigin && partData._rawDump) dbg.push(`[1] Raw data: ${partData._rawDump}`);
 
       // If Mouser didn't return COO, try Nexar specs
       if (!partData.countryOfOrigin && nexarToken) {
@@ -2342,7 +2347,7 @@ function BOMManager({ user }) {
           if (!cartTariffDetected) dbg.push("[4] No tariff fees found in cart/options");
         } catch (e) { dbg.push(`[4] Cart API FAILED: ${e.message}`); }
       } else if (!partData.countryOfOrigin) {
-        dbg.push(`[4] Skipped Cart API — orderKey=${!!apiKeys.mouser_order_api_key}, mouserPN=${mouserPN || "NONE"}`);
+        dbg.push(`[4] Skipped Cart API — orderKey=${!!apiKeys.mouser_order_api_key} (key name: mouser_order_api_key), mouserPN=${mouserPN || "NONE"}`);
       }
 
       // Calculate tariff exposure
@@ -11352,7 +11357,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.65 — built 2026-03-24</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.66 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
