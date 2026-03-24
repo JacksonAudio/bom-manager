@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.55
+// src/App.jsx — Jackson Audio BOM Manager v6.56
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -4194,7 +4194,12 @@ function BOMManager({ user }) {
                         <img src={quickUrlResult.imagePath} alt="" style={{ width:64,height:64,objectFit:"contain",borderRadius:6,border:"1px solid #f0f0f0" }} />
                       )}
                       <div style={{ flex:1,minWidth:0 }}>
-                        <div style={{ fontSize:15,fontWeight:700,marginBottom:2 }}>{quickUrlResult.mpn}</div>
+                        <div style={{ fontSize:15,fontWeight:700,marginBottom:2 }}>
+                          {quickUrlResult.url ? (
+                            <a href={quickUrlResult.url} target="_blank" rel="noreferrer" style={{ color:"#1d1d1f",textDecoration:"none",borderBottom:"1px dashed #007aff" }}>{quickUrlResult.mpn}</a>
+                          ) : quickUrlResult.mpn}
+                          {quickUrlResult.url && <a href={quickUrlResult.url} target="_blank" rel="noreferrer" style={{ marginLeft:6,fontSize:11,color:"#007aff",fontWeight:500,textDecoration:"none" }}>View on {quickUrlResult.source || "distributor"} ↗</a>}
+                        </div>
                         <div style={{ fontSize:12,color:"#6e6e73",marginBottom:4 }}>{quickUrlResult.manufacturer}{quickUrlResult.category ? ` · ${quickUrlResult.category}` : ""}</div>
                         {quickUrlResult.description && <div style={{ fontSize:12,color:"#48484a",marginBottom:6 }}>{quickUrlResult.description}</div>}
 
@@ -11220,7 +11225,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.55 — built 2026-03-24</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.56 — built 2026-03-24</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
