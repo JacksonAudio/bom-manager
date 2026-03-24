@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.38
+// src/App.jsx — Jackson Audio BOM Manager v6.39
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -81,6 +81,8 @@ const DEFAULT_KEYS = {
   zoho_refresh_token: "",  // api-console.zoho.com — Self Client
   ti_api_key: "",          // ti.com — Texas Instruments Store API
   ti_api_secret: "",       // ti.com — Texas Instruments Store API
+  shipstation_api_key: "", // shipstation.com — Settings > Account > API Settings
+  shipstation_api_secret: "", // shipstation.com — API Secret
   admin_emails: "brad@jacksonaudio.net",
   timezone: "America/Chicago",  // Central Time default // comma-separated list of admin email addresses
 };
@@ -1208,7 +1210,7 @@ function BOMManager({ user }) {
   const [expandedPartRow, setExpandedPartRow] = useState(null);
   const [bulkField,   setBulkField]   = useState("manufacturer");
   const [bulkValue,   setBulkValue]   = useState("");
-  const [partSort,    setPartSort]    = useState({ field: "value", asc: true });
+  const [partSort,    setPartSort]    = useState({ field: "createdAt", asc: false });
   const [showResGen,  setShowResGen]  = useState(false);
   const [compSearchQuery, setCompSearchQuery] = useState("");
   const [compSearchResults, setCompSearchResults] = useState([]);
@@ -1225,7 +1227,7 @@ function BOMManager({ user }) {
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","shopify","zoho","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
+  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","shopify","zoho","shipstation","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
   const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
@@ -1247,6 +1249,7 @@ function BOMManager({ user }) {
   const [simUsOnly, setSimUsOnly] = useState(false); // simulation: US suppliers only
   const [shopifyDemand, setShopifyDemand] = useState(null); // { products, orders, syncedAt, loading, error }
   const [zohoDemand, setZohoDemand] = useState(null); // { products, orders, syncedAt, loading, error }
+  const [shipstationData, setShipstationData] = useState(null); // { shipments, totalShipments, totalUnitsShipped, syncedAt, loading, error }
   const [salesHistory, setSalesHistory] = useState(() => { try { const c = localStorage.getItem("bom_sales_history"); return c ? JSON.parse(c) : null; } catch { return null; } }); // combined historical data
   const [forecastData, setForecastData] = useState(null); // computed forecast
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -2675,6 +2678,28 @@ function BOMManager({ user }) {
     } catch (e) {
       console.error("[Zoho] sync failed:", e);
       setZohoDemand(prev => ({ ...prev, loading: false, error: e.message }));
+    }
+  };
+
+  // ── SHIPSTATION INTEGRATION (units shipped) ──
+  const syncShipStation = async () => {
+    if (!apiKeys.shipstation_api_key || !apiKeys.shipstation_api_secret) {
+      setShipstationData({ loading: false, error: "ShipStation API credentials not configured. Add them in Settings." });
+      return;
+    }
+    setShipstationData(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const q = `action=shipments&api_key=${encodeURIComponent(apiKeys.shipstation_api_key)}&api_secret=${encodeURIComponent(apiKeys.shipstation_api_secret)}&days=90`;
+      const res = await fetch(`/api/shipstation?${q}`);
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || `ShipStation API error: ${res.status}`);
+      }
+      const data = await res.json();
+      setShipstationData({ ...data, loading: false, error: null });
+    } catch (e) {
+      console.error("[ShipStation] sync failed:", e);
+      setShipstationData(prev => ({ ...prev, loading: false, error: e.message }));
     }
   };
 
@@ -4536,15 +4561,17 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "pricing" && (
           <div style={{ background:"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
-            {/* Header */}
-            <div style={{ marginBottom:28 }}>
-              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:4 }}>
+            {/* Header bubble */}
+            <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#ff9500",color:"#fff",fontSize:12,fontWeight:800 }}>3</span>
-                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",margin:0 }}>Live Pricing</h2>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:"#1d1d1f",margin:0 }}>Live Pricing</h2>
               </div>
-              <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",marginBottom:0 }}>
+              <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",margin:0 }}>
                 Live quotes from 900+ distributors worldwide, powered by Nexar/Octopart. Pricing updates ensure you're always buying at the best available rate, with price breaks calculated at your actual order quantities. This saves the company money on every build and gives purchasing full visibility into market pricing before committing to a PO.
               </p>
+            </div>
+            <div style={{ marginBottom:28 }}>
               <div style={{ display:"flex",gap:10,marginTop:14,flexWrap:"wrap",alignItems:"center" }}>
                 <div style={{ position:"relative",flex:"1 1 260px",maxWidth:400 }}>
                   <input type="text" placeholder="Search parts…" value={pricingSearch}
@@ -5183,12 +5210,12 @@ function BOMManager({ user }) {
 
           return (
           <div style={{ background:"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
-            <div style={{ marginBottom:28 }}>
-              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:4 }}>
+            <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#ff3b30",color:"#fff",fontSize:12,fontWeight:800 }}>5</span>
-                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#1d1d1f",margin:0 }}>Purchasing</h2>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:"#1d1d1f",margin:0 }}>Purchasing</h2>
               </div>
-              <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",marginBottom:0 }}>
+              <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",margin:0 }}>
                 Your checkout page for parts. The build queue aggregates every part needed across all queued products, deduplicates shared components, subtracts current stock, and groups the remaining demand by supplier. From here you generate purchase orders, email them to your reps, export CSVs, or push directly to Mouser's cart — all in one place. This eliminates manual spreadsheet work and ensures nothing falls through the cracks.
               </p>
             </div>
@@ -6075,15 +6102,17 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "projects" && !selectedProduct && (
           <div style={{ background:darkMode?"#1c1c1e":"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
-            {/* Header */}
-            <div style={{ marginBottom:28 }}>
-              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:4 }}>
+            {/* Header bubble */}
+            <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#5856d6",color:"#fff",fontSize:12,fontWeight:800 }}>2</span>
-                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f5f5f7":"#1d1d1f",margin:0 }}>Products</h2>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",margin:0 }}>Products</h2>
               </div>
-              <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",marginBottom:0 }}>
+              <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",margin:0 }}>
                 Products are the pedals, amps, and gear you build. Each product has a bill of materials — the parts required for one unit. This is where you manage what you manufacture, queue build orders, and see the true cost of each product. When it's time to order, enter a quantity and click Order to send it to the Purchasing tab.
               </p>
+            </div>
+            <div style={{ marginBottom:28 }}>
               <div style={{ display:"flex",gap:10,marginTop:14,flexWrap:"wrap",alignItems:"center" }}>
                 <input type="text" placeholder="New product name…" value={newProjName}
                   onChange={(e)=>setNewProjName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addProduct()}
@@ -6855,16 +6884,16 @@ function BOMManager({ user }) {
           }) || [];
           return (
           <div style={{ maxWidth:"100%" }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12 }}>
-              <div>
-                <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:4 }}>
-                  <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#34c759",color:"#fff",fontSize:12,fontWeight:800 }}>4</span>
-                  <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,margin:0 }}>Order Demand</h2>
-                </div>
-                <p style={{ color:"#6e6e73",fontSize:13,lineHeight:"20px" }}>
-                  This is where customer orders meet your inventory. Demand pulls unfulfilled orders from Shopify (direct-to-consumer) and Zoho Books (dealer/wholesale), then calculates exactly which parts you need and how many. Instead of guessing what to build, your team sees real demand data driving every purchasing decision — no overbuying, no missed orders.
-                </p>
+            <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
+                <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#34c759",color:"#fff",fontSize:12,fontWeight:800 }}>4</span>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:20,fontWeight:700,margin:0 }}>Order Demand</h2>
               </div>
+              <p style={{ color:"#6e6e73",fontSize:13,lineHeight:"20px",margin:0 }}>
+                This is where customer orders meet your inventory. Demand pulls unfulfilled orders from Shopify (direct-to-consumer) and Zoho Books (dealer/wholesale), then calculates exactly which parts you need and how many. Instead of guessing what to build, your team sees real demand data driving every purchasing decision — no overbuying, no missed orders.
+              </p>
+            </div>
+            <div style={{ display:"flex",justifyContent:"flex-end",marginBottom:16,flexWrap:"wrap",gap:6 }}>
               <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
                 <button className="btn-ghost btn-sm" onClick={syncShopifyOrders} disabled={shopifyDemand?.loading}
                   style={{ fontSize:11 }}>
@@ -6874,9 +6903,13 @@ function BOMManager({ user }) {
                   style={{ fontSize:11 }}>
                   {zohoDemand?.loading ? "Syncing…" : "Sync Zoho"}
                 </button>
-                {(shopifyDemand?.syncedAt || zohoDemand?.syncedAt) && (
+                <button className="btn-ghost btn-sm" onClick={syncShipStation} disabled={shipstationData?.loading}
+                  style={{ fontSize:11 }}>
+                  {shipstationData?.loading ? "Syncing…" : "Sync ShipStation"}
+                </button>
+                {(shopifyDemand?.syncedAt || zohoDemand?.syncedAt || shipstationData?.syncedAt) && (
                   <span style={{ fontSize:10,color:"#aeaeb2" }}>
-                    Last sync: {new Date(shopifyDemand?.syncedAt || zohoDemand?.syncedAt).toLocaleTimeString()}
+                    Last sync: {new Date(shopifyDemand?.syncedAt || zohoDemand?.syncedAt || shipstationData?.syncedAt).toLocaleTimeString()}
                   </span>
                 )}
                 {partsDemand.length > 0 && (
@@ -6939,6 +6972,7 @@ function BOMManager({ user }) {
                   {[
                     { label:"Direct Orders (Shopify)", value:shopifyDemand?.totalOrders || 0, color:"#0071e3" },
                     { label:"Dealer Orders (Zoho)", value:zohoDemand?.totalOrders || 0, color:"#4bc076" },
+                    { label:"Units Shipped (ShipStation)", value:shipstationData?.totalUnitsShipped || 0, color:"#00c7be" },
                     { label:"Products in Demand", value:(shopifyDemand?.products?.length || 0) + (zohoDemand?.products?.length || 0), color:"#5856d6" },
                     { label:"Parts Needed", value:partsDemand.length, color:"#ff9500" },
                     { label:"Parts Short", value:partsDemand.filter(d => d.needed > (parseInt(d.part.stockQty) || 0)).length, color:"#ff3b30" },
@@ -7374,6 +7408,63 @@ function BOMManager({ user }) {
                   );
                 })()}
               </>
+            )}
+
+            {/* ── ShipStation: Units Shipped */}
+            {shipstationData && !shipstationData?.error && shipstationData?.shipments?.length > 0 && (
+              <div className="card" style={{ marginBottom:16 }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
+                  <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700 }}>
+                    UNITS SHIPPED — SHIPSTATION ({shipstationData.dateRange?.days || 90} DAYS)
+                  </div>
+                  <span style={{ fontSize:10,color:"#aeaeb2" }}>
+                    {shipstationData.totalShipments} shipments · {shipstationData.uniqueOrders} orders · {shipstationData.totalUnitsShipped} units
+                  </span>
+                </div>
+                <div style={{ overflowX:"auto" }}>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                    <thead>
+                      <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
+                        <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>ORDER #</th>
+                        <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>ITEMS SHIPPED</th>
+                        <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>SHIPMENTS</th>
+                        <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>TRACKING</th>
+                        <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>SHIP DATE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shipstationData.shipments.slice(0, 50).map(order => (
+                        <tr key={order.orderNumber} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                          <td style={{ padding:"10px 10px",fontWeight:700,color:"#00c7be" }}>{order.orderNumber}</td>
+                          <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                            {order.totalItemsShipped}
+                          </td>
+                          <td style={{ padding:"10px 10px" }}>
+                            <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
+                              {order.shipments.map((s,i) => (
+                                <span key={i} className="badge" style={{ background:"#00c7be22",color:"#00c7be",fontSize:10 }}>
+                                  {s.carrier} · {s.items.reduce((sum,it) => sum + it.quantity, 0)} items · ${s.cost.toFixed(2)}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td style={{ padding:"10px 10px",fontSize:11,color:"#3a3f51",fontFamily:"monospace" }}>
+                            {order.shipments[0]?.trackingNumber || "—"}
+                          </td>
+                          <td style={{ padding:"10px 10px",fontSize:11,color:"#86868b" }}>
+                            {order.shipments[0]?.shipDate ? new Date(order.shipments[0].shipDate).toLocaleDateString() : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {shipstationData.shipments.length > 50 && (
+                  <div style={{ textAlign:"center",padding:"8px",fontSize:11,color:"#86868b" }}>
+                    Showing 50 of {shipstationData.shipments.length} orders
+                  </div>
+                )}
+              </div>
             )}
 
             {/* ══════════════════════════════════════
@@ -9285,6 +9376,47 @@ function BOMManager({ user }) {
               </div>}
             </div>
 
+            {/* ── ShipStation */}
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shipstation") ? s.delete("shipstation") : s.add("shipstation"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("shipstation") ? "▶" : "▼"}</span>
+                  ShipStation (Fulfillment)
+                </div>
+              </div>
+              {!collapsedSettings.has("shipstation") && <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  Track units shipped via ShipStation. Go to Settings → Account → API Settings in your ShipStation account to find these credentials.
+                </div>
+                <div style={{ display:"flex",gap:12,flexWrap:"wrap",marginBottom:8 }}>
+                  <div style={{ flex:1,minWidth:200 }}>
+                    <label style={{ fontSize:11,color:"#6e6e73",marginBottom:2,display:"block" }}>API Key</label>
+                    <input value={apiKeys.shipstation_api_key||""} onChange={e => setApiKeys(k=>({...k,shipstation_api_key:e.target.value}))}
+                      style={{ width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #d1d1d6",fontSize:12,fontFamily:"monospace" }} placeholder="Your ShipStation API Key" />
+                  </div>
+                  <div style={{ flex:1,minWidth:200 }}>
+                    <label style={{ fontSize:11,color:"#6e6e73",marginBottom:2,display:"block" }}>API Secret</label>
+                    <input type="password" value={apiKeys.shipstation_api_secret||""} onChange={e => setApiKeys(k=>({...k,shipstation_api_secret:e.target.value}))}
+                      style={{ width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #d1d1d6",fontSize:12,fontFamily:"monospace" }} placeholder="Your ShipStation API Secret" />
+                  </div>
+                </div>
+                <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+                  {sectionSaveBtn("shipstation", "ShipStation")}
+                  <button className="btn-ghost btn-sm" onClick={syncShipStation} disabled={shipstationData?.loading}
+                    style={{ fontSize:11 }}>
+                    {shipstationData?.loading ? "Syncing…" : "Test Connection"}
+                  </button>
+                  {shipstationData?.syncedAt && !shipstationData?.error && (
+                    <span style={{ fontSize:10,color:"#34c759" }}>Connected — {shipstationData.totalShipments} shipments found</span>
+                  )}
+                  {shipstationData?.error && (
+                    <span style={{ fontSize:10,color:"#ff3b30" }}>{shipstationData.error}</span>
+                  )}
+                </div>
+              </div>}
+            </div>
+
             {/* ── Import Tariff Rates */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
@@ -10180,7 +10312,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.38 — built 2026-03-24 1:20am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.39 — built 2026-03-24 2:15am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
