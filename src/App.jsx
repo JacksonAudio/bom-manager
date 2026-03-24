@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.44
+// src/App.jsx — Jackson Audio BOM Manager v6.45
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1203,7 +1203,8 @@ function BOMManager({ user }) {
   const [selProject,  setSelProject]  = useState("all");
   const [selBrand,    setSelBrand]    = useState("all");
   const [collapsedBrands, setCollapsedBrands] = useState(new Set());
-  const [collapsedDemandSections, setCollapsedDemandSections] = useState(new Set(["direct-forecast"]));
+  const [collapsedDemandSections, setCollapsedDemandSections] = useState(new Set(["direct-forecast","dealer-pos","direct-orders"]));
+  const [dismissedOrders, setDismissedOrders] = useState(() => { try { return new Set(JSON.parse(localStorage.getItem("ja_dismissed_orders") || "[]")); } catch { return new Set(); } });
   const [newProjBrand, setNewProjBrand] = useState("Jackson Audio");
   const [search,      setSearch]      = useState("");
   const [pricingSearch, setPricingSearch] = useState("");
@@ -6996,6 +6997,10 @@ function BOMManager({ user }) {
                 {(zohoDemand?.orders?.length > 0 || shopifyDemand?.orders?.length > 0) && (() => {
                   const __skipWords = ["shipping","gift card","tip","gratuity","donation","insurance","handling","gift wrap","express shipping"];
                   const __isNonProduct = (title) => { const t = (title||"").toLowerCase(); return __skipWords.some(w => t.includes(w)); };
+                  const dismissOrder = (id) => {
+                    setDismissedOrders(prev => { const s = new Set(prev); s.add(id); localStorage.setItem("ja_dismissed_orders", JSON.stringify([...s])); return s; });
+                  };
+                  const undismissAll = () => { setDismissedOrders(new Set()); localStorage.removeItem("ja_dismissed_orders"); };
                   const directGoalDays = parseInt(apiKeys.direct_ship_goal) || 1;
                   const dealerGoalDays = parseInt(apiKeys.dealer_ship_goal) || 14;
                   const now = new Date();
@@ -7015,8 +7020,8 @@ function BOMManager({ user }) {
                     return { label: `${daysLeft}d left`, color: "#86868b", urgent: false, dueDate };
                   };
 
-                  // Process Zoho (Dealer) orders
-                  const dealerOrders = (zohoDemand?.orders || []).filter(o => o.lineItems?.length > 0).map(order => {
+                  // Process Zoho (Dealer) orders — only open, not dismissed
+                  const dealerOrders = (zohoDemand?.orders || []).filter(o => o.lineItems?.length > 0 && !dismissedOrders.has(o.id)).map(order => {
                     const totalQty = order.lineItems.reduce((s, li) => s + (li.quantity || 0), 0);
                     const totalFulfilled = order.lineItems.reduce((s, li) => s + (li.quantityShipped || 0), 0);
                     const pctComplete = totalQty > 0 ? Math.round((totalFulfilled / totalQty) * 100) : 0;
@@ -7048,8 +7053,9 @@ function BOMManager({ user }) {
                     return base;
                   });
 
-                  // Process Shopify (Direct) orders
+                  // Process Shopify (Direct) orders — only open, not dismissed
                   const directOrders = (shopifyDemand?.orders || []).filter(o => {
+                    if (dismissedOrders.has(o.id)) return false;
                     const items = (o.lineItems || []).filter(li => !__isNonProduct(li.title));
                     return items.length > 0 && o.fulfillmentStatus !== "fulfilled";
                   }).map(order => {
@@ -7193,24 +7199,30 @@ function BOMManager({ user }) {
                                       )}
                                     </td>
                                     <td style={{ padding:"10px 10px",textAlign:"center" }}>
-                                      {po.pctComplete < 100 && (
-                                        <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
-                                          onClick={() => {
-                                            const newQueue = [];
-                                            for (const li of po.lineItems) {
-                                              const remaining = li.quantity - li.fulfilled;
-                                              if (remaining <= 0) continue;
-                                              const bomProduct = products.find(p => li.title.toLowerCase().includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(li.title.toLowerCase()));
-                                              if (bomProduct && !buildQueue.find(q => q.productId === bomProduct.id)) {
-                                                newQueue.push({ productId: bomProduct.id, name: bomProduct.name, qty: remaining, color: bomProduct.color, forOrder: po.orderName });
+                                      <div style={{ display:"flex",gap:4,justifyContent:"center",flexWrap:"wrap" }}>
+                                        {po.pctComplete < 100 && (
+                                          <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
+                                            onClick={() => {
+                                              const newQueue = [];
+                                              for (const li of po.lineItems) {
+                                                const remaining = li.quantity - li.fulfilled;
+                                                if (remaining <= 0) continue;
+                                                const bomProduct = products.find(p => li.title.toLowerCase().includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(li.title.toLowerCase()));
+                                                if (bomProduct && !buildQueue.find(q => q.productId === bomProduct.id)) {
+                                                  newQueue.push({ productId: bomProduct.id, name: bomProduct.name, qty: remaining, color: bomProduct.color, forOrder: po.orderName });
+                                                }
                                               }
-                                            }
-                                            if (newQueue.length > 0) { setBuildQueue(prev => [...prev, ...newQueue]); setActiveView("purchasing"); }
-                                            else { alert("No matching BOM products found for this order's line items. Map them in Products first."); }
-                                          }}>
-                                          Build for Order
+                                              if (newQueue.length > 0) { setBuildQueue(prev => [...prev, ...newQueue]); setActiveView("purchasing"); }
+                                              else { alert("No matching BOM products found. Map them in Products first."); }
+                                            }}>
+                                            Build
+                                          </button>
+                                        )}
+                                        <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap",color:"#86868b" }}
+                                          onClick={() => dismissOrder(po.id)} title="Hide this order from the tracker">
+                                          Dismiss
                                         </button>
-                                      )}
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}
@@ -7239,6 +7251,13 @@ function BOMManager({ user }) {
                     {renderOrderSection(sortOrders(directOrders), "direct-orders", "Direct Order Tracker", "#0071e3",
                       directOrders.length, directOrders.filter(o => o.pctComplete < 100).length,
                       directOrders.filter(o => o.due.urgent && o.pctComplete < 100).length
+                    )}
+                    {dismissedOrders.size > 0 && (
+                      <div style={{ textAlign:"right",marginBottom:12 }}>
+                        <button className="btn-ghost" style={{ fontSize:10,color:"#86868b" }} onClick={undismissAll}>
+                          {dismissedOrders.size} dismissed order{dismissedOrders.size !== 1 ? "s" : ""} hidden — Restore all
+                        </button>
+                      </div>
                     )}
                   </>);
                 })()}
@@ -10615,7 +10634,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.44 — built 2026-03-24 3:30am</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.45 — built 2026-03-24 3:50am</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
