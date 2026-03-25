@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.91
+// src/App.jsx — Jackson Audio BOM Manager v6.92
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -3059,14 +3059,16 @@ function BOMManager({ user }) {
   };
 
   // ── SHIPSTATION INTEGRATION (units shipped) ──
-  const syncShipStation = async () => {
+  const [ssLookbackDays, setSsLookbackDays] = useState(730); // default 2 years to capture all history
+  const syncShipStation = async (days) => {
+    const lookback = days || ssLookbackDays;
     if (!apiKeys.shipstation_api_key || !apiKeys.shipstation_api_secret) {
       setShipstationData({ loading: false, error: "ShipStation API credentials not configured. Add them in Settings." });
       return;
     }
     setShipstationData(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const q = `action=shipments&api_key=${encodeURIComponent(apiKeys.shipstation_api_key)}&api_secret=${encodeURIComponent(apiKeys.shipstation_api_secret)}&days=90`;
+      const q = `action=shipments&api_key=${encodeURIComponent(apiKeys.shipstation_api_key)}&api_secret=${encodeURIComponent(apiKeys.shipstation_api_secret)}&days=${lookback}`;
       const res = await fetch(`/api/shipstation?${q}`);
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
@@ -8276,7 +8278,16 @@ function BOMManager({ user }) {
                                           </div>
                                           {po.trackingNumbers?.length > 0 && (
                                             <div style={{ fontSize:10,fontFamily:"monospace",color:"#3a3f51" }}>
-                                              {po.trackingNumbers.map((tn,i) => <div key={i}>{tn}</div>)}
+                                              {po.trackingNumbers.map((tn,i) => (
+                                                <div key={i}>
+                                                  <a href={getTrackingUrl(tn, po.carrier)} target="_blank" rel="noopener noreferrer"
+                                                    style={{ color:"#0071e3",textDecoration:"none" }}
+                                                    onMouseOver={e => e.target.style.textDecoration="underline"}
+                                                    onMouseOut={e => e.target.style.textDecoration="none"}>
+                                                    {tn}
+                                                  </a>
+                                                </div>
+                                              ))}
                                             </div>
                                           )}
                                         </div>
@@ -8839,81 +8850,148 @@ function BOMManager({ user }) {
                   <span style={{ fontSize:11,color:"#86868b",transform:expandedDemandSections.has("shipstation-shipped")?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s" }}>&#9660;</span>
                 </div>
                 {expandedDemandSections.has("shipstation-shipped") && (() => {
-                  // Build weekly lead-time trend data for chart
+                  // Build monthly lead-time trend data for chart
                   const withLead = shipstationData.shipments.filter(o => o.leadTimeDays != null && o.shipments[0]?.shipDate);
-                  const weeklyBuckets = {};
+                  const monthlyBuckets = {};
                   for (const o of withLead) {
                     const d = new Date(o.shipments[0].shipDate);
-                    // ISO week start (Monday)
-                    const day = d.getDay();
-                    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-                    const weekStart = new Date(d.setDate(diff)).toISOString().slice(0, 10);
-                    if (!weeklyBuckets[weekStart]) weeklyBuckets[weekStart] = [];
-                    weeklyBuckets[weekStart].push(o.leadTimeDays);
+                    const monthKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+                    if (!monthlyBuckets[monthKey]) monthlyBuckets[monthKey] = [];
+                    monthlyBuckets[monthKey].push(o.leadTimeDays);
                   }
-                  const weekKeys = Object.keys(weeklyBuckets).sort();
-                  const weeklyAvgs = weekKeys.map(k => ({
-                    week: k,
-                    avg: weeklyBuckets[k].reduce((s, v) => s + v, 0) / weeklyBuckets[k].length,
-                    count: weeklyBuckets[k].length,
+                  const monthKeys = Object.keys(monthlyBuckets).sort();
+                  const monthlyAvgs = monthKeys.map(k => ({
+                    month: k,
+                    avg: monthlyBuckets[k].reduce((s, v) => s + v, 0) / monthlyBuckets[k].length,
+                    count: monthlyBuckets[k].length,
+                    sameDay: monthlyBuckets[k].filter(d => d === 0).length,
+                    oneDay: monthlyBuckets[k].filter(d => d <= 1).length,
                   }));
-                  const maxAvg = Math.max(...weeklyAvgs.map(w => w.avg), 1);
-                  const chartH = 120;
+                  const maxAvg = Math.max(...monthlyAvgs.map(w => w.avg), 1);
+                  const chartH = 150;
+
+                  // Yearly summary
+                  const yearlyBuckets = {};
+                  for (const o of withLead) {
+                    const y = new Date(o.shipments[0].shipDate).getFullYear();
+                    if (!yearlyBuckets[y]) yearlyBuckets[y] = [];
+                    yearlyBuckets[y].push(o.leadTimeDays);
+                  }
+                  const yearSummary = Object.entries(yearlyBuckets).sort(([a],[b]) => a-b).map(([year, vals]) => ({
+                    year, avg: (vals.reduce((s,v)=>s+v,0)/vals.length), count: vals.length,
+                    sameDayPct: Math.round((vals.filter(d=>d===0).length / vals.length) * 100),
+                  }));
+
+                  // Bar width for scrollable chart
+                  const barWidth = 48;
+                  const chartWidth = Math.max(monthlyAvgs.length * (barWidth + 4), 300);
 
                   return (
                   <div>
-                    {/* Lead Time Trend Chart */}
-                    {weeklyAvgs.length > 1 && (
+                    {/* Year-over-year summary cards */}
+                    {yearSummary.length > 0 && (
                       <div style={{ padding:"16px 16px 8px",borderBottom:"1px solid #f0f0f2" }}>
-                        <div style={{ fontSize:10,color:"#6e6e73",fontWeight:600,letterSpacing:"0.05em",marginBottom:8 }}>
-                          ORDER-TO-SHIP TIME — WEEKLY AVERAGE (DAYS)
-                          {shipstationData.avgLeadTimeDays != null && (
-                            <span style={{ marginLeft:12,color:"#00c7be",fontWeight:700 }}>
-                              Overall avg: {shipstationData.avgLeadTimeDays} days
-                            </span>
-                          )}
+                        <div style={{ fontSize:10,color:"#6e6e73",fontWeight:600,letterSpacing:"0.05em",marginBottom:10 }}>
+                          FULFILLMENT PERFORMANCE BY YEAR
                         </div>
-                        <div style={{ display:"flex",alignItems:"flex-end",gap:2,height:chartH,padding:"0 4px" }}>
-                          {weeklyAvgs.map((w, i) => {
-                            const barH = Math.max(4, (w.avg / maxAvg) * (chartH - 20));
-                            const color = w.avg <= 1 ? "#34c759" : w.avg <= 3 ? "#ff9500" : "#ff3b30";
-                            return (
-                              <div key={i} style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%" }}
-                                title={`Week of ${w.week}: avg ${w.avg.toFixed(1)}d (${w.count} orders)`}>
-                                <div style={{ fontSize:8,color:"#6e6e73",marginBottom:2 }}>{w.avg.toFixed(1)}</div>
-                                <div style={{ width:"100%",maxWidth:32,height:barH,background:color,borderRadius:"4px 4px 0 0",transition:"height 0.3s",minWidth:6 }} />
-                                <div style={{ fontSize:7,color:"#aeaeb2",marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:40 }}>
-                                  {new Date(w.week).toLocaleDateString("en-US",{month:"short",day:"numeric"})}
+                        <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
+                          {yearSummary.map(ys => (
+                            <div key={ys.year} style={{ background:"#f5f5f7",borderRadius:10,padding:"12px 16px",minWidth:130,flex:1 }}>
+                              <div style={{ fontSize:18,fontWeight:800,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{ys.year}</div>
+                              <div style={{ display:"flex",gap:12,marginTop:6 }}>
+                                <div>
+                                  <div style={{ fontSize:20,fontWeight:800,color: ys.avg <= 1 ? "#34c759" : ys.avg <= 3 ? "#ff9500" : "#ff3b30",
+                                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                    {ys.avg.toFixed(1)}d
+                                  </div>
+                                  <div style={{ fontSize:9,color:"#86868b" }}>avg lead time</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize:20,fontWeight:800,color:"#00c7be",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                    {ys.count}
+                                  </div>
+                                  <div style={{ fontSize:9,color:"#86868b" }}>orders</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize:20,fontWeight:800,color:"#0071e3",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                    {ys.sameDayPct}%
+                                  </div>
+                                  <div style={{ fontSize:9,color:"#86868b" }}>same-day</div>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                        <div style={{ display:"flex",justifyContent:"center",gap:16,marginTop:8,fontSize:9,color:"#86868b" }}>
-                          <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#34c759",marginRight:4 }} />Same day / next day</span>
-                          <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#ff9500",marginRight:4 }} />2–3 days</span>
-                          <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#ff3b30",marginRight:4 }} />4+ days</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
 
-                    {/* Table */}
-                    <div style={{ overflowX:"auto" }}>
+                    {/* Monthly Lead Time Trend Chart — scrollable */}
+                    {monthlyAvgs.length > 1 && (
+                      <div style={{ padding:"16px 16px 8px",borderBottom:"1px solid #f0f0f2" }}>
+                        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
+                          <div style={{ fontSize:10,color:"#6e6e73",fontWeight:600,letterSpacing:"0.05em" }}>
+                            ORDER-TO-SHIP TIME — MONTHLY AVERAGE (DAYS)
+                            {shipstationData.avgLeadTimeDays != null && (
+                              <span style={{ marginLeft:12,color:"#00c7be",fontWeight:700 }}>
+                                Overall avg: {shipstationData.avgLeadTimeDays}d across {withLead.length} orders
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize:9,color:"#aeaeb2" }}>← scroll for more →</div>
+                        </div>
+                        <div style={{ overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4 }}>
+                          <div style={{ display:"flex",alignItems:"flex-end",gap:4,height:chartH,minWidth:chartWidth }}>
+                            {monthlyAvgs.map((m, i) => {
+                              const barH = Math.max(6, (m.avg / maxAvg) * (chartH - 30));
+                              const color = m.avg <= 1 ? "#34c759" : m.avg <= 3 ? "#ff9500" : "#ff3b30";
+                              const [yr, mo] = m.month.split("-");
+                              const monthLabel = new Date(parseInt(yr), parseInt(mo)-1).toLocaleDateString("en-US",{month:"short"});
+                              const showYear = i === 0 || mo === "01";
+                              return (
+                                <div key={i} style={{ width:barWidth,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%" }}
+                                  title={`${monthLabel} ${yr}: avg ${m.avg.toFixed(1)}d (${m.count} orders)`}>
+                                  <div style={{ fontSize:9,color:"#3a3f51",fontWeight:700,marginBottom:2 }}>{m.avg.toFixed(1)}</div>
+                                  <div style={{ width:"80%",height:barH,background:color,borderRadius:"4px 4px 0 0",transition:"height 0.3s",position:"relative" }}>
+                                    <div style={{ position:"absolute",bottom:4,left:"50%",transform:"translateX(-50%)",fontSize:8,color:"#fff",fontWeight:700 }}>
+                                      {m.count}
+                                    </div>
+                                  </div>
+                                  <div style={{ fontSize:9,color:"#6e6e73",marginTop:3,fontWeight:500 }}>{monthLabel}</div>
+                                  {showYear && <div style={{ fontSize:8,color:"#aeaeb2",fontWeight:700 }}>{yr}</div>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div style={{ display:"flex",justifyContent:"center",gap:16,marginTop:10,fontSize:9,color:"#86868b" }}>
+                          <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#34c759",marginRight:4 }} />0–1 day avg</span>
+                          <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#ff9500",marginRight:4 }} />2–3 day avg</span>
+                          <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#ff3b30",marginRight:4 }} />4+ day avg</span>
+                          <span style={{ fontSize:8 }}>Number inside bar = order count</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Table — all orders */}
+                    <div style={{ overflowX:"auto",maxHeight:500,overflowY:"auto" }}>
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
-                        <thead>
+                        <thead style={{ position:"sticky",top:0,background:"#fff",zIndex:1 }}>
                           <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
                             <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>ORDER #</th>
                             <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>ORDERED</th>
                             <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>SHIPPED</th>
                             <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center" }}>LEAD TIME</th>
                             <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>ITEMS</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>CARRIER</th>
                             <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>TRACKING</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {shipstationData.shipments.slice(0, 50).map(order => {
+                          {shipstationData.shipments.map(order => {
                             const lt = order.leadTimeDays;
                             const ltColor = lt == null ? "#86868b" : lt <= 1 ? "#34c759" : lt <= 3 ? "#ff9500" : "#ff3b30";
+                            const tn = order.shipments[0]?.trackingNumber || "";
+                            const carrier = order.shipments[0]?.carrier || "";
                             return (
                               <tr key={order.orderNumber} style={{ borderBottom:"1px solid #f0f0f2" }}>
                                 <td style={{ padding:"10px 10px",fontWeight:700,color:"#00c7be" }}>{order.orderNumber}</td>
@@ -8933,19 +9011,27 @@ function BOMManager({ user }) {
                                 <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
                                   {order.totalItemsShipped}
                                 </td>
-                                <td style={{ padding:"10px 10px",fontSize:11,color:"#3a3f51",fontFamily:"monospace" }}>
-                                  {order.shipments[0]?.trackingNumber || "—"}
+                                <td style={{ padding:"10px 10px",fontSize:10,color:"#86868b",textTransform:"uppercase" }}>
+                                  {carrier || "—"}
+                                </td>
+                                <td style={{ padding:"10px 10px",fontSize:11 }}>
+                                  {tn ? (
+                                    <a href={getTrackingUrl(tn, carrier)} target="_blank" rel="noopener noreferrer"
+                                      style={{ color:"#0071e3",fontFamily:"monospace",textDecoration:"none",fontWeight:500 }}
+                                      onMouseOver={e => e.target.style.textDecoration="underline"}
+                                      onMouseOut={e => e.target.style.textDecoration="none"}>
+                                      {tn}
+                                    </a>
+                                  ) : "—"}
                                 </td>
                               </tr>
                             );
                           })}
                         </tbody>
                       </table>
-                      {shipstationData.shipments.length > 50 && (
-                        <div style={{ textAlign:"center",padding:"8px",fontSize:11,color:"#86868b" }}>
-                          Showing 50 of {shipstationData.shipments.length} orders
-                        </div>
-                      )}
+                    </div>
+                    <div style={{ padding:"8px 16px",fontSize:10,color:"#aeaeb2",borderTop:"1px solid #f0f0f2" }}>
+                      {shipstationData.shipments.length} orders total · {withLead.length} with lead time data
                     </div>
                   </div>
                   );
@@ -11997,7 +12083,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.91 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.92 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
