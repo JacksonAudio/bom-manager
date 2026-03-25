@@ -129,6 +129,14 @@ async function handleOrderHistory(res, body) {
     headers: { "Accept": "application/json" },
   });
 
+  // Check for HTML response (wrong API key or invalid endpoint)
+  const contentType = histRes.headers.get("content-type") || "";
+  if (contentType.includes("text/html") || !contentType.includes("json")) {
+    return res.status(403).json({
+      error: "Mouser returned HTML instead of JSON — your Search API key won't work for Order History. You need a separate Order API key from mouser.com/api-hub (under 'Order API').",
+    });
+  }
+
   if (!histRes.ok) {
     const errText = await histRes.text().catch(() => "");
     return res.status(histRes.status).json({ error: `Mouser History API error: ${histRes.status}`, detail: errText.slice(0, 500) });
