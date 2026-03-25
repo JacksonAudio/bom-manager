@@ -247,7 +247,7 @@ async function handleShipments(req, res, baseUrl, authHeader, days) {
   const withLead = uniqueOrders.filter(o => o.leadTimeDays != null);
   const avgLeadTime = withLead.length > 0 ? (withLead.reduce((s, o) => s + o.leadTimeDays, 0) / withLead.length) : null;
 
-  const startDate = new Date(now.getTime() - lookback * 86400000).toISOString().slice(0, 10);
+  // no longer used for filtering, but compute for display
   return res.status(200).json({
     shipments: uniqueOrders,
     totalShipments,
