@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.98
+// src/App.jsx — Jackson Audio BOM Manager v6.99
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1254,6 +1254,7 @@ function BOMManager({ user }) {
   };
   const [selProject,  setSelProject]  = useState("all");
   const [selBrand,    setSelBrand]    = useState("all");
+  const [prodSearch,  setProdSearch]  = useState("");
   const [collapsedBrands, setCollapsedBrands] = useState(new Set());
   const [expandedDemandSections, setExpandedDemandSections] = useState(new Set());
   const [dismissedOrders, setDismissedOrders] = useState(() => { try { return new Set(JSON.parse(localStorage.getItem("ja_dismissed_orders") || "[]")); } catch { return new Set(); } });
@@ -7487,7 +7488,9 @@ function BOMManager({ user }) {
                   style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff" }}>
                   + New Product
                 </button>
-                <span style={{ marginLeft:"auto",fontSize:12,color:"#86868b" }}>Filter:</span>
+                <input type="text" placeholder="Search products..." value={prodSearch}
+                  onChange={e => setProdSearch(e.target.value)}
+                  style={{ marginLeft:"auto",padding:"6px 12px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7",width:180 }} />
                 <select value={selBrand||"all"} onChange={e=>setSelBrand(e.target.value)}
                   style={{ padding:"5px 10px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7" }}>
                   <option value="all">All Brands</option>
@@ -7506,7 +7509,11 @@ function BOMManager({ user }) {
 
             {/* Product list rows grouped by brand */}
             {(() => {
-              const filtered = productCosts.filter(p => selBrand === "all" || (p.brand || "Jackson Audio") === selBrand);
+              const filtered = productCosts.filter(p => {
+                if (selBrand !== "all" && (p.brand || "Jackson Audio") !== selBrand) return false;
+                if (prodSearch && !p.name.toLowerCase().includes(prodSearch.toLowerCase())) return false;
+                return true;
+              });
               // Sort: Jackson Audio first, then Fulltone USA, alphabetical within each
               const brandOrder = { "Jackson Audio": 0, "Fulltone USA": 1 };
               const sorted = [...filtered].sort((a, b) => {
@@ -7526,7 +7533,7 @@ function BOMManager({ user }) {
                     fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",
                     borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),background:darkMode?"#1c1c1e":"#fafafa" }}>
                     <div></div><div>Product</div><div>Brand</div><div style={{textAlign:"right"}}>Parts</div>
-                    <div style={{textAlign:"right"}}>BOM Cost</div><div style={{textAlign:"right"}}>Build</div><div>Queue</div><div></div>
+                    <div style={{textAlign:"right"}}>BOM Cost</div><div style={{textAlign:"right"}}>Build Qty</div><div></div><div></div>
                   </div>
                   {brandKeys.map(brand => (
                     <div key={brand}>
@@ -7569,10 +7576,32 @@ function BOMManager({ user }) {
                           </div>
                           <div style={{ fontSize:12,color:"#86868b",textAlign:"right" }}>{prod.partCount}</div>
                           <div style={{ fontSize:14,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",textAlign:"right" }}>${fmtDollar(prod.total)}</div>
-                          <div style={{ fontSize:11,color:"#86868b",textAlign:"right" }}>{prod.buildMinutes ? (prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h${prod.buildMinutes%60?` ${prod.buildMinutes%60}m`:""}`) : "—"}</div>
+                          <div onClick={e => e.stopPropagation()} style={{ textAlign:"right" }}>
+                            {buildQueue.find(q=>q.productId===prod.id) ? (
+                              <input type="number" min="0" value={buildQueue.find(q=>q.productId===prod.id).qty}
+                                onChange={e => {
+                                  const val = parseInt(e.target.value) || 0;
+                                  if (val <= 0) setBuildQueue(prev => prev.filter(q => q.productId !== prod.id));
+                                  else setBuildQueue(prev => prev.map(q => q.productId === prod.id ? { ...q, qty: val } : q));
+                                }}
+                                style={{ width:55,padding:"4px 6px",borderRadius:6,border:"2px solid #34c759",fontSize:12,fontWeight:700,textAlign:"center",color:"#34c759",background:"rgba(52,199,89,0.06)" }} />
+                            ) : (
+                              <input type="number" min="0" placeholder="—"
+                                onFocus={e => e.target.style.border="2px solid #0071e3"}
+                                onBlur={e => { e.target.style.border="1px solid #d2d2d7"; }}
+                                onChange={e => {
+                                  const val = parseInt(e.target.value) || 0;
+                                  if (val > 0) setBuildQueue(prev => [...prev, { productId: prod.id, name: prod.name, qty: val, color: prod.color }]);
+                                }}
+                                style={{ width:55,padding:"4px 6px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,textAlign:"center",color:"#86868b" }} />
+                            )}
+                          </div>
                           <div>{buildQueue.find(q=>q.productId===prod.id)
-                            ? <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>{buildQueue.find(q=>q.productId===prod.id).qty}</span>
-                            : <span style={{ fontSize:11,color:"#aeaeb2" }}>—</span>}</div>
+                            ? <button onClick={e => { e.stopPropagation(); setActiveView("purchasing"); }}
+                                style={{ fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:4,background:"#34c759",color:"#fff",border:"none",cursor:"pointer" }}>
+                                Go →
+                              </button>
+                            : null}</div>
                           <button title="Duplicate product"
                             onClick={async (e) => {
                               e.stopPropagation();
@@ -12388,7 +12417,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.98 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.99 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
