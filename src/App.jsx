@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.88
+// src/App.jsx — Jackson Audio BOM Manager v6.90
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1316,6 +1316,8 @@ function BOMManager({ user }) {
   const [shopifyDemand, setShopifyDemand] = useState(null); // { products, orders, syncedAt, loading, error }
   const [zohoDemand, setZohoDemand] = useState(null); // { products, orders, syncedAt, loading, error }
   const [shipstationData, setShipstationData] = useState(null); // { shipments, totalShipments, totalUnitsShipped, syncedAt, loading, error }
+  const [ssCarriers, setSsCarriers] = useState(null); // [{ code, name, services }]
+  const [shipModal, setShipModal] = useState(null); // { order, step, carriers, services, rates, form, creating, result, error }
   const [salesHistory, setSalesHistory] = useState(() => { try { const c = localStorage.getItem("bom_sales_history"); return c ? JSON.parse(c) : null; } catch { return null; } }); // combined historical data
   const [forecastData, setForecastData] = useState(null); // computed forecast
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -3075,6 +3077,167 @@ function BOMManager({ user }) {
     } catch (e) {
       console.error("[ShipStation] sync failed:", e);
       setShipstationData(prev => ({ ...prev, loading: false, error: e.message }));
+    }
+  };
+
+  // ── SHIP IT — Create shipping label via ShipStation ──
+  const ssApiParams = () => `api_key=${encodeURIComponent(apiKeys.shipstation_api_key)}&api_secret=${encodeURIComponent(apiKeys.shipstation_api_secret)}`;
+
+  const openShipModal = async (order) => {
+    if (!apiKeys.shipstation_api_key || !apiKeys.shipstation_api_secret) {
+      alert("Add ShipStation API credentials in Settings first.");
+      return;
+    }
+    setShipModal({
+      order, step: "loading", carriers: [], services: [], rates: [],
+      form: { carrierCode: "", serviceCode: "", weightOz: 16, length: "", width: "", height: "" },
+      creating: false, result: null, error: null,
+    });
+
+    try {
+      // Fetch carriers
+      const cRes = await fetch(`/api/shipstation?action=carriers&${ssApiParams()}`);
+      if (!cRes.ok) throw new Error("Failed to load carriers");
+      const cData = await cRes.json();
+      const carriers = (cData.carriers || []).filter(c => c.primary || c.name);
+      const defaultCarrier = carriers.find(c => c.code === "stamps_com" || c.code === "usps") || carriers[0];
+
+      // Fetch services for default carrier
+      let services = [];
+      if (defaultCarrier) {
+        const sRes = await fetch(`/api/shipstation?action=services&carrierCode=${encodeURIComponent(defaultCarrier.code)}&${ssApiParams()}`);
+        if (sRes.ok) {
+          const sData = await sRes.json();
+          services = sData.services || [];
+        }
+      }
+
+      setShipModal(prev => ({
+        ...prev, step: "form", carriers, services,
+        form: { ...prev.form, carrierCode: defaultCarrier?.code || "", serviceCode: services[0]?.code || "" },
+      }));
+    } catch (e) {
+      setShipModal(prev => ({ ...prev, step: "error", error: e.message }));
+    }
+  };
+
+  const shipModalSelectCarrier = async (carrierCode) => {
+    setShipModal(prev => ({ ...prev, form: { ...prev.form, carrierCode, serviceCode: "" }, services: [] }));
+    try {
+      const sRes = await fetch(`/api/shipstation?action=services&carrierCode=${encodeURIComponent(carrierCode)}&${ssApiParams()}`);
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        const services = sData.services || [];
+        setShipModal(prev => ({ ...prev, services, form: { ...prev.form, serviceCode: services[0]?.code || "" } }));
+      }
+    } catch {}
+  };
+
+  const shipModalGetRates = async () => {
+    const m = shipModal;
+    if (!m) return;
+    setShipModal(prev => ({ ...prev, step: "rates-loading" }));
+    try {
+      const companyAddr = apiKeys.company_address || "";
+      const fromZip = companyAddr.match(/\b(\d{5})\b/)?.[1] || "73034";
+      // Try to get toPostalCode from order
+      const toZip = m.order.shipTo?.postalCode || m.order.postalCode || "";
+      const toCountry = m.order.shipTo?.country || m.order.country || "US";
+      const toState = m.order.shipTo?.state || m.order.state || "";
+
+      const rRes = await fetch(`/api/shipstation?${ssApiParams()}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "rates",
+          api_key: apiKeys.shipstation_api_key, api_secret: apiKeys.shipstation_api_secret,
+          carrierCode: m.form.carrierCode,
+          fromPostalCode: fromZip,
+          toPostalCode: toZip || fromZip,
+          toCountry, toState,
+          weight: { value: parseInt(m.form.weightOz) || 16, units: "ounces" },
+          dimensions: (m.form.length && m.form.width && m.form.height) ? {
+            length: parseFloat(m.form.length), width: parseFloat(m.form.width), height: parseFloat(m.form.height), units: "inches",
+          } : null,
+        }),
+      });
+      if (!rRes.ok) throw new Error("Failed to get rates");
+      const rData = await rRes.json();
+      setShipModal(prev => ({ ...prev, step: "form", rates: rData.rates || [] }));
+    } catch (e) {
+      setShipModal(prev => ({ ...prev, step: "form", error: e.message }));
+    }
+  };
+
+  const shipModalCreateLabel = async () => {
+    const m = shipModal;
+    if (!m || !m.form.carrierCode || !m.form.serviceCode) return;
+    setShipModal(prev => ({ ...prev, creating: true, error: null }));
+    try {
+      // Step 1: Create the order in ShipStation if it doesn't have an orderId
+      let orderId = m.order.shipstation?.orderId;
+      if (!orderId) {
+        const coRes = await fetch(`/api/shipstation?${ssApiParams()}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "create-order",
+            api_key: apiKeys.shipstation_api_key, api_secret: apiKeys.shipstation_api_secret,
+            orderNumber: m.order.orderName || m.order.dealerPO || `BOM-${Date.now()}`,
+            shipTo: m.order.shipTo || {
+              name: m.order.customer || "",
+              street1: "", city: "", state: "", postalCode: "", country: "US",
+            },
+            items: (m.order.lineItems || []).map(li => ({ name: li.title, quantity: li.quantity, unitPrice: 0 })),
+            weight: { value: parseInt(m.form.weightOz) || 16, units: "ounces" },
+          }),
+        });
+        if (!coRes.ok) {
+          const err = await coRes.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to create order in ShipStation");
+        }
+        const coData = await coRes.json();
+        orderId = coData.order?.orderId;
+        if (!orderId) throw new Error("ShipStation returned no orderId");
+      }
+
+      // Step 2: Create the label
+      const lRes = await fetch(`/api/shipstation?${ssApiParams()}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create-label",
+          api_key: apiKeys.shipstation_api_key, api_secret: apiKeys.shipstation_api_secret,
+          orderId,
+          carrierCode: m.form.carrierCode,
+          serviceCode: m.form.serviceCode,
+          weight: { value: parseInt(m.form.weightOz) || 16, units: "ounces" },
+          dimensions: (m.form.length && m.form.width && m.form.height) ? {
+            length: parseFloat(m.form.length), width: parseFloat(m.form.width), height: parseFloat(m.form.height), units: "inches",
+          } : null,
+          testLabel: false,
+        }),
+      });
+      if (!lRes.ok) {
+        const err = await lRes.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to create label");
+      }
+      const labelData = await lRes.json();
+      setShipModal(prev => ({ ...prev, creating: false, step: "done", result: labelData }));
+
+      // Open label PDF in new tab
+      if (labelData.labelUrl) {
+        const w = window.open();
+        if (w) {
+          w.document.write(`<iframe src="${labelData.labelUrl}" style="width:100%;height:100%;border:none"></iframe>`);
+          w.document.title = `Label — ${m.order.orderName || "Shipment"}`;
+        }
+      }
+
+      // Re-sync ShipStation to update the order status
+      setTimeout(() => syncShipStation(), 2000);
+    } catch (e) {
+      setShipModal(prev => ({ ...prev, creating: false, error: e.message }));
     }
   };
 
@@ -8152,10 +8315,18 @@ function BOMManager({ user }) {
                                             Build
                                           </button>
                                         )}
-                                        <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap",color:"#86868b" }}
-                                          onClick={() => dismissOrder(po.id)} title="Hide this order from the tracker">
-                                          Dismiss
-                                        </button>
+                                        {po.pctComplete === 100 && !po.shipped && apiKeys.shipstation_api_key && (
+                                          <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap",color:"#00c7be",fontWeight:700 }}
+                                            onClick={() => openShipModal(po)}>
+                                            Ship It
+                                          </button>
+                                        )}
+                                        {!po.shipped && (
+                                          <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap",color:"#86868b" }}
+                                            onClick={() => dismissOrder(po.id)} title="Hide this order from the tracker">
+                                            Dismiss
+                                          </button>
+                                        )}
                                       </div>
                                     </td>
                                   </tr>
@@ -11589,9 +11760,176 @@ function BOMManager({ user }) {
         <QRLabelModal parts={qrModalParts} products={products} onClose={() => setQrModalParts(null)} />
       )}
 
+      {/* ── Ship It Modal ── */}
+      {shipModal && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShipModal(null); }}>
+          <div style={{ background:"#fff",borderRadius:16,width:"90%",maxWidth:520,maxHeight:"85vh",overflow:"auto",padding:0,boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}>
+            {/* Header */}
+            <div style={{ padding:"20px 24px 12px",borderBottom:"1px solid #e5e5ea",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+              <div>
+                <div style={{ fontSize:16,fontWeight:800,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                  Ship It
+                </div>
+                <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>
+                  {shipModal.order.orderName} — {shipModal.order.customer}
+                </div>
+              </div>
+              <button onClick={() => setShipModal(null)} style={{ background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#86868b",padding:4 }}>×</button>
+            </div>
+
+            <div style={{ padding:"16px 24px 24px" }}>
+              {shipModal.step === "loading" && (
+                <div style={{ textAlign:"center",padding:32,color:"#86868b" }}>
+                  <div className="spinner" style={{ margin:"0 auto 12px" }} />
+                  Loading carriers from ShipStation...
+                </div>
+              )}
+
+              {shipModal.step === "error" && (
+                <div style={{ textAlign:"center",padding:32,color:"#ff3b30" }}>
+                  {shipModal.error}
+                  <div style={{ marginTop:12 }}>
+                    <button className="btn-ghost" onClick={() => setShipModal(null)}>Close</button>
+                  </div>
+                </div>
+              )}
+
+              {(shipModal.step === "form" || shipModal.step === "rates-loading") && (
+                <>
+                  {/* Carrier */}
+                  <div style={{ marginBottom:12 }}>
+                    <label style={{ fontSize:11,color:"#6e6e73",fontWeight:600,display:"block",marginBottom:4 }}>Carrier</label>
+                    <select value={shipModal.form.carrierCode}
+                      onChange={(e) => shipModalSelectCarrier(e.target.value)}
+                      style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #d1d1d6",fontSize:13 }}>
+                      {shipModal.carriers.map(c => (
+                        <option key={c.code} value={c.code}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Service */}
+                  <div style={{ marginBottom:12 }}>
+                    <label style={{ fontSize:11,color:"#6e6e73",fontWeight:600,display:"block",marginBottom:4 }}>Service</label>
+                    <select value={shipModal.form.serviceCode}
+                      onChange={(e) => setShipModal(prev => ({ ...prev, form: { ...prev.form, serviceCode: e.target.value } }))}
+                      style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #d1d1d6",fontSize:13 }}>
+                      {shipModal.services.map(s => (
+                        <option key={s.code} value={s.code}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Weight */}
+                  <div style={{ marginBottom:12 }}>
+                    <label style={{ fontSize:11,color:"#6e6e73",fontWeight:600,display:"block",marginBottom:4 }}>Package Weight (oz)</label>
+                    <input type="number" min="1" value={shipModal.form.weightOz}
+                      onChange={(e) => setShipModal(prev => ({ ...prev, form: { ...prev.form, weightOz: e.target.value } }))}
+                      style={{ width:100,padding:"8px 10px",borderRadius:8,border:"1px solid #d1d1d6",fontSize:13 }} />
+                  </div>
+
+                  {/* Dimensions */}
+                  <div style={{ marginBottom:16 }}>
+                    <label style={{ fontSize:11,color:"#6e6e73",fontWeight:600,display:"block",marginBottom:4 }}>Dimensions (in) — optional</label>
+                    <div style={{ display:"flex",gap:8 }}>
+                      <input type="number" placeholder="L" value={shipModal.form.length}
+                        onChange={(e) => setShipModal(prev => ({ ...prev, form: { ...prev.form, length: e.target.value } }))}
+                        style={{ width:70,padding:"8px 10px",borderRadius:8,border:"1px solid #d1d1d6",fontSize:13 }} />
+                      <input type="number" placeholder="W" value={shipModal.form.width}
+                        onChange={(e) => setShipModal(prev => ({ ...prev, form: { ...prev.form, width: e.target.value } }))}
+                        style={{ width:70,padding:"8px 10px",borderRadius:8,border:"1px solid #d1d1d6",fontSize:13 }} />
+                      <input type="number" placeholder="H" value={shipModal.form.height}
+                        onChange={(e) => setShipModal(prev => ({ ...prev, form: { ...prev.form, height: e.target.value } }))}
+                        style={{ width:70,padding:"8px 10px",borderRadius:8,border:"1px solid #d1d1d6",fontSize:13 }} />
+                    </div>
+                  </div>
+
+                  {/* Rates */}
+                  {shipModal.rates.length > 0 && (
+                    <div style={{ background:"#f5f5f7",borderRadius:8,padding:12,marginBottom:16 }}>
+                      <div style={{ fontSize:10,color:"#6e6e73",fontWeight:600,marginBottom:6,letterSpacing:"0.05em" }}>ESTIMATED RATES</div>
+                      {shipModal.rates.map((r, i) => (
+                        <div key={i} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",fontSize:12,
+                          cursor:"pointer",fontWeight: r.serviceCode === shipModal.form.serviceCode ? 700 : 400,
+                          color: r.serviceCode === shipModal.form.serviceCode ? "#0071e3" : "#3a3f51" }}
+                          onClick={() => setShipModal(prev => ({ ...prev, form: { ...prev.form, serviceCode: r.serviceCode } }))}>
+                          <span>{r.serviceName}</span>
+                          <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700 }}>
+                            ${(r.shipmentCost + (r.otherCost || 0)).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {shipModal.error && (
+                    <div style={{ color:"#ff3b30",fontSize:12,marginBottom:12,padding:"8px 12px",background:"#ff3b3010",borderRadius:8 }}>
+                      {shipModal.error}
+                    </div>
+                  )}
+
+                  {/* Items preview */}
+                  <div style={{ background:"#f5f5f7",borderRadius:8,padding:12,marginBottom:16 }}>
+                    <div style={{ fontSize:10,color:"#6e6e73",fontWeight:600,marginBottom:6,letterSpacing:"0.05em" }}>ORDER ITEMS</div>
+                    {(shipModal.order.lineItems || []).map((li, i) => (
+                      <div key={i} style={{ display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0" }}>
+                        <span>{li.title}</span>
+                        <span style={{ fontWeight:600 }}>×{li.quantity}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display:"flex",gap:8,justifyContent:"flex-end" }}>
+                    <button className="btn-ghost" onClick={shipModalGetRates}
+                      disabled={shipModal.step === "rates-loading"}
+                      style={{ fontSize:12 }}>
+                      {shipModal.step === "rates-loading" ? "Getting Rates…" : "Get Rates"}
+                    </button>
+                    <button className="btn-primary" onClick={shipModalCreateLabel}
+                      disabled={shipModal.creating || !shipModal.form.carrierCode || !shipModal.form.serviceCode}
+                      style={{ fontSize:12,background:"#00c7be" }}>
+                      {shipModal.creating ? "Creating Label…" : "Create Label & Ship"}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {shipModal.step === "done" && shipModal.result && (
+                <div style={{ textAlign:"center",padding:24 }}>
+                  <div style={{ fontSize:40,marginBottom:12 }}>&#x1f4e6;</div>
+                  <div style={{ fontSize:16,fontWeight:800,color:"#34c759",marginBottom:8 }}>Label Created!</div>
+                  <div style={{ fontSize:13,color:"#3a3f51",marginBottom:4 }}>
+                    Tracking: <span style={{ fontFamily:"monospace",fontWeight:700 }}>{shipModal.result.trackingNumber}</span>
+                  </div>
+                  <div style={{ fontSize:12,color:"#86868b",marginBottom:4 }}>
+                    {shipModal.result.carrier} · {shipModal.result.service}
+                  </div>
+                  {shipModal.result.shipmentCost > 0 && (
+                    <div style={{ fontSize:14,fontWeight:700,color:"#1d1d1f",marginBottom:16 }}>
+                      ${shipModal.result.shipmentCost.toFixed(2)}
+                    </div>
+                  )}
+                  {shipModal.result.labelUrl && (
+                    <a href={shipModal.result.labelUrl} target="_blank" rel="noopener noreferrer"
+                      className="btn-primary" style={{ display:"inline-block",fontSize:12,textDecoration:"none",marginBottom:12 }}>
+                      Open Label PDF
+                    </a>
+                  )}
+                  <div>
+                    <button className="btn-ghost" onClick={() => setShipModal(null)} style={{ fontSize:12 }}>Done</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.88 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.90 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
