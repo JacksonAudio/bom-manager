@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.99
+// src/App.jsx — Jackson Audio BOM Manager v7.00
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1316,7 +1316,7 @@ function BOMManager({ user }) {
   const [simUsOnly, setSimUsOnly] = useState(false); // simulation: US suppliers only
   const [shopifyDemand, setShopifyDemand] = useState(null); // { products, orders, syncedAt, loading, error }
   const [zohoDemand, setZohoDemand] = useState(null); // { products, orders, syncedAt, loading, error }
-  const [shipstationData, setShipstationData] = useState(null); // { shipments, totalShipments, totalUnitsShipped, syncedAt, loading, error }
+  const [shipstationData, setShipstationData] = useState(() => { try { const c = localStorage.getItem("bom_shipstation_data"); return c ? JSON.parse(c) : null; } catch { return null; } });
   const [ssCarriers, setSsCarriers] = useState(null); // [{ code, name, services }]
   const [shipModal, setShipModal] = useState(null); // { order, step, carriers, services, rates, form, creating, result, error }
   const [salesHistory, setSalesHistory] = useState(() => { try { const c = localStorage.getItem("bom_sales_history"); return c ? JSON.parse(c) : null; } catch { return null; } }); // combined historical data
@@ -3063,6 +3063,13 @@ function BOMManager({ user }) {
   };
 
   // ── SHIPSTATION INTEGRATION (units shipped) ──
+  // Persist ShipStation data to localStorage
+  useEffect(() => {
+    if (shipstationData && !shipstationData.loading && !shipstationData.error) {
+      try { localStorage.setItem("bom_shipstation_data", JSON.stringify(shipstationData)); } catch {}
+    }
+  }, [shipstationData]);
+
   const [ssLookbackDays, setSsLookbackDays] = useState(730); // default 2 years to capture all history
   const syncShipStation = async (days) => {
     const lookback = days || ssLookbackDays;
@@ -9254,41 +9261,41 @@ function BOMManager({ user }) {
                     sameDayPct: Math.round((vals.filter(d=>d===0).length / vals.length) * 100),
                   }));
 
-                  // Bar width for scrollable chart
-                  const barWidth = 48;
-                  const chartWidth = Math.max(monthlyAvgs.length * (barWidth + 4), 300);
+                  // Bar width for scrollable chart — wider bars for readability
+                  const barWidth = 64;
+                  const chartWidth = Math.max(monthlyAvgs.length * (barWidth + 6), 400);
 
                   return (
                   <div>
                     {/* Year-over-year summary cards */}
                     {yearSummary.length > 0 && (
-                      <div style={{ padding:"16px 16px 8px",borderBottom:"1px solid #f0f0f2" }}>
-                        <div style={{ fontSize:10,color:"#6e6e73",fontWeight:600,letterSpacing:"0.05em",marginBottom:10 }}>
-                          FULFILLMENT PERFORMANCE BY YEAR
+                      <div style={{ padding:"24px 24px 16px",borderBottom:"1px solid #e5e5ea" }}>
+                        <div style={{ fontSize:12,color:"#6e6e73",fontWeight:700,letterSpacing:"0.08em",marginBottom:16,textTransform:"uppercase" }}>
+                          Fulfillment Performance by Year
                         </div>
-                        <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
+                        <div style={{ display:"flex",gap:10,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4 }}>
                           {yearSummary.map(ys => (
-                            <div key={ys.year} style={{ background:"#f5f5f7",borderRadius:10,padding:"12px 16px",minWidth:130,flex:1 }}>
-                              <div style={{ fontSize:18,fontWeight:800,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{ys.year}</div>
-                              <div style={{ display:"flex",gap:12,marginTop:6 }}>
+                            <div key={ys.year} style={{ background:"#f5f5f7",borderRadius:14,padding:"16px 20px",minWidth:155,flex:"0 0 auto" }}>
+                              <div style={{ fontSize:22,fontWeight:800,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",marginBottom:10 }}>{ys.year}</div>
+                              <div style={{ display:"flex",gap:16 }}>
                                 <div>
-                                  <div style={{ fontSize:20,fontWeight:800,color: ys.avg <= 1 ? "#34c759" : ys.avg <= 3 ? "#ff9500" : "#ff3b30",
-                                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                  <div style={{ fontSize:24,fontWeight:800,lineHeight:1,color: ys.avg <= 1 ? "#34c759" : ys.avg <= 3 ? "#ff9500" : "#ff3b30",
+                                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
                                     {ys.avg.toFixed(1)}d
                                   </div>
-                                  <div style={{ fontSize:9,color:"#86868b" }}>avg lead time</div>
+                                  <div style={{ fontSize:11,color:"#86868b",marginTop:3 }}>avg lead time</div>
                                 </div>
                                 <div>
-                                  <div style={{ fontSize:20,fontWeight:800,color:"#00c7be",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                                    {ys.count}
+                                  <div style={{ fontSize:24,fontWeight:800,lineHeight:1,color:"#00c7be",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                                    {ys.count.toLocaleString()}
                                   </div>
-                                  <div style={{ fontSize:9,color:"#86868b" }}>orders</div>
+                                  <div style={{ fontSize:11,color:"#86868b",marginTop:3 }}>orders</div>
                                 </div>
                                 <div>
-                                  <div style={{ fontSize:20,fontWeight:800,color:"#0071e3",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                  <div style={{ fontSize:24,fontWeight:800,lineHeight:1,color:"#0071e3",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
                                     {ys.sameDayPct}%
                                   </div>
-                                  <div style={{ fontSize:9,color:"#86868b" }}>same-day</div>
+                                  <div style={{ fontSize:11,color:"#86868b",marginTop:3 }}>same-day</div>
                                 </div>
                               </div>
                             </div>
@@ -9297,48 +9304,52 @@ function BOMManager({ user }) {
                       </div>
                     )}
 
-                    {/* Monthly Lead Time Trend Chart — scrollable */}
+                    {/* Monthly Lead Time Trend Chart — scrollable, tall and readable */}
                     {monthlyAvgs.length > 1 && (
-                      <div style={{ padding:"16px 16px 8px",borderBottom:"1px solid #f0f0f2" }}>
-                        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
-                          <div style={{ fontSize:10,color:"#6e6e73",fontWeight:600,letterSpacing:"0.05em" }}>
-                            ORDER-TO-SHIP TIME — MONTHLY AVERAGE (DAYS)
+                      <div style={{ padding:"24px 24px 20px",borderBottom:"1px solid #e5e5ea" }}>
+                        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:20 }}>
+                          <div>
+                            <div style={{ fontSize:12,color:"#6e6e73",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>
+                              Order-to-Ship Time — Monthly Average
+                            </div>
                             {shipstationData.avgLeadTimeDays != null && (
-                              <span style={{ marginLeft:12,color:"#00c7be",fontWeight:700 }}>
-                                Overall avg: {shipstationData.avgLeadTimeDays}d across {withLead.length} orders
-                              </span>
+                              <div style={{ fontSize:14,color:"#00c7be",fontWeight:700,marginTop:4 }}>
+                                Overall avg: {shipstationData.avgLeadTimeDays} days across {withLead.length.toLocaleString()} orders
+                              </div>
                             )}
                           </div>
-                          <div style={{ fontSize:9,color:"#aeaeb2" }}>← scroll for more →</div>
+                          <div style={{ fontSize:11,color:"#aeaeb2",fontWeight:500 }}>← scroll for more →</div>
                         </div>
-                        <div style={{ overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4 }}>
-                          <div style={{ display:"flex",alignItems:"flex-end",gap:4,height:chartH,minWidth:chartWidth }}>
+                        <div style={{ overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:8 }}>
+                          <div style={{ display:"flex",alignItems:"flex-end",gap:6,height:280,minWidth:chartWidth }}>
                             {monthlyAvgs.map((m, i) => {
-                              const barH = Math.max(6, (m.avg / maxAvg) * (chartH - 30));
+                              const barH = Math.max(8, (m.avg / maxAvg) * 220);
                               const color = m.avg <= 1 ? "#34c759" : m.avg <= 3 ? "#ff9500" : "#ff3b30";
                               const [yr, mo] = m.month.split("-");
                               const monthLabel = new Date(parseInt(yr), parseInt(mo)-1).toLocaleDateString("en-US",{month:"short"});
                               return (
                                 <div key={i} style={{ width:barWidth,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%" }}
                                   title={`${monthLabel} ${yr}: avg ${m.avg.toFixed(1)}d (${m.count} orders)`}>
-                                  <div style={{ fontSize:9,color:"#3a3f51",fontWeight:700,marginBottom:2 }}>{m.avg.toFixed(1)}</div>
-                                  <div style={{ width:"80%",height:barH,background:color,borderRadius:"4px 4px 0 0",transition:"height 0.3s",position:"relative" }}>
-                                    <div style={{ position:"absolute",bottom:4,left:"50%",transform:"translateX(-50%)",fontSize:8,color:"#fff",fontWeight:700 }}>
+                                  <div style={{ fontSize:12,color:"#1d1d1f",fontWeight:800,marginBottom:4,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                                    {m.avg.toFixed(1)}
+                                  </div>
+                                  <div style={{ width:"70%",height:barH,background:color,borderRadius:"6px 6px 0 0",transition:"height 0.3s",position:"relative",minHeight:20 }}>
+                                    <div style={{ position:"absolute",bottom:6,left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#fff",fontWeight:700 }}>
                                       {m.count}
                                     </div>
                                   </div>
-                                  <div style={{ fontSize:9,color:"#6e6e73",marginTop:3,fontWeight:500 }}>{monthLabel}</div>
-                                  <div style={{ fontSize:8,color:"#aeaeb2",fontWeight:700 }}>{yr}</div>
+                                  <div style={{ fontSize:11,color:"#3a3f51",marginTop:6,fontWeight:600 }}>{monthLabel}</div>
+                                  <div style={{ fontSize:10,color:"#aeaeb2",fontWeight:600 }}>{yr}</div>
                                 </div>
                               );
                             })}
                           </div>
                         </div>
-                        <div style={{ display:"flex",justifyContent:"center",gap:16,marginTop:10,fontSize:9,color:"#86868b" }}>
-                          <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#34c759",marginRight:4 }} />0–1 day avg</span>
-                          <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#ff9500",marginRight:4 }} />2–3 day avg</span>
-                          <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#ff3b30",marginRight:4 }} />4+ day avg</span>
-                          <span style={{ fontSize:8 }}>Number inside bar = order count</span>
+                        <div style={{ display:"flex",justifyContent:"center",gap:24,marginTop:16,fontSize:11,color:"#6e6e73" }}>
+                          <span style={{ display:"flex",alignItems:"center",gap:5 }}><span style={{ display:"inline-block",width:12,height:12,borderRadius:3,background:"#34c759" }} />0–1 day avg</span>
+                          <span style={{ display:"flex",alignItems:"center",gap:5 }}><span style={{ display:"inline-block",width:12,height:12,borderRadius:3,background:"#ff9500" }} />2–3 day avg</span>
+                          <span style={{ display:"flex",alignItems:"center",gap:5 }}><span style={{ display:"inline-block",width:12,height:12,borderRadius:3,background:"#ff3b30" }} />4+ day avg</span>
+                          <span style={{ fontSize:10,color:"#aeaeb2" }}>Number inside bar = order count</span>
                         </div>
                       </div>
                     )}
@@ -12517,7 +12528,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.99 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.00 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
