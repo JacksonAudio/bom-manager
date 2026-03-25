@@ -8946,7 +8946,6 @@ function BOMManager({ user }) {
                               const color = m.avg <= 1 ? "#34c759" : m.avg <= 3 ? "#ff9500" : "#ff3b30";
                               const [yr, mo] = m.month.split("-");
                               const monthLabel = new Date(parseInt(yr), parseInt(mo)-1).toLocaleDateString("en-US",{month:"short"});
-                              const showYear = i === 0 || mo === "01";
                               return (
                                 <div key={i} style={{ width:barWidth,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%" }}
                                   title={`${monthLabel} ${yr}: avg ${m.avg.toFixed(1)}d (${m.count} orders)`}>
@@ -8957,7 +8956,7 @@ function BOMManager({ user }) {
                                     </div>
                                   </div>
                                   <div style={{ fontSize:9,color:"#6e6e73",marginTop:3,fontWeight:500 }}>{monthLabel}</div>
-                                  {showYear && <div style={{ fontSize:8,color:"#aeaeb2",fontWeight:700 }}>{yr}</div>}
+                                  <div style={{ fontSize:8,color:"#aeaeb2",fontWeight:700 }}>{yr}</div>
                                 </div>
                               );
                             })}
