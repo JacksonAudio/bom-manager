@@ -1,8 +1,9 @@
 // ============================================================
 // api/ti-search.js — Texas Instruments Part Search
 //
-// OAuth2 client_credentials flow → TI product lookup.
-// Returns pricing, stock, and MOQ data.
+// Supports two auth modes:
+// 1. Single API key (myTI dashboard) — passed as query param
+// 2. OAuth2 client_credentials (older apps) — client_id + secret
 // ============================================================
 
 export default async function handler(req, res) {
@@ -17,59 +18,102 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(400).json({ error: "apiKey is required" });
 
   try {
-    let accessToken;
+    let accessToken = null;
+    const useOAuth = apiSecret && apiSecret.length > 5;
 
-    if (apiSecret) {
-      // OAuth2 client_credentials flow (old-style dual key)
+    if (useOAuth) {
+      // OAuth2 client_credentials flow (older dual-key apps)
       const tokenRes = await fetch("https://transact.ti.com/v1/oauth/accesstoken", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: `grant_type=client_credentials&client_id=${encodeURIComponent(apiKey)}&client_secret=${encodeURIComponent(apiSecret)}`,
       });
-
-      if (!tokenRes.ok) {
-        const err = await tokenRes.text();
-        console.error("[ti-search] OAuth error:", tokenRes.status, err.slice(0, 500));
-        return res.status(502).json({ error: `TI OAuth error: ${tokenRes.status}`, details: err.slice(0, 300) });
+      if (tokenRes.ok) {
+        const tokenData = await tokenRes.json();
+        accessToken = tokenData.access_token;
       }
-
-      const tokenData = await tokenRes.json();
-      accessToken = tokenData.access_token;
       if (!accessToken) {
-        return res.status(500).json({ error: "TI OAuth: no access_token", details: JSON.stringify(tokenData).slice(0, 300) });
+        console.warn("[ti-search] OAuth failed, falling back to API key auth");
       }
-    } else {
-      // Single API key — use directly as bearer token
-      accessToken = apiKey;
     }
 
-    // Look up the specific part
-    const productRes = await fetch(
-      `https://transact.ti.com/v1/products/${encodeURIComponent(query)}`,
-      { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } }
-    );
+    // Build auth headers — try Bearer token if we have one, otherwise use API key header
+    const makeHeaders = () => {
+      if (accessToken) return { Authorization: `Bearer ${accessToken}`, Accept: "application/json" };
+      return { Authorization: `Bearer ${apiKey}`, "X-API-Key": apiKey, Accept: "application/json" };
+    };
 
-    if (!productRes.ok) {
-      // Try the store search as fallback
-      const storeRes = await fetch(
-        `https://transact.ti.com/v2/store/products?q=${encodeURIComponent(query)}`,
-        { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } }
+    // Try multiple TI API endpoints in order
+    const errors = [];
+
+    // Attempt 1: Product details endpoint (v1)
+    try {
+      const r1 = await fetch(
+        `https://transact.ti.com/v1/products/${encodeURIComponent(query)}`,
+        { headers: makeHeaders() }
       );
-      if (!storeRes.ok) {
-        const err = await storeRes.text();
-        console.error("[ti-search] Search error:", storeRes.status, err.slice(0, 500));
-        return res.status(storeRes.status).json({ error: `TI API error: ${storeRes.status}`, details: err.slice(0, 300) });
+      if (r1.ok) {
+        const data = await r1.json();
+        if (data) return res.status(200).json({ parts: [mapProduct(data)], count: 1, source: "ti-v1-product" });
+      } else {
+        errors.push(`v1/products: ${r1.status}`);
       }
-      const storeData = await storeRes.json();
-      const products = storeData?.products || storeData?.data || [];
-      const parts = products.map(mapProduct);
-      return res.status(200).json({ parts, count: parts.length, source: "ti-store" });
-    }
+    } catch (e) { errors.push(`v1/products: ${e.message}`); }
 
-    const productData = await productRes.json();
-    // Single product response — wrap in array
-    const parts = [mapProduct(productData)];
-    return res.status(200).json({ parts, count: parts.length, source: "ti-product" });
+    // Attempt 2: Store inventory pricing (uses apikey as query param)
+    try {
+      const r2 = await fetch(
+        `https://store.ti.com/octopart/api/v4/pricing?mpn=${encodeURIComponent(query)}`,
+        { headers: { apikey: apiKey, Accept: "application/json" } }
+      );
+      if (r2.ok) {
+        const data = await r2.json();
+        const items = data?.products || data?.data || (Array.isArray(data) ? data : [data]);
+        if (items.length > 0 && items[0]) {
+          return res.status(200).json({ parts: items.map(mapProduct), count: items.length, source: "ti-store-pricing" });
+        }
+      } else {
+        errors.push(`store-pricing: ${r2.status}`);
+      }
+    } catch (e) { errors.push(`store-pricing: ${e.message}`); }
+
+    // Attempt 3: Transact store search (v2)
+    try {
+      const r3 = await fetch(
+        `https://transact.ti.com/v2/store/products?q=${encodeURIComponent(query)}`,
+        { headers: makeHeaders() }
+      );
+      if (r3.ok) {
+        const data = await r3.json();
+        const products = data?.products || data?.data || [];
+        if (products.length > 0) {
+          return res.status(200).json({ parts: products.map(mapProduct), count: products.length, source: "ti-v2-store" });
+        }
+      } else {
+        errors.push(`v2/store: ${r3.status}`);
+      }
+    } catch (e) { errors.push(`v2/store: ${e.message}`); }
+
+    // Attempt 4: Inventory/pricing endpoint with API key as query param
+    try {
+      const r4 = await fetch(
+        `https://transact.ti.com/v1/products/${encodeURIComponent(query)}?apikey=${encodeURIComponent(apiKey)}`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (r4.ok) {
+        const data = await r4.json();
+        if (data) return res.status(200).json({ parts: [mapProduct(data)], count: 1, source: "ti-v1-apikey" });
+      } else {
+        errors.push(`v1-apikey: ${r4.status}`);
+      }
+    } catch (e) { errors.push(`v1-apikey: ${e.message}`); }
+
+    // All attempts failed
+    return res.status(404).json({
+      error: "TI API: no results from any endpoint",
+      attempts: errors,
+      hint: "Check your API key at ti.com/myti/docs/overview.page",
+    });
 
   } catch (err) {
     console.error("[ti-search] Error:", err);
@@ -78,7 +122,7 @@ export default async function handler(req, res) {
 }
 
 function mapProduct(p) {
-  const tiPN = p.tiPartNumber || p.gpn || p.partNumber || p.opn || "";
+  const tiPN = p.tiPartNumber || p.gpn || p.partNumber || p.opn || p.mpn || "";
   const rawBreaks = p.pricingTiers || p.priceBreaks || p.pricing || p.standardPricing || [];
   const priceBreaks = (Array.isArray(rawBreaks) ? rawBreaks : []).map(pb => ({
     qty: parseInt(pb.quantity || pb.minQuantity || pb.qty || pb.minQty || 1),

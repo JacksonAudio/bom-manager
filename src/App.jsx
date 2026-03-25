@@ -1590,7 +1590,19 @@ function BOMManager({ user }) {
         }
         if (mergedKeys.mouser_api_key) addLog("Mouser key loaded (direct API — tariff detection)", true);
         if (mergedKeys.arrow_api_key && mergedKeys.arrow_login) addLog("Arrow key loaded", true);
-        if (mergedKeys.ti_api_key) addLog("Texas Instruments key loaded", true);
+        if (mergedKeys.ti_api_key) {
+          addLog("Testing Texas Instruments API...", null);
+          try {
+            const tiTest = await fetchTIPricing("UCC27525DR", 1, mergedKeys.ti_api_key, mergedKeys.ti_api_secret || "");
+            if (tiTest) {
+              addLog(`TI connected — test: $${tiTest.unitPrice.toFixed(4)}, ${tiTest.stock} in stock`, true);
+            } else {
+              addLog("TI API responded but returned no data — key may be invalid", false);
+            }
+          } catch (e) {
+            addLog("TI API failed: " + e.message, false);
+          }
+        }
 
         const okCount = log.filter(l => l.ok === true).length;
         const failCount = log.filter(l => l.ok === false).length;
