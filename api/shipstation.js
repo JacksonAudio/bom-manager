@@ -204,13 +204,37 @@ async function handleShipments(req, res, baseUrl, authHeader, days) {
     page++;
   }
 
+  // Also fetch orders to get orderDate for lead-time analytics
+  const orderDates = {};
+  let oPage = 1;
+  let oTotalPages = 1;
+  while (oPage <= oTotalPages) {
+    const oUrl = `${baseUrl}/orders?createDateStart=${startDate}&createDateEnd=${endDate}&pageSize=500&page=${oPage}&sortBy=CreateDate&sortDir=DESC`;
+    try {
+      const oRes = await fetch(oUrl, { headers: { Authorization: authHeader, "Content-Type": "application/json" } });
+      if (oRes.ok) {
+        const oData = await oRes.json();
+        for (const o of (oData.orders || [])) {
+          const key = o.orderNumber || o.orderId;
+          if (key) orderDates[key] = { orderDate: o.orderDate || o.createDate, createDate: o.createDate };
+        }
+        oTotalPages = oData.pages || 1;
+      } else { break; }
+    } catch { break; }
+    oPage++;
+  }
+
   const active = allShipments.filter(s => !s.voided && !s.isReturnLabel);
   const orderShipments = {};
   for (const s of active) {
     const key = s.orderNumber || s.orderId;
     if (!key) continue;
     if (!orderShipments[key]) {
-      orderShipments[key] = { orderNumber: s.orderNumber, orderId: s.orderId, shipments: [], totalItemsShipped: 0 };
+      const od = orderDates[key];
+      orderShipments[key] = {
+        orderNumber: s.orderNumber, orderId: s.orderId, shipments: [], totalItemsShipped: 0,
+        orderDate: od?.orderDate || od?.createDate || null,
+      };
     }
     const items = (s.shipmentItems || []).map(i => ({ sku: i.sku || "", name: i.name || "", quantity: i.quantity || 0 }));
     const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
@@ -221,13 +245,32 @@ async function handleShipments(req, res, baseUrl, authHeader, days) {
     orderShipments[key].totalItemsShipped += itemCount;
   }
 
+  // Compute lead times (days from order to first shipment)
+  const shipmentValues = Object.values(orderShipments);
+  for (const sv of shipmentValues) {
+    if (sv.orderDate && sv.shipments.length > 0) {
+      const firstShip = sv.shipments.reduce((earliest, s) =>
+        s.shipDate && (!earliest || s.shipDate < earliest) ? s.shipDate : earliest, null);
+      if (firstShip) {
+        const ordered = new Date(sv.orderDate);
+        const shipped = new Date(firstShip);
+        sv.leadTimeDays = Math.max(0, Math.round((shipped - ordered) / 86400000));
+      }
+    }
+  }
+
   const totalShipments = active.length;
   const totalUnitsShipped = active.reduce((sum, s) =>
     sum + (s.shipmentItems || []).reduce((s2, i) => s2 + (i.quantity || 0), 0), 0);
   const uniqueOrders = Object.keys(orderShipments).length;
 
+  // Lead time stats
+  const withLead = shipmentValues.filter(s => s.leadTimeDays != null);
+  const avgLeadTime = withLead.length > 0 ? (withLead.reduce((s, o) => s + o.leadTimeDays, 0) / withLead.length) : null;
+
   return res.status(200).json({
-    shipments: Object.values(orderShipments), totalShipments, totalUnitsShipped, uniqueOrders,
+    shipments: shipmentValues, totalShipments, totalUnitsShipped, uniqueOrders,
+    avgLeadTimeDays: avgLeadTime != null ? Math.round(avgLeadTime * 10) / 10 : null,
     dateRange: { start: startDate, end: endDate, days: lookback }, syncedAt: new Date().toISOString(),
   });
 }

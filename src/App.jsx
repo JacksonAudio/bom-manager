@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.90
+// src/App.jsx — Jackson Audio BOM Manager v6.91
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -8832,56 +8832,124 @@ function BOMManager({ user }) {
                       Units Shipped — ShipStation
                     </span>
                     <span style={{ fontSize:11,color:"#86868b",fontWeight:500 }}>
-                      ({shipstationData.uniqueOrders} orders · {shipstationData.totalUnitsShipped} units · {shipstationData.dateRange?.days || 90}d)
+                      ({shipstationData.uniqueOrders} orders · {shipstationData.totalUnitsShipped} units · {shipstationData.dateRange?.days || 90}d
+                      {shipstationData.avgLeadTimeDays != null && ` · avg ${shipstationData.avgLeadTimeDays}d to ship`})
                     </span>
                   </div>
                   <span style={{ fontSize:11,color:"#86868b",transform:expandedDemandSections.has("shipstation-shipped")?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s" }}>&#9660;</span>
                 </div>
-                {expandedDemandSections.has("shipstation-shipped") && (
-                  <div style={{ overflowX:"auto" }}>
-                    <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
-                      <thead>
-                        <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
-                          <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>ORDER #</th>
-                          <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>ITEMS SHIPPED</th>
-                          <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>SHIPMENTS</th>
-                          <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>TRACKING</th>
-                          <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>SHIP DATE</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {shipstationData.shipments.slice(0, 50).map(order => (
-                          <tr key={order.orderNumber} style={{ borderBottom:"1px solid #f0f0f2" }}>
-                            <td style={{ padding:"10px 10px",fontWeight:700,color:"#00c7be" }}>{order.orderNumber}</td>
-                            <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                              {order.totalItemsShipped}
-                            </td>
-                            <td style={{ padding:"10px 10px" }}>
-                              <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
-                                {order.shipments.map((s,i) => (
-                                  <span key={i} className="badge" style={{ background:"#00c7be22",color:"#00c7be",fontSize:10 }}>
-                                    {s.carrier} · {s.items.reduce((sum,it) => sum + it.quantity, 0)} items · ${s.cost.toFixed(2)}
-                                  </span>
-                                ))}
+                {expandedDemandSections.has("shipstation-shipped") && (() => {
+                  // Build weekly lead-time trend data for chart
+                  const withLead = shipstationData.shipments.filter(o => o.leadTimeDays != null && o.shipments[0]?.shipDate);
+                  const weeklyBuckets = {};
+                  for (const o of withLead) {
+                    const d = new Date(o.shipments[0].shipDate);
+                    // ISO week start (Monday)
+                    const day = d.getDay();
+                    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                    const weekStart = new Date(d.setDate(diff)).toISOString().slice(0, 10);
+                    if (!weeklyBuckets[weekStart]) weeklyBuckets[weekStart] = [];
+                    weeklyBuckets[weekStart].push(o.leadTimeDays);
+                  }
+                  const weekKeys = Object.keys(weeklyBuckets).sort();
+                  const weeklyAvgs = weekKeys.map(k => ({
+                    week: k,
+                    avg: weeklyBuckets[k].reduce((s, v) => s + v, 0) / weeklyBuckets[k].length,
+                    count: weeklyBuckets[k].length,
+                  }));
+                  const maxAvg = Math.max(...weeklyAvgs.map(w => w.avg), 1);
+                  const chartH = 120;
+
+                  return (
+                  <div>
+                    {/* Lead Time Trend Chart */}
+                    {weeklyAvgs.length > 1 && (
+                      <div style={{ padding:"16px 16px 8px",borderBottom:"1px solid #f0f0f2" }}>
+                        <div style={{ fontSize:10,color:"#6e6e73",fontWeight:600,letterSpacing:"0.05em",marginBottom:8 }}>
+                          ORDER-TO-SHIP TIME — WEEKLY AVERAGE (DAYS)
+                          {shipstationData.avgLeadTimeDays != null && (
+                            <span style={{ marginLeft:12,color:"#00c7be",fontWeight:700 }}>
+                              Overall avg: {shipstationData.avgLeadTimeDays} days
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display:"flex",alignItems:"flex-end",gap:2,height:chartH,padding:"0 4px" }}>
+                          {weeklyAvgs.map((w, i) => {
+                            const barH = Math.max(4, (w.avg / maxAvg) * (chartH - 20));
+                            const color = w.avg <= 1 ? "#34c759" : w.avg <= 3 ? "#ff9500" : "#ff3b30";
+                            return (
+                              <div key={i} style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%" }}
+                                title={`Week of ${w.week}: avg ${w.avg.toFixed(1)}d (${w.count} orders)`}>
+                                <div style={{ fontSize:8,color:"#6e6e73",marginBottom:2 }}>{w.avg.toFixed(1)}</div>
+                                <div style={{ width:"100%",maxWidth:32,height:barH,background:color,borderRadius:"4px 4px 0 0",transition:"height 0.3s",minWidth:6 }} />
+                                <div style={{ fontSize:7,color:"#aeaeb2",marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:40 }}>
+                                  {new Date(w.week).toLocaleDateString("en-US",{month:"short",day:"numeric"})}
+                                </div>
                               </div>
-                            </td>
-                            <td style={{ padding:"10px 10px",fontSize:11,color:"#3a3f51",fontFamily:"monospace" }}>
-                              {order.shipments[0]?.trackingNumber || "—"}
-                            </td>
-                            <td style={{ padding:"10px 10px",fontSize:11,color:"#86868b" }}>
-                              {order.shipments[0]?.shipDate ? new Date(order.shipments[0].shipDate).toLocaleDateString() : "—"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {shipstationData.shipments.length > 50 && (
-                      <div style={{ textAlign:"center",padding:"8px",fontSize:11,color:"#86868b" }}>
-                        Showing 50 of {shipstationData.shipments.length} orders
+                            );
+                          })}
+                        </div>
+                        <div style={{ display:"flex",justifyContent:"center",gap:16,marginTop:8,fontSize:9,color:"#86868b" }}>
+                          <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#34c759",marginRight:4 }} />Same day / next day</span>
+                          <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#ff9500",marginRight:4 }} />2–3 days</span>
+                          <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#ff3b30",marginRight:4 }} />4+ days</span>
+                        </div>
                       </div>
                     )}
+
+                    {/* Table */}
+                    <div style={{ overflowX:"auto" }}>
+                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                        <thead>
+                          <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>ORDER #</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>ORDERED</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>SHIPPED</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center" }}>LEAD TIME</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>ITEMS</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>TRACKING</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {shipstationData.shipments.slice(0, 50).map(order => {
+                            const lt = order.leadTimeDays;
+                            const ltColor = lt == null ? "#86868b" : lt <= 1 ? "#34c759" : lt <= 3 ? "#ff9500" : "#ff3b30";
+                            return (
+                              <tr key={order.orderNumber} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                                <td style={{ padding:"10px 10px",fontWeight:700,color:"#00c7be" }}>{order.orderNumber}</td>
+                                <td style={{ padding:"10px 10px",fontSize:11,color:"#86868b" }}>
+                                  {order.orderDate ? new Date(order.orderDate).toLocaleDateString() : "—"}
+                                </td>
+                                <td style={{ padding:"10px 10px",fontSize:11,color:"#86868b" }}>
+                                  {order.shipments[0]?.shipDate ? new Date(order.shipments[0].shipDate).toLocaleDateString() : "—"}
+                                </td>
+                                <td style={{ padding:"10px 10px",textAlign:"center" }}>
+                                  {lt != null ? (
+                                    <span style={{ fontWeight:700,fontSize:13,color:ltColor,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                      {lt === 0 ? "Same day" : `${lt}d`}
+                                    </span>
+                                  ) : <span style={{ color:"#aeaeb2",fontSize:10 }}>—</span>}
+                                </td>
+                                <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                  {order.totalItemsShipped}
+                                </td>
+                                <td style={{ padding:"10px 10px",fontSize:11,color:"#3a3f51",fontFamily:"monospace" }}>
+                                  {order.shipments[0]?.trackingNumber || "—"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      {shipstationData.shipments.length > 50 && (
+                        <div style={{ textAlign:"center",padding:"8px",fontSize:11,color:"#86868b" }}>
+                          Showing 50 of {shipstationData.shipments.length} orders
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 
@@ -11929,7 +11997,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.90 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.91 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
