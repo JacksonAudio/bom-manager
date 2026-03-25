@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.97
+// src/App.jsx — Jackson Audio BOM Manager v6.98
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -6836,7 +6836,21 @@ function BOMManager({ user }) {
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize:11,color:"#86868b" }}>{[d.part.description, d.part.value].filter(Boolean).join(" — ")}</div>
+                          <div style={{ fontSize:11,color:"#86868b" }}>
+                            {[d.part.description, d.part.value].filter(Boolean).join(" — ")}
+                            {(() => {
+                              const supData = d.part.pricing?.[sid];
+                              const supStock = supData?.stock || 0;
+                              const orderQty = d.allocatedQty || d.net;
+                              if (supStock > 0 && supStock < orderQty) {
+                                return <span style={{ marginLeft:8,fontSize:10,fontWeight:700,color:"#ff9500" }}>
+                                  {sup.name} has {supStock.toLocaleString()} in stock — {(orderQty - supStock).toLocaleString()} will be backordered
+                                  {d.allocations.length <= 1 && " (no other suppliers carry this part)"}
+                                </span>;
+                              }
+                              return null;
+                            })()}
+                          </div>
                         </div>
                         <div style={{ flex:"0 0 auto",display:"flex",alignItems:"center",gap:6 }}>
                           <label style={{ display:"flex",alignItems:"center",gap:4,cursor:"pointer",fontSize:10,
@@ -12374,7 +12388,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.97 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.98 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
