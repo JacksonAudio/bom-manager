@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.03
+// src/App.jsx — Jackson Audio BOM Manager v7.04
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -4602,24 +4602,26 @@ function BOMManager({ user }) {
                   );
                 }
 
-                // Extract all unique MPNs from order history
-                const allMpns = new Map(); // mpn -> { manufacturer, description, lastOrdered, totalQty, unitPrice }
+                // Extract all unique MPNs from order history — track first purchase date
+                const allMpns = new Map(); // mpn -> { manufacturer, description, firstOrdered, lastOrdered, totalQty, unitPrice }
                 for (const order of (mouserOrderHistory.orders || [])) {
                   for (const item of (order.items || [])) {
                     const mpn = (item.mpn || "").trim();
                     if (!mpn) continue;
                     const existing = allMpns.get(mpn.toUpperCase());
                     const orderDate = order.date || "";
-                    if (!existing || orderDate > existing.lastOrdered) {
+                    if (!existing) {
                       allMpns.set(mpn.toUpperCase(), {
                         mpn: item.mpn, manufacturer: item.manufacturer || "",
                         description: item.description || "", mouserPN: item.mouserPN || "",
-                        lastOrdered: orderDate,
-                        totalQty: (existing?.totalQty || 0) + (item.quantity || 0),
-                        unitPrice: item.unitPrice || existing?.unitPrice || 0,
+                        firstOrdered: orderDate, lastOrdered: orderDate,
+                        totalQty: item.quantity || 0,
+                        unitPrice: item.unitPrice || 0,
                       });
                     } else {
                       existing.totalQty += (item.quantity || 0);
+                      if (orderDate && (!existing.firstOrdered || orderDate < existing.firstOrdered)) existing.firstOrdered = orderDate;
+                      if (orderDate && orderDate > existing.lastOrdered) { existing.lastOrdered = orderDate; existing.unitPrice = item.unitPrice || existing.unitPrice; }
                     }
                   }
                 }
@@ -4655,6 +4657,7 @@ function BOMManager({ user }) {
                                 <th style={{ padding:"6px 10px",textAlign:"left",fontSize:10,color:"#86868b",fontWeight:600 }}>MANUFACTURER</th>
                                 <th style={{ padding:"6px 10px",textAlign:"left",fontSize:10,color:"#86868b",fontWeight:600 }}>DESCRIPTION</th>
                                 <th style={{ padding:"6px 10px",textAlign:"right",fontSize:10,color:"#86868b",fontWeight:600 }}>QTY ORDERED</th>
+                                <th style={{ padding:"6px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>FIRST ORDERED</th>
                                 <th style={{ padding:"6px 10px",textAlign:"right",fontSize:10,color:"#86868b",fontWeight:600 }}>LAST PRICE</th>
                               </tr>
                             </thead>
@@ -4665,6 +4668,7 @@ function BOMManager({ user }) {
                                   <td style={{ padding:"6px 10px",color:"#3a3f51" }}>{p.manufacturer}</td>
                                   <td style={{ padding:"6px 10px",color:"#86868b",maxWidth:250,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description}</td>
                                   <td style={{ padding:"6px 10px",textAlign:"right",fontWeight:600 }}>{p.totalQty.toLocaleString()}</td>
+                                  <td style={{ padding:"6px 10px",color:"#86868b",fontSize:10 }}>{p.firstOrdered ? new Date(p.firstOrdered).toLocaleDateString() : "—"}</td>
                                   <td style={{ padding:"6px 10px",textAlign:"right",color:"#6e6e73" }}>{p.unitPrice ? `$${p.unitPrice.toFixed(4)}` : "—"}</td>
                                 </tr>
                               ))}
@@ -4686,7 +4690,10 @@ function BOMManager({ user }) {
                                   orderQty: "", flaggedForOrder: false,
                                   pricing: null, pricingStatus: "idle", pricingError: "", bestSupplier: null,
                                 };
-                                const created = await createPart(uiPartToDB(uiPart), user.id);
+                                const dbFields = uiPartToDB(uiPart);
+                                // Set created_at to the first purchase date from Mouser
+                                if (p.firstOrdered) dbFields.created_at = new Date(p.firstOrdered).toISOString();
+                                const created = await createPart(dbFields, user.id);
                                 setParts(prev => [...prev, dbPartToUI(created)]);
                                 added++;
                               } catch (e) { console.warn("Failed to add", p.mpn, e.message); }
@@ -12317,7 +12324,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.03",
+                      version: "v7.04",
                       tables: {},
                     };
                     // Export each table
@@ -12595,7 +12602,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.03 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.04 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
