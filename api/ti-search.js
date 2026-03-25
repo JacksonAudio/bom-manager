@@ -14,29 +14,36 @@ export default async function handler(req, res) {
 
   const { query, apiKey, apiSecret } = req.query;
   if (!query) return res.status(400).json({ error: "query is required" });
-  if (!apiKey || !apiSecret) return res.status(400).json({ error: "apiKey and apiSecret are required" });
+  if (!apiKey) return res.status(400).json({ error: "apiKey is required" });
 
   try {
-    // Step 1: Get OAuth2 access token
-    const tokenRes = await fetch("https://transact.ti.com/v1/oauth/accesstoken", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `grant_type=client_credentials&client_id=${encodeURIComponent(apiKey)}&client_secret=${encodeURIComponent(apiSecret)}`,
-    });
+    let accessToken;
 
-    if (!tokenRes.ok) {
-      const err = await tokenRes.text();
-      console.error("[ti-search] OAuth error:", tokenRes.status, err.slice(0, 500));
-      return res.status(502).json({ error: `TI OAuth error: ${tokenRes.status}`, details: err.slice(0, 300) });
+    if (apiSecret) {
+      // OAuth2 client_credentials flow (old-style dual key)
+      const tokenRes = await fetch("https://transact.ti.com/v1/oauth/accesstoken", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `grant_type=client_credentials&client_id=${encodeURIComponent(apiKey)}&client_secret=${encodeURIComponent(apiSecret)}`,
+      });
+
+      if (!tokenRes.ok) {
+        const err = await tokenRes.text();
+        console.error("[ti-search] OAuth error:", tokenRes.status, err.slice(0, 500));
+        return res.status(502).json({ error: `TI OAuth error: ${tokenRes.status}`, details: err.slice(0, 300) });
+      }
+
+      const tokenData = await tokenRes.json();
+      accessToken = tokenData.access_token;
+      if (!accessToken) {
+        return res.status(500).json({ error: "TI OAuth: no access_token", details: JSON.stringify(tokenData).slice(0, 300) });
+      }
+    } else {
+      // Single API key — use directly as bearer token
+      accessToken = apiKey;
     }
 
-    const tokenData = await tokenRes.json();
-    const accessToken = tokenData.access_token;
-    if (!accessToken) {
-      return res.status(500).json({ error: "TI OAuth: no access_token", details: JSON.stringify(tokenData).slice(0, 300) });
-    }
-
-    // Step 2: Look up the specific part
+    // Look up the specific part
     const productRes = await fetch(
       `https://transact.ti.com/v1/products/${encodeURIComponent(query)}`,
       { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } }

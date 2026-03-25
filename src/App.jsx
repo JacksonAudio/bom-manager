@@ -776,7 +776,7 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
   }
 
   // 5. Texas Instruments direct
-  if (apiKeys.ti_api_key && apiKeys.ti_api_secret) {
+  if (apiKeys.ti_api_key) {
     try {
       const td = await fetchTIPricing(mpn, quantity, apiKeys.ti_api_key, apiKeys.ti_api_secret);
       if (td) pricing.ti = td;
@@ -1598,7 +1598,7 @@ function BOMManager({ user }) {
         }
         if (mergedKeys.mouser_api_key) addLog("Mouser key loaded (direct API — tariff detection)", true);
         if (mergedKeys.arrow_api_key && mergedKeys.arrow_login) addLog("Arrow key loaded", true);
-        if (mergedKeys.ti_api_key && mergedKeys.ti_api_secret) addLog("Texas Instruments key loaded", true);
+        if (mergedKeys.ti_api_key) addLog("Texas Instruments key loaded", true);
 
         const okCount = log.filter(l => l.ok === true).length;
         const failCount = log.filter(l => l.ok === false).length;
@@ -2322,7 +2322,7 @@ function BOMManager({ user }) {
         nexarToken ? fetchNexarPricing(mpn, 1, nexarToken).catch(e => { console.warn("[QuickAdd] Nexar failed:", e.message); return null; }) : null,
         dkToken && apiKeys.digikey_client_id ? fetchDigiKeyPricing(mpn, 1, apiKeys.digikey_client_id, dkToken).catch(e => { console.warn("[QuickAdd] DigiKey failed:", e.message); return null; }) : null,
         apiKeys.arrow_api_key && apiKeys.arrow_login ? fetchArrowPricing(mpn, 1, apiKeys.arrow_login, apiKeys.arrow_api_key).catch(e => { console.warn("[QuickAdd] Arrow failed:", e.message); return null; }) : null,
-        apiKeys.ti_api_key && apiKeys.ti_api_secret ? fetchTIPricing(mpn, 1, apiKeys.ti_api_key, apiKeys.ti_api_secret).catch(e => { console.warn("[QuickAdd] TI failed:", e.message); return null; }) : null,
+        apiKeys.ti_api_key ? fetchTIPricing(mpn, 1, apiKeys.ti_api_key, apiKeys.ti_api_secret).catch(e => { console.warn("[QuickAdd] TI failed:", e.message); return null; }) : null,
       ]);
 
       if (!mouserData && !nexarData && !dkData && !arrowData && !tiData) throw new Error(`No results found for "${mpn}". Try pasting just the MPN instead.`);
@@ -10288,11 +10288,11 @@ function BOMManager({ user }) {
 
             {/* ── Texas Instruments Direct */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background: (apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background: (apiKeys.ti_api_key) ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("ti") ? s.delete("ti") : s.add("ti"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: (apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: (apiKeys.ti_api_key) ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("ti") ? "▶" : "▼"}</span>
-                  Texas Instruments Direct {(apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "✓" : ""}
+                  Texas Instruments Direct {(apiKeys.ti_api_key) ? "✓" : ""}
                 </div>
               </div>
               {!collapsedSettings.has("ti") && <div style={{ padding:"16px 20px" }}>
@@ -10308,12 +10308,12 @@ function BOMManager({ user }) {
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
                 <div className="key-input-row">
-                  <div className="key-label">API Secret</div>
-                  <input type="password" placeholder="TI API Secret (client_secret)" value={apiKeys.ti_api_secret}
+                  <div><div className="key-label">API Secret</div><div className="key-hint">Optional — only needed for older OAuth2 apps</div></div>
+                  <input type="password" placeholder="TI API Secret (optional)" value={apiKeys.ti_api_secret}
                     onChange={(e)=>setApiKeys((k)=>({...k,ti_api_secret:e.target.value}))}
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
-                {sectionSaveBtn("ti", "TI Keys")}
+                {sectionSaveBtn("ti", "TI Key")}
               </div>}
             </div>
 
