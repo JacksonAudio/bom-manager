@@ -6922,6 +6922,46 @@ function BOMManager({ user }) {
                   </div>
                 );
               })()}
+
+              {/* ── Email All POs button */}
+              {Object.keys(supplierGroups).length > 0 && (
+                <div style={{ display:"flex",justifyContent:"center",padding:"20px 0",borderTop:"2px solid #e5e5ea",marginTop:8 }}>
+                  <button
+                    onClick={() => {
+                      const companyInfo = { name: apiKeys.company_name, address: apiKeys.company_address };
+                      const supKeys = Object.keys(supplierGroups);
+                      const drafts = [];
+                      for (const sid of supKeys) {
+                        const supItems = supplierGroups[sid];
+                        const supObj = SUPPLIERS.find(s => s.id === sid) || { name: sid };
+                        const poNum = `PO-${sid.toUpperCase().slice(0,4)}-${new Date().toISOString().slice(0,10).replace(/-/g,"")}`;
+                        const poLines = supItems.map(d => ({
+                          mpn: d.part.mpn || d.part.reference,
+                          neededQty: d.allocatedQty || d.net,
+                          description: d.part.description || d.part.value || "",
+                        }));
+                        const repEmail = supObj.rep?.email || apiKeys[`${sid}_rep_email`] || "";
+                        const contactName = supObj.rep?.name || apiKeys[`${sid}_rep_name`] || "";
+                        const draft = buildPOEmailDraft(supObj.name, poLines, poNum, companyInfo, contactName);
+                        drafts.push({ supplier: supObj.name, email: repEmail, draft });
+                      }
+                      // Open all mailto links with a slight delay to avoid browser blocking
+                      drafts.forEach((d, i) => {
+                        setTimeout(() => {
+                          window.location.href = `mailto:${d.email}?subject=${encodeURIComponent(d.draft.subject)}&body=${encodeURIComponent(d.draft.body)}`;
+                        }, i * 800);
+                      });
+                    }}
+                    style={{
+                      padding:"14px 36px",borderRadius:980,fontSize:15,fontWeight:700,cursor:"pointer",
+                      fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                      border:"none",background:"#0071e3",color:"#fff",
+                      boxShadow:"0 2px 8px rgba(0,113,227,0.3)",
+                    }}>
+                    Email All POs ({Object.keys(supplierGroups).length} suppliers)
+                  </button>
+                </div>
+              )}
             </>)}
           </div>
           );
