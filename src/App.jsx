@@ -8644,58 +8644,71 @@ function BOMManager({ user }) {
 
             {/* Order Tracker moved above — now appears after summary cards */}
 
-            {/* ── ShipStation: Units Shipped */}
+            {/* ── ShipStation: Units Shipped (collapsible) */}
             {shipstationData && !shipstationData?.error && shipstationData?.shipments?.length > 0 && (
-              <div className="card" style={{ marginBottom:16 }}>
-                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
-                  <div style={{ fontSize:10,color:"#aeaeb2",letterSpacing:"0.1em",fontWeight:700 }}>
-                    UNITS SHIPPED — SHIPSTATION ({shipstationData.dateRange?.days || 90} DAYS)
+              <div className="card" style={{ marginBottom:16, overflow:"hidden" }}>
+                <div
+                  onClick={() => setExpandedDemandSections(prev => { const s = new Set(prev); s.has("shipstation-shipped") ? s.delete("shipstation-shipped") : s.add("shipstation-shipped"); return s; })}
+                  style={{
+                    padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
+                    background:"#00c7be08",
+                    borderBottom: expandedDemandSections.has("shipstation-shipped") ? "2px solid #00c7be33" : "none",
+                    borderRadius: expandedDemandSections.has("shipstation-shipped") ? "12px 12px 0 0" : 12,transition:"all 0.2s",
+                  }}>
+                  <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                    <div style={{ width:8,height:8,borderRadius:"50%",background:"#00c7be",flexShrink:0 }} />
+                    <span style={{ fontSize:13,fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                      Units Shipped — ShipStation
+                    </span>
+                    <span style={{ fontSize:11,color:"#86868b",fontWeight:500 }}>
+                      ({shipstationData.uniqueOrders} orders · {shipstationData.totalUnitsShipped} units · {shipstationData.dateRange?.days || 90}d)
+                    </span>
                   </div>
-                  <span style={{ fontSize:10,color:"#aeaeb2" }}>
-                    {shipstationData.totalShipments} shipments · {shipstationData.uniqueOrders} orders · {shipstationData.totalUnitsShipped} units
-                  </span>
+                  <span style={{ fontSize:11,color:"#86868b",transform:expandedDemandSections.has("shipstation-shipped")?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s" }}>&#9660;</span>
                 </div>
-                <div style={{ overflowX:"auto" }}>
-                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
-                    <thead>
-                      <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
-                        <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>ORDER #</th>
-                        <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>ITEMS SHIPPED</th>
-                        <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>SHIPMENTS</th>
-                        <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>TRACKING</th>
-                        <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>SHIP DATE</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {shipstationData.shipments.slice(0, 50).map(order => (
-                        <tr key={order.orderNumber} style={{ borderBottom:"1px solid #f0f0f2" }}>
-                          <td style={{ padding:"10px 10px",fontWeight:700,color:"#00c7be" }}>{order.orderNumber}</td>
-                          <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
-                            {order.totalItemsShipped}
-                          </td>
-                          <td style={{ padding:"10px 10px" }}>
-                            <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
-                              {order.shipments.map((s,i) => (
-                                <span key={i} className="badge" style={{ background:"#00c7be22",color:"#00c7be",fontSize:10 }}>
-                                  {s.carrier} · {s.items.reduce((sum,it) => sum + it.quantity, 0)} items · ${s.cost.toFixed(2)}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td style={{ padding:"10px 10px",fontSize:11,color:"#3a3f51",fontFamily:"monospace" }}>
-                            {order.shipments[0]?.trackingNumber || "—"}
-                          </td>
-                          <td style={{ padding:"10px 10px",fontSize:11,color:"#86868b" }}>
-                            {order.shipments[0]?.shipDate ? new Date(order.shipments[0].shipDate).toLocaleDateString() : "—"}
-                          </td>
+                {expandedDemandSections.has("shipstation-shipped") && (
+                  <div style={{ overflowX:"auto" }}>
+                    <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                      <thead>
+                        <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
+                          <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>ORDER #</th>
+                          <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"right" }}>ITEMS SHIPPED</th>
+                          <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>SHIPMENTS</th>
+                          <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>TRACKING</th>
+                          <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>SHIP DATE</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {shipstationData.shipments.length > 50 && (
-                  <div style={{ textAlign:"center",padding:"8px",fontSize:11,color:"#86868b" }}>
-                    Showing 50 of {shipstationData.shipments.length} orders
+                      </thead>
+                      <tbody>
+                        {shipstationData.shipments.slice(0, 50).map(order => (
+                          <tr key={order.orderNumber} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                            <td style={{ padding:"10px 10px",fontWeight:700,color:"#00c7be" }}>{order.orderNumber}</td>
+                            <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                              {order.totalItemsShipped}
+                            </td>
+                            <td style={{ padding:"10px 10px" }}>
+                              <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
+                                {order.shipments.map((s,i) => (
+                                  <span key={i} className="badge" style={{ background:"#00c7be22",color:"#00c7be",fontSize:10 }}>
+                                    {s.carrier} · {s.items.reduce((sum,it) => sum + it.quantity, 0)} items · ${s.cost.toFixed(2)}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td style={{ padding:"10px 10px",fontSize:11,color:"#3a3f51",fontFamily:"monospace" }}>
+                              {order.shipments[0]?.trackingNumber || "—"}
+                            </td>
+                            <td style={{ padding:"10px 10px",fontSize:11,color:"#86868b" }}>
+                              {order.shipments[0]?.shipDate ? new Date(order.shipments[0].shipDate).toLocaleDateString() : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {shipstationData.shipments.length > 50 && (
+                      <div style={{ textAlign:"center",padding:"8px",fontSize:11,color:"#86868b" }}>
+                        Showing 50 of {shipstationData.shipments.length} orders
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
