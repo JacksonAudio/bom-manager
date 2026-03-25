@@ -136,76 +136,68 @@ async function handleCreateLabel(res, baseUrl, authHeader, body) {
   });
 }
 
-// ── Fetch ALL shipped orders using /orders endpoint (better history than /shipments)
-// Uses orderStatus=shipped and paginates through everything in 90-day chunks
+// ── Fetch ALL shipped orders — paginate through entire history
 async function handleShipments(req, res, baseUrl, authHeader, days) {
-  const lookback = parseInt(days) || 730;
-  const now = new Date();
   const headers = { Authorization: authHeader, "Content-Type": "application/json" };
 
-  // Fetch shipped orders in 90-day chunks to avoid API limits
-  const chunkDays = 90;
+  // Fetch ALL shipped orders — no date filter so we get full history
   const allOrders = [];
-  let chunkEnd = new Date(now);
+  let page = 1;
+  let totalPages = 1;
+  let apiPages = 0;
 
-  for (let fetched = 0; fetched < lookback; fetched += chunkDays) {
-    const chunkStart = new Date(chunkEnd.getTime() - chunkDays * 86400000);
-    const startStr = chunkStart.toISOString().slice(0, 10);
-    const endStr = chunkEnd.toISOString().slice(0, 10);
-
-    let page = 1;
-    let totalPages = 1;
-    while (page <= totalPages) {
-      const url = `${baseUrl}/orders?orderStatus=shipped&orderDateStart=${startStr}&orderDateEnd=${endStr}&pageSize=500&page=${page}&sortBy=OrderDate&sortDir=DESC`;
-      try {
-        const oRes = await fetch(url, { headers });
-        if (!oRes.ok) {
-          // If we get a rate limit or error, return what we have so far
-          if (allOrders.length > 0) break;
-          const errText = await oRes.text().catch(() => "");
-          return res.status(oRes.status).json({ error: `ShipStation API error: ${oRes.status}`, detail: errText.slice(0, 500) });
-        }
-        const oData = await oRes.json();
-        allOrders.push(...(oData.orders || []));
-        totalPages = oData.pages || 1;
-        page++;
-      } catch (e) {
-        // On network error, return what we have
-        if (allOrders.length > 0) break;
-        throw e;
-      }
+  while (page <= totalPages && page <= 50) { // safety cap at 50 pages (25,000 orders)
+    const url = `${baseUrl}/orders?orderStatus=shipped&pageSize=500&page=${page}&sortBy=OrderDate&sortDir=DESC`;
+    const oRes = await fetch(url, { headers });
+    if (!oRes.ok) {
+      if (allOrders.length > 0) break; // return partial data on error
+      const errText = await oRes.text().catch(() => "");
+      return res.status(oRes.status).json({ error: `ShipStation API error: ${oRes.status}`, detail: errText.slice(0, 500) });
     }
-    chunkEnd = new Date(chunkStart);
-    // If last chunk returned nothing, stop early
-    if (page === 2 && allOrders.length === 0) continue;
+    const oData = await oRes.json();
+    const batch = oData.orders || [];
+    allOrders.push(...batch);
+    totalPages = oData.pages || 1;
+    apiPages = totalPages;
+    page++;
+    // If this page was empty, stop
+    if (batch.length === 0) break;
   }
 
-  // Also fetch recent shipments for tracking numbers (last 90 days)
+  // Also fetch recent shipments for tracking numbers
   const trackingMap = {};
-  const shipStart = new Date(now.getTime() - 90 * 86400000).toISOString().slice(0, 10);
-  let sPage = 1;
-  let sTotalPages = 1;
-  while (sPage <= sTotalPages) {
-    try {
-      const sUrl = `${baseUrl}/shipments?shipDateStart=${shipStart}&shipDateEnd=${now.toISOString().slice(0,10)}&includeShipmentItems=true&pageSize=500&page=${sPage}&sortBy=ShipDate&sortDir=DESC`;
-      const sRes = await fetch(sUrl, { headers });
-      if (!sRes.ok) break;
-      const sData = await sRes.json();
-      for (const s of (sData.shipments || [])) {
-        if (s.voided || s.isReturnLabel) continue;
-        const key = s.orderNumber || s.orderId;
-        if (!key) continue;
-        if (!trackingMap[key]) trackingMap[key] = [];
-        trackingMap[key].push({
-          shipmentId: s.shipmentId, trackingNumber: s.trackingNumber || "",
-          carrier: s.carrierCode || "", shipDate: s.shipDate || "",
-          cost: s.shipmentCost || 0,
-          items: (s.shipmentItems || []).map(i => ({ sku: i.sku||"", name: i.name||"", quantity: i.quantity||0 })),
-        });
-      }
-      sTotalPages = sData.pages || 1;
-      sPage++;
-    } catch { break; }
+  const now = new Date();
+  // Fetch shipments going back further — up to 1 year for tracking data
+  for (const lookbackDays of [90, 180, 365]) {
+    const shipStart = new Date(now.getTime() - lookbackDays * 86400000).toISOString().slice(0, 10);
+    const shipEnd = lookbackDays === 90 ? now.toISOString().slice(0, 10)
+      : new Date(now.getTime() - (lookbackDays - 90) * 86400000).toISOString().slice(0, 10);
+    // Only fetch older chunks if we have enough orders to warrant it
+    if (lookbackDays > 90 && allOrders.length < 500) break;
+
+    let sPage = 1;
+    let sTotalPages = 1;
+    while (sPage <= sTotalPages && sPage <= 10) {
+      try {
+        const sUrl = `${baseUrl}/shipments?shipDateStart=${shipStart}&shipDateEnd=${lookbackDays === 90 ? now.toISOString().slice(0,10) : shipEnd}&includeShipmentItems=true&pageSize=500&page=${sPage}&sortBy=ShipDate&sortDir=DESC`;
+        const sRes = await fetch(sUrl, { headers });
+        if (!sRes.ok) break;
+        const sData = await sRes.json();
+        for (const s of (sData.shipments || [])) {
+          if (s.voided || s.isReturnLabel) continue;
+          const key = s.orderNumber || s.orderId;
+          if (!key || trackingMap[key]) continue;
+          trackingMap[key] = [{
+            shipmentId: s.shipmentId, trackingNumber: s.trackingNumber || "",
+            carrier: s.carrierCode || "", shipDate: s.shipDate || "",
+            cost: s.shipmentCost || 0,
+            items: (s.shipmentItems || []).map(i => ({ sku: i.sku||"", name: i.name||"", quantity: i.quantity||0 })),
+          }];
+        }
+        sTotalPages = sData.pages || 1;
+        sPage++;
+      } catch { break; }
+    }
   }
 
   // Deduplicate orders by orderNumber
@@ -262,7 +254,19 @@ async function handleShipments(req, res, baseUrl, authHeader, days) {
     totalUnitsShipped,
     uniqueOrders: uniqueOrders.length,
     avgLeadTimeDays: avgLeadTime != null ? Math.round(avgLeadTime * 10) / 10 : null,
-    dateRange: { start: startDate, end: now.toISOString().slice(0, 10), days: lookback },
+    dateRange: {
+      start: uniqueOrders.length > 0 ? (uniqueOrders[uniqueOrders.length-1].orderDate || "?") : "?",
+      end: now.toISOString().slice(0, 10),
+      days: 0,
+    },
+    debug: {
+      rawOrdersFetched: allOrders.length,
+      apiPagesAvailable: apiPages,
+      pagesFetched: page - 1,
+      trackingOrdersMatched: Object.keys(trackingMap).length,
+      oldestOrder: allOrders.length > 0 ? (allOrders[allOrders.length-1]?.orderDate || allOrders[allOrders.length-1]?.createDate) : null,
+      newestOrder: allOrders.length > 0 ? (allOrders[0]?.orderDate || allOrders[0]?.createDate) : null,
+    },
     syncedAt: new Date().toISOString(),
   });
 }

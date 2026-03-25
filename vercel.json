@@ -12,6 +12,9 @@
     },
     "api/zoho.js": {
       "maxDuration": 120
+    },
+    "api/shipstation.js": {
+      "maxDuration": 120
     }
   },
   "crons": [

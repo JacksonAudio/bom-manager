@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.93
+// src/App.jsx — Jackson Audio BOM Manager v6.94
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -9031,6 +9031,13 @@ function BOMManager({ user }) {
                     </div>
                     <div style={{ padding:"8px 16px",fontSize:10,color:"#aeaeb2",borderTop:"1px solid #f0f0f2" }}>
                       {shipstationData.shipments.length} orders total · {withLead.length} with lead time data
+                      {shipstationData.debug && (
+                        <span style={{ marginLeft:8 }}>
+                          (API: {shipstationData.debug.rawOrdersFetched} raw orders, {shipstationData.debug.pagesFetched}/{shipstationData.debug.apiPagesAvailable} pages
+                          {shipstationData.debug.oldestOrder && ` · oldest: ${new Date(shipstationData.debug.oldestOrder).toLocaleDateString()}`}
+                          {shipstationData.debug.newestOrder && ` · newest: ${new Date(shipstationData.debug.newestOrder).toLocaleDateString()}`})
+                        </span>
+                      )}
                     </div>
                   </div>
                   );
@@ -12082,7 +12089,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.93 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.94 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
