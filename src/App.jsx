@@ -7470,15 +7470,25 @@ function BOMManager({ user }) {
             </div>
             <div style={{ marginBottom:16 }}>
               <div style={{ display:"flex",gap:10,flexWrap:"wrap",alignItems:"center" }}>
+                <input type="text" placeholder="Search products..." value={prodSearch}
+                  onChange={e => setProdSearch(e.target.value)}
+                  style={{ padding:"8px 14px",borderRadius:980,fontSize:13,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:220,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                <select value={selBrand||"all"} onChange={e=>setSelBrand(e.target.value)}
+                  style={{ padding:"7px 10px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7" }}>
+                  <option value="all">All Brands</option>
+                  {[...new Set(products.map(p=>p.brand||"Jackson Audio"))].sort().map(b=>
+                    <option key={b} value={b}>{b}</option>
+                  )}
+                </select>
                 <input type="text" placeholder="New product name…" value={newProjName}
                   onChange={(e)=>setNewProjName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addProduct()}
-                  style={{ padding:"8px 14px",borderRadius:980,fontSize:13,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:220,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                  style={{ marginLeft:"auto",padding:"6px 12px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:180,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
                 <select value={newProjBrand} onChange={e=>{
                     let val=e.target.value;
                     if(val==="__new__"){val=window.prompt("New brand name:");if(!val){setNewProjBrand("Jackson Audio");return;}}
                     setNewProjBrand(val);
                   }}
-                  style={{ padding:"7px 10px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7" }}>
+                  style={{ padding:"5px 10px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7" }}>
                   {[...new Set(["Jackson Audio","Fulltone USA",...products.map(p=>p.brand).filter(Boolean)])].sort().map(b=>
                     <option key={b} value={b}>{b}</option>
                   )}
@@ -7488,16 +7498,6 @@ function BOMManager({ user }) {
                   style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff" }}>
                   + New Product
                 </button>
-                <input type="text" placeholder="Search products..." value={prodSearch}
-                  onChange={e => setProdSearch(e.target.value)}
-                  style={{ marginLeft:"auto",padding:"6px 12px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7",width:180 }} />
-                <select value={selBrand||"all"} onChange={e=>setSelBrand(e.target.value)}
-                  style={{ padding:"5px 10px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7" }}>
-                  <option value="all">All Brands</option>
-                  {[...new Set(products.map(p=>p.brand||"Jackson Audio"))].sort().map(b=>
-                    <option key={b} value={b}>{b}</option>
-                  )}
-                </select>
               </div>
             </div>
 
