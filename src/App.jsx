@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.02
+// src/App.jsx — Jackson Audio BOM Manager v7.03
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -12317,7 +12317,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.02",
+                      version: "v7.03",
                       tables: {},
                     };
                     // Export each table
@@ -12328,14 +12328,6 @@ function BOMManager({ user }) {
                         if (error) { backup.tables[table] = { error: error.message }; }
                         else { backup.tables[table] = { count: (data||[]).length, rows: data || [] }; }
                       } catch (e) { backup.tables[table] = { error: e.message }; }
-                    }
-                    // Mask sensitive API keys
-                    if (backup.tables.api_keys?.rows) {
-                      const sensitiveKeys = new Set(["nexar_client_secret","digikey_client_secret","mouser_api_key","mouser_order_api_key","ti_api_secret","arrow_api_key","shipstation_api_secret"]);
-                      backup.tables.api_keys.rows = backup.tables.api_keys.rows.map(r => ({
-                        ...r,
-                        key_value: sensitiveKeys.has(r.key_name) ? (r.key_value ? r.key_value.slice(0,4) + "****" : "") : r.key_value,
-                      }));
                     }
                     // Also include localStorage caches
                     backup.localStorage = {};
@@ -12603,7 +12595,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.02 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.03 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>

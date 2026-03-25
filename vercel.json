@@ -18,12 +18,19 @@
     },
     "api/mouser-cart.js": {
       "maxDuration": 60
+    },
+    "api/backup.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
     {
       "path": "/api/low-stock-alert",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/backup",
+      "schedule": "0 6 * * *"
     }
   ]
 }
