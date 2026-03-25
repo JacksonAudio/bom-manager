@@ -6650,7 +6650,7 @@ function BOMManager({ user }) {
                         </button>
 
                         {/* ── Tariff Check Button (Mouser Cart API) */}
-                        {sup.id === "mouser" && apiKeys.mouser_order_api_key && (
+                        {sup.id === "mouser" && (apiKeys.mouser_order_api_key || apiKeys.mouser_api_key) && (
                           <button disabled={mouserTariffPreview?.loading}
                             onClick={async () => {
                               setMouserTariffPreview({ loading: true });
@@ -6659,9 +6659,10 @@ function BOMManager({ user }) {
                                   mouserPartNumber: d.part.pricing?.mouser?.mouserPartNumber || d.part.mpn,
                                   quantity: getItemQty(d),
                                 }));
-                                const cartResult = await mouserCreateCart(apiKeys.mouser_order_api_key, cartItems);
+                                const tariffKey = apiKeys.mouser_order_api_key || apiKeys.mouser_api_key;
+                                const cartResult = await mouserCreateCart(tariffKey, cartItems);
                                 // Fetch order options to get tariff/fee breakdown
-                                const options = await mouserGetOrderOptions(apiKeys.mouser_order_api_key, cartResult.cartKey);
+                                const options = await mouserGetOrderOptions(tariffKey, cartResult.cartKey);
                                 // Parse fees from cart items
                                 const fees = [];
                                 let totalFees = 0;
