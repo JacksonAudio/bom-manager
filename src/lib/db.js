@@ -213,24 +213,40 @@ export async function saveApiKey(keyName, keyValue, userId) {
 }
 
 // Save all api keys at once (used by settings save button)
-// Only updates rows that already exist — seed-api-keys endpoint creates missing rows first
+// Updates existing rows, inserts missing ones (requires INSERT RLS policy)
 export async function saveAllApiKeys(keysObj, userId) {
   const { data: existing } = await supabase
     .from('api_keys')
     .select('key_name')
   const existingNames = new Set((existing || []).map(r => r.key_name))
 
-  const updates = Object.entries(keysObj)
-    .filter(([key_name]) => existingNames.has(key_name))
-    .map(([key_name, key_value]) =>
-      supabase.from('api_keys')
-        .update({ key_value: key_value ?? "", updated_by: userId })
-        .eq('key_name', key_name)
-    )
+  const updates = []
+  const inserts = []
+
+  for (const [key_name, key_value] of Object.entries(keysObj)) {
+    if (key_value === undefined) continue
+    if (existingNames.has(key_name)) {
+      updates.push(
+        supabase.from('api_keys')
+          .update({ key_value: key_value ?? "", updated_by: userId })
+          .eq('key_name', key_name)
+      )
+    } else if (key_value) {
+      inserts.push({ key_name, key_value, updated_by: userId })
+    }
+  }
 
   if (updates.length) {
     const results = await Promise.all(updates)
     for (const { error } of results) check(error, 'saveAllApiKeys')
+  }
+
+  if (inserts.length) {
+    const { error } = await supabase.from('api_keys').insert(inserts)
+    if (error) {
+      console.warn('[db] Insert api_key rows failed:', error.message)
+      check(error, 'saveAllApiKeys')
+    }
   }
 }
 

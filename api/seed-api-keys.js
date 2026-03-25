@@ -1,12 +1,16 @@
 // api/seed-api-keys.js — Ensure all expected api_key rows exist in DB
-// Uses service role to bypass RLS. Called once from Settings when keys are missing.
+// Accepts the Supabase URL + service key via env vars, OR falls back to
+// using the anon key + auth token from the client to run privileged inserts.
 
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || "https://qzyxekyrzddoxtdqcnfp.supabase.co",
-  process.env.SUPABASE_SERVICE_KEY || ""
-);
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://qzyxekyrzddoxtdqcnfp.supabase.co";
+
+// Try service role first, fall back to anon key
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
+  || process.env.SUPABASE_SERVICE_ROLE_KEY
+  || process.env.VITE_SUPABASE_ANON_KEY
+  || "";
 
 const ALL_KEY_NAMES = [
   "nexar_client_id", "nexar_client_secret",
@@ -30,16 +34,34 @@ const ALL_KEY_NAMES = [
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
   try {
+    // Use service role client if available
+    let sb = SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+    // If no service key, try using the anon key + user's auth token
+    if (!sb || !SUPABASE_KEY) {
+      const anonKey = req.body?.anonKey;
+      const authToken = req.headers.authorization?.replace("Bearer ", "");
+      if (anonKey) {
+        sb = createClient(SUPABASE_URL, anonKey, {
+          global: { headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }
+        });
+      }
+    }
+
+    if (!sb) {
+      return res.status(500).json({ error: "No Supabase credentials available. Set SUPABASE_SERVICE_KEY in Vercel env vars." });
+    }
+
     // Get existing rows
-    const { data: existing, error: fetchErr } = await supabase
+    const { data: existing, error: fetchErr } = await sb
       .from("api_keys")
       .select("key_name");
-    if (fetchErr) return res.status(500).json({ error: fetchErr.message });
+    if (fetchErr) return res.status(500).json({ error: "fetch: " + fetchErr.message });
 
     const existingNames = new Set((existing || []).map(r => r.key_name));
     const missing = ALL_KEY_NAMES.filter(n => !existingNames.has(n));
@@ -48,11 +70,24 @@ export default async function handler(req, res) {
       return res.status(200).json({ message: "All key rows exist", inserted: 0 });
     }
 
-    const rows = missing.map(key_name => ({ key_name, key_value: "" }));
-    const { error: insertErr } = await supabase.from("api_keys").insert(rows);
-    if (insertErr) return res.status(500).json({ error: insertErr.message });
+    // Try inserting one by one so partial success is possible
+    const inserted = [];
+    const failed = [];
+    for (const key_name of missing) {
+      const { error } = await sb.from("api_keys").insert({ key_name, key_value: "" });
+      if (error) {
+        failed.push({ key_name, error: error.message });
+      } else {
+        inserted.push(key_name);
+      }
+    }
 
-    return res.status(200).json({ message: `Inserted ${missing.length} rows`, inserted: missing.length, keys: missing });
+    return res.status(200).json({
+      inserted: inserted.length,
+      failed: failed.length,
+      keys: inserted,
+      errors: failed,
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

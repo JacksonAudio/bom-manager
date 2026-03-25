@@ -69,10 +69,42 @@ insert into api_keys (key_name, key_value) values
   ('nexar_client_id',       ''),
   ('nexar_client_secret',   ''),
   ('mouser_api_key',        ''),
+  ('mouser_order_api_key',  ''),
   ('digikey_client_id',     ''),
   ('digikey_client_secret', ''),
   ('arrow_api_key',         ''),
-  ('arrow_login',           '')
+  ('arrow_login',           ''),
+  ('ti_api_key',            ''),
+  ('ti_api_secret',         ''),
+  ('notify_email',          ''),
+  ('supplier_emails',       ''),
+  ('tariffs_json',          ''),
+  ('shipping_json',         ''),
+  ('shopify_stores_json',   ''),
+  ('company_name',          'Jackson Audio'),
+  ('company_address',       ''),
+  ('distributor_names',     ''),
+  ('supplier_contacts',     ''),
+  ('supplier_po_names',     ''),
+  ('supplier_order_modes',  ''),
+  ('anthropic_api_key',     ''),
+  ('twilio_account_sid',    ''),
+  ('twilio_auth_token',     ''),
+  ('twilio_phone_number',   ''),
+  ('labor_rate_hourly',     '25'),
+  ('preferred_supplier',    'mouser'),
+  ('preferred_supplier_margin', '5'),
+  ('zoho_client_id',        ''),
+  ('zoho_client_secret',    ''),
+  ('zoho_refresh_token',    ''),
+  ('zoho_org_id',           ''),
+  ('zoho_orgs_json',        ''),
+  ('shipstation_api_key',   ''),
+  ('shipstation_api_secret',''),
+  ('fulfillment_goal_direct','1'),
+  ('fulfillment_goal_dealer','14'),
+  ('timezone',              'America/Chicago'),
+  ('build_goals_json',      '')
 on conflict (key_name) do nothing;
 
 -- ─────────────────────────────────────────────
@@ -137,11 +169,16 @@ create policy "parts: auth users full access"
   using (true)
   with check (true);
 
--- API_KEYS: any logged-in user can read and update (not insert new key names)
+-- API_KEYS: any logged-in user can read, insert, and update
 create policy "api_keys: auth users read"
   on api_keys for select
   to authenticated
   using (true);
+
+create policy "api_keys: auth users insert"
+  on api_keys for insert
+  to authenticated
+  with check (true);
 
 create policy "api_keys: auth users update"
   on api_keys for update

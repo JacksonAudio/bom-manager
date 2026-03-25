@@ -1391,8 +1391,16 @@ function BOMManager({ user }) {
         onClick={async () => {
           setSettingsSaving(sectionId); setSettingsSaved("");
           try {
-            // Ensure all key rows exist in DB (service role bypasses RLS for inserts)
-            await fetch("/api/seed-api-keys", { method: "POST" }).catch(() => {});
+            // Ensure all key rows exist in DB before saving values
+            const session = (await supabase.auth.getSession())?.data?.session;
+            await fetch("/api/seed-api-keys", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+              },
+              body: JSON.stringify({ anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY }),
+            }).catch(() => {});
             await saveAllApiKeys(apiKeys, user.id);
             authenticateAPIs();
             setSettingsSaved(sectionId);
