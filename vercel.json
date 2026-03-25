@@ -5,19 +5,19 @@
       "maxDuration": 60
     },
     "api/search-components.js": {
-      "maxDuration": 120
+      "maxDuration": 60
     },
     "api/shopify.js": {
-      "maxDuration": 120
+      "maxDuration": 60
     },
     "api/zoho.js": {
-      "maxDuration": 120
+      "maxDuration": 60
     },
     "api/shipstation.js": {
-      "maxDuration": 120
+      "maxDuration": 60
     },
     "api/mouser-cart.js": {
-      "maxDuration": 120
+      "maxDuration": 60
     }
   },
   "crons": [
