@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.72
+// src/App.jsx — Jackson Audio BOM Manager v6.86
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1339,6 +1339,7 @@ function BOMManager({ user }) {
   const [fullReelParts, setFullReelParts] = useState(new Set()); // part IDs where full reel is toggled
   const [settingsSaving, setSettingsSaving] = useState(""); // which section is saving
   const [settingsSaved, setSettingsSaved] = useState(""); // which section just saved
+  const [apiTestResult, setApiTestResult] = useState({}); // { sectionId: { status:"ok"|"error"|"testing", msg:"..." } }
   const [qrModalParts, setQrModalParts] = useState(null); // array of parts to show QR labels for
   const [invoiceParsing, setInvoiceParsing] = useState(false);
   const [invoiceResult, setInvoiceResult] = useState(null); // { items: [...], matched: [...] }
@@ -1405,6 +1406,66 @@ function BOMManager({ user }) {
       {settingsSaved === sectionId && <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>Saved</span>}
     </div>
   );
+
+  const testApiConnection = async (sectionId) => {
+    setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "testing", msg: "Testing…" } }));
+    try {
+      let result = null;
+      const testMpn = "UCC27525DR"; // common TI part for testing
+      if (sectionId === "nexar") {
+        if (!apiKeys.nexar_client_id || !apiKeys.nexar_client_secret) throw new Error("Enter Client ID and Secret first");
+        const token = nexarToken || await fetchNexarToken(apiKeys.nexar_client_id, apiKeys.nexar_client_secret);
+        if (!nexarToken) setNexarToken(token);
+        result = await fetchNexarPricing(testMpn, 1, token);
+        if (!result) throw new Error("No results returned");
+        setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Connected — found ${Object.keys(result).length} distributors` } }));
+      } else if (sectionId === "mouser") {
+        if (!apiKeys.mouser_api_key) throw new Error("Enter API key first");
+        const data = await fetchMouserPricing(testMpn, 1, apiKeys.mouser_api_key);
+        if (!data) throw new Error("No results returned");
+        setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Connected — $${data.unitPrice?.toFixed(4) || "?"}/ea, ${data.stock || 0} in stock` } }));
+      } else if (sectionId === "digikey") {
+        if (!apiKeys.digikey_client_id || !apiKeys.digikey_client_secret) throw new Error("Enter Client ID and Secret first");
+        const token = dkToken || await fetchDigiKeyToken(apiKeys.digikey_client_id, apiKeys.digikey_client_secret);
+        if (!dkToken) setDkToken(token);
+        const data = await fetchDigiKeyPricing(testMpn, 1, apiKeys.digikey_client_id, token);
+        if (!data) throw new Error("No results returned");
+        setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Connected — $${data.unitPrice?.toFixed(4) || "?"}/ea, ${data.stock || 0} in stock` } }));
+      } else if (sectionId === "arrow") {
+        if (!apiKeys.arrow_api_key || !apiKeys.arrow_login) throw new Error("Enter Login and API Key first");
+        const data = await fetchArrowPricing(testMpn, 1, apiKeys.arrow_login, apiKeys.arrow_api_key);
+        if (!data) throw new Error("No results returned");
+        setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Connected — $${data.unitPrice?.toFixed(4) || "?"}/ea, ${data.stock || 0} in stock` } }));
+      } else if (sectionId === "ti") {
+        if (!apiKeys.ti_api_key) throw new Error("Enter API Key first");
+        const data = await fetchTIPricing(testMpn, 1, apiKeys.ti_api_key, apiKeys.ti_api_secret || "");
+        if (!data) throw new Error("API responded but returned no pricing data — key may be invalid");
+        setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Connected — $${data.unitPrice?.toFixed(4) || "?"}/ea, ${data.stock || 0} in stock` } }));
+      }
+      setTimeout(() => setApiTestResult(prev => { const n = { ...prev }; if (n[sectionId]?.status === "ok") delete n[sectionId]; return n; }), 8000);
+    } catch (e) {
+      setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "error", msg: e.message } }));
+      setTimeout(() => setApiTestResult(prev => { const n = { ...prev }; if (n[sectionId]?.status === "error") delete n[sectionId]; return n; }), 10000);
+    }
+  };
+
+  const testBtn = (sectionId) => {
+    const t = apiTestResult[sectionId];
+    return (
+      <div style={{ display:"flex",alignItems:"center",gap:8,marginTop:8 }}>
+        <button className="btn-ghost btn-sm" onClick={() => testApiConnection(sectionId)}
+          disabled={t?.status === "testing"}
+          style={{ fontSize:11,padding:"5px 12px",borderRadius:6,border:"1px solid #d1d1d6" }}>
+          {t?.status === "testing" ? "Testing…" : "Test Connection"}
+        </button>
+        {t && t.status !== "testing" && (
+          <span style={{ fontSize:10, color: t.status === "ok" ? "#34c759" : "#ff3b30", fontWeight:500 }}>
+            {t.msg}
+          </span>
+        )}
+      </div>
+    );
+  };
 
   // Persist tracked orders
   const saveTrackedOrders = (orders) => {
@@ -10203,6 +10264,7 @@ function BOMManager({ user }) {
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
                 {sectionSaveBtn("nexar", "Nexar Keys")}
+                {testBtn("nexar")}
               </div>}
             </div>
 
@@ -10234,6 +10296,7 @@ function BOMManager({ user }) {
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
                 {sectionSaveBtn("mouser", "Mouser Keys")}
+                {testBtn("mouser")}
               </div>}
             </div>
 
@@ -10265,6 +10328,7 @@ function BOMManager({ user }) {
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
                 {sectionSaveBtn("digikey", "DigiKey Keys")}
+                {testBtn("digikey")}
               </div>}
             </div>
 
@@ -10296,6 +10360,7 @@ function BOMManager({ user }) {
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
                 {sectionSaveBtn("arrow", "Arrow Keys")}
+                {testBtn("arrow")}
               </div>}
             </div>
 
@@ -10327,6 +10392,7 @@ function BOMManager({ user }) {
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
                 {sectionSaveBtn("ti", "TI Key")}
+                {testBtn("ti")}
               </div>}
             </div>
 
@@ -11466,7 +11532,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.72 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.86 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
