@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.95
+// src/App.jsx — Jackson Audio BOM Manager v6.96
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -6194,33 +6194,94 @@ function BOMManager({ user }) {
           const demandList = Object.values(aggregated).map(d => {
             const stock = parseInt(d.part.stockQty) || 0;
             const net = Math.max(0, d.totalNeeded - stock);
-            // Get best price
             const pr = d.part.pricing && typeof d.part.pricing === "object" ? d.part.pricing : null;
             let bestPrice = parseFloat(d.part.unitCost) || 0;
             let bestSupplier = d.part.preferredSupplier || "mouser";
             let bestSupplierName = "";
+
+            // Build sorted list of all available suppliers with stock
+            const calcPrice = (dd, qty) => { let p = dd.unitPrice; if (dd.priceBreaks?.length) { for (const pb of dd.priceBreaks) { if (qty >= pb.qty) p = pb.price; } } return parseFloat(p) || dd.unitPrice; };
+            let rankedSuppliers = []; // [{ id, name, price, stock, data }]
             if (pr) {
-              const entries = Object.entries(pr).filter(([k,dd]) => !k.startsWith("_") && dd.stock > 0);
-              if (entries.length) {
-                const calc = (dd) => { let p = dd.unitPrice; if (dd.priceBreaks?.length) { for (const pb of dd.priceBreaks) { if (net >= pb.qty) p = pb.price; } } return parseFloat(p) || dd.unitPrice; };
-                entries.sort((a,b) => (calc(a[1])||Infinity) - (calc(b[1])||Infinity));
-                bestPrice = calc(entries[0][1]);
-                bestSupplier = entries[0][0];
-                bestSupplierName = entries[0][1].displayName || entries[0][0];
-                // Prefer supplier if within margin%
-                const prefId = apiKeys.preferred_supplier;
-                const prefMargin = parseFloat(apiKeys.preferred_margin) || 0;
+              const entries = Object.entries(pr).filter(([k,dd]) => !k.startsWith("_") && dd && typeof dd === "object" && dd.unitPrice > 0);
+              for (const [k, dd] of entries) {
+                rankedSuppliers.push({ id: k, name: dd.displayName || k, price: calcPrice(dd, net), stock: dd.stock || 0, data: dd });
+              }
+              rankedSuppliers.sort((a, b) => (a.price || Infinity) - (b.price || Infinity));
+
+              // Apply preferred supplier logic
+              const prefId = apiKeys.preferred_supplier;
+              const prefMargin = parseFloat(apiKeys.preferred_margin) || 0;
+              if (rankedSuppliers.length > 0) {
+                bestPrice = rankedSuppliers[0].price;
+                bestSupplier = rankedSuppliers[0].id;
+                bestSupplierName = rankedSuppliers[0].name;
                 if (prefId && bestSupplier !== prefId) {
-                  const prefEntry = entries.find(([k]) => k === prefId);
-                  if (prefEntry && calc(prefEntry[1]) <= bestPrice * (1 + prefMargin / 100)) {
-                    bestPrice = calc(prefEntry[1]);
-                    bestSupplier = prefId;
-                    bestSupplierName = prefEntry[1].displayName || prefId;
+                  const prefEntry = rankedSuppliers.find(r => r.id === prefId);
+                  if (prefEntry && prefEntry.price <= bestPrice * (1 + prefMargin / 100)) {
+                    bestPrice = prefEntry.price;
+                    bestSupplier = prefEntry.id;
+                    bestSupplierName = prefEntry.name;
                   }
                 }
               }
             }
-            // Determine tariff info from country of origin — check all pricing entries
+
+            // ── SPLIT ORDER ALLOCATION ──
+            // If the best supplier doesn't have enough stock, split across multiple vendors
+            const allocations = [];
+            let remaining = net;
+            if (net > 0 && rankedSuppliers.length > 0) {
+              // Sort: preferred supplier first (if within margin), then by price
+              const prefId = apiKeys.preferred_supplier;
+              const sortedForAlloc = [...rankedSuppliers].sort((a, b) => {
+                if (a.id === bestSupplier) return -1;
+                if (b.id === bestSupplier) return 1;
+                return (a.price || Infinity) - (b.price || Infinity);
+              });
+
+              for (const sup of sortedForAlloc) {
+                if (remaining <= 0) break;
+                if (sup.stock <= 0) continue;
+                const allocQty = Math.min(remaining, sup.stock);
+                const allocPrice = calcPrice(sup.data, allocQty);
+                allocations.push({
+                  supplierId: sup.id,
+                  supplierName: sup.name,
+                  qty: allocQty,
+                  price: allocPrice,
+                  stock: sup.stock,
+                  isSplit: true,
+                });
+                remaining -= allocQty;
+              }
+
+              // If still remaining after all in-stock suppliers, assign rest to cheapest (backorder)
+              if (remaining > 0) {
+                const backorderSup = rankedSuppliers[0]; // cheapest overall
+                const existing = allocations.find(a => a.supplierId === backorderSup.id);
+                if (existing) {
+                  existing.qty += remaining;
+                  existing.backorderQty = remaining;
+                } else {
+                  allocations.push({
+                    supplierId: backorderSup.id,
+                    supplierName: backorderSup.name,
+                    qty: remaining,
+                    price: calcPrice(backorderSup.data, remaining),
+                    stock: backorderSup.stock,
+                    isSplit: true,
+                    backorderQty: remaining,
+                  });
+                }
+                remaining = 0;
+              }
+            }
+
+            // If only one allocation covers everything, no split needed
+            const isSplitOrder = allocations.length > 1;
+
+            // Determine tariff info from country of origin
             let origin = "";
             if (pr) {
               for (const [k, data] of Object.entries(pr)) {
@@ -6233,24 +6294,34 @@ function BOMManager({ user }) {
             const tariffRate = origin ? getTariffRate(origin, poTariffs) : 0;
             const hasTariff = tariffRate > 0;
             const landedPrice = hasTariff ? bestPrice * (1 + tariffRate / 100) : bestPrice;
-            return { ...d, stock, net, bestPrice, bestSupplier, bestSupplierName, isInternal: d.part.isInternal || false, origin, tariffRate, hasTariff, landedPrice };
+            return { ...d, stock, net, bestPrice, bestSupplier, bestSupplierName, isInternal: d.part.isInternal || false, origin, tariffRate, hasTariff, landedPrice, allocations, isSplitOrder };
           }).filter(d => d.net > 0);
 
-          // Group by supplier (with optional tariff filtering)
+          // Group by supplier — split orders create entries in multiple supplier groups
           const supplierGroups = {};
           const internalItems = [];
-          const tariffSkippedItems = []; // parts excluded by the tariff toggle
+          const tariffSkippedItems = [];
           for (const d of demandList) {
             if (d.isInternal) { internalItems.push(d); continue; }
-            // If skip-tariffed is on and this part has a tariff on the assigned supplier, hold it aside
             if (skipTariffedParts && d.hasTariff) { tariffSkippedItems.push(d); continue; }
-            const sid = d.bestSupplier;
-            if (!supplierGroups[sid]) supplierGroups[sid] = [];
-            supplierGroups[sid].push(d);
+            if (d.allocations.length > 0) {
+              // Split order — add to each supplier's group with allocated qty
+              for (const alloc of d.allocations) {
+                const sid = alloc.supplierId;
+                if (!supplierGroups[sid]) supplierGroups[sid] = [];
+                supplierGroups[sid].push({ ...d, allocatedQty: alloc.qty, allocatedPrice: alloc.price, allocatedBackorder: alloc.backorderQty || 0 });
+              }
+            } else {
+              // No allocation data (no pricing) — fall back to single supplier
+              const sid = d.bestSupplier;
+              if (!supplierGroups[sid]) supplierGroups[sid] = [];
+              supplierGroups[sid].push({ ...d, allocatedQty: d.net, allocatedPrice: d.bestPrice, allocatedBackorder: 0 });
+            }
           }
 
           const grandTotal = demandList.reduce((s, d) => s + d.bestPrice * d.net, 0);
           const totalParts = demandList.length;
+          const splitCount = demandList.filter(d => d.isSplitOrder).length;
 
           return (
           <div style={{ background:"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
@@ -6397,7 +6468,17 @@ function BOMManager({ user }) {
               {demandList.length > 0 && (
                 <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:24 }}>
                   <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2" }}>
-                    <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Parts to Order — {demandList.filter(d => !skipTariffedParts || !d.hasTariff).length} items{skipTariffedParts && tariffSkippedItems.length > 0 ? ` (${tariffSkippedItems.length} tariffed held back)` : ""}</div>
+                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                      <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>
+                        Parts to Order — {demandList.filter(d => !skipTariffedParts || !d.hasTariff).length} items
+                        {skipTariffedParts && tariffSkippedItems.length > 0 ? ` (${tariffSkippedItems.length} tariffed held back)` : ""}
+                      </div>
+                      {splitCount > 0 && (
+                        <span style={{ fontSize:9,fontWeight:700,padding:"3px 10px",borderRadius:980,background:"rgba(255,59,48,0.1)",color:"#ff3b30" }}>
+                          {splitCount} split order{splitCount !== 1 ? "s" : ""} — stock shortfall detected
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {demandList.map((d, idx) => (
                     <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"14px 22px",
@@ -6417,9 +6498,19 @@ function BOMManager({ user }) {
                         <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Need</div>
                         <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.net.toLocaleString()}</div>
                       </div>
-                      <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:60 }}>
+                      <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:100 }}>
                         {d.isInternal
                           ? <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>IN-HOUSE</span>
+                          : d.isSplitOrder
+                          ? <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
+                              <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"2px 6px",borderRadius:4,background:"rgba(255,59,48,0.1)",color:"#ff3b30" }}>SPLIT ORDER</span>
+                              {d.allocations.map((a, ai) => (
+                                <div key={ai} style={{ fontSize:9,color:"#6e6e73",whiteSpace:"nowrap" }}>
+                                  {a.supplierName}: {a.qty.toLocaleString()}
+                                  {a.backorderQty > 0 && <span style={{ color:"#ff9500" }}> (backorder)</span>}
+                                </div>
+                              ))}
+                            </div>
                           : d.bestSupplierName
                           ? <span style={{ fontSize:10,color:"#86868b" }}>{d.bestSupplierName}</span>
                           : null}
@@ -6467,14 +6558,20 @@ function BOMManager({ user }) {
                 let poNames = {}; try { poNames = JSON.parse(apiKeys.supplier_po_names || "{}"); } catch {}
                 const poNum = genPONumber(sid, poNames[sid]);
                 // Compute reel-adjusted totals
-                const getItemQty = (d) => { const isReel = fullReelParts.has(d.part.id); const rq = getReelQty(d.part); return isReel && rq ? rq : d.net; };
+                const getItemQty = (d) => {
+                  const isReel = fullReelParts.has(d.part.id); const rq = getReelQty(d.part);
+                  if (isReel && rq) return rq;
+                  return d.allocatedQty || d.net; // Use split-allocated qty if available
+                };
                 const getItemPrice = (d) => {
-                  if (!fullReelParts.has(d.part.id) || !d.part.pricing) return d.bestPrice;
+                  // Use allocated price from split logic if available
+                  if (d.allocatedPrice && !fullReelParts.has(d.part.id)) return d.allocatedPrice;
+                  if (!fullReelParts.has(d.part.id) || !d.part.pricing) return d.allocatedPrice || d.bestPrice;
                   const pr = d.part.pricing[sid] || Object.values(d.part.pricing).find(s => s.priceBreaks?.length);
-                  if (!pr?.priceBreaks?.length) return d.bestPrice;
+                  if (!pr?.priceBreaks?.length) return d.allocatedPrice || d.bestPrice;
                   const q = getItemQty(d); let price = pr.unitPrice;
                   for (const pb of pr.priceBreaks) { if (q >= pb.qty) price = pb.price; }
-                  return parseFloat(price) || d.bestPrice;
+                  return parseFloat(price) || d.allocatedPrice || d.bestPrice;
                 };
                 const poTotal = items.reduce((s, d) => s + getItemPrice(d) * getItemQty(d), 0);
                 const totalUnits = items.reduce((s, d) => s + getItemQty(d), 0);
@@ -6502,7 +6599,10 @@ function BOMManager({ user }) {
                               {modeConf.label}
                             </span>
                           </div>
-                          <div style={{ fontSize:11,color:"#86868b" }}>{items.length} parts · {totalUnits.toLocaleString()} units · {"$"}{fmtDollar(poTotal)}</div>
+                          <div style={{ fontSize:11,color:"#86868b" }}>
+                            {items.length} parts · {totalUnits.toLocaleString()} units · {"$"}{fmtDollar(poTotal)}
+                            {items.some(d => d.isSplitOrder) && <span style={{ marginLeft:6,fontSize:9,fontWeight:700,color:"#ff3b30" }}>contains split orders</span>}
+                          </div>
                         </div>
                       </div>
                       <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
@@ -6574,14 +6674,14 @@ function BOMManager({ user }) {
                                 const cartItems = [];
                                 for (const d of items) {
                                   const mouserPN = d.part.pricing?.mouser?.mouserPartNumber || d.part.mpn;
-                                  cartItems.push({ mouserPartNumber: mouserPN, quantity: d.net });
+                                  cartItems.push({ mouserPartNumber: mouserPN, quantity: d.allocatedQty || d.net });
                                 }
                                 const result = await mouserCreateCart(apiKeys.mouser_order_api_key, cartItems);
                                 setMouserCartStatus({ loading: false, ...result });
                                 addTrackedOrder({ supplier: "Mouser", supplierColor: "#e8500a", poNumber: poNum,
-                                  items: items.map(d => ({ mpn: d.part.mpn, reference: d.part.reference, qty: d.net, unitPrice: d.bestPrice })),
+                                  items: items.map(d => ({ mpn: d.part.mpn, reference: d.part.reference, qty: d.allocatedQty || d.net, unitPrice: d.allocatedPrice || d.bestPrice })),
                                   totalEstimate: poTotal, cartKey: result.cartKey, cartUrl: result.cartUrl });
-                                try { await createPORecord({ supplier: sup.name, po_number: poNum, status: "submitted", items: items.map(d => ({ mpn: d.part.mpn, qty: d.net, unitPrice: d.bestPrice })), total_value: poTotal, notes: "Sent to Mouser Cart via API", ordered_at: new Date().toISOString() }, user.id); } catch {}
+                                try { await createPORecord({ supplier: sup.name, po_number: poNum, status: "submitted", items: items.map(d => ({ mpn: d.part.mpn, qty: d.allocatedQty || d.net, unitPrice: d.allocatedPrice || d.bestPrice })), total_value: poTotal, notes: "Sent to Mouser Cart via API", ordered_at: new Date().toISOString() }, user.id); } catch {}
                                 window.open(result.cartUrl, "_blank");
                               } catch (e) { setMouserCartStatus({ loading: false, error: e.message }); }
                             }}
@@ -6593,13 +6693,13 @@ function BOMManager({ user }) {
                           <button onClick={async () => {
                               const dkItems = items.map(d => ({
                                 partNumber: d.part.pricing?.digikey?.supplierPartNumber || d.part.mpn,
-                                quantity: d.net,
+                                quantity: d.allocatedQty || d.net,
                               }));
                               const cartUrl = buildDigiKeyCartUrl(dkItems);
                               addTrackedOrder({ supplier: sup.name, supplierColor: sup.color, poNumber: poNum,
-                                items: items.map(d => ({ mpn: d.part.mpn, reference: d.part.reference, qty: d.net, unitPrice: d.bestPrice })),
+                                items: items.map(d => ({ mpn: d.part.mpn, reference: d.part.reference, qty: d.allocatedQty || d.net, unitPrice: d.allocatedPrice || d.bestPrice })),
                                 totalEstimate: poTotal, cartUrl });
-                              try { await createPORecord({ supplier: sup.name, po_number: poNum, status: "submitted", items: items.map(d => ({ mpn: d.part.mpn, qty: d.net, unitPrice: d.bestPrice })), total_value: poTotal, notes: "DigiKey cart URL opened", ordered_at: new Date().toISOString() }, user.id); } catch {}
+                              try { await createPORecord({ supplier: sup.name, po_number: poNum, status: "submitted", items: items.map(d => ({ mpn: d.part.mpn, qty: d.allocatedQty || d.net, unitPrice: d.allocatedPrice || d.bestPrice })), total_value: poTotal, notes: "DigiKey cart URL opened", ordered_at: new Date().toISOString() }, user.id); } catch {}
                               window.open(cartUrl, "_blank");
                             }}
                             style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#34c759",color:"#fff" }}>
@@ -6620,9 +6720,9 @@ function BOMManager({ user }) {
                               const draft = buildPOEmailDraft(repName, poLines, poNum, {name:apiKeys.company_name,address:apiKeys.company_address}, contactName);
                               window.location.href = `mailto:${repEmail}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
                               addTrackedOrder({ supplier: sup.name, supplierColor: sup.color, poNumber: poNum,
-                                items: items.map(d => ({ mpn: d.part.mpn, reference: d.part.reference, qty: d.net, unitPrice: d.bestPrice })),
+                                items: items.map(d => ({ mpn: d.part.mpn, reference: d.part.reference, qty: d.allocatedQty || d.net, unitPrice: d.allocatedPrice || d.bestPrice })),
                                 totalEstimate: poTotal, notes: `Submitted to rep: ${repName} (${repEmail})` });
-                              try { await createPORecord({ supplier: sup.name, po_number: poNum, status: "submitted", items: items.map(d => ({ mpn: d.part.mpn, qty: d.net, unitPrice: d.bestPrice })), total_value: poTotal, notes: `Emailed to rep: ${repEmail}`, ordered_at: new Date().toISOString() }, user.id); } catch {}
+                              try { await createPORecord({ supplier: sup.name, po_number: poNum, status: "submitted", items: items.map(d => ({ mpn: d.part.mpn, qty: d.allocatedQty || d.net, unitPrice: d.allocatedPrice || d.bestPrice })), total_value: poTotal, notes: `Emailed to rep: ${repEmail}`, ordered_at: new Date().toISOString() }, user.id); } catch {}
                             }}
                             style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff" }}>
                             Email PO to Rep
@@ -6683,7 +6783,7 @@ function BOMManager({ user }) {
                     {items.map((d, idx) => {
                       const isFullReel = fullReelParts.has(d.part.id);
                       const reelQty = getReelQty(d.part);
-                      const qty = isFullReel && reelQty ? reelQty : d.net;
+                      const qty = isFullReel && reelQty ? reelQty : (d.allocatedQty || d.net);
                       // Get best price at reel quantity
                       const priceAtReel = (() => {
                         if (!isFullReel || !d.part.pricing) return d.bestPrice;
@@ -6697,7 +6797,19 @@ function BOMManager({ user }) {
                       <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"12px 22px",
                         borderBottom:idx<items.length-1?"1px solid #f0f0f2":"none",gap:12 }}>
                         <div style={{ flex:"1 1 200px",minWidth:0 }}>
-                          <div style={{ fontWeight:600,fontSize:14,color:"#1d1d1f" }}>{d.part.mpn || d.part.reference}</div>
+                          <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                            <span style={{ fontWeight:600,fontSize:14,color:"#1d1d1f" }}>{d.part.mpn || d.part.reference}</span>
+                            {d.isSplitOrder && (
+                              <span style={{ fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(255,59,48,0.1)",color:"#ff3b30",letterSpacing:"0.04em" }}>
+                                SPLIT {(d.allocatedQty||0).toLocaleString()} of {d.net.toLocaleString()}
+                              </span>
+                            )}
+                            {d.allocatedBackorder > 0 && (
+                              <span style={{ fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
+                                {d.allocatedBackorder.toLocaleString()} BACKORDER
+                              </span>
+                            )}
+                          </div>
                           <div style={{ fontSize:11,color:"#86868b" }}>{[d.part.description, d.part.value].filter(Boolean).join(" — ")}</div>
                         </div>
                         <div style={{ flex:"0 0 auto",display:"flex",alignItems:"center",gap:6 }}>
@@ -6732,8 +6844,8 @@ function BOMManager({ user }) {
                       <span style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",marginLeft:"auto" }}>{"$"}{fmtDollar(items.reduce((s, d) => {
                         const isReel = fullReelParts.has(d.part.id);
                         const rq = getReelQty(d.part);
-                        const q = isReel && rq ? rq : d.net;
-                        const pr = (() => { if (!isReel || !d.part.pricing) return d.bestPrice; const p = d.part.pricing[sid] || Object.values(d.part.pricing).find(x => x.priceBreaks?.length); if (!p?.priceBreaks?.length) return d.bestPrice; let price = p.unitPrice; for (const pb of p.priceBreaks) { if (q >= pb.qty) price = pb.price; } return parseFloat(price) || d.bestPrice; })();
+                        const q = isReel && rq ? rq : (d.allocatedQty || d.net);
+                        const pr = (() => { if (!isReel || !d.part.pricing) return d.allocatedPrice || d.bestPrice; const p = d.part.pricing[sid] || Object.values(d.part.pricing).find(x => x.priceBreaks?.length); if (!p?.priceBreaks?.length) return d.allocatedPrice || d.bestPrice; let price = p.unitPrice; for (const pb of p.priceBreaks) { if (q >= pb.qty) price = pb.price; } return parseFloat(price) || d.allocatedPrice || d.bestPrice; })();
                         return s + pr * q;
                       }, 0))}</span>
                     </div>
@@ -12236,7 +12348,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.95 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.96 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
