@@ -1330,6 +1330,7 @@ function BOMManager({ user }) {
   const [mouserCartStatus, setMouserCartStatus] = useState(null); // { loading, error, cartUrl, cartKey, items }
   const [mouserTariffPreview, setMouserTariffPreview] = useState(null); // { loading, fees: [{mpn,fee,code}], totalFees, merchandiseTotal, orderTotal }
   const [skipTariffedParts, setSkipTariffedParts] = useState(false); // toggle to exclude tariffed parts from Mouser PO
+  const [usSuppliersOnly, setUsSuppliersOnly] = useState(false); // only use US-based distributors in purchasing
   const [mouserOrderHistory, setMouserOrderHistory] = useState(null); // { loading, error, orders, totalOrders, syncedAt }
   // Order tracker — DB-backed via poHistory
   const [trackedOrders, setTrackedOrders] = useState([]);
@@ -6210,6 +6211,14 @@ function BOMManager({ user }) {
               }
               rankedSuppliers.sort((a, b) => (a.price || Infinity) - (b.price || Infinity));
 
+              // Filter to US suppliers only when toggle is on
+              if (usSuppliersOnly) {
+                rankedSuppliers = rankedSuppliers.filter(s => {
+                  const country = s.data?.country || DIST_COUNTRY[s.name] || DIST_COUNTRY[s.id] || "";
+                  return country === "US";
+                });
+              }
+
               // Apply preferred supplier logic
               const prefId = apiKeys.preferred_supplier;
               const prefMargin = parseFloat(apiKeys.preferred_margin) || 0;
@@ -6412,6 +6421,11 @@ function BOMManager({ user }) {
                 return (
                   <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
                     <div style={{ display:"flex",alignItems:"center",gap:16,padding:"14px 22px",flexWrap:"wrap" }}>
+                      <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,fontWeight:600,color:usSuppliersOnly?"#0071e3":"#1d1d1f" }}>
+                        <input type="checkbox" checked={usSuppliersOnly} onChange={() => setUsSuppliersOnly(v => !v)}
+                          style={{ width:16,height:16,accentColor:"#0071e3",cursor:"pointer" }} />
+                        US Suppliers Only
+                      </label>
                       <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,fontWeight:600,color:skipTariffedParts?"#ff9500":"#1d1d1f" }}>
                         <input type="checkbox" checked={skipTariffedParts} onChange={() => setSkipTariffedParts(v => !v)}
                           style={{ width:16,height:16,accentColor:"#ff9500",cursor:"pointer" }} />
