@@ -6947,17 +6947,27 @@ function BOMManager({ user }) {
                         const draft = buildPOEmailDraft(supObj.name, poLines, poNum, companyInfo, contactName);
                         drafts.push({ supplier: supObj.name, email: repEmail, draft, sid });
                       }
-                      // Open each email in a new window with staggered timing
+                      // Use hidden <a> clicks — browsers allow these without popup blocking
                       const missingEmails = drafts.filter(d => !d.email);
                       if (missingEmails.length > 0) {
                         const missing = missingEmails.map(d => d.supplier).join(", ");
                         if (!window.confirm(`No rep email set for: ${missing}.\n\nEmails for these suppliers will open with an empty To field. You can add rep emails in the supplier cards above.\n\nContinue anyway?`)) return;
                       }
-                      drafts.forEach((d, i) => {
-                        setTimeout(() => {
-                          window.open(`mailto:${d.email}?subject=${encodeURIComponent(d.draft.subject)}&body=${encodeURIComponent(d.draft.body)}`, "_blank");
-                        }, i * 600);
-                      });
+                      // Click hidden links sequentially — each triggers a mailto
+                      let idx = 0;
+                      const openNext = () => {
+                        if (idx >= drafts.length) return;
+                        const d = drafts[idx];
+                        const a = document.createElement("a");
+                        a.href = `mailto:${d.email}?subject=${encodeURIComponent(d.draft.subject)}&body=${encodeURIComponent(d.draft.body)}`;
+                        a.style.display = "none";
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        idx++;
+                        if (idx < drafts.length) setTimeout(openNext, 1500);
+                      };
+                      openNext();
                     }}
                     style={{
                       padding:"14px 36px",borderRadius:980,fontSize:15,fontWeight:700,cursor:"pointer",
