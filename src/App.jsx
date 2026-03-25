@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.96
+// src/App.jsx — Jackson Audio BOM Manager v6.97
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -6322,6 +6322,7 @@ function BOMManager({ user }) {
           const grandTotal = demandList.reduce((s, d) => s + d.bestPrice * d.net, 0);
           const totalParts = demandList.length;
           const splitCount = demandList.filter(d => d.isSplitOrder).length;
+          const backorderCount = demandList.filter(d => !d.isSplitOrder && d.allocations.some(a => a.backorderQty > 0)).length;
 
           return (
           <div style={{ background:"#f5f5f7",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
@@ -6473,11 +6474,18 @@ function BOMManager({ user }) {
                         Parts to Order — {demandList.filter(d => !skipTariffedParts || !d.hasTariff).length} items
                         {skipTariffedParts && tariffSkippedItems.length > 0 ? ` (${tariffSkippedItems.length} tariffed held back)` : ""}
                       </div>
-                      {splitCount > 0 && (
-                        <span style={{ fontSize:9,fontWeight:700,padding:"3px 10px",borderRadius:980,background:"rgba(255,59,48,0.1)",color:"#ff3b30" }}>
-                          {splitCount} split order{splitCount !== 1 ? "s" : ""} — stock shortfall detected
-                        </span>
-                      )}
+                      <div style={{ display:"flex",gap:8 }}>
+                        {splitCount > 0 && (
+                          <span style={{ fontSize:9,fontWeight:700,padding:"3px 10px",borderRadius:980,background:"rgba(52,199,89,0.1)",color:"#34c759" }}>
+                            {splitCount} split across vendors
+                          </span>
+                        )}
+                        {backorderCount > 0 && (
+                          <span style={{ fontSize:9,fontWeight:700,padding:"3px 10px",borderRadius:980,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
+                            {backorderCount} backorder{backorderCount !== 1 ? "s" : ""} — no alt suppliers
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   {demandList.map((d, idx) => (
@@ -6498,22 +6506,40 @@ function BOMManager({ user }) {
                         <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Need</div>
                         <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.net.toLocaleString()}</div>
                       </div>
-                      <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:100 }}>
+                      <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:120 }}>
                         {d.isInternal
                           ? <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>IN-HOUSE</span>
                           : d.isSplitOrder
                           ? <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
-                              <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"2px 6px",borderRadius:4,background:"rgba(255,59,48,0.1)",color:"#ff3b30" }}>SPLIT ORDER</span>
+                              <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"2px 6px",borderRadius:4,background:"rgba(52,199,89,0.1)",color:"#34c759" }}>SPLIT ORDER</span>
                               {d.allocations.map((a, ai) => (
                                 <div key={ai} style={{ fontSize:9,color:"#6e6e73",whiteSpace:"nowrap" }}>
                                   {a.supplierName}: {a.qty.toLocaleString()}
-                                  {a.backorderQty > 0 && <span style={{ color:"#ff9500" }}> (backorder)</span>}
+                                  {a.backorderQty > 0 && <span style={{ color:"#ff9500" }}> ({a.backorderQty} backorder)</span>}
                                 </div>
                               ))}
                             </div>
-                          : d.bestSupplierName
-                          ? <span style={{ fontSize:10,color:"#86868b" }}>{d.bestSupplierName}</span>
-                          : null}
+                          : (() => {
+                              // Single supplier — check if they have enough stock
+                              const supData = d.part.pricing?.[d.bestSupplier];
+                              const supStock = supData?.stock || 0;
+                              const hasShortfall = supStock > 0 && supStock < d.net;
+                              const noStock = supStock === 0 && d.bestSupplierName;
+                              return (
+                                <div style={{ display:"flex",flexDirection:"column",gap:2,alignItems:"center" }}>
+                                  {d.bestSupplierName && <span style={{ fontSize:10,color:"#86868b" }}>{d.bestSupplierName}</span>}
+                                  {hasShortfall && (
+                                    <span style={{ fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
+                                      Only {supStock.toLocaleString()} in stock — {(d.net - supStock).toLocaleString()} backorder
+                                    </span>
+                                  )}
+                                  {hasShortfall && d.allocations.length <= 1 && (
+                                    <span style={{ fontSize:8,color:"#ff3b30" }}>No alt suppliers found</span>
+                                  )}
+                                </div>
+                              );
+                            })()
+                        }
                       </div>
                       {d.hasTariff && (
                         <span style={{ flex:"0 0 auto",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:4,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
@@ -12348,7 +12374,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.96 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.97 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
