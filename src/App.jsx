@@ -6649,47 +6649,38 @@ function BOMManager({ user }) {
                           Email PO
                         </button>
 
-                        {/* ── Tariff Check Button (Mouser Cart API) */}
-                        {sup.id === "mouser" && (apiKeys.mouser_order_api_key || apiKeys.mouser_api_key) && (
+                        {/* ── Tariff Check Button — uses Search API surcharge data already in pricing */}
+                        {sup.id === "mouser" && (
                           <button disabled={mouserTariffPreview?.loading}
-                            onClick={async () => {
-                              setMouserTariffPreview({ loading: true });
-                              try {
-                                const cartItems = items.map(d => ({
-                                  mouserPartNumber: d.part.pricing?.mouser?.mouserPartNumber || d.part.mpn,
-                                  quantity: getItemQty(d),
-                                }));
-                                const tariffKey = apiKeys.mouser_order_api_key || apiKeys.mouser_api_key;
-                                const cartResult = await mouserCreateCart(tariffKey, cartItems);
-                                // Fetch order options to get tariff/fee breakdown
-                                const options = await mouserGetOrderOptions(tariffKey, cartResult.cartKey);
-                                // Parse fees from cart items
-                                const fees = [];
-                                let totalFees = 0;
-                                const cartItemsList = cartResult.cartItems || options.CartItems || [];
-                                for (const ci of cartItemsList) {
-                                  const itemFees = ci.AdditionalFees || ci.CartAdditionalFee || [];
-                                  for (const fee of (Array.isArray(itemFees) ? itemFees : [])) {
-                                    const amt = parseFloat(fee.ExtendedAmount || fee.Amount || 0);
-                                    if (amt > 0) {
-                                      fees.push({ mpn: ci.MouserPartNumber || ci.PartNumber || "", fee: amt, code: fee.Code || "tariff", desc: fee.Description || "Tariff/Surcharge" });
-                                      totalFees += amt;
-                                    }
-                                  }
+                            onClick={() => {
+                              // Extract tariff info from existing pricing data (Mouser Search API SurchargeMessages)
+                              const fees = [];
+                              let totalFees = 0;
+                              let merchandiseTotal = 0;
+                              for (const d of items) {
+                                const mouserP = d.part.pricing?.mouser;
+                                const qty = getItemQty(d);
+                                const unitPrice = mouserP?.unitPrice || d.bestPrice || 0;
+                                const lineTotal = unitPrice * qty;
+                                merchandiseTotal += lineTotal;
+                                const tariffRate = mouserP?.mouserTariffRate || 0;
+                                if (tariffRate > 0) {
+                                  const feeAmt = lineTotal * (tariffRate / 100);
+                                  fees.push({
+                                    mpn: d.part.mpn || mouserP?.mouserPartNumber || "",
+                                    fee: feeAmt,
+                                    rate: tariffRate,
+                                    code: "TARIFF",
+                                    desc: mouserP?.mouserTariffMessage || `${tariffRate}% tariff`,
+                                  });
+                                  totalFees += feeAmt;
                                 }
-                                // Also check order-level summary
-                                const merchandiseTotal = parseFloat(options.MerchandiseTotal || options.SubTotal || 0);
-                                const orderTotal = parseFloat(options.OrderTotal || options.Total || 0);
-                                const summaryFees = parseFloat(options.AdditionalFeesTotal || 0);
-                                if (summaryFees > 0 && totalFees === 0) totalFees = summaryFees;
-                                setMouserTariffPreview({ loading: false, fees, totalFees, merchandiseTotal, orderTotal, cartKey: cartResult.cartKey, cartUrl: cartResult.cartUrl });
-                              } catch (e) {
-                                console.error("[Mouser Tariff Check]", e);
-                                setMouserTariffPreview({ loading: false, error: e.message, fees: [], totalFees: 0 });
                               }
+                              const orderTotal = merchandiseTotal + totalFees;
+                              setMouserTariffPreview({ loading: false, fees, totalFees, merchandiseTotal, orderTotal });
                             }}
                             style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"1px solid #ff9500",background:"rgba(255,149,0,0.08)",color:"#ff9500" }}>
-                            {mouserTariffPreview?.loading ? "Checking..." : "Check Tariffs"}
+                            Check Tariffs
                           </button>
                         )}
 
