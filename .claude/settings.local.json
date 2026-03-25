@@ -28,7 +28,19 @@
       "Bash(node -e \"const c=require\\('fs'\\).readFileSync\\('/Users/BradJackson/Downloads/jackson-bom/src/App.jsx','utf8'\\);let a=0,b=0;for\\(const x of c\\){if\\(x==='{'\\)a++;if\\(x==='}'\\)a--;if\\(x==='\\('\\)b++;if\\(x==='\\)'\\)b--;}console.log\\(a,b\\);\")",
       "Bash(git -C /Users/BradJackson/Downloads/jackson-bom diff --stat)",
       "Bash(git pull:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "WebFetch(domain:www.shipstation.com)",
+      "WebFetch(domain:docs.shipstation.com)",
+      "mcp__claude_ai_Slack__slack_search_channels",
+      "mcp__claude_ai_Slack__slack_send_message",
+      "WebFetch(domain:ampgarage.com)",
+      "WebFetch(domain:api.mouser.com)",
+      "WebFetch(domain:bom.vercel.app)",
+      "Bash(curl -s \"https://api.mouser.com/api/docs/ui/index\" 2>&1 | head -200)",
+      "mcp__claude_ai_Slack__slack_search_public_and_private",
+      "Bash(vercel env:*)",
+      "Bash(ls /Users/BradJackson/Downloads/jackson-bom/api/*.js | wc -l)",
+      "Bash(ls /Users/BradJackson/Downloads/jackson-bom/api/*.js)"
     ]
   }
 }

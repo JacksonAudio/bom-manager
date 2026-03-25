@@ -167,7 +167,9 @@ const supplierById = (id) => SUPPLIERS.find((s) => s.id === id) || SUPPLIERS[0];
 const NEXAR_DIST_MAP = {
   "Mouser Electronics": "mouser",
   "Digi-Key":           "digikey",
+  "DigiKey":            "digikey",
   "Arrow Electronics":  "arrow",
+  "Texas Instruments":  "ti",
   "LCSC":               "lcsc",
   "Allied Electronics": "allied",
   "Newark":             "allied",
@@ -1391,16 +1393,6 @@ function BOMManager({ user }) {
         onClick={async () => {
           setSettingsSaving(sectionId); setSettingsSaved("");
           try {
-            // Ensure all key rows exist in DB before saving values
-            const session = (await supabase.auth.getSession())?.data?.session;
-            await fetch("/api/seed-api-keys", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-              },
-              body: JSON.stringify({ anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY }),
-            }).catch(() => {});
             await saveAllApiKeys(apiKeys, user.id);
             authenticateAPIs();
             setSettingsSaved(sectionId);
@@ -2327,6 +2319,14 @@ function BOMManager({ user }) {
 
       if (!mouserData && !nexarData && !dkData && !arrowData && !tiData) throw new Error(`No results found for "${mpn}". Try pasting just the MPN instead.`);
 
+      // Track which APIs responded
+      const apiSources = [];
+      if (mouserData) apiSources.push("Mouser API");
+      if (nexarData) apiSources.push("Nexar");
+      if (dkData) apiSources.push("DigiKey API");
+      if (arrowData) apiSources.push("Arrow API");
+      if (tiData) apiSources.push("TI API");
+
       // Use Mouser as primary part info source (best metadata: image, datasheet, description)
       const partData = mouserData || {};
       const origin = (partData.countryOfOrigin || nexarData?._countryOfOrigin || "").toUpperCase();
@@ -2411,6 +2411,7 @@ function BOMManager({ user }) {
         tariffRate,
         landedPrice,
         distributors,
+        apiSources,
       });
     } catch (e) {
       setQuickUrlError(e.message);
