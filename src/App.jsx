@@ -3246,8 +3246,9 @@ function BOMManager({ user }) {
 
   // ── MOUSER ORDER HISTORY ──
   const syncMouserOrderHistory = async () => {
-    if (!apiKeys.mouser_order_api_key) {
-      setMouserOrderHistory({ loading: false, error: "Add Mouser Order API key in Settings first." });
+    const orderKey = apiKeys.mouser_order_api_key || apiKeys.mouser_api_key;
+    if (!orderKey) {
+      setMouserOrderHistory({ loading: false, error: "Add a Mouser API key in Settings first." });
       return;
     }
     setMouserOrderHistory(prev => ({ ...prev, loading: true, error: null }));
@@ -3255,7 +3256,7 @@ function BOMManager({ user }) {
       const res = await fetch("/api/mouser-cart", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "order-history", apiKey: apiKeys.mouser_order_api_key, dateFilter: "All" }),
+        body: JSON.stringify({ action: "order-history", apiKey: orderKey, dateFilter: "All" }),
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
@@ -4563,7 +4564,7 @@ function BOMManager({ user }) {
               <button className="btn-ghost btn-sm" onClick={()=>setShowImport(!showImport)}>{showImport ? "Close Import" : "+ Import"}</button>
               <button className="btn-ghost btn-sm" onClick={()=>{ setShowQuickUrl(!showQuickUrl); if(showQuickUrl){ setQuickUrlResult(null); setQuickUrlError(""); }}} style={{ color:"#34c759" }}>{showQuickUrl ? "Close Quick Add" : "Quick Add URL"}</button>
               <button className="btn-ghost btn-sm" onClick={()=>setShowResGen(!showResGen)} style={{ color:"#5856d6" }}>{showResGen ? "Close Component Library" : "Component Library"}</button>
-              {apiKeys.mouser_order_api_key && (
+              {(apiKeys.mouser_order_api_key || apiKeys.mouser_api_key) && (
                 <button className="btn-ghost btn-sm" onClick={syncMouserOrderHistory}
                   disabled={mouserOrderHistory?.loading}
                   style={{ color:"#e8500a" }}>
