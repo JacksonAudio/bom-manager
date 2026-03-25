@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.01
+// src/App.jsx — Jackson Audio BOM Manager v7.02
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -6960,7 +6960,9 @@ function BOMManager({ user }) {
                         const repEmail = supplierEmails[sid] || "";
                         const contactName = supplierContacts[sid] || "";
                         const draft = buildPOEmailDraft(supObj.name, poLines, poNum, companyInfo, contactName);
-                        drafts.push({ supplier: supObj.name, email: repEmail, draft, sid, sent: false, itemCount: supItems.length });
+                        const poTotal = supItems.reduce((s, d) => s + (d.allocatedPrice || d.bestPrice || 0) * (d.allocatedQty || d.net || 0), 0);
+                        drafts.push({ supplier: supObj.name, supplierColor: supObj.color || "#86868b", email: repEmail, draft, sid, poNumber: poNum, sent: false, itemCount: supItems.length,
+                          items: supItems.map(d => ({ mpn: d.part.mpn, qty: d.allocatedQty || d.net, unitPrice: d.allocatedPrice || d.bestPrice })), poTotal });
                       }
                       setPoEmailModal(drafts);
                     }}
@@ -12302,6 +12304,60 @@ function BOMManager({ user }) {
                 </table>
               </div>
             </div>
+            {/* ── Database Backup — Export All Data ── */}
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:6 }}>Database Backup</div>
+              <p style={{ fontSize:12,color:"#86868b",marginBottom:14 }}>
+                Download a complete JSON backup of your entire database — parts, products, pricing, orders, build history, API keys (masked), team members, and all settings. Keep this file safe as a disaster recovery backup.
+              </p>
+              <button className="btn-primary" style={{ fontSize:13 }}
+                onClick={async () => {
+                  const btn = event.target; btn.textContent = "Exporting..."; btn.disabled = true;
+                  try {
+                    const backup = {
+                      exportedAt: new Date().toISOString(),
+                      exportedBy: user.email,
+                      version: "v7.02",
+                      tables: {},
+                    };
+                    // Export each table
+                    const tables = ["parts","products","api_keys","team_members","build_orders","build_assignments","price_history","bom_snapshots","po_history","scrap_log","demand_cache"];
+                    for (const table of tables) {
+                      try {
+                        const { data, error } = await supabase.from(table).select("*");
+                        if (error) { backup.tables[table] = { error: error.message }; }
+                        else { backup.tables[table] = { count: (data||[]).length, rows: data || [] }; }
+                      } catch (e) { backup.tables[table] = { error: e.message }; }
+                    }
+                    // Mask sensitive API keys
+                    if (backup.tables.api_keys?.rows) {
+                      const sensitiveKeys = new Set(["nexar_client_secret","digikey_client_secret","mouser_api_key","mouser_order_api_key","ti_api_secret","arrow_api_key","shipstation_api_secret"]);
+                      backup.tables.api_keys.rows = backup.tables.api_keys.rows.map(r => ({
+                        ...r,
+                        key_value: sensitiveKeys.has(r.key_name) ? (r.key_value ? r.key_value.slice(0,4) + "****" : "") : r.key_value,
+                      }));
+                    }
+                    // Also include localStorage caches
+                    backup.localStorage = {};
+                    for (const key of ["bom_shipstation_data","bom_sales_history","bom_dismissed_orders"]) {
+                      try { const v = localStorage.getItem(key); if (v) backup.localStorage[key] = JSON.parse(v); } catch {}
+                    }
+                    // Download
+                    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a"); a.href = url;
+                    a.download = `bom-backup-${new Date().toISOString().slice(0,10)}.json`;
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    btn.textContent = "✓ Downloaded"; setTimeout(() => { btn.textContent = "Export Full Backup (JSON)"; btn.disabled = false; }, 3000);
+                  } catch (e) {
+                    alert("Export failed: " + e.message);
+                    btn.textContent = "Export Full Backup (JSON)"; btn.disabled = false;
+                  }
+                }}>
+                Export Full Backup (JSON)
+              </button>
+            </div>
           </div>
           );
         })()}
@@ -12348,7 +12404,17 @@ function BOMManager({ user }) {
                     </button>
                     <a
                       href={`mailto:${d.email}?subject=${encodeURIComponent(d.draft.subject)}&body=${encodeURIComponent(d.draft.body)}`}
-                      onClick={() => setPoEmailModal(prev => prev.map((p, j) => j === i ? { ...p, sent: true } : p))}
+                      onClick={async () => {
+                        setPoEmailModal(prev => prev.map((p, j) => j === i ? { ...p, sent: true } : p));
+                        // Auto-create tracked order + PO record
+                        try {
+                          addTrackedOrder({ supplier: d.supplier, supplierColor: d.supplierColor || "#86868b", poNumber: d.poNumber,
+                            items: d.items || [], totalEstimate: d.poTotal || 0, notes: `Emailed to ${d.email || "rep"}` });
+                          await createPORecord({ supplier: d.supplier, po_number: d.poNumber, status: "submitted",
+                            items: d.items || [], total_value: d.poTotal || 0,
+                            notes: `Emailed to ${d.email || "rep"}`, ordered_at: new Date().toISOString() }, user.id);
+                        } catch (e) { console.warn("[PO Record] auto-create failed:", e); }
+                      }}
                       style={{ padding:"6px 12px",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer",border:"none",
                         background: d.sent ? "#34c759" : "#0071e3",color:"#fff",textDecoration:"none",display:"inline-block" }}>
                       {d.sent ? "✓ Sent" : "Send"}
@@ -12537,7 +12603,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.01 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.02 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
