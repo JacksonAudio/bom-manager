@@ -1332,6 +1332,7 @@ function BOMManager({ user }) {
   const [skipTariffedParts, setSkipTariffedParts] = useState(false); // toggle to exclude tariffed parts from Mouser PO
   const [usSuppliersOnly, setUsSuppliersOnly] = useState(false); // only use US-based distributors in purchasing
   const [mouserOrderHistory, setMouserOrderHistory] = useState(null); // { loading, error, orders, totalOrders, syncedAt }
+  const [poEmailModal, setPoEmailModal] = useState(null); // [{ supplier, email, draft, sid, sent }]
   // Order tracker — DB-backed via poHistory
   const [trackedOrders, setTrackedOrders] = useState([]);
   const [poHistory, setPoHistory] = useState([]); // DB-backed PO history
@@ -6945,29 +6946,9 @@ function BOMManager({ user }) {
                         const repEmail = supplierEmails[sid] || "";
                         const contactName = supplierContacts[sid] || "";
                         const draft = buildPOEmailDraft(supObj.name, poLines, poNum, companyInfo, contactName);
-                        drafts.push({ supplier: supObj.name, email: repEmail, draft, sid });
+                        drafts.push({ supplier: supObj.name, email: repEmail, draft, sid, sent: false, itemCount: supItems.length });
                       }
-                      // Use hidden <a> clicks — browsers allow these without popup blocking
-                      const missingEmails = drafts.filter(d => !d.email);
-                      if (missingEmails.length > 0) {
-                        const missing = missingEmails.map(d => d.supplier).join(", ");
-                        if (!window.confirm(`No rep email set for: ${missing}.\n\nEmails for these suppliers will open with an empty To field. You can add rep emails in the supplier cards above.\n\nContinue anyway?`)) return;
-                      }
-                      // Click hidden links sequentially — each triggers a mailto
-                      let idx = 0;
-                      const openNext = () => {
-                        if (idx >= drafts.length) return;
-                        const d = drafts[idx];
-                        const a = document.createElement("a");
-                        a.href = `mailto:${d.email}?subject=${encodeURIComponent(d.draft.subject)}&body=${encodeURIComponent(d.draft.body)}`;
-                        a.style.display = "none";
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        idx++;
-                        if (idx < drafts.length) setTimeout(openNext, 1500);
-                      };
-                      openNext();
+                      setPoEmailModal(drafts);
                     }}
                     style={{
                       padding:"14px 36px",borderRadius:980,fontSize:15,fontWeight:700,cursor:"pointer",
@@ -12309,6 +12290,62 @@ function BOMManager({ user }) {
       {/* QR Label Modal */}
       {qrModalParts && qrModalParts.length > 0 && (
         <QRLabelModal parts={qrModalParts} products={products} onClose={() => setQrModalParts(null)} />
+      )}
+
+      {/* ── Email All POs Modal ── */}
+      {poEmailModal && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setPoEmailModal(null); }}>
+          <div style={{ background:"#fff",borderRadius:16,width:"90%",maxWidth:600,maxHeight:"85vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ padding:"20px 24px 12px",borderBottom:"1px solid #e5e5ea",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+              <div>
+                <div style={{ fontSize:16,fontWeight:800,color:"#1d1d1f" }}>Email All Purchase Orders</div>
+                <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>
+                  {poEmailModal.length} suppliers · {poEmailModal.filter(d => d.sent).length} sent
+                </div>
+              </div>
+              <button onClick={() => setPoEmailModal(null)} style={{ background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#86868b",padding:4 }}>×</button>
+            </div>
+            <div style={{ padding:"12px 24px 24px" }}>
+              {poEmailModal.map((d, i) => (
+                <div key={i} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0",borderBottom: i < poEmailModal.length - 1 ? "1px solid #f0f0f2" : "none",gap:12 }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:700,fontSize:13,color:"#1d1d1f" }}>{d.supplier}</div>
+                    <div style={{ fontSize:11,color:"#86868b" }}>
+                      {d.email ? <span style={{ color:"#0071e3" }}>{d.email}</span> : <span style={{ color:"#ff9500" }}>No email set</span>}
+                      {" · "}{d.itemCount} parts · {d.draft.subject}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex",gap:6,flexShrink:0 }}>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`To: ${d.email}\nSubject: ${d.draft.subject}\n\n${d.draft.body}`);
+                        setPoEmailModal(prev => prev.map((p, j) => j === i ? { ...p, copied: true } : p));
+                        setTimeout(() => setPoEmailModal(prev => prev?.map((p, j) => j === i ? { ...p, copied: false } : p)), 2000);
+                      }}
+                      style={{ padding:"6px 12px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid #d1d1d6",background:"#fff",color:"#3a3f51" }}>
+                      {d.copied ? "Copied!" : "Copy"}
+                    </button>
+                    <a
+                      href={`mailto:${d.email}?subject=${encodeURIComponent(d.draft.subject)}&body=${encodeURIComponent(d.draft.body)}`}
+                      onClick={() => setPoEmailModal(prev => prev.map((p, j) => j === i ? { ...p, sent: true } : p))}
+                      style={{ padding:"6px 12px",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer",border:"none",
+                        background: d.sent ? "#34c759" : "#0071e3",color:"#fff",textDecoration:"none",display:"inline-block" }}>
+                      {d.sent ? "✓ Sent" : "Send"}
+                    </a>
+                  </div>
+                </div>
+              ))}
+              <div style={{ marginTop:16,textAlign:"center" }}>
+                {poEmailModal.every(d => d.sent) ? (
+                  <div style={{ fontSize:14,fontWeight:700,color:"#34c759" }}>All POs sent!</div>
+                ) : (
+                  <div style={{ fontSize:11,color:"#86868b" }}>Click Send on each supplier to open the email. Click Copy to copy to clipboard instead.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Ship It Modal ── */}
