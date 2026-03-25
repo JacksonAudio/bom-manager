@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.86
+// src/App.jsx — Jackson Audio BOM Manager v6.87
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -778,7 +778,7 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
   }
 
   // 5. Texas Instruments direct
-  if (apiKeys.ti_api_key) {
+  if (apiKeys.ti_api_key && apiKeys.ti_api_secret) {
     try {
       const td = await fetchTIPricing(mpn, quantity, apiKeys.ti_api_key, apiKeys.ti_api_secret);
       if (td) pricing.ti = td;
@@ -1437,8 +1437,8 @@ function BOMManager({ user }) {
         if (!data) throw new Error("No results returned");
         setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Connected — $${data.unitPrice?.toFixed(4) || "?"}/ea, ${data.stock || 0} in stock` } }));
       } else if (sectionId === "ti") {
-        if (!apiKeys.ti_api_key) throw new Error("Enter API Key first");
-        const data = await fetchTIPricing(testMpn, 1, apiKeys.ti_api_key, apiKeys.ti_api_secret || "");
+        if (!apiKeys.ti_api_key || !apiKeys.ti_api_secret) throw new Error("Enter both Client ID and Client Secret first");
+        const data = await fetchTIPricing(testMpn, 1, apiKeys.ti_api_key, apiKeys.ti_api_secret);
         if (!data) throw new Error("API responded but returned no pricing data — key may be invalid");
         setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Connected — $${data.unitPrice?.toFixed(4) || "?"}/ea, ${data.stock || 0} in stock` } }));
       }
@@ -1651,10 +1651,10 @@ function BOMManager({ user }) {
         }
         if (mergedKeys.mouser_api_key) addLog("Mouser key loaded (direct API — tariff detection)", true);
         if (mergedKeys.arrow_api_key && mergedKeys.arrow_login) addLog("Arrow key loaded", true);
-        if (mergedKeys.ti_api_key) {
+        if (mergedKeys.ti_api_key && mergedKeys.ti_api_secret) {
           addLog("Testing Texas Instruments API...", null);
           try {
-            const tiTest = await fetchTIPricing("UCC27525DR", 1, mergedKeys.ti_api_key, mergedKeys.ti_api_secret || "");
+            const tiTest = await fetchTIPricing("UCC27525DR", 1, mergedKeys.ti_api_key, mergedKeys.ti_api_secret);
             if (tiTest) {
               addLog(`TI connected — test: $${tiTest.unitPrice.toFixed(4)}, ${tiTest.stock} in stock`, true);
             } else {
@@ -2387,7 +2387,7 @@ function BOMManager({ user }) {
         nexarToken ? fetchNexarPricing(mpn, 1, nexarToken).catch(e => { console.warn("[QuickAdd] Nexar failed:", e.message); return null; }) : null,
         dkToken && apiKeys.digikey_client_id ? fetchDigiKeyPricing(mpn, 1, apiKeys.digikey_client_id, dkToken).catch(e => { console.warn("[QuickAdd] DigiKey failed:", e.message); return null; }) : null,
         apiKeys.arrow_api_key && apiKeys.arrow_login ? fetchArrowPricing(mpn, 1, apiKeys.arrow_login, apiKeys.arrow_api_key).catch(e => { console.warn("[QuickAdd] Arrow failed:", e.message); return null; }) : null,
-        apiKeys.ti_api_key ? fetchTIPricing(mpn, 1, apiKeys.ti_api_key, apiKeys.ti_api_secret).catch(e => { console.warn("[QuickAdd] TI failed:", e.message); return null; }) : null,
+        (apiKeys.ti_api_key && apiKeys.ti_api_secret) ? fetchTIPricing(mpn, 1, apiKeys.ti_api_key, apiKeys.ti_api_secret).catch(e => { console.warn("[QuickAdd] TI failed:", e.message); return null; }) : null,
       ]);
 
       if (!mouserData && !nexarData && !dkData && !arrowData && !tiData) throw new Error(`No results found for "${mpn}". Try pasting just the MPN instead.`);
@@ -10366,28 +10366,28 @@ function BOMManager({ user }) {
 
             {/* ── Texas Instruments Direct */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background: (apiKeys.ti_api_key) ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background: (apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("ti") ? s.delete("ti") : s.add("ti"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: (apiKeys.ti_api_key) ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: (apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("ti") ? "▶" : "▼"}</span>
-                  Texas Instruments Direct {(apiKeys.ti_api_key) ? "✓" : ""}
+                  Texas Instruments Direct {(apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "✓" : ""}
                 </div>
               </div>
               {!collapsedSettings.has("ti") && <div style={{ padding:"16px 20px" }}>
                 <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
-                  OAuth2 client credentials for TI.com store API — get pricing + stock for TI parts.
+                  Requires both Client ID (API Key) and Client Secret from your myTI dashboard → API Keys &amp; Access.
                   <a href="https://www.ti.com/myti/docs/overview.page" target="_blank" rel="noopener noreferrer"
                     style={{ marginLeft:6,color:"#0071e3",textDecoration:"none",fontWeight:500 }}>ti.com/myti →</a>
                 </div>
                 <div className="key-input-row">
                   <div className="key-label">API Key</div>
-                  <input type="password" placeholder="TI API Key (client_id)" value={apiKeys.ti_api_key}
+                  <input type="password" placeholder="Client ID (your 'API Key' from myTI)" value={apiKeys.ti_api_key}
                     onChange={(e)=>setApiKeys((k)=>({...k,ti_api_key:e.target.value}))}
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
                 <div className="key-input-row">
-                  <div><div className="key-label">API Secret</div><div className="key-hint">Optional — only needed for older OAuth2 apps</div></div>
-                  <input type="password" placeholder="TI API Secret (optional)" value={apiKeys.ti_api_secret}
+                  <div><div className="key-label">Client Secret</div><div className="key-hint">Required — same page as API Key, may need to click Regenerate</div></div>
+                  <input type="password" placeholder="Client Secret from myTI" value={apiKeys.ti_api_secret}
                     onChange={(e)=>setApiKeys((k)=>({...k,ti_api_secret:e.target.value}))}
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
@@ -10576,11 +10576,11 @@ function BOMManager({ user }) {
 
             {/* ── ShipStation */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background: (shipstationData?.syncedAt && !shipstationData?.error) ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shipstation") ? s.delete("shipstation") : s.add("shipstation"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("shipstation") ? "▶" : "▼"}</span>
-                  ShipStation (Fulfillment)
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: (shipstationData?.syncedAt && !shipstationData?.error) ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("shipstation") ? "▶" : "▼"}</span>
+                  ShipStation (Fulfillment) {(shipstationData?.syncedAt && !shipstationData?.error) ? "✓" : ""}
                 </div>
               </div>
               {!collapsedSettings.has("shipstation") && <div style={{ padding:"16px 20px" }}>
@@ -11532,7 +11532,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.86 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.87 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
