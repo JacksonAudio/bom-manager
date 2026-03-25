@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.87
+// src/App.jsx — Jackson Audio BOM Manager v6.88
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -7908,6 +7908,20 @@ function BOMManager({ user }) {
                     return { label: `${daysLeft}d left`, color: "#86868b", urgent: false, dueDate };
                   };
 
+                  // Build ShipStation lookup by order number for matching
+                  const ssLookup = {};
+                  if (shipstationData?.shipments) {
+                    for (const ss of shipstationData.shipments) {
+                      const num = (ss.orderNumber || "").replace(/^#/, "").trim().toLowerCase();
+                      if (num) ssLookup[num] = ss;
+                    }
+                  }
+                  const matchShipStation = (orderName) => {
+                    if (!orderName) return null;
+                    const clean = orderName.replace(/^#/, "").trim().toLowerCase();
+                    return ssLookup[clean] || null;
+                  };
+
                   // Process Zoho (Dealer) orders — only open, not dismissed
                   const dealerOrders = (zohoDemand?.orders || []).filter(o => o.lineItems?.length > 0 && !dismissedOrders.has(o.id)).map(order => {
                     const totalQty = order.lineItems.reduce((s, li) => s + (li.quantity || 0), 0);
@@ -7927,6 +7941,7 @@ function BOMManager({ user }) {
                         if (needed > stock) blockers.push({ partRef: bp.reference, mpn: bp.mpn, deficit: needed - stock, forProduct: li.title });
                       }
                     }
+                    const ssMatch = matchShipStation(order.name) || matchShipStation(order.dealerPO);
                     const base = {
                       id: order.id, channel: "Dealer", accentColor: "#4bc076",
                       customer: order.customerName || order.companyName || "—",
@@ -7936,7 +7951,16 @@ function BOMManager({ user }) {
                       lineItems: order.lineItems.map(li => ({ title: li.title, quantity: li.quantity || 0, fulfilled: li.quantityShipped || 0 })),
                       totalQty, totalFulfilled, pctComplete, blockers,
                       storeName: order.companyName || "",
+                      shipstation: ssMatch,
                     };
+                    // Auto-mark as shipped if ShipStation has a shipment for this order
+                    if (ssMatch && ssMatch.shipments?.length > 0) {
+                      base.pctComplete = 100;
+                      base.shipped = true;
+                      base.trackingNumbers = ssMatch.shipments.map(s => s.trackingNumber).filter(Boolean);
+                      base.carrier = ssMatch.shipments[0]?.carrier || "";
+                      base.shipDate = ssMatch.shipments[0]?.shipDate || "";
+                    }
                     base.due = computeDueStatus(base);
                     return base;
                   });
@@ -7965,6 +7989,7 @@ function BOMManager({ user }) {
                         if (needed > stock) blockers.push({ partRef: bp.reference, mpn: bp.mpn, deficit: needed - stock, forProduct: li.title });
                       }
                     }
+                    const ssMatch = matchShipStation(order.name) || matchShipStation(order.orderNumber);
                     const base = {
                       id: order.id, channel: "Direct", accentColor: "#0071e3",
                       customer: order.name, orderName: order.name, dealerPO: "", dueDate: "",
@@ -7972,7 +7997,15 @@ function BOMManager({ user }) {
                       lineItems: items.map(li => ({ title: li.title, quantity: li.quantity || 0, fulfilled: li.fulfilledQty || 0 })),
                       totalQty, totalFulfilled, pctComplete, blockers,
                       storeName: order.storeName || "",
+                      shipstation: ssMatch,
                     };
+                    if (ssMatch && ssMatch.shipments?.length > 0) {
+                      base.pctComplete = 100;
+                      base.shipped = true;
+                      base.trackingNumbers = ssMatch.shipments.map(s => s.trackingNumber).filter(Boolean);
+                      base.carrier = ssMatch.shipments[0]?.carrier || "";
+                      base.shipDate = ssMatch.shipments[0]?.shipDate || "";
+                    }
                     base.due = computeDueStatus(base);
                     return base;
                   });
@@ -8016,7 +8049,7 @@ function BOMManager({ user }) {
                                   <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>DUE</th>
                                   <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>PRODUCTS</th>
                                   <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center" }}>PROGRESS</th>
-                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>BLOCKERS</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600 }}>STATUS / TRACKING</th>
                                   <th style={{ padding:"8px 10px",fontSize:10,color:"#86868b",fontWeight:600,textAlign:"center" }}>ACTION</th>
                                 </tr>
                               </thead>
@@ -8071,7 +8104,20 @@ function BOMManager({ user }) {
                                       </div>
                                     </td>
                                     <td style={{ padding:"10px 10px" }}>
-                                      {po.pctComplete === 100 ? (
+                                      {po.shipped ? (
+                                        <div>
+                                          <div style={{ display:"flex",alignItems:"center",gap:4,marginBottom:2 }}>
+                                            <span style={{ fontSize:11,fontWeight:700,color:"#34c759" }}>Shipped</span>
+                                            {po.carrier && <span className="badge" style={{ background:"#00c7be22",color:"#00c7be",fontSize:9 }}>{po.carrier}</span>}
+                                            {po.shipDate && <span style={{ fontSize:9,color:"#86868b" }}>{new Date(po.shipDate).toLocaleDateString()}</span>}
+                                          </div>
+                                          {po.trackingNumbers?.length > 0 && (
+                                            <div style={{ fontSize:10,fontFamily:"monospace",color:"#3a3f51" }}>
+                                              {po.trackingNumbers.map((tn,i) => <div key={i}>{tn}</div>)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : po.pctComplete === 100 ? (
                                         <span style={{ fontSize:11,color:"#34c759",fontWeight:700 }}>Complete</span>
                                       ) : po.blockers.length > 0 ? (
                                         <div style={{ display:"flex",gap:3,flexWrap:"wrap" }}>
@@ -11532,7 +11578,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.87 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.88 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
