@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.00
+// src/App.jsx — Jackson Audio BOM Manager v7.01
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1295,6 +1295,7 @@ function BOMManager({ user }) {
   const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
+  const isAdmin = user && (apiKeys.admin_emails || "").split(",").map(e=>e.trim().toLowerCase()).includes(user.email?.toLowerCase());
   const [keySaved,    setKeySaved]    = useState(false);
   const [nexarToken,  setNexarToken]  = useState(null);
   const [dkToken,     setDkToken]     = useState(null);
@@ -2246,6 +2247,7 @@ function BOMManager({ user }) {
 
   // Delete a single part
   const deletePart = async (id) => {
+    if (!isAdmin) { alert("Only admins can delete parts. Contact your administrator."); return; }
     const part = parts.find(p => p.id === id);
     const label = part?.mpn || part?.reference || "this part";
     if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return;
@@ -2263,6 +2265,7 @@ function BOMManager({ user }) {
 
   // Bulk delete selected parts
   const deleteSelected = async () => {
+    if (!isAdmin) { alert("Only admins can delete parts. Contact your administrator."); return; }
     const ids = [...selectedParts];
     if (!window.confirm(`Delete ${ids.length} selected part${ids.length !== 1 ? "s" : ""}? This cannot be undone.`)) return;
     setParts((prev) => prev.filter((p) => !selectedParts.has(p.id)));
@@ -3683,9 +3686,8 @@ function BOMManager({ user }) {
   if (window.location.hash === "#invoice") return <InvoiceView />;
 
   // ─────────────────────────────────────────────
-  // ADMIN CHECK
+  // ADMIN CHECK (isAdmin computed at top of component, near apiKeys state)
   // ─────────────────────────────────────────────
-  const isAdmin = (apiKeys.admin_emails || "").split(",").map(e=>e.trim().toLowerCase()).includes(user.email?.toLowerCase());
 
   // ─────────────────────────────────────────────
   // RENDER
@@ -3749,6 +3751,11 @@ function BOMManager({ user }) {
           <div style={{ display:"flex",alignItems:"center",gap:10,borderLeft:"1px solid #e5e5ea",paddingLeft:14 }}>
             <span style={{ fontSize:10,color:"#aeaeb2",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
               {user.email}
+            </span>
+            <span style={{ fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,
+              background: isAdmin ? "rgba(52,199,89,0.12)" : "rgba(0,113,227,0.08)",
+              color: isAdmin ? "#34c759" : "#0071e3" }}>
+              {isAdmin ? "Admin" : "Editor"}
             </span>
             <button className="btn-ghost btn-sm" onClick={signOut}>Sign out</button>
             <button onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Light mode" : "Dark mode"}
@@ -5311,13 +5318,13 @@ function BOMManager({ user }) {
                 <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#0071e3" }}>
                   {selectedParts.size} part{selectedParts.size!==1?"s":""} selected
                 </span>
-                <button
+                {isAdmin && <button
                   onClick={deleteSelected}
                   style={{ background:"#ff3b30",color:"#fff",border:"none",borderRadius:6,
                     padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",
                     fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",display:"flex",alignItems:"center",gap:7 }}>
                   🗑 Delete Selected
-                </button>
+                </button>}
                 <button
                   onClick={() => { const sel = parts.filter(p => selectedParts.has(p.id)); console.log("[QR] Opening labels for", sel.length, "parts"); setQrModalParts(sel); }}
                   style={{ background:"#5856d6",color:"#fff",border:"none",borderRadius:6,
@@ -5496,10 +5503,10 @@ function BOMManager({ user }) {
                               style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:13,padding:"2px 4px",borderRadius:4,transition:"color 0.15s" }}
                               onMouseOver={(e)=>e.target.style.color="#0071e3"}
                               onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>⊞</button>
-                            <button onClick={()=>deletePart(part.id)}
+                            {isAdmin && <button onClick={()=>deletePart(part.id)}
                               style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:14,padding:"2px 4px",borderRadius:4,transition:"color 0.15s" }}
                               onMouseOver={(e)=>e.target.style.color="#ff3b30"}
-                              onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>✕</button>
+                              onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>✕</button>}
                           </td>
                         </tr>
                         {expandedPartRow === part.id && <tr>
@@ -6168,11 +6175,11 @@ function BOMManager({ user }) {
                                   onChange={e=>updatePart(part.id,"value",e.target.value)}
                                   style={{ padding:"7px 10px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:13,fontFamily:"inherit",background:"#fff",color:"#1d1d1f",outline:"none",width:80 }} />
                               </div>
-                              <button onClick={()=>{deletePart(part.id);setExpandedPart(null);}}
+                              {isAdmin && <button onClick={()=>{deletePart(part.id);setExpandedPart(null);}}
                                 style={{ padding:"7px 14px",borderRadius:8,fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
                                   border:"1px solid #ff3b30",background:"none",color:"#ff3b30" }}>
                                 Delete
-                              </button>
+                              </button>}
                             </div>
                           </div>
                         )}
@@ -9851,6 +9858,7 @@ function BOMManager({ user }) {
           };
 
           const handleDeleteTeamMember = async (id) => {
+            if (!isAdmin) { alert("Only admins can delete team members."); return; }
             if (!window.confirm("Delete this team member?")) return;
             try {
               await deleteTeamMember(id);
@@ -9991,6 +9999,7 @@ function BOMManager({ user }) {
           };
 
           const handleDeleteBuildOrder = async (id) => {
+            if (!isAdmin) { alert("Only admins can delete build orders."); return; }
             if (!window.confirm("Delete this build order?")) return;
             try {
               await deleteBuildOrder(id);
@@ -10570,9 +10579,9 @@ function BOMManager({ user }) {
                             style={{ fontSize:11,color:member.active!==false?"#34c759":"#86868b" }}>
                             {member.active !== false ? "Active" : "Inactive"}
                           </button>
-                          <button onClick={() => handleDeleteTeamMember(member.id)}
+                          {isAdmin && <button onClick={() => handleDeleteTeamMember(member.id)}
                             style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:14,padding:"2px 6px" }}
-                            onMouseOver={e=>e.target.style.color="#ff3b30"} onMouseOut={e=>e.target.style.color="#c7c7cc"}>✕</button>
+                            onMouseOver={e=>e.target.style.color="#ff3b30"} onMouseOut={e=>e.target.style.color="#c7c7cc"}>✕</button>}
                         </div>
                       ))}
                     </div>
@@ -10779,8 +10788,8 @@ function BOMManager({ user }) {
                             )}
                             <button className="btn-ghost btn-sm" onClick={() => setScrapFormOpen(scrapFormOpen === bo.id ? null : bo.id)}
                               style={{ color:"#ff9500" }}>Log Scrap</button>
-                            <button className="btn-ghost btn-sm" onClick={() => handleDeleteBuildOrder(bo.id)}
-                              style={{ color:"#ff3b30",marginLeft:"auto" }}>Delete</button>
+                            {isAdmin && <button className="btn-ghost btn-sm" onClick={() => handleDeleteBuildOrder(bo.id)}
+                              style={{ color:"#ff3b30",marginLeft:"auto" }}>Delete</button>}
                           </div>
                         </div>
                       </div>
@@ -12528,7 +12537,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.00 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.01 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
