@@ -6929,6 +6929,8 @@ function BOMManager({ user }) {
                   <button
                     onClick={() => {
                       const companyInfo = { name: apiKeys.company_name, address: apiKeys.company_address };
+                      let supplierEmails = {}; try { supplierEmails = JSON.parse(apiKeys.supplier_emails || "{}"); } catch {}
+                      let supplierContacts = {}; try { supplierContacts = JSON.parse(apiKeys.supplier_contacts || "{}"); } catch {}
                       const supKeys = Object.keys(supplierGroups);
                       const drafts = [];
                       for (const sid of supKeys) {
@@ -6940,16 +6942,21 @@ function BOMManager({ user }) {
                           neededQty: d.allocatedQty || d.net,
                           description: d.part.description || d.part.value || "",
                         }));
-                        const repEmail = supObj.rep?.email || apiKeys[`${sid}_rep_email`] || "";
-                        const contactName = supObj.rep?.name || apiKeys[`${sid}_rep_name`] || "";
+                        const repEmail = supplierEmails[sid] || "";
+                        const contactName = supplierContacts[sid] || "";
                         const draft = buildPOEmailDraft(supObj.name, poLines, poNum, companyInfo, contactName);
-                        drafts.push({ supplier: supObj.name, email: repEmail, draft });
+                        drafts.push({ supplier: supObj.name, email: repEmail, draft, sid });
                       }
-                      // Open all mailto links with a slight delay to avoid browser blocking
+                      // Open each email in a new window with staggered timing
+                      const missingEmails = drafts.filter(d => !d.email);
+                      if (missingEmails.length > 0) {
+                        const missing = missingEmails.map(d => d.supplier).join(", ");
+                        if (!window.confirm(`No rep email set for: ${missing}.\n\nEmails for these suppliers will open with an empty To field. You can add rep emails in the supplier cards above.\n\nContinue anyway?`)) return;
+                      }
                       drafts.forEach((d, i) => {
                         setTimeout(() => {
-                          window.location.href = `mailto:${d.email}?subject=${encodeURIComponent(d.draft.subject)}&body=${encodeURIComponent(d.draft.body)}`;
-                        }, i * 800);
+                          window.open(`mailto:${d.email}?subject=${encodeURIComponent(d.draft.subject)}&body=${encodeURIComponent(d.draft.body)}`, "_blank");
+                        }, i * 600);
                       });
                     }}
                     style={{
