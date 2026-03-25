@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v6.94
+// src/App.jsx — Jackson Audio BOM Manager v6.95
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1329,6 +1329,7 @@ function BOMManager({ user }) {
   const [mouserCartStatus, setMouserCartStatus] = useState(null); // { loading, error, cartUrl, cartKey, items }
   const [mouserTariffPreview, setMouserTariffPreview] = useState(null); // { loading, fees: [{mpn,fee,code}], totalFees, merchandiseTotal, orderTotal }
   const [skipTariffedParts, setSkipTariffedParts] = useState(false); // toggle to exclude tariffed parts from Mouser PO
+  const [mouserOrderHistory, setMouserOrderHistory] = useState(null); // { loading, error, orders, totalOrders, syncedAt }
   // Order tracker — DB-backed via poHistory
   const [trackedOrders, setTrackedOrders] = useState([]);
   const [poHistory, setPoHistory] = useState([]); // DB-backed PO history
@@ -3243,6 +3244,31 @@ function BOMManager({ user }) {
     }
   };
 
+  // ── MOUSER ORDER HISTORY ──
+  const syncMouserOrderHistory = async () => {
+    if (!apiKeys.mouser_order_api_key) {
+      setMouserOrderHistory({ loading: false, error: "Add Mouser Order API key in Settings first." });
+      return;
+    }
+    setMouserOrderHistory(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const res = await fetch("/api/mouser-cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "order-history", apiKey: apiKeys.mouser_order_api_key, dateFilter: "All" }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || `Mouser API error: ${res.status}`);
+      }
+      const data = await res.json();
+      setMouserOrderHistory({ ...data, loading: false, error: null });
+    } catch (e) {
+      console.error("[Mouser History] sync failed:", e);
+      setMouserOrderHistory(prev => ({ ...prev, loading: false, error: e.message }));
+    }
+  };
+
   // ── SALES HISTORY (for forecasting) ──
   const fetchSalesHistory = async () => {
     setHistoryLoading(true);
@@ -4537,7 +4563,127 @@ function BOMManager({ user }) {
               <button className="btn-ghost btn-sm" onClick={()=>setShowImport(!showImport)}>{showImport ? "Close Import" : "+ Import"}</button>
               <button className="btn-ghost btn-sm" onClick={()=>{ setShowQuickUrl(!showQuickUrl); if(showQuickUrl){ setQuickUrlResult(null); setQuickUrlError(""); }}} style={{ color:"#34c759" }}>{showQuickUrl ? "Close Quick Add" : "Quick Add URL"}</button>
               <button className="btn-ghost btn-sm" onClick={()=>setShowResGen(!showResGen)} style={{ color:"#5856d6" }}>{showResGen ? "Close Component Library" : "Component Library"}</button>
+              {apiKeys.mouser_order_api_key && (
+                <button className="btn-ghost btn-sm" onClick={syncMouserOrderHistory}
+                  disabled={mouserOrderHistory?.loading}
+                  style={{ color:"#e8500a" }}>
+                  {mouserOrderHistory?.loading ? "Loading Mouser Orders…" : "Import from Mouser History"}
+                </button>
+              )}
             </div>
+
+            {/* ── Mouser Order History Import */}
+            {mouserOrderHistory && !mouserOrderHistory.loading && (
+              (() => {
+                if (mouserOrderHistory.error) {
+                  return (
+                    <div style={{ marginBottom:12,padding:"12px 16px",background:"#fff0f0",borderRadius:10,border:"1px solid #ff3b30",fontSize:12,color:"#ff3b30",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                      <span>{mouserOrderHistory.error}</span>
+                      <button className="btn-ghost" style={{ fontSize:10 }} onClick={() => setMouserOrderHistory(null)}>×</button>
+                    </div>
+                  );
+                }
+
+                // Extract all unique MPNs from order history
+                const allMpns = new Map(); // mpn -> { manufacturer, description, lastOrdered, totalQty, unitPrice }
+                for (const order of (mouserOrderHistory.orders || [])) {
+                  for (const item of (order.items || [])) {
+                    const mpn = (item.mpn || "").trim();
+                    if (!mpn) continue;
+                    const existing = allMpns.get(mpn.toUpperCase());
+                    const orderDate = order.date || "";
+                    if (!existing || orderDate > existing.lastOrdered) {
+                      allMpns.set(mpn.toUpperCase(), {
+                        mpn: item.mpn, manufacturer: item.manufacturer || "",
+                        description: item.description || "", mouserPN: item.mouserPN || "",
+                        lastOrdered: orderDate,
+                        totalQty: (existing?.totalQty || 0) + (item.quantity || 0),
+                        unitPrice: item.unitPrice || existing?.unitPrice || 0,
+                      });
+                    } else {
+                      existing.totalQty += (item.quantity || 0);
+                    }
+                  }
+                }
+
+                // Check which are already in library
+                const existingMpns = new Set(parts.map(p => (p.mpn || "").toUpperCase()).filter(Boolean));
+                const missingParts = [...allMpns.values()].filter(m => !existingMpns.has(m.mpn.toUpperCase()));
+                const existingCount = allMpns.size - missingParts.length;
+
+                return (
+                  <div style={{ marginBottom:12,padding:"16px 20px",background:"linear-gradient(135deg,#fef2f0,#fff5f2)",borderRadius:10,border:"1px solid #e8500a44",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10 }}>
+                      <div>
+                        <div style={{ fontSize:14,fontWeight:700,color:"#e8500a" }}>Mouser Order History</div>
+                        <div style={{ fontSize:12,color:"#6e6e73",marginTop:2 }}>
+                          {mouserOrderHistory.totalOrders} orders · {allMpns.size} unique parts · {existingCount} already in library · <strong>{missingParts.length} new</strong>
+                        </div>
+                      </div>
+                      <button className="btn-ghost" style={{ fontSize:10,color:"#86868b" }} onClick={() => setMouserOrderHistory(null)}>Close</button>
+                    </div>
+
+                    {missingParts.length === 0 ? (
+                      <div style={{ padding:16,textAlign:"center",color:"#34c759",fontWeight:700,fontSize:13 }}>
+                        All parts from your Mouser orders are already in your library!
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ maxHeight:300,overflowY:"auto",marginBottom:12,borderRadius:8,border:"1px solid #e5e5ea" }}>
+                          <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
+                            <thead style={{ position:"sticky",top:0,background:"#fff",zIndex:1 }}>
+                              <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
+                                <th style={{ padding:"6px 10px",textAlign:"left",fontSize:10,color:"#86868b",fontWeight:600 }}>MPN</th>
+                                <th style={{ padding:"6px 10px",textAlign:"left",fontSize:10,color:"#86868b",fontWeight:600 }}>MANUFACTURER</th>
+                                <th style={{ padding:"6px 10px",textAlign:"left",fontSize:10,color:"#86868b",fontWeight:600 }}>DESCRIPTION</th>
+                                <th style={{ padding:"6px 10px",textAlign:"right",fontSize:10,color:"#86868b",fontWeight:600 }}>QTY ORDERED</th>
+                                <th style={{ padding:"6px 10px",textAlign:"right",fontSize:10,color:"#86868b",fontWeight:600 }}>LAST PRICE</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {missingParts.sort((a,b) => b.totalQty - a.totalQty).map(p => (
+                                <tr key={p.mpn} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                                  <td style={{ padding:"6px 10px",fontWeight:700,color:"#e8500a",fontFamily:"monospace" }}>{p.mpn}</td>
+                                  <td style={{ padding:"6px 10px",color:"#3a3f51" }}>{p.manufacturer}</td>
+                                  <td style={{ padding:"6px 10px",color:"#86868b",maxWidth:250,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description}</td>
+                                  <td style={{ padding:"6px 10px",textAlign:"right",fontWeight:600 }}>{p.totalQty.toLocaleString()}</td>
+                                  <td style={{ padding:"6px 10px",textAlign:"right",color:"#6e6e73" }}>{p.unitPrice ? `$${p.unitPrice.toFixed(4)}` : "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <button className="btn-primary" style={{ background:"#e8500a",fontSize:12 }}
+                          onClick={async () => {
+                            const toAdd = missingParts;
+                            let added = 0;
+                            for (const p of toAdd) {
+                              try {
+                                const uiPart = {
+                                  mpn: p.mpn, manufacturer: p.manufacturer,
+                                  description: p.description, quantity: 1,
+                                  preferredSupplier: "mouser", unitCost: p.unitPrice || "",
+                                  reference: "", value: "", footprint: "",
+                                  projectId: null, reorderQty: "", stockQty: "",
+                                  orderQty: "", flaggedForOrder: false,
+                                  pricing: null, pricingStatus: "idle", pricingError: "", bestSupplier: null,
+                                };
+                                const created = await createPart(uiPartToDB(uiPart), user.id);
+                                setParts(prev => [...prev, dbPartToUI(created)]);
+                                added++;
+                              } catch (e) { console.warn("Failed to add", p.mpn, e.message); }
+                            }
+                            setMouserOrderHistory(null);
+                            alert(`Added ${added} parts to your library. Refresh pricing to get current stock and pricing.`);
+                          }}>
+                          Add {missingParts.length} Missing Part{missingParts.length !== 1 ? "s" : ""} to Library
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })()
+            )}
 
             {/* ── Quick Add from URL Section */}
             {showQuickUrl && (
@@ -12089,7 +12235,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.94 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v6.95 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>

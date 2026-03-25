@@ -15,6 +15,9 @@
     },
     "api/shipstation.js": {
       "maxDuration": 120
+    },
+    "api/mouser-cart.js": {
+      "maxDuration": 120
     }
   },
   "crons": [
