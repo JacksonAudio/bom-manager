@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.36";
-const BUILD_TIME   = "2026-03-26T15:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.37";
+const BUILD_TIME   = "2026-03-26T16:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -259,11 +259,31 @@ const getTariffRate = (countryCode, tariffs) => {
 // ─────────────────────────────────────────────
 // BOM PARSER
 // ─────────────────────────────────────────────
+// RFC 4180-compliant CSV splitter: handles quoted fields containing commas and escaped quotes ("")
+function splitCSVLine(line, delim) {
+  if (delim === "\t") return line.split("\t").map(c => c.replace(/^"|"$/g, "").trim());
+  const cells = [];
+  let cur = "", inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQ = false; }
+      else { cur += ch; }
+    } else {
+      if (ch === '"') { inQ = true; }
+      else if (ch === delim) { cells.push(cur.trim()); cur = ""; }
+      else { cur += ch; }
+    }
+  }
+  cells.push(cur.trim());
+  return cells;
+}
 function parseBOM(raw) {
   const lines = raw.trim().split(/\r?\n/).filter(Boolean);
   if (lines.length < 1) return [];
   const delim = lines[0].includes("\t") ? "\t" : ",";
-  const firstLine = lines[0].split(delim).map((h) => h.replace(/^"|"$/g, "").trim().toLowerCase());
+  const firstLine = splitCSVLine(lines[0], delim).map((h) => h.replace(/^"|"$/g, "").trim().toLowerCase());
   // Detect if first line is a header row
   const hasHeader = firstLine.some((h) => ["pn","mpn","part number","quantity","qty","reference","value","mfr part #"].includes(h));
   const startIdx = hasHeader ? 1 : 0;
@@ -293,7 +313,7 @@ function parseBOM(raw) {
   }
   const parts = [];
   for (let i = startIdx; i < lines.length; i++) {
-    const cells = lines[i].split(delim).map((c) => c.replace(/^"|"$/g, "").trim());
+    const cells = splitCSVLine(lines[i], delim).map((c) => c.replace(/^"|"$/g, "").trim());
     if (cells.every((c) => !c)) continue;
     const get = (key) => (idx[key] >= 0 ? cells[idx[key]] || "" : "");
     const refRaw = get("reference");
