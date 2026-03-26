@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.09
+// src/App.jsx — Jackson Audio BOM Manager v7.10
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1945,10 +1945,18 @@ function BOMManager({ user }) {
       const newUnitCost = part.unitCost || (bestPrice ? fmtPrice(bestPrice) : part.unitCost);
       const newPref     = exclusiveKey || best || part.preferredSupplier;
 
+      // Extract countryOfOrigin from pricing data (Mouser provides this)
+      let detectedOrigin = "";
+      for (const [k, d] of Object.entries(pricing)) {
+        if (k.startsWith("_")) continue;
+        if (d?.countryOfOrigin) { detectedOrigin = d.countryOfOrigin.toUpperCase(); break; }
+      }
+
       // Update UI optimistically
       setParts((prev) => prev.map((p) => p.id === partId ? {
         ...p, pricing, pricingStatus: "done", bestSupplier: best,
         unitCost: newUnitCost, preferredSupplier: newPref,
+        ...(detectedOrigin && !p.countryOfOrigin ? { countryOfOrigin: detectedOrigin } : {}),
       } : p));
 
       // Record best price to price history
@@ -1960,13 +1968,15 @@ function BOMManager({ user }) {
       // Persist to DB (so team sees cached pricing on next load)
       recentLocalWrites.current.add(partId);
       setTimeout(() => recentLocalWrites.current.delete(partId), 3000);
-      await dbUpdatePart(partId, {
+      const dbFields = {
         pricing,
         pricing_status: "done",
         best_supplier:  best,
         unit_cost:      newUnitCost !== "" ? parseFloat(newUnitCost) || null : null,
         preferred_supplier: newPref,
-      }, user.id);
+      };
+      if (detectedOrigin && !part.countryOfOrigin) dbFields.country_of_origin = detectedOrigin;
+      await dbUpdatePart(partId, dbFields, user.id);
     } catch (e) {
       setParts((prev) => prev.map((p) => p.id === partId ? {
         ...p, pricingStatus: "error", pricingError: e.message,
@@ -12554,7 +12564,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.09",
+                      version: "v7.10",
                       tables: {},
                     };
                     // Export each table
@@ -12832,7 +12842,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.09 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.10 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
