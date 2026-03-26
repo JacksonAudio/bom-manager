@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.32
+// src/App.jsx — Jackson Audio BOM Manager v7.33
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.32";
-const BUILD_TIME   = "2026-03-26T14:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.33";
+const BUILD_TIME   = "2026-03-26T14:25:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -5903,9 +5903,11 @@ function BOMManager({ user }) {
                   </select>
                   {bulkField === "preferredSupplier" ? (
                     <select value={bulkValue} onChange={e=>setBulkValue(e.target.value)}
-                      style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",width:140 }}>
+                      style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",width:160 }}>
                       <option value="">Select supplier…</option>
-                      {SUPPLIERS.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+                      {(vendors.length > 0 ? vendors : SUPPLIERS.map(s=>({slug:s.id,display_name:s.name}))).map(v=>(
+                        <option key={v.slug||v.id} value={v.slug||v.id}>{v.display_name||v.name}</option>
+                      ))}
                     </select>
                   ) : (
                     <input type="text" value={bulkValue} onChange={e=>setBulkValue(e.target.value)} placeholder="Set value…"
@@ -8906,8 +8908,13 @@ function BOMManager({ user }) {
                     <option value="stockQty">Stock</option>
                     <option value="preferredSupplier">Supplier</option>
                   </select>
-                  <input id="pdBulkValue" type="text" placeholder="Set value..."
-                    style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",width:140 }} />
+                  <input id="pdBulkValue" type="text" placeholder="Set value..." list="pd-supplier-list"
+                    style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",width:160 }} />
+                  <datalist id="pd-supplier-list">
+                    {(vendors.length > 0 ? vendors : SUPPLIERS.map(s=>({slug:s.id,display_name:s.name}))).map(v=>(
+                      <option key={v.slug||v.id} value={v.slug||v.id}>{v.display_name||v.name}</option>
+                    ))}
+                  </datalist>
                   <button onClick={async () => {
                     const field = document.getElementById("pdBulkField").value;
                     const val = document.getElementById("pdBulkValue").value;
