@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.26
+// src/App.jsx — Jackson Audio BOM Manager v7.27
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -7726,28 +7726,26 @@ function BOMManager({ user }) {
 
             const allRows = vendors;
 
-            // Map slug → whether the API key is configured
-            const apiConnected = {
-              mouser:    !!(apiKeys.mouser_api_key),
-              digikey:   !!(apiKeys.digikey_client_id && apiKeys.digikey_client_secret),
-              arrow:     !!(apiKeys.arrow_api_key),
-              ti:        !!(apiKeys.ti_api_key && apiKeys.ti_api_secret),
-              allied:    !!(apiKeys.nexar_client_id),   // Allied via Nexar
-              nexar:     !!(apiKeys.nexar_client_id),
-              lcsc:      !!(apiKeys.nexar_client_id),   // LCSC via Nexar
-              farnell:   !!(apiKeys.nexar_client_id),
-              newark:    !!(apiKeys.nexar_client_id),
-              "rs components": !!(apiKeys.nexar_client_id),
-              avnet:     !!(apiKeys.nexar_client_id),
-              future:    !!(apiKeys.nexar_client_id),
-              tti:       !!(apiKeys.nexar_client_id),
-              verical:   !!(apiKeys.nexar_client_id),
-              rocelec:   !!(apiKeys.nexar_client_id),
-              sager:     !!(apiKeys.nexar_client_id),
-              heilind:   !!(apiKeys.nexar_client_id),
-              tme:       !!(apiKeys.nexar_client_id),
-              rutronik:  !!(apiKeys.nexar_client_id),
-              element14: !!(apiKeys.nexar_client_id),
+            // "direct" = has its own dedicated API key
+            // "nexar"  = accessible via Nexar/Octopart only (no direct key)
+            // false    = not connected at all
+            const nexarOn = !!(apiKeys.nexar_client_id);
+            const apiStatus = (slug) => {
+              switch(slug?.toLowerCase()) {
+                case "mouser":   return apiKeys.mouser_api_key ? "direct" : nexarOn ? "nexar" : false;
+                case "digikey":  return (apiKeys.digikey_client_id && apiKeys.digikey_client_secret) ? "direct" : nexarOn ? "nexar" : false;
+                case "arrow":    return apiKeys.arrow_api_key ? "direct" : nexarOn ? "nexar" : false;
+                case "ti":       return (apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "direct" : false;
+                // Nexar-only distributors (no direct key available)
+                case "allied": case "newark": case "lcsc": case "farnell":
+                case "element14": case "avnet": case "future": case "tti":
+                case "ttelectronics": case "verical": case "rocelec": case "sager":
+                case "heilind": case "tme": case "rutronik": case "rs components":
+                case "chipsmall": case "utmel": case "hkinventory": case "chip1stop":
+                case "onlinecomponents": case "questcomponents": case "soselectronic":
+                  return nexarOn ? "nexar" : false;
+                default: return false;
+              }
             };
 
             const domestic      = allRows.filter(v => v.is_domestic !== false);
@@ -7794,10 +7792,10 @@ function BOMManager({ user }) {
                                   <div style={{ fontWeight:700,color:textPrimary2 }}>{vendor.display_name}</div>
                                   <div style={{ display:"flex",gap:4,marginTop:3,flexWrap:"wrap" }}>
                                     {vendor.is_api_supplier && (() => {
-                                      const connected = apiConnected[vendor.slug?.toLowerCase()];
-                                      return connected
-                                        ? <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:980,background:"rgba(52,199,89,0.12)",color:"#34c759" }}>✓ API Connected</span>
-                                        : <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:980,background:"rgba(255,59,48,0.1)",color:"#ff3b30" }}>✗ API Not Connected</span>;
+                                      const status = apiStatus(vendor.slug);
+                                      if (status === "direct") return <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:980,background:"rgba(52,199,89,0.12)",color:"#34c759" }}>✓ API Connected</span>;
+                                      if (status === "nexar")  return <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:980,background:"rgba(0,113,227,0.1)",color:"#0071e3" }}>✓ Via Nexar</span>;
+                                      return <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:980,background:"rgba(255,59,48,0.1)",color:"#ff3b30" }}>✗ Not Connected</span>;
                                     })()}
                                     {vendor.is_locked_supplier && <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:980,background:"rgba(255,149,0,0.1)",color:"#ff9500" }}>🔒 Manual</span>}
                                     {partCount > 0             && <span style={{ fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:980,background:"rgba(52,199,89,0.1)",color:"#34c759" }}>{partCount} parts</span>}
