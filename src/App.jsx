@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.33
+// src/App.jsx — Jackson Audio BOM Manager v7.34
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.33";
-const BUILD_TIME   = "2026-03-26T14:25:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.34";
+const BUILD_TIME   = "2026-03-26T14:40:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -1446,6 +1446,14 @@ function BOMManager({ user }) {
   const [supplierSubTab, setSupplierSubTab] = useState("scorecards"); // scorecards | directory
   const [vendors, setVendors] = useState([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
+  // Dynamic locked-supplier check — hardcoded fallbacks + any manual (non-API) vendor in the DB
+  // eslint-disable-next-line no-shadow
+  const isLockedSupplier = useCallback((supplier) => {
+    if (!supplier) return false;
+    const s = supplier.toLowerCase().trim();
+    if (LOCKED_SUPPLIERS.has(s)) return true;
+    return vendors.some(v => !v.is_api_supplier && ((v.slug||"").toLowerCase() === s || (v.display_name||"").toLowerCase() === s));
+  }, [vendors]);
   const [editingVendorId, setEditingVendorId] = useState(false);
   const [vendorDraft, setVendorDraft] = useState({});
   const [fullReelParts, setFullReelParts] = useState(new Set()); // part IDs where full reel is toggled
