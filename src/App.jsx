@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.16
+// src/App.jsx — Jackson Audio BOM Manager v7.17
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -164,13 +164,16 @@ const DEFAULT_SHIPPING = 15.00; // for distributors not in SUPPLIERS list
 const supplierById = (id) => SUPPLIERS.find((s) => s.id === id) || SUPPLIERS[0];
 
 // Map Nexar distributor names → our supplier IDs
-// Distributors with API pricing — parts locked to any other supplier skip API lookups
 const API_DISTRIBUTORS = new Set([
   "mouser","digikey","arrow","ti","allied","newark","lcsc",
   "Mouser Electronics","Digi-Key","DigiKey","Arrow Electronics","Texas Instruments",
   "LCSC","Allied Electronics","Newark",
 ]);
-const isLockedSupplier = (supplier) => supplier && !API_DISTRIBUTORS.has(supplier) && supplier !== "mouser";
+// Only suppliers explicitly added as non-API sources get locked (blocks API price lookups)
+const LOCKED_SUPPLIERS = new Set([
+  "ce dist","cedist","ce-dist","mcmaster","mcmaster-carr","bolt depot","boltdepot",
+]);
+const isLockedSupplier = (supplier) => supplier && LOCKED_SUPPLIERS.has(supplier.toLowerCase().trim());
 
 const NEXAR_DIST_MAP = {
   "Mouser Electronics": "mouser",
@@ -12663,7 +12666,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.16",
+                      version: "v7.17",
                       tables: {},
                     };
                     // Export each table
@@ -12941,7 +12944,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.16 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.17 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
