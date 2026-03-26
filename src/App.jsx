@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.25
+// src/App.jsx — Jackson Audio BOM Manager v7.26
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -7726,6 +7726,30 @@ function BOMManager({ user }) {
 
             const allRows = vendors;
 
+            // Map slug → whether the API key is configured
+            const apiConnected = {
+              mouser:    !!(apiKeys.mouser_api_key),
+              digikey:   !!(apiKeys.digikey_client_id && apiKeys.digikey_client_secret),
+              arrow:     !!(apiKeys.arrow_api_key),
+              ti:        !!(apiKeys.ti_api_key && apiKeys.ti_api_secret),
+              allied:    !!(apiKeys.nexar_client_id),   // Allied via Nexar
+              nexar:     !!(apiKeys.nexar_client_id),
+              lcsc:      !!(apiKeys.nexar_client_id),   // LCSC via Nexar
+              farnell:   !!(apiKeys.nexar_client_id),
+              newark:    !!(apiKeys.nexar_client_id),
+              "rs components": !!(apiKeys.nexar_client_id),
+              avnet:     !!(apiKeys.nexar_client_id),
+              future:    !!(apiKeys.nexar_client_id),
+              tti:       !!(apiKeys.nexar_client_id),
+              verical:   !!(apiKeys.nexar_client_id),
+              rocelec:   !!(apiKeys.nexar_client_id),
+              sager:     !!(apiKeys.nexar_client_id),
+              heilind:   !!(apiKeys.nexar_client_id),
+              tme:       !!(apiKeys.nexar_client_id),
+              rutronik:  !!(apiKeys.nexar_client_id),
+              element14: !!(apiKeys.nexar_client_id),
+            };
+
             const domestic      = allRows.filter(v => v.is_domestic !== false);
             const international = allRows.filter(v => v.is_domestic === false);
 
@@ -7769,7 +7793,12 @@ function BOMManager({ user }) {
                                 <div>
                                   <div style={{ fontWeight:700,color:textPrimary2 }}>{vendor.display_name}</div>
                                   <div style={{ display:"flex",gap:4,marginTop:3,flexWrap:"wrap" }}>
-                                    {vendor.is_api_supplier    && <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:980,background:"rgba(0,113,227,0.1)",color:"#0071e3" }}>API</span>}
+                                    {vendor.is_api_supplier && (() => {
+                                      const connected = apiConnected[vendor.slug?.toLowerCase()];
+                                      return connected
+                                        ? <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:980,background:"rgba(52,199,89,0.12)",color:"#34c759" }}>✓ API Connected</span>
+                                        : <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:980,background:"rgba(255,59,48,0.1)",color:"#ff3b30" }}>✗ API Not Connected</span>;
+                                    })()}
                                     {vendor.is_locked_supplier && <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:980,background:"rgba(255,149,0,0.1)",color:"#ff9500" }}>🔒 Manual</span>}
                                     {partCount > 0             && <span style={{ fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:980,background:"rgba(52,199,89,0.1)",color:"#34c759" }}>{partCount} parts</span>}
                                   </div>
