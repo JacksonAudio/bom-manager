@@ -2053,7 +2053,7 @@ function BOMManager({ user }) {
       if (!fresh.length) { setImportError("All parts already exist in the library (matched by MPN)."); return; }
 
       // Write to DB — upsertParts returns created rows, realtime handles UI update
-      const dbRows = fresh.map((p) => uiPartToDB(p));
+      const dbRows = fresh.map((p) => uiPartToDB({ ...p, addedVia: "csv-import" }));
       await upsertParts(dbRows, user.id);
 
       setImportOk(`✓ Imported ${fresh.length} parts${filename ? ` from "${filename}"` : ""}.`);
@@ -2157,6 +2157,7 @@ function BOMManager({ user }) {
       updatedBy:         row.updated_by,
       updatedAt:         row.updated_at || null,
       createdAt:         row.created_at || null,
+      addedVia:          row.added_via || null,
     };
   }
 
@@ -2186,6 +2187,8 @@ function BOMManager({ user }) {
     if (part.addedDate) {
       row.created_at = new Date(part.addedDate).toISOString();
     }
+    // Track how the part was added to the library
+    if (part.addedVia) row.added_via = part.addedVia;
     return row;
   }
 
@@ -2380,6 +2383,7 @@ function BOMManager({ user }) {
       reorderQty: "", stockQty: "", preferredSupplier: form.isInternal ? "internal" : "mouser",
       orderQty: "", flaggedForOrder: false, isInternal: form.isInternal || false,
       pricing: null, pricingStatus: "idle", pricingError: "", bestSupplier: null,
+      addedVia: "manual",
     };
 
     // Optimistic UI — add the part immediately with a temp ID
@@ -2596,6 +2600,7 @@ function BOMManager({ user }) {
       orderQty: "", flaggedForOrder: false, isInternal: false,
       countryOfOrigin: r.countryOfOrigin,
       pricing: null, pricingStatus: "idle", pricingError: "", bestSupplier: null,
+      addedVia: "quick-add-url",
     };
 
     const tempId = "temp_" + Date.now();
@@ -2915,6 +2920,7 @@ function BOMManager({ user }) {
           flagged_for_order: false,
           pricing_status: invoiceResult?._lockedSupplier ? "locked" : "idle",
           pricing_error: "",
+          added_via: "invoice-import",
         };
         try {
           const createdPart = await createPart(newPart, user.id);
@@ -4961,6 +4967,7 @@ function BOMManager({ user }) {
                                   projectId: null, reorderQty: "", stockQty: "",
                                   orderQty: "", flaggedForOrder: false,
                                   pricing: null, pricingStatus: "idle", pricingError: "", bestSupplier: null,
+                                  addedVia: "mouser-history",
                                 };
                                 const dbFields = uiPartToDB(uiPart);
                                 // Set created_at to the first purchase date from Mouser
@@ -5814,6 +5821,11 @@ function BOMManager({ user }) {
                                     <div>Unit Cost: {priceAtQty(part) > 0 ? "$"+fmtPrice(priceAtQty(part)) : "—"}</div>
                                     <div>Stock Value: {sn * priceAtQty(part) > 0 ? "$"+fmtDollar(sn * priceAtQty(part)) : "—"}</div>
                                     <div>Supplier: {part.preferredSupplier || "—"}{isLockedSupplier(part.preferredSupplier) && <span style={{ marginLeft:4,fontSize:10,color:"#ff9500",fontWeight:600 }} title="Locked — pricing from this supplier only, no API lookups">🔒 Locked</span>}</div>
+                                    {part.addedVia && <div>Added via: <span style={{ fontWeight:600,color:"#5856d6" }}>{{
+                                      "manual":"Manual Entry", "quick-add-url":"Quick Add URL", "csv-import":"CSV/BOM Import",
+                                      "invoice-import":"Invoice Scanner", "mouser-history":"Mouser Order History",
+                                      "component-library":"Component Library",
+                                    }[part.addedVia] || part.addedVia}</span></div>}
                                   </div>
                                 </div>
                               </div>
