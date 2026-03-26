@@ -412,6 +412,10 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
   if (!parts.length) return null;
 
   const part = parts[0];
+  // Debug: log compliance data to help diagnose missing country of origin
+  if (!part.CountryOfOrigin) {
+    console.log(`[Mouser] ${mpn}: no CountryOfOrigin. ProductCompliance:`, part.ProductCompliance, "keys:", Object.keys(part));
+  }
   const breaks = (part.PriceBreaks || []).map((pb) => ({
     qty: parseInt(pb.Quantity),
     price: parseFloat(pb.Price?.replace(/[^0-9.]/g, "") || "0"),
