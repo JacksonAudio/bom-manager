@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.37";
-const BUILD_TIME   = "2026-03-26T16:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.38";
+const BUILD_TIME   = "2026-03-26T16:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -1403,9 +1403,10 @@ function BOMManager({ user }) {
   const [compTariffFreeOnly, setCompTariffFreeOnly] = useState(false); // filter component library to tariff-free parts
   const [nexarUsed, setNexarUsed] = useState(() => { try { return parseInt(localStorage.getItem("nexar_used")||"6557"); } catch { return 6557; } });
   const [newProjName, setNewProjName] = useState("");
-  const [importError, setImportError] = useState("");
-  const [importOk,    setImportOk]    = useState("");
-  const [dragOver,    setDragOver]    = useState(false);
+  const [importError,   setImportError]   = useState("");
+  const [importOk,      setImportOk]      = useState("");
+  const [importPreview, setImportPreview] = useState(null); // { parts, filename } — awaiting user confirm
+  const [dragOver,      setDragOver]      = useState(false);
   const [lastImportBatch, setLastImportBatch] = useState(() => {
     try { const s = localStorage.getItem("bom_last_import"); return s ? JSON.parse(s) : null; } catch { return null; }
   });
@@ -2155,32 +2156,37 @@ function BOMManager({ user }) {
     setFetchingAll(false);
   };
 
-  // ── BOM import — parse CSV then bulk insert to DB
-  const handleImport = useCallback(async (rawText, filename = "") => {
-    setImportError(""); setImportOk("");
+  // ── BOM import — Phase 1: parse & dedupe, show preview for approval
+  const handleImport = useCallback((rawText, filename = "") => {
+    setImportError(""); setImportOk(""); setImportPreview(null);
     try {
       const parsed = parseBOM(rawText);
       if (!parsed.length) { setImportError("No parts found. Check header row."); return; }
-
-      // Filter duplicates by MPN against what's already in DB
       const existingMPNs = new Set(parts.map((p) => p.mpn).filter(Boolean));
       const fresh = parsed.filter((p) => !p.mpn || !existingMPNs.has(p.mpn));
       if (!fresh.length) { setImportError("All parts already exist in the library (matched by MPN)."); return; }
+      const skipped = parsed.length - fresh.length;
+      setImportPreview({ parts: fresh, filename: filename || null, skipped });
+    } catch (e) { setImportError("Import error: " + e.message); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parts]);
 
-      // Write to DB — upsertParts returns created rows, realtime handles UI update
+  // ── BOM import — Phase 2: user confirmed, write to DB
+  const confirmImport = useCallback(async () => {
+    if (!importPreview) return;
+    setImportError("");
+    try {
+      const { parts: fresh, filename } = importPreview;
       const dbRows = fresh.map((p) => uiPartToDB({ ...p, addedVia: "csv-import" }));
       const inserted = await upsertParts(dbRows, user.id);
-
-      // Save batch info for undo
       const batch = { ids: (inserted || []).map(r => r.id).filter(Boolean), count: fresh.length, filename: filename || null, importedAt: new Date().toISOString() };
       setLastImportBatch(batch);
       try { localStorage.setItem("bom_last_import", JSON.stringify(batch)); } catch {}
-
+      setImportPreview(null);
       setImportOk(`✓ Imported ${fresh.length} parts${filename ? ` from "${filename}"` : ""}. Use "Undo Last Import" below to reverse.`);
       setActiveView("bom");
     } catch (e) { setImportError("Import error: " + e.message); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parts, user.id]);
+  }, [importPreview, user.id]);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault(); setDragOver(false);
@@ -4968,12 +4974,51 @@ function BOMManager({ user }) {
               value={pasteText} onChange={(e)=>setPasteText(e.target.value)}
               style={{ width:"100%",padding:"12px",borderRadius:8,fontSize:12,lineHeight:1.7,resize:"vertical",border:"1px solid #e5e5ea" }} />
             <div style={{ display:"flex",gap:10,marginTop:12 }}>
-              <button className="btn-primary" onClick={()=>handleImport(pasteText)}>↑ Parse & Import</button>
+              <button className="btn-primary" onClick={()=>handleImport(pasteText)}>↑ Parse & Preview</button>
               <button className="btn-ghost" onClick={()=>setPasteText("")}>Clear</button>
             </div>
 
             {importError && <div style={{ marginTop:14,padding:"11px 16px",background:"rgba(255,59,48,0.06)",border:"1px solid #ff3b30",borderRadius:8,color:"#ff3b30",fontSize:13 }}>⚠ {importError}</div>}
             {importOk    && <div style={{ marginTop:14,padding:"11px 16px",background:"rgba(52,199,89,0.06)",border:"1px solid #34c759",borderRadius:8,color:"#34c759",fontSize:13 }}>{importOk}</div>}
+
+            {/* ── Import Preview — approve before committing */}
+            {importPreview && (
+              <div style={{ marginTop:18,border:"1px solid #007aff",borderRadius:12,overflow:"hidden" }}>
+                <div style={{ background:"rgba(0,122,255,0.07)",padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
+                  <div>
+                    <span style={{ fontWeight:700,fontSize:14,color:"#007aff" }}>Preview — {importPreview.parts.length} parts ready to import</span>
+                    {importPreview.skipped > 0 && <span style={{ fontSize:12,color:"#6e6e73",marginLeft:10 }}>{importPreview.skipped} duplicate{importPreview.skipped>1?"s":""} skipped</span>}
+                    {importPreview.filename && <span style={{ fontSize:12,color:"#6e6e73",marginLeft:10 }}>from "{importPreview.filename}"</span>}
+                  </div>
+                  <div style={{ display:"flex",gap:8 }}>
+                    <button className="btn-ghost" style={{ fontSize:13 }} onClick={()=>setImportPreview(null)}>Cancel</button>
+                    <button className="btn-primary" style={{ fontSize:13 }} onClick={confirmImport}>✓ Confirm Import ({importPreview.parts.length})</button>
+                  </div>
+                </div>
+                <div style={{ overflowX:"auto",maxHeight:420,overflowY:"auto" }}>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                    <thead style={{ position:"sticky",top:0,background:"#f5f5f7",zIndex:1 }}>
+                      <tr>
+                        {["MPN","Value","Description","Supplier","Date"].map(h=>(
+                          <th key={h} style={{ textAlign:"left",padding:"7px 12px",fontWeight:700,color:"#1d1d1f",borderBottom:"1px solid #e5e5ea",whiteSpace:"nowrap" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importPreview.parts.map((p,i)=>(
+                        <tr key={i} style={{ borderBottom:"1px solid #f5f5f7",background:i%2===0?"#fff":"#fafafa" }}>
+                          <td style={{ padding:"6px 12px",fontFamily:"monospace",whiteSpace:"nowrap" }}>{p.mpn||"—"}</td>
+                          <td style={{ padding:"6px 12px",whiteSpace:"nowrap" }}>{p.value||"—"}</td>
+                          <td style={{ padding:"6px 12px",color:"#6e6e73",maxWidth:320,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
+                          <td style={{ padding:"6px 12px",whiteSpace:"nowrap" }}>{p.preferredSupplier||"—"}</td>
+                          <td style={{ padding:"6px 12px",whiteSpace:"nowrap",color:"#6e6e73" }}>{p.addedDate||"—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* ── CSV Format Reference */}
             <div style={{ marginTop:28,padding:"20px 22px",background:"#fff",borderRadius:12,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
@@ -5468,12 +5513,50 @@ function BOMManager({ user }) {
                   style={{ width:"100%",minHeight:60,padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",marginBottom:8 }} />
                 {pasteText.trim() && (
                   <div style={{ display:"flex",gap:8,marginBottom:8 }}>
-                    <button className="btn-primary" style={{ fontSize:12 }} onClick={()=>handleImport(pasteText)}>Parse & Import</button>
+                    <button className="btn-primary" style={{ fontSize:12 }} onClick={()=>handleImport(pasteText)}>Parse & Preview</button>
                     <button className="btn-ghost" style={{ fontSize:12 }} onClick={()=>setPasteText("")}>Clear</button>
                   </div>
                 )}
                 {importError && <div style={{ marginTop:8,color:"#ff3b30",fontSize:12 }}>{importError}</div>}
                 {importOk && <div style={{ marginTop:8,color:"#34c759",fontSize:12 }}>{importOk}</div>}
+
+                {/* ── Inline Import Preview */}
+                {importPreview && (
+                  <div style={{ marginTop:10,border:"1px solid #007aff",borderRadius:10,overflow:"hidden" }}>
+                    <div style={{ background:"rgba(0,122,255,0.07)",padding:"10px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap" }}>
+                      <div style={{ fontSize:12 }}>
+                        <span style={{ fontWeight:700,color:"#007aff" }}>{importPreview.parts.length} parts ready</span>
+                        {importPreview.skipped > 0 && <span style={{ color:"#6e6e73",marginLeft:8 }}>{importPreview.skipped} duplicate{importPreview.skipped>1?"s":""} skipped</span>}
+                      </div>
+                      <div style={{ display:"flex",gap:6 }}>
+                        <button className="btn-ghost" style={{ fontSize:11,padding:"4px 10px" }} onClick={()=>setImportPreview(null)}>Cancel</button>
+                        <button className="btn-primary" style={{ fontSize:11,padding:"4px 10px" }} onClick={confirmImport}>✓ Confirm ({importPreview.parts.length})</button>
+                      </div>
+                    </div>
+                    <div style={{ overflowX:"auto",maxHeight:300,overflowY:"auto" }}>
+                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
+                        <thead style={{ position:"sticky",top:0,background:"#f5f5f7",zIndex:1 }}>
+                          <tr>
+                            {["MPN","Value","Description","Supplier","Date"].map(h=>(
+                              <th key={h} style={{ textAlign:"left",padding:"5px 10px",fontWeight:700,color:"#1d1d1f",borderBottom:"1px solid #e5e5ea",whiteSpace:"nowrap" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importPreview.parts.map((p,i)=>(
+                            <tr key={i} style={{ borderBottom:"1px solid #f5f5f7",background:i%2===0?"#fff":"#fafafa" }}>
+                              <td style={{ padding:"5px 10px",fontFamily:"monospace",whiteSpace:"nowrap" }}>{p.mpn||"—"}</td>
+                              <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>{p.value||"—"}</td>
+                              <td style={{ padding:"5px 10px",color:"#6e6e73",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
+                              <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>{p.preferredSupplier||"—"}</td>
+                              <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:"#6e6e73" }}>{p.addedDate||"—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
                 {/* CSV Format Reference */}
                 <div style={{ marginTop:14,borderTop:"1px solid #f5f5f7",paddingTop:14 }}>
