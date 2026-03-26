@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.08
+// src/App.jsx — Jackson Audio BOM Manager v7.09
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -164,6 +164,14 @@ const DEFAULT_SHIPPING = 15.00; // for distributors not in SUPPLIERS list
 const supplierById = (id) => SUPPLIERS.find((s) => s.id === id) || SUPPLIERS[0];
 
 // Map Nexar distributor names → our supplier IDs
+// Distributors with API pricing — parts locked to any other supplier skip API lookups
+const API_DISTRIBUTORS = new Set([
+  "mouser","digikey","arrow","ti","allied","newark","lcsc",
+  "Mouser Electronics","Digi-Key","DigiKey","Arrow Electronics","Texas Instruments",
+  "LCSC","Allied Electronics","Newark",
+]);
+const isLockedSupplier = (supplier) => supplier && !API_DISTRIBUTORS.has(supplier) && supplier !== "mouser";
+
 const NEXAR_DIST_MAP = {
   "Mouser Electronics": "mouser",
   "Digi-Key":           "digikey",
@@ -1869,6 +1877,13 @@ function BOMManager({ user }) {
     });
     if (!part) return;
 
+    // Skip API lookups for parts locked to non-API suppliers (CE Dist, McMaster-Carr, Bolt Depot, etc.)
+    const supplier = part.preferredSupplier || part.preferred_supplier || "";
+    if (isLockedSupplier(supplier)) {
+      setParts((prev) => prev.map((p) => p.id === partId ? { ...p, pricingStatus: "locked" } : p));
+      return;
+    }
+
     // Preserve custom suppliers through refresh
     const customEntries = {};
     if (part.pricing) {
@@ -1966,7 +1981,7 @@ function BOMManager({ user }) {
     setFetchingAll(true);
     // Use pricing search filter if active, otherwise all parts
     const pq = pricingSearch.trim();
-    let filtered = parts.filter((p) => p.mpn && p.pricingStatus !== "loading");
+    let filtered = parts.filter((p) => p.mpn && p.pricingStatus !== "loading" && !isLockedSupplier(p.preferredSupplier));
     if (pq) {
       const words = pq.toLowerCase().split(/\s+/).filter(Boolean);
       filtered = filtered.filter(p => {
@@ -5754,7 +5769,7 @@ function BOMManager({ user }) {
                                     <div>Reel Qty: {part.reelQty || "—"}</div>
                                     <div>Unit Cost: {priceAtQty(part) > 0 ? "$"+fmtPrice(priceAtQty(part)) : "—"}</div>
                                     <div>Stock Value: {sn * priceAtQty(part) > 0 ? "$"+fmtDollar(sn * priceAtQty(part)) : "—"}</div>
-                                    <div>Supplier: {part.preferredSupplier || "—"}</div>
+                                    <div>Supplier: {part.preferredSupplier || "—"}{isLockedSupplier(part.preferredSupplier) && <span style={{ marginLeft:4,fontSize:10,color:"#ff9500",fontWeight:600 }} title="Locked — pricing from this supplier only, no API lookups">🔒 Locked</span>}</div>
                                   </div>
                                 </div>
                               </div>
@@ -6001,6 +6016,8 @@ function BOMManager({ user }) {
                               <span style={{ fontSize:12,color:"#86868b" }}>Fetching…</span>
                             ) : part.pricingStatus === "error" ? (
                               <span style={{ fontSize:11,color:"#ff3b30" }}>Error</span>
+                            ) : part.pricingStatus === "locked" || isLockedSupplier(part.preferredSupplier) ? (
+                              <span style={{ fontSize:11,color:"#ff9500",fontWeight:600 }} title={`Locked to ${part.preferredSupplier} — no API lookups`}>🔒 {part.preferredSupplier}</span>
                             ) : (
                               <button onClick={(e)=>{e.stopPropagation();if(part.mpn&&hasAnyKey)fetchPartPricing(part.id);}}
                                 disabled={!part.mpn||!hasAnyKey}
@@ -12537,7 +12554,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.08",
+                      version: "v7.09",
                       tables: {},
                     };
                     // Export each table
@@ -12815,7 +12832,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.08 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.09 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
