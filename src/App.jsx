@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.29
+// src/App.jsx — Jackson Audio BOM Manager v7.30
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -7,6 +7,11 @@
 //   [2] Auto-connect APIs on page load using saved keys from DB
 //   [3] Debug console logging for Nexar response parsing
 // ============================================================
+
+// ── Build stamp — update BOTH values on every push ──────────
+const APP_VERSION  = "v7.30";
+const BUILD_TIME   = "2026-03-26T22:15:00";   // local time of last push
+// ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import AuthScreen from "./components/AuthScreen.jsx";
@@ -13160,7 +13165,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.23",
+                      version: APP_VERSION,
                       tables: {},
                     };
                     // Export each table
@@ -13438,8 +13443,8 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.20 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
-        <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager {APP_VERSION} — deployed {new Date(BUILD_TIME).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span>{new Date(BUILD_TIME).toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
   );
