@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.18
+// src/App.jsx — Jackson Audio BOM Manager v7.19
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -213,6 +213,9 @@ const COUNTRY_NAMES = {
   CZ:"Czech Republic",HU:"Hungary",IE:"Ireland",DK:"Denmark",FI:"Finland",NO:"Norway",ES:"Spain",
   PT:"Portugal",BE:"Belgium",RO:"Romania",SK:"Slovakia",SI:"Slovenia",BG:"Bulgaria",HR:"Croatia",
 };
+
+// Format country code → full name (falls back to the code itself)
+const fmtCountry = (code) => { if (!code) return ""; return COUNTRY_NAMES[code.toUpperCase()] || code; };
 
 // Format price: up to 4 decimals, strip trailing zeroes, keep min 2
 const fmtPrice = (v) => { const s = parseFloat(v).toFixed(4); return s.replace(/0{1,2}$/, ""); };
@@ -5031,12 +5034,12 @@ function BOMManager({ user }) {
                       {/* Tariff alert */}
                       {quickUrlResult.tariffRate > 0 && (
                         <span style={{ fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:6,background:"#fff3e0",color:"#e65100",border:"1px solid #ffcc80" }}>
-                          ⚠ {quickUrlResult.tariffRate}% TARIFF{quickUrlResult.countryOfOrigin ? ` (${quickUrlResult.countryOfOrigin})` : ""}{quickUrlResult.htsCode ? ` · HTS ${quickUrlResult.htsCode}` : ""}
+                          ⚠ {quickUrlResult.tariffRate}% TARIFF{quickUrlResult.countryOfOrigin ? ` (${fmtCountry(quickUrlResult.countryOfOrigin)})` : ""}{quickUrlResult.htsCode ? ` · HTS ${quickUrlResult.htsCode}` : ""}
                         </span>
                       )}
                       {!quickUrlResult.tariffRate && quickUrlResult.countryOfOrigin && (
                         <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:6,background:"#e8f5e9",color:"#2e7d32" }}>
-                          Tariff-Free ({quickUrlResult.countryOfOrigin})
+                          Tariff-Free ({fmtCountry(quickUrlResult.countryOfOrigin)})
                         </span>
                       )}
                       {!quickUrlResult.tariffRate && !quickUrlResult.countryOfOrigin && (
@@ -5070,8 +5073,8 @@ function BOMManager({ user }) {
                             </span>
                           )}
                           {quickUrlResult.stock > 0 && <span>{quickUrlResult.stock.toLocaleString()} in stock</span>}
-                          {quickUrlResult.countryOfOrigin && <span>Origin: <strong>{quickUrlResult.countryOfOrigin}</strong></span>}
-                          {quickUrlResult.countryOfAssembly && quickUrlResult.countryOfAssembly !== quickUrlResult.countryOfOrigin && <span>Assembly: <strong>{quickUrlResult.countryOfAssembly}</strong></span>}
+                          {quickUrlResult.countryOfOrigin && <span>Origin: <strong>{fmtCountry(quickUrlResult.countryOfOrigin)}</strong></span>}
+                          {quickUrlResult.countryOfAssembly && quickUrlResult.countryOfAssembly !== quickUrlResult.countryOfOrigin && <span>Assembly: <strong>{fmtCountry(quickUrlResult.countryOfAssembly)}</strong></span>}
                           {quickUrlResult.countryOfDiffusion && <span>Diffusion: <strong>{quickUrlResult.countryOfDiffusion}</strong></span>}
                           {quickUrlResult.rohsStatus && <span>RoHS: {quickUrlResult.rohsStatus}</span>}
                           {quickUrlResult.leadTime && <span>Lead: {quickUrlResult.leadTime}</span>}
@@ -5080,7 +5083,7 @@ function BOMManager({ user }) {
                         {/* Tariff cost breakdown */}
                         {quickUrlResult.tariffRate > 0 && quickUrlResult.unitPrice > 0 && (
                           <div style={{ marginTop:8,padding:"6px 10px",background:"#fff8e1",borderRadius:6,border:"1px solid #ffe082",fontSize:11,color:"#6d4c00" }}>
-                            Tariff adds <strong>${(quickUrlResult.landedPrice - quickUrlResult.unitPrice).toFixed(4)}</strong>/ea ({quickUrlResult.tariffRate}% on {quickUrlResult.countryOfOrigin} origin).
+                            Tariff adds <strong>${(quickUrlResult.landedPrice - quickUrlResult.unitPrice).toFixed(4)}</strong>/ea ({quickUrlResult.tariffRate}% on {fmtCountry(quickUrlResult.countryOfOrigin)} origin).
                             At qty 100 = <strong>${((quickUrlResult.landedPrice - quickUrlResult.unitPrice) * 100).toFixed(2)}</strong> extra.
                             {quickUrlResult.priceBreaks?.length > 1 && (() => {
                               const best = quickUrlResult.priceBreaks[quickUrlResult.priceBreaks.length - 1];
@@ -5588,7 +5591,7 @@ function BOMManager({ user }) {
                                       <span style={{ fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:3,
                                         background:pTariff > 0 ? "rgba(255,149,0,0.12)" : "rgba(52,199,89,0.12)",
                                         color:pTariff > 0 ? "#ff9500" : "#34c759" }}>
-                                        {p.countryOfOrigin}{pTariff > 0 ? ` +${pTariff}%` : ""}
+                                        {fmtCountry(p.countryOfOrigin)}{pTariff > 0 ? ` +${pTariff}%` : ""}
                                       </span>
                                     ) : <span style={{ fontSize:9,color:"#c7c7cc" }}>—</span>}
                                   </td>
@@ -5846,7 +5849,7 @@ function BOMManager({ user }) {
                                       const tariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
                                       const rate = getTariffRate(coo, tariffs);
                                       return (
-                                        <div>Origin: <strong>{coo}</strong>
+                                        <div>Origin: <strong>{fmtCountry(coo)}</strong>
                                           {rate > 0 && <span style={{ marginLeft:6,fontSize:10,fontWeight:700,color:"#ff9500" }}>+{rate}% tariff</span>}
                                           {rate === 0 && <span style={{ marginLeft:6,fontSize:10,fontWeight:600,color:"#34c759" }}>tariff-free</span>}
                                         </div>
@@ -6037,7 +6040,7 @@ function BOMManager({ user }) {
                           <div style={{ flex:2,minWidth:0 }}>
                             <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f",display:"flex",alignItems:"center",gap:8 }}>
                               {part.mpn || part.reference}
-                              {isTariffDimmed && <span style={{ fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(255,149,0,0.15)",color:"#ff9500" }}>{partOrigin} +{partTariffRate}%</span>}
+                              {isTariffDimmed && <span style={{ fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(255,149,0,0.15)",color:"#ff9500" }}>{fmtCountry(partOrigin)} +{partTariffRate}%</span>}
                             </div>
                             <div style={{ fontSize:12,color:"#86868b",marginTop:1 }}>
                               {[part.description, part.value].filter(Boolean).join(" — ") || "\u00A0"}
@@ -6078,10 +6081,10 @@ function BOMManager({ user }) {
                                   <div style={{ fontSize:20,fontWeight:600,letterSpacing:"-0.3px",color:partTariffRate > 0 ? "#ff9500" : "#1d1d1f" }}>{"$"}{fmtPrice(bestDisplayPrice)}</div>
                                   {partTariffRate > 0 ? (
                                     <div style={{ fontSize:10,color:"#ff9500",marginTop:1 }}>
-                                      {"$"}{fmtPrice(basePrice)} + {partTariffRate}% tariff ({partOrigin}) = landed
+                                      {"$"}{fmtPrice(basePrice)} + {partTariffRate}% tariff ({fmtCountry(partOrigin)}) = landed
                                     </div>
                                   ) : partOrigin ? (
-                                    <div style={{ fontSize:10,color:"#34c759",marginTop:1 }}>Landed Cost — {partOrigin} (0% tariff)</div>
+                                    <div style={{ fontSize:10,color:"#34c759",marginTop:1 }}>Landed Cost — {fmtCountry(partOrigin)} (0% tariff)</div>
                                   ) : (
                                     <div style={{ fontSize:10,color:"#86868b",marginTop:1 }}>Origin unknown</div>
                                   )}
@@ -6899,7 +6902,7 @@ function BOMManager({ user }) {
                       </div>
                       {d.hasTariff && (
                         <span style={{ flex:"0 0 auto",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:4,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
-                          {d.origin} +{d.tariffRate}%
+                          {fmtCountry(d.origin)} +{d.tariffRate}%
                         </span>
                       )}
                       <div style={{ flex:"0 0 auto",textAlign:"right",minWidth:90 }}>
@@ -7215,7 +7218,7 @@ function BOMManager({ user }) {
                         </div>
                         {d.hasTariff && (
                           <span style={{ flex:"0 0 auto",fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
-                            {d.origin} +{d.tariffRate}%
+                            {fmtCountry(d.origin)} +{d.tariffRate}%
                           </span>
                         )}
                         <div style={{ flex:"0 0 auto",fontWeight:700,fontSize:14,color:isFullReel?"#34c759":"#1d1d1f",minWidth:60,textAlign:"center" }}>
@@ -12643,7 +12646,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.18",
+                      version: "v7.19",
                       tables: {},
                     };
                     // Export each table
@@ -12921,7 +12924,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.18 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.19 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
