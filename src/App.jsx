@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.19
+// src/App.jsx — Jackson Audio BOM Manager v7.20
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -5908,8 +5908,12 @@ function BOMManager({ user }) {
                 <div style={{ position:"relative",flex:"1 1 260px",maxWidth:400 }}>
                   <input type="text" placeholder="Search parts…" value={pricingSearch}
                     onChange={(e) => setPricingSearch(e.target.value)}
-                    style={{ width:"100%",padding:"8px 14px 8px 34px",borderRadius:980,fontSize:13,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none" }} />
+                    style={{ width:"100%",padding:"8px 30px 8px 34px",borderRadius:980,fontSize:13,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none" }} />
                   <span style={{ position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:"#aeaeb2",pointerEvents:"none" }}>🔍</span>
+                  {pricingSearch && (
+                    <button type="button" onPointerDown={()=>setPricingSearch("")}
+                      style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"#aeaeb2",fontSize:16,lineHeight:1,padding:0,fontFamily:"inherit" }}>×</button>
+                  )}
                 </div>
                 {!hasAnyKey && (
                   <button onClick={()=>setActiveView("settings")}
@@ -12646,7 +12650,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.19",
+                      version: "v7.20",
                       tables: {},
                     };
                     // Export each table
@@ -12924,7 +12928,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.19 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.20 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
