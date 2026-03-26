@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.31
+// src/App.jsx — Jackson Audio BOM Manager v7.32
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.31";
-const BUILD_TIME   = "2026-03-26T13:53:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.32";
+const BUILD_TIME   = "2026-03-26T14:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -4175,7 +4175,7 @@ function BOMManager({ user }) {
         ))}
       </nav>
 
-      <main style={{ flex:1, padding:"24px 28px", overflowY:"auto" }}>
+      <main style={{ flex:1, padding:"24px 28px 52px 28px", overflowY:"auto" }}>
 
         {/* ══════════════════════════════════════
             DASHBOARD — Overview & Key Metrics
@@ -13499,8 +13499,8 @@ function BOMManager({ user }) {
         </div>
       )}
 
-      <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
-        background:darkMode?"#1c1c1e":"transparent" }}>
+      <footer style={{ position:"fixed",bottom:0,left:0,right:0,zIndex:999,borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"7px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
+        background:darkMode?"rgba(28,28,30,0.92)":"rgba(255,255,255,0.92)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)" }}>
         <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager {APP_VERSION} — deployed {new Date(BUILD_TIME).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date(BUILD_TIME).toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
