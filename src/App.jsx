@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.28
+// src/App.jsx — Jackson Audio BOM Manager v7.29
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -1380,6 +1380,9 @@ function BOMManager({ user }) {
   const [importError, setImportError] = useState("");
   const [importOk,    setImportOk]    = useState("");
   const [dragOver,    setDragOver]    = useState(false);
+  const [lastImportBatch, setLastImportBatch] = useState(() => {
+    try { const s = localStorage.getItem("bom_last_import"); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -2132,9 +2135,14 @@ function BOMManager({ user }) {
 
       // Write to DB — upsertParts returns created rows, realtime handles UI update
       const dbRows = fresh.map((p) => uiPartToDB({ ...p, addedVia: "csv-import" }));
-      await upsertParts(dbRows, user.id);
+      const inserted = await upsertParts(dbRows, user.id);
 
-      setImportOk(`✓ Imported ${fresh.length} parts${filename ? ` from "${filename}"` : ""}.`);
+      // Save batch info for undo
+      const batch = { ids: (inserted || []).map(r => r.id).filter(Boolean), count: fresh.length, filename: filename || null, importedAt: new Date().toISOString() };
+      setLastImportBatch(batch);
+      try { localStorage.setItem("bom_last_import", JSON.stringify(batch)); } catch {}
+
+      setImportOk(`✓ Imported ${fresh.length} parts${filename ? ` from "${filename}"` : ""}. Use "Undo Last Import" below to reverse.`);
       setActiveView("bom");
     } catch (e) { setImportError("Import error: " + e.message); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4874,10 +4882,35 @@ function BOMManager({ user }) {
             IMPORT
         ══════════════════════════════════════ */}
         {activeView === "import" && (
-          <div style={{ maxWidth:760 }}>
-            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:6 }}>Import Bill of Materials</h2>
-            <p style={{ color:"#86868b",fontSize:13,marginBottom:24 }}>CSV/TSV from KiCad, Altium, Eagle, or paste directly.</p>
+          <div style={{ maxWidth:780 }}>
+            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Import Bill of Materials</h2>
+            <p style={{ color:"#86868b",fontSize:13,marginBottom:20 }}>CSV/TSV from KiCad, Altium, Eagle, or paste directly.</p>
 
+            {/* ── Undo Last Import */}
+            {lastImportBatch && lastImportBatch.ids?.length > 0 && (
+              <div style={{ marginBottom:16,padding:"12px 16px",background:"rgba(255,149,0,0.07)",border:"1px solid #ff9500",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
+                <div>
+                  <div style={{ fontWeight:700,fontSize:13,color:"#ff9500" }}>↩ Undo available</div>
+                  <div style={{ fontSize:12,color:"#6e6e73",marginTop:2 }}>
+                    Last import: <strong>{lastImportBatch.count} parts</strong>
+                    {lastImportBatch.filename ? ` from "${lastImportBatch.filename}"` : ""}
+                    {lastImportBatch.importedAt ? ` · ${new Date(lastImportBatch.importedAt).toLocaleString()}` : ""}
+                  </div>
+                </div>
+                <button style={{ background:"#ff9500",color:"#fff",border:"none",borderRadius:8,padding:"7px 16px",fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap" }}
+                  onClick={async () => {
+                    if (!window.confirm(`Delete the ${lastImportBatch.count} parts from the last import? This cannot be undone.`)) return;
+                    await deletePartsMany(lastImportBatch.ids);
+                    setLastImportBatch(null);
+                    try { localStorage.removeItem("bom_last_import"); } catch {}
+                    setImportOk(`↩ Removed ${lastImportBatch.count} parts from last import.`);
+                  }}>
+                  Undo Last Import
+                </button>
+              </div>
+            )}
+
+            {/* ── Drop zone */}
             <div className={`drop-zone ${dragOver?"drag-over":""}`}
               onDragOver={(e)=>{e.preventDefault();setDragOver(true);}}
               onDragLeave={()=>setDragOver(false)}
@@ -4895,7 +4928,7 @@ function BOMManager({ user }) {
               <div style={{ flex:1,height:1,background:"#f5f5f7" }} />
             </div>
 
-            <textarea rows={8} placeholder={"PN,QTY,DESC\nCRCW060310K0FKEA,4,Resistor 10k 0603\nGRM188R71C104KA01D,2,Cap 100nF 0402\nLM358DR,1,Op-Amp SOIC-8\n\n— or full BOM with headers —\nReference,Value,MPN,Quantity"}
+            <textarea rows={7} placeholder={"PN,QTY,DESC\nCRCW060310K0FKEA,4,Resistor 10k 0603\nGRM188R71C104KA01D,2,Cap 100nF 0402\n\n— or with full headers —\nReference,Value,MPN,Quantity,Description,Footprint,Manufacturer,Supplier,UnitCost,Stock"}
               value={pasteText} onChange={(e)=>setPasteText(e.target.value)}
               style={{ width:"100%",padding:"12px",borderRadius:8,fontSize:12,lineHeight:1.7,resize:"vertical",border:"1px solid #e5e5ea" }} />
             <div style={{ display:"flex",gap:10,marginTop:12 }}>
@@ -4905,6 +4938,57 @@ function BOMManager({ user }) {
 
             {importError && <div style={{ marginTop:14,padding:"11px 16px",background:"rgba(255,59,48,0.06)",border:"1px solid #ff3b30",borderRadius:8,color:"#ff3b30",fontSize:13 }}>⚠ {importError}</div>}
             {importOk    && <div style={{ marginTop:14,padding:"11px 16px",background:"rgba(52,199,89,0.06)",border:"1px solid #34c759",borderRadius:8,color:"#34c759",fontSize:13 }}>{importOk}</div>}
+
+            {/* ── CSV Format Reference */}
+            <div style={{ marginTop:28,padding:"20px 22px",background:"#fff",borderRadius:12,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ fontWeight:700,fontSize:14,marginBottom:4 }}>📄 Accepted CSV Format</div>
+              <div style={{ fontSize:12,color:"#6e6e73",marginBottom:16 }}>
+                Files can use commas or tabs as delimiters. Headers are auto-detected — column order doesn't matter.
+                Duplicate MPNs already in the library are skipped automatically.
+              </div>
+              <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                <thead>
+                  <tr style={{ background:"#f5f5f7" }}>
+                    <th style={{ textAlign:"left",padding:"7px 10px",fontWeight:700,color:"#1d1d1f",borderRadius:"6px 0 0 0" }}>Column</th>
+                    <th style={{ textAlign:"left",padding:"7px 10px",fontWeight:700,color:"#1d1d1f" }}>Also accepted as</th>
+                    <th style={{ textAlign:"left",padding:"7px 10px",fontWeight:700,color:"#1d1d1f",borderRadius:"0 6px 0 0" }}>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { col:"MPN",         alt:"Part Number, PN, Mfr Part #, Mfr#",    note:"Manufacturer part number — used for pricing lookups", req:true },
+                    { col:"Reference",   alt:"Ref, Designator, RefDes",               note:"Schematic reference designators (R1, C4, U2…)" },
+                    { col:"Quantity",    alt:"QTY, Count, Amount",                    note:"How many per build. Defaults to 1" },
+                    { col:"Value",       alt:"Val, Component, Part Value",            note:"Component value (10k, 100nF, etc.)" },
+                    { col:"Description", alt:"Desc, Comment, Notes",                  note:"Free text description" },
+                    { col:"Footprint",   alt:"Package",                               note:"PCB footprint / package (0402, SOIC-8…)" },
+                    { col:"Manufacturer",alt:"Mfr, Mfr.",                             note:"Manufacturer name" },
+                    { col:"Supplier",    alt:"Vendor, PreferredSupplier",             note:"Preferred distributor — defaults to Mouser" },
+                    { col:"UnitCost",    alt:"Price, Cost, Unit_Cost",                note:"Unit price in USD" },
+                    { col:"Stock",       alt:"StockQty, Stock_Qty, In Stock",         note:"Current stock on hand" },
+                    { col:"Date",        alt:"AddedDate, Added, Created_At",          note:"Import date for historical records" },
+                  ].map(({ col, alt, note, req }) => (
+                    <tr key={col} style={{ borderTop:"1px solid #f5f5f7" }}>
+                      <td style={{ padding:"7px 10px",fontWeight:700,color: req?"#0071e3":"#1d1d1f",fontFamily:"monospace" }}>
+                        {col}{req && <span style={{ marginLeft:4,fontSize:10,color:"#0071e3",fontWeight:600 }}>required</span>}
+                      </td>
+                      <td style={{ padding:"7px 10px",color:"#6e6e73",fontFamily:"monospace",fontSize:11 }}>{alt}</td>
+                      <td style={{ padding:"7px 10px",color:"#6e6e73" }}>{note}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ marginTop:14,display:"flex",gap:10 }}>
+                <button className="btn-ghost btn-sm" onClick={() => {
+                  const template = "MPN,Reference,Quantity,Value,Description,Footprint,Manufacturer,Supplier,UnitCost,Stock\nCRCW060310K0FKEA,R1,4,10k,Resistor 10k 1% 0603,0603,Vishay,mouser,,\nGRM188R71C104KA01D,C1,2,100nF,Capacitor 100nF 16V 0402,0402,Murata,mouser,,\nLM358DR,U1,1,,Op-Amp Dual 8-SOIC,SOIC-8,Texas Instruments,mouser,,";
+                  const blob = new Blob([template], { type:"text/csv" });
+                  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+                  a.download = "bom-template.csv"; a.click();
+                }}>
+                  ⬇ Download Template
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
