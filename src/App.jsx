@@ -447,7 +447,15 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
   if (part.LeadTime) result.leadTime = part.LeadTime;
   if (part.SuggestedReplacement) result.suggestedReplacement = part.SuggestedReplacement;
   if (part.ImagePath) result.imagePath = part.ImagePath;
-  if (part.ProductCompliance) result.compliance = part.ProductCompliance;
+  if (part.ProductCompliance) {
+    result.compliance = part.ProductCompliance;
+    // Extract HTS code for tariff lookups
+    for (const comp of part.ProductCompliance) {
+      if (comp.ComplianceName === "USHTS" && comp.ComplianceValue) {
+        result.htsCode = comp.ComplianceValue;
+      }
+    }
+  }
   // Parse COO from ProductCompliance array if not found in top-level field
   if (!result.countryOfOrigin && Array.isArray(part.ProductCompliance)) {
     console.log(`[Mouser] ${mpn}: scanning ProductCompliance:`, JSON.stringify(part.ProductCompliance));
@@ -657,7 +665,7 @@ async function fetchDigiKeyPricing(mpn, quantity, clientId, accessToken) {
     if (quantity >= pb.qty) unitPrice = pb.price;
   }
 
-  return {
+  const result = {
     supplierId: "digikey",
     displayName: "Digi-Key",
     unitPrice: parseFloat(unitPrice),
@@ -666,6 +674,21 @@ async function fetchDigiKeyPricing(mpn, quantity, clientId, accessToken) {
     url: product.ProductUrl || `https://www.digikey.com/en/products/result?keywords=${encodeURIComponent(mpn)}`,
     priceBreaks: bestBreaks,
   };
+  // DigiKey v4 returns CountryOfOrigin in Parameters or top-level
+  const coo = product.CountryOfOrigin || product.ManufacturerCountryOfOrigin || "";
+  if (coo) result.countryOfOrigin = coo.toUpperCase();
+  // Also check Parameters array for COO
+  if (!result.countryOfOrigin && Array.isArray(product.Parameters)) {
+    for (const p of product.Parameters) {
+      const name = (p.ParameterText || p.Parameter || "").toLowerCase();
+      if (name.includes("country") && name.includes("origin")) {
+        result.countryOfOrigin = (p.ValueText || p.Value || "").toUpperCase();
+        break;
+      }
+    }
+  }
+  if (result.countryOfOrigin) console.log(`[DigiKey] ${mpn}: COO = ${result.countryOfOrigin}`);
+  return result;
 }
 
 // ─────────────────────────────────────────────
