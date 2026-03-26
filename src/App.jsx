@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.34
+// src/App.jsx — Jackson Audio BOM Manager v7.35
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.34";
-const BUILD_TIME   = "2026-03-26T14:40:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.35";
+const BUILD_TIME   = "2026-03-26T14:55:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -1363,6 +1363,7 @@ function BOMManager({ user }) {
   const [expandedPartRow, setExpandedPartRow] = useState(null);
   const [bulkField,   setBulkField]   = useState("manufacturer");
   const [bulkValue,   setBulkValue]   = useState("");
+  const [bulkLockVendor, setBulkLockVendor] = useState(false);
   const [partSort,    setPartSort]    = useState({ field: "createdAt", asc: false });
   const [showResGen,  setShowResGen]  = useState(false);
   const [showQuickUrl, setShowQuickUrl] = useState(false);
@@ -5910,13 +5911,19 @@ function BOMManager({ user }) {
                     <option value="preferredSupplier">Supplier</option>
                   </select>
                   {bulkField === "preferredSupplier" ? (
-                    <select value={bulkValue} onChange={e=>setBulkValue(e.target.value)}
-                      style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",width:160 }}>
-                      <option value="">Select supplier…</option>
-                      {(vendors.length > 0 ? vendors : SUPPLIERS.map(s=>({slug:s.id,display_name:s.name}))).map(v=>(
-                        <option key={v.slug||v.id} value={v.slug||v.id}>{v.display_name||v.name}</option>
-                      ))}
-                    </select>
+                    <>
+                      <select value={bulkValue} onChange={e=>setBulkValue(e.target.value)}
+                        style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",width:160 }}>
+                        <option value="">Select supplier…</option>
+                        {(vendors.length > 0 ? vendors : SUPPLIERS.map(s=>({slug:s.id,display_name:s.name}))).map(v=>(
+                          <option key={v.slug||v.id} value={v.slug||v.id}>{v.display_name||v.name}</option>
+                        ))}
+                      </select>
+                      <label style={{ display:"flex",alignItems:"center",gap:5,fontSize:12,color:"#ff9500",fontWeight:600,cursor:"pointer",whiteSpace:"nowrap" }}>
+                        <input type="checkbox" checked={bulkLockVendor} onChange={e=>setBulkLockVendor(e.target.checked)} style={{ accentColor:"#ff9500" }} />
+                        🔒 Lock to vendor
+                      </label>
+                    </>
                   ) : (
                     <input type="text" value={bulkValue} onChange={e=>setBulkValue(e.target.value)} placeholder="Set value…"
                       style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",width:140 }} />
@@ -5936,6 +5943,19 @@ function BOMManager({ user }) {
                     setParts(prev => prev.map(p => selectedParts.has(p.id) ? { ...p, [field]: val } : p));
                     try {
                       await bulkUpdateParts([...selectedParts], { [dbField]: dbValue });
+                      // If "Lock to vendor" was checked, mark the vendor as non-API in the directory
+                      if (field === "preferredSupplier" && bulkLockVendor && dbValue) {
+                        const v = vendors.find(x => (x.slug||"").toLowerCase() === dbValue.toLowerCase());
+                        if (v?.id) {
+                          const { error: ve } = await supabase.from("vendors").update({ is_api_supplier: false }).eq("id", v.id);
+                          if (!ve) setVendors(prev => prev.map(x => x.id === v.id ? { ...x, is_api_supplier: false } : x));
+                        } else {
+                          // Vendor not in directory yet — insert it as locked manual supplier
+                          const { data: nv } = await supabase.from("vendors").insert([{ slug: dbValue.toLowerCase().replace(/\s+/g,"-"), display_name: dbValue, is_api_supplier: false, is_domestic: true }]).select().single();
+                          if (nv) setVendors(prev => [...prev, nv]);
+                        }
+                        setBulkLockVendor(false);
+                      }
                     } catch (e) { alert("Bulk update failed: " + e.message); }
                     setBulkValue("");
                   }}
