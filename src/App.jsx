@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.07
+// src/App.jsx — Jackson Audio BOM Manager v7.08
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -237,6 +237,10 @@ function parseBOM(raw) {
     description:  ["description", "desc", "comment", "notes"],
     footprint:    ["footprint", "package"],
     manufacturer: ["manufacturer", "mfr", "mfr."],
+    preferredSupplier: ["preferredsupplier", "preferred_supplier", "supplier", "vendor"],
+    unitCost:     ["unitcost", "unit_cost", "price", "cost"],
+    stockQty:     ["stockqty", "stock_qty", "stock", "in stock"],
+    addedDate:    ["addeddate", "added_date", "added", "created_at", "date"],
   };
   // If header detected, map columns; otherwise assume PN,QTY (2-column format)
   const idx = {};
@@ -263,8 +267,11 @@ function parseBOM(raw) {
       reference: refRaw || mpn, refs, value: get("value"), mpn,
       description: get("description"), footprint: get("footprint"),
       manufacturer: get("manufacturer"), quantity: qty,
-      unitCost: "", projectId: null, reorderQty: "", stockQty: "",
-      preferredSupplier: "mouser", orderQty: "", flaggedForOrder: false,
+      unitCost: get("unitCost") || "", projectId: null, reorderQty: "",
+      stockQty: get("stockQty") || "",
+      preferredSupplier: get("preferredSupplier") || "mouser",
+      addedDate: get("addedDate") || "",
+      orderQty: "", flaggedForOrder: false,
       // Pricing data — populated by API
       pricing: null,      // { [supplierId]: { unitPrice, stock, moq, priceBreaks: [{qty, price}], url } }
       pricingStatus: "idle",  // idle | loading | done | error | no-mpn
@@ -2096,7 +2103,7 @@ function BOMManager({ user }) {
 
   // Convert UI part shape → DB insert/update fields (snake_case, no UI-only fields)
   function uiPartToDB(part) {
-    return {
+    const row = {
       reference:         part.reference         || "",
       value:             part.value             || "",
       mpn:               part.mpn               || "",
@@ -2116,6 +2123,11 @@ function BOMManager({ user }) {
       pricing_error:     part.pricingError       || "",
       best_supplier:     part.bestSupplier       || null,
     };
+    // Use addedDate as created_at if provided (for historical imports)
+    if (part.addedDate) {
+      row.created_at = new Date(part.addedDate).toISOString();
+    }
+    return row;
   }
 
   // ─────────────────────────────────────────────
@@ -12525,7 +12537,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.07",
+                      version: "v7.08",
                       tables: {},
                     };
                     // Export each table
@@ -12803,7 +12815,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.07 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.08 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
