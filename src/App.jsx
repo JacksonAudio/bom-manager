@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.14
+// src/App.jsx — Jackson Audio BOM Manager v7.15
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -6115,7 +6115,7 @@ function BOMManager({ user }) {
 
                         {/* Expanded panel */}
                         {isOpen && (
-                          <div style={{ padding:"0 22px 18px",animation:"none" }}>
+                          <div onClick={e=>e.stopPropagation()} style={{ padding:"0 22px 18px",animation:"none" }}>
                             {/* Supplier cards */}
                             {sorted.length > 0 ? (
                               <>
@@ -6261,8 +6261,8 @@ function BOMManager({ user }) {
                                 + Custom Supplier
                               </button>
                               {(effectiveStatus === "done" || part.pricingStatus === "loading") && (
-                                <button onClick={(e)=>{e.stopPropagation();if(part.pricingStatus!=="loading")fetchPartPricing(part.id);}}
-                                  disabled={part.pricingStatus === "loading"}
+                                <button type="button"
+                                  onPointerDown={(e)=>{e.stopPropagation();e.preventDefault();if(part.pricingStatus!=="loading")fetchPartPricing(part.id);}}
                                   style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:part.pricingStatus==="loading"?"default":"pointer",fontFamily:"inherit",
                                     border:"1px solid #0071e3",background:"none",color:"#0071e3",
                                     opacity:part.pricingStatus==="loading"?0.5:1 }}>
@@ -12640,7 +12640,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.14",
+                      version: "v7.15",
                       tables: {},
                     };
                     // Export each table
@@ -12918,7 +12918,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.14 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.15 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
