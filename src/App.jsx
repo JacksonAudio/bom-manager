@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.10
+// src/App.jsx — Jackson Audio BOM Manager v7.11
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -2009,7 +2009,6 @@ function BOMManager({ user }) {
         unit_cost:      newUnitCost !== "" ? parseFloat(newUnitCost) || null : null,
         preferred_supplier: newPref,
       };
-      if (detectedOrigin && !part.countryOfOrigin) dbFields.country_of_origin = detectedOrigin;
       await dbUpdatePart(partId, dbFields, user.id);
     } catch (e) {
       setParts((prev) => prev.map((p) => p.id === partId ? {
@@ -12610,7 +12609,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.10",
+                      version: "v7.11",
                       tables: {},
                     };
                     // Export each table
@@ -12888,7 +12887,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.10 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.11 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
