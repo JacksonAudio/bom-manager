@@ -110,12 +110,23 @@ export async function deleteProduct(id) {
 
 // Fetch all parts, ordered by created_at ascending
 export async function fetchParts() {
-  const { data, error } = await supabase
-    .from('parts')
-    .select('*')
-    .order('created_at', { ascending: true })
-  check(error, 'fetchParts')
-  return data
+  // Supabase defaults to 1000 rows — paginate to get ALL parts
+  const all = [];
+  const pageSize = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('parts')
+      .select('*')
+      .order('created_at', { ascending: true })
+      .range(from, from + pageSize - 1);
+    check(error, 'fetchParts');
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < pageSize) break; // last page
+    from += pageSize;
+  }
+  return all;
 }
 
 // Insert one part — returns the new row
@@ -600,10 +611,20 @@ export async function fetchDemandCache(id) {
 
 // Fetch all price history (for product-level rollups)
 export async function fetchAllPriceHistory() {
-  const { data, error } = await supabase
-    .from('price_history')
-    .select('*')
-    .order('recorded_at', { ascending: false })
-  check(error, 'fetchAllPriceHistory')
-  return data
+  const all = [];
+  const pageSize = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('price_history')
+      .select('*')
+      .order('recorded_at', { ascending: false })
+      .range(from, from + pageSize - 1);
+    check(error, 'fetchAllPriceHistory');
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
 }
