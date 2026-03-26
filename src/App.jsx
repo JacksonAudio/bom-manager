@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.22
+// src/App.jsx — Jackson Audio BOM Manager v7.23
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -1420,6 +1420,11 @@ function BOMManager({ user }) {
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [orderForm, setOrderForm] = useState(null); // { supplier, poNumber, items, notes }
   const [supplierSort, setSupplierSort] = useState("spend"); // spend | leadtime | orders
+  const [supplierSubTab, setSupplierSubTab] = useState("scorecards"); // scorecards | directory
+  const [vendors, setVendors] = useState([]);
+  const [vendorsLoading, setVendorsLoading] = useState(false);
+  const [editingVendorId, setEditingVendorId] = useState(null);
+  const [vendorDraft, setVendorDraft] = useState({});
   const [fullReelParts, setFullReelParts] = useState(new Set()); // part IDs where full reel is toggled
   const [settingsSaving, setSettingsSaving] = useState(""); // which section is saving
   const [settingsSaved, setSettingsSaved] = useState(""); // which section just saved
@@ -2223,6 +2228,47 @@ function BOMManager({ user }) {
     if (part.htsCode) row.hts_code = part.htsCode;
     return row;
   }
+
+  // ─────────────────────────────────────────────
+  // VENDOR DIRECTORY
+  // ─────────────────────────────────────────────
+  const loadVendors = async () => {
+    setVendorsLoading(true);
+    const { data, error } = await supabase.from("vendors").select("*").order("display_name");
+    if (!error && data) setVendors(data);
+    setVendorsLoading(false);
+  };
+
+  const saveVendor = async (vendor) => {
+    const row = {
+      slug:           vendor.slug,
+      display_name:   vendor.display_name,
+      website:        vendor.website        || null,
+      account_number: vendor.account_number || null,
+      contact_name:   vendor.contact_name   || null,
+      contact_email:  vendor.contact_email  || null,
+      contact_phone:  vendor.contact_phone  || null,
+      payment_terms:  vendor.payment_terms  || null,
+      lead_time_days: vendor.lead_time_days ? parseInt(vendor.lead_time_days) || null : null,
+      notes:          vendor.notes          || null,
+      updated_at:     new Date().toISOString(),
+    };
+    if (vendor.id) {
+      const { error } = await supabase.from("vendors").update(row).eq("id", vendor.id);
+      if (!error) setVendors(prev => prev.map(v => v.id === vendor.id ? { ...v, ...row } : v));
+    } else {
+      const { data, error } = await supabase.from("vendors").insert([{ ...row, is_api_supplier: false, is_locked_supplier: false }]).select().single();
+      if (!error && data) setVendors(prev => [...prev, data].sort((a, b) => a.display_name.localeCompare(b.display_name)));
+    }
+    setEditingVendorId(null);
+    setVendorDraft({});
+  };
+
+  const deleteVendor = async (id) => {
+    if (!window.confirm("Remove this vendor from the directory? This won't affect parts already using it.")) return;
+    await supabase.from("vendors").delete().eq("id", id);
+    setVendors(prev => prev.filter(v => v.id !== id));
+  };
 
   // ─────────────────────────────────────────────
   // PART MUTATIONS — all write to DB, realtime updates UI
@@ -7656,9 +7702,209 @@ function BOMManager({ user }) {
         )}
 
         {/* ══════════════════════════════════════
-            SUPPLIER SCORECARDS
+            SUPPLIER SCORECARDS + DIRECTORY
         ══════════════════════════════════════ */}
         {activeView === "suppliers" && (() => {
+          // Lazy-load vendors on first visit
+          if (vendors.length === 0 && !vendorsLoading) loadVendors();
+
+          const textPrimary2   = darkMode ? "#f5f5f7" : "#1d1d1f";
+          const textSecondary2 = darkMode ? "#98989d" : "#86868b";
+          const cardBg2        = darkMode ? "#2c2c2e" : "#fff";
+          const borderColor2   = darkMode ? "#3a3a3e" : "#e5e5ea";
+
+          // ── VENDOR DIRECTORY sub-tab ──────────────────────────────
+          if (supplierSubTab === "directory") {
+            const PAYMENT_TERMS = ["Net 30","Net 60","Net 90","Due on Receipt","Credit Card","COD","Prepaid"];
+            const partCountBySlug = {};
+            parts.forEach(p => {
+              if (p.preferredSupplier) {
+                const k = p.preferredSupplier.toLowerCase().trim();
+                partCountBySlug[k] = (partCountBySlug[k] || 0) + 1;
+              }
+            });
+
+            // Show all vendors + any suppliers in parts not yet in vendors table
+            const vendorSlugs = new Set(vendors.map(v => v.slug.toLowerCase()));
+            const extraSlugs = [...new Set(parts.map(p => (p.preferredSupplier||"").toLowerCase().trim()).filter(s => s && !vendorSlugs.has(s)))];
+
+            const allRows = [
+              ...vendors,
+              ...extraSlugs.map(s => ({ id: null, slug: s, display_name: s, is_api_supplier: API_DISTRIBUTORS.has(s), is_locked_supplier: isLockedSupplier(s) })),
+            ];
+
+            return (
+              <div>
+                <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10 }}>
+                  <div>
+                    <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary2,margin:0 }}>Vendor Directory</h2>
+                    <p style={{ fontSize:14,color:textSecondary2,marginTop:4,marginBottom:0 }}>Contact info, account numbers, and payment terms for all suppliers.</p>
+                  </div>
+                  <div style={{ display:"flex",gap:10,alignItems:"center" }}>
+                    {/* Sub-tab switcher */}
+                    <div style={{ display:"flex",borderRadius:980,overflow:"hidden",border:`1px solid ${borderColor2}` }}>
+                      {["scorecards","directory"].map(t => (
+                        <button key={t} onClick={() => setSupplierSubTab(t)}
+                          style={{ padding:"7px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",
+                            background:supplierSubTab===t?(darkMode?"#3a3a3e":"#1d1d1f"):"transparent",
+                            color:supplierSubTab===t?"#fff":textSecondary2,textTransform:"capitalize" }}>
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => { setEditingVendorId("new"); setVendorDraft({ slug:"", display_name:"", website:"", account_number:"", contact_name:"", contact_email:"", contact_phone:"", payment_terms:"Net 30", lead_time_days:"", notes:"" }); }}
+                      style={{ padding:"8px 18px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff" }}>
+                      + Add Vendor
+                    </button>
+                  </div>
+                </div>
+
+                {/* Add new vendor form */}
+                {editingVendorId === "new" && (
+                  <div style={{ background:cardBg2,borderRadius:14,border:`1px solid ${borderColor2}`,padding:20,marginBottom:20,boxShadow:"0 2px 8px rgba(0,0,0,0.08)" }}>
+                    <h3 style={{ margin:"0 0 16px",fontSize:16,fontWeight:700,color:textPrimary2 }}>New Vendor</h3>
+                    <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:16 }}>
+                      {[
+                        { key:"display_name", label:"Vendor Name *", type:"text" },
+                        { key:"slug",         label:"Slug (lowercase ID) *", type:"text", placeholder:"e.g. bolt-depot" },
+                        { key:"website",      label:"Website", type:"text", placeholder:"https://" },
+                        { key:"account_number", label:"Account #", type:"text" },
+                        { key:"contact_name", label:"Contact Name", type:"text" },
+                        { key:"contact_email",label:"Contact Email", type:"email" },
+                        { key:"contact_phone",label:"Contact Phone", type:"tel" },
+                        { key:"lead_time_days",label:"Default Lead Time (days)", type:"number" },
+                      ].map(f => (
+                        <div key={f.key}>
+                          <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>{f.label}</div>
+                          <input type={f.type} placeholder={f.placeholder||""} value={vendorDraft[f.key]||""}
+                            onChange={e => setVendorDraft(d => ({ ...d, [f.key]: e.target.value }))}
+                            style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }} />
+                        </div>
+                      ))}
+                      <div>
+                        <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Payment Terms</div>
+                        <select value={vendorDraft.payment_terms||"Net 30"} onChange={e => setVendorDraft(d => ({ ...d, payment_terms: e.target.value }))}
+                          style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }}>
+                          {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ gridColumn:"1/-1" }}>
+                        <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Notes</div>
+                        <textarea value={vendorDraft.notes||""} onChange={e => setVendorDraft(d => ({ ...d, notes: e.target.value }))} rows={2}
+                          style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",resize:"vertical" }} />
+                      </div>
+                    </div>
+                    <div style={{ display:"flex",gap:10 }}>
+                      <button onClick={() => saveVendor(vendorDraft)}
+                        style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#34c759",color:"#fff" }}>Save</button>
+                      <button onClick={() => { setEditingVendorId(null); setVendorDraft({}); }}
+                        style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor2}`,background:"transparent",color:textPrimary2 }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Vendor cards */}
+                {vendorsLoading ? (
+                  <div style={{ textAlign:"center",padding:40,color:textSecondary2 }}>Loading vendors…</div>
+                ) : (
+                  <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:16 }}>
+                    {allRows.map(vendor => {
+                      const partCount = partCountBySlug[vendor.slug?.toLowerCase()] || 0;
+                      const isEditing = editingVendorId === vendor.id;
+                      const draft = isEditing ? vendorDraft : vendor;
+                      return (
+                        <div key={vendor.id || vendor.slug} style={{ background:cardBg2,borderRadius:14,border:`1px solid ${borderColor2}`,padding:18,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                          {/* Header */}
+                          <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12 }}>
+                            <div>
+                              <div style={{ fontSize:16,fontWeight:700,color:textPrimary2,marginBottom:4 }}>
+                                {vendor.display_name}
+                              </div>
+                              <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+                                {vendor.is_api_supplier && <span style={{ fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:980,background:"rgba(0,113,227,0.1)",color:"#0071e3" }}>API</span>}
+                                {vendor.is_locked_supplier && <span style={{ fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:980,background:"rgba(255,149,0,0.1)",color:"#ff9500" }}>🔒 Manual</span>}
+                                {partCount > 0 && <span style={{ fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:980,background:"rgba(52,199,89,0.1)",color:"#34c759" }}>{partCount} part{partCount!==1?"s":""}</span>}
+                              </div>
+                            </div>
+                            <div style={{ display:"flex",gap:6 }}>
+                              {!isEditing && (
+                                <button onClick={() => { setEditingVendorId(vendor.id); setVendorDraft({ ...vendor }); }}
+                                  style={{ padding:"5px 12px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor2}`,background:"transparent",color:textPrimary2 }}>Edit</button>
+                              )}
+                              {vendor.website && !isEditing && (
+                                <a href={vendor.website} target="_blank" rel="noopener noreferrer"
+                                  style={{ padding:"5px 12px",borderRadius:980,fontSize:11,fontWeight:600,textDecoration:"none",border:"none",background:"#0071e3",color:"#fff" }}>Visit →</a>
+                              )}
+                            </div>
+                          </div>
+
+                          {isEditing ? (
+                            /* Edit form */
+                            <div>
+                              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12 }}>
+                                {[
+                                  { key:"display_name", label:"Name" },
+                                  { key:"website",      label:"Website" },
+                                  { key:"account_number", label:"Account #" },
+                                  { key:"contact_name", label:"Contact Name" },
+                                  { key:"contact_email",label:"Contact Email" },
+                                  { key:"contact_phone",label:"Contact Phone" },
+                                  { key:"lead_time_days",label:"Lead Time (days)" },
+                                ].map(f => (
+                                  <div key={f.key}>
+                                    <div style={{ fontSize:10,fontWeight:600,color:textSecondary2,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em" }}>{f.label}</div>
+                                    <input type="text" value={vendorDraft[f.key]||""} onChange={e => setVendorDraft(d => ({ ...d, [f.key]: e.target.value }))}
+                                      style={{ width:"100%",padding:"6px 8px",borderRadius:7,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:12,fontFamily:"inherit",boxSizing:"border-box" }} />
+                                  </div>
+                                ))}
+                                <div>
+                                  <div style={{ fontSize:10,fontWeight:600,color:textSecondary2,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em" }}>Payment Terms</div>
+                                  <select value={vendorDraft.payment_terms||""} onChange={e => setVendorDraft(d => ({ ...d, payment_terms: e.target.value }))}
+                                    style={{ width:"100%",padding:"6px 8px",borderRadius:7,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:12,fontFamily:"inherit",boxSizing:"border-box" }}>
+                                    <option value="">—</option>
+                                    {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              <div style={{ marginBottom:12 }}>
+                                <div style={{ fontSize:10,fontWeight:600,color:textSecondary2,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em" }}>Notes</div>
+                                <textarea value={vendorDraft.notes||""} onChange={e => setVendorDraft(d => ({ ...d, notes: e.target.value }))} rows={2}
+                                  style={{ width:"100%",padding:"6px 8px",borderRadius:7,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",resize:"vertical" }} />
+                              </div>
+                              <div style={{ display:"flex",gap:8 }}>
+                                <button onClick={() => saveVendor(vendorDraft)}
+                                  style={{ padding:"6px 16px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#34c759",color:"#fff" }}>Save</button>
+                                <button onClick={() => { setEditingVendorId(null); setVendorDraft({}); }}
+                                  style={{ padding:"6px 16px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor2}`,background:"transparent",color:textPrimary2 }}>Cancel</button>
+                                {vendor.id && <button onClick={() => deleteVendor(vendor.id)}
+                                  style={{ padding:"6px 16px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#ff3b30",color:"#fff",marginLeft:"auto" }}>Remove</button>}
+                              </div>
+                            </div>
+                          ) : (
+                            /* Read view */
+                            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 16px",fontSize:13 }}>
+                              {vendor.account_number && <div><span style={{ color:textSecondary2,fontSize:11 }}>Account # </span><strong style={{ color:textPrimary2 }}>{vendor.account_number}</strong></div>}
+                              {vendor.payment_terms  && <div><span style={{ color:textSecondary2,fontSize:11 }}>Terms </span><strong style={{ color:textPrimary2 }}>{vendor.payment_terms}</strong></div>}
+                              {vendor.lead_time_days && <div><span style={{ color:textSecondary2,fontSize:11 }}>Lead Time </span><strong style={{ color:textPrimary2 }}>{vendor.lead_time_days} days</strong></div>}
+                              {vendor.contact_name   && <div><span style={{ color:textSecondary2,fontSize:11 }}>Contact </span><strong style={{ color:textPrimary2 }}>{vendor.contact_name}</strong></div>}
+                              {vendor.contact_email  && <div style={{ gridColumn:"1/-1" }}><span style={{ color:textSecondary2,fontSize:11 }}>Email </span><a href={`mailto:${vendor.contact_email}`} style={{ color:"#0071e3",fontWeight:600,fontSize:13 }}>{vendor.contact_email}</a></div>}
+                              {vendor.contact_phone  && <div><span style={{ color:textSecondary2,fontSize:11 }}>Phone </span><a href={`tel:${vendor.contact_phone}`} style={{ color:"#0071e3",fontWeight:600,fontSize:13 }}>{vendor.contact_phone}</a></div>}
+                              {vendor.notes          && <div style={{ gridColumn:"1/-1",marginTop:4,padding:"8px 10px",borderRadius:8,background:darkMode?"#1c1c1e":"#f5f5f7",fontSize:12,color:textSecondary2,lineHeight:"1.5" }}>{vendor.notes}</div>}
+                              {!vendor.account_number && !vendor.contact_name && !vendor.contact_email && !vendor.notes && (
+                                <div style={{ gridColumn:"1/-1",color:textSecondary2,fontSize:12,fontStyle:"italic" }}>No details yet — click Edit to add contact info.</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // ── SCORECARDS sub-tab (existing code follows) ────────────
           // Build supplier list from all sources
           const supplierMap = {};
           SUPPLIERS.forEach(s => { supplierMap[s.name] = { name: s.name, color: s.color, bg: s.bg, id: s.id }; });
@@ -7753,7 +7999,19 @@ function BOMManager({ user }) {
 
           return (
             <div style={{ maxWidth:"100%" }}>
-              <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Supplier Scorecards</h2>
+              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,flexWrap:"wrap",gap:10 }}>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,margin:0 }}>Supplier Scorecards</h2>
+                <div style={{ display:"flex",borderRadius:980,overflow:"hidden",border:`1px solid ${borderColor}` }}>
+                  {["scorecards","directory"].map(t => (
+                    <button key={t} onClick={() => setSupplierSubTab(t)}
+                      style={{ padding:"7px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",
+                        background:supplierSubTab===t?(darkMode?"#3a3a3e":"#1d1d1f"):"transparent",
+                        color:supplierSubTab===t?"#fff":textSecondary,textTransform:"capitalize" }}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <p style={{ fontSize:14,color:textSecondary,marginBottom:24 }}>Performance metrics and analytics for all suppliers.</p>
 
               {/* Summary stats */}
@@ -12684,7 +12942,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.22",
+                      version: "v7.23",
                       tables: {},
                     };
                     // Export each table
