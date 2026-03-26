@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.05
+// src/App.jsx — Jackson Audio BOM Manager v7.06
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1353,6 +1353,7 @@ function BOMManager({ user }) {
   const [invoiceError, setInvoiceError] = useState("");
   const [invoiceScanning, setInvoiceScanning] = useState(false);
   const [bulkInvoiceProgress, setBulkInvoiceProgress] = useState(null); // { total, done, current, errors }
+  const [bulkInvoiceSupplier, setBulkInvoiceSupplier] = useState(""); // lock all imported parts to this supplier
   const invoiceCamRef = useRef(null);
   const [allPriceHistory, setAllPriceHistory] = useState([]); // price_history rows for all parts
   const [partPriceHistoryCache, setPartPriceHistoryCache] = useState({}); // { [partId]: [...rows] }
@@ -2653,7 +2654,7 @@ function BOMManager({ user }) {
   };
 
   // ── Bulk invoice import — handles multiple files + ZIP archives
-  const parseBulkInvoices = async (fileList) => {
+  const parseBulkInvoices = async (fileList, lockedSupplier) => {
     if (!apiKeys.anthropic_api_key) {
       setInvoiceError("Set your Anthropic API key in Settings → AI first.");
       return;
@@ -2772,6 +2773,7 @@ function BOMManager({ user }) {
     const matched = uniqueItems.map((item) => {
       const mpnLower = (item.mpn || "").toLowerCase();
       const match = parts.find(p => p.mpn && p.mpn.toLowerCase() === mpnLower);
+      if (lockedSupplier) item.supplier = lockedSupplier;
       return { ...item, matchedPart: match || null, apply: !match }; // default: import NEW parts (unmatched)
     });
 
@@ -2782,6 +2784,7 @@ function BOMManager({ user }) {
       items: matched,
       fileName: `Bulk Import — ${allFiles.length} invoices`,
       _bulk: true,
+      _lockedSupplier: lockedSupplier || "",
       _totalRawItems: allItems.length,
       _uniqueCount: uniqueItems.length,
       _newCount: newCount,
@@ -2819,9 +2822,9 @@ function BOMManager({ user }) {
           quantity: 1,
           unit_cost: item.unitPrice > 0 ? item.unitPrice : null,
           stock_qty: parseInt(item.quantity) || 0,
-          preferred_supplier: item.supplier || "mouser",
+          preferred_supplier: item.supplier || invoiceResult?._lockedSupplier || "mouser",
           flagged_for_order: false,
-          pricing_status: "idle",
+          pricing_status: invoiceResult?._lockedSupplier ? "locked" : "idle",
           pricing_error: "",
         };
         try {
@@ -4531,9 +4534,16 @@ function BOMManager({ user }) {
                     fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
                     {invoiceParsing && bulkInvoiceProgress ? `Processing ${bulkInvoiceProgress.done}/${bulkInvoiceProgress.total}...` : "Bulk Import (Multi/ZIP)"}
                     <input type="file" accept=".pdf,.csv,.txt,.tsv,.png,.jpg,.jpeg,.gif,.webp,.zip,image/*" multiple style={{ display:"none" }}
-                      onChange={(e) => { const files = [...(e.target.files || [])]; if (files.length) parseBulkInvoices(files); e.target.value=""; }}
+                      onChange={(e) => { const files = [...(e.target.files || [])]; if (files.length) parseBulkInvoices(files, bulkInvoiceSupplier); e.target.value=""; }}
                       disabled={invoiceParsing} />
                   </label>
+                  <select value={bulkInvoiceSupplier} onChange={e => setBulkInvoiceSupplier(e.target.value)}
+                    style={{ padding:"8px 12px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7",color: bulkInvoiceSupplier ? "#e8500a" : "#86868b",fontWeight: bulkInvoiceSupplier ? 600 : 400 }}>
+                    <option value="">Lock Supplier (optional)</option>
+                    {[...new Set(["CE Dist","Mouser Electronics","Digi-Key","Arrow Electronics","Texas Instruments","McMaster-Carr","Bolt Depot","Allied Electronics","Newark","LCSC",
+                      ...parts.map(p => p.preferredSupplier || p.preferred_supplier).filter(Boolean)
+                    ])].sort().map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
                   <button onClick={captureInvoiceFromCamera}
                     disabled={invoiceParsing || invoiceScanning}
                     style={{ padding:"10px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",
@@ -12497,7 +12507,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.05",
+                      version: "v7.06",
                       tables: {},
                     };
                     // Export each table
@@ -12775,7 +12785,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.05 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.06 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
