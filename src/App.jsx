@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.35
+// src/App.jsx — Jackson Audio BOM Manager v7.36
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.35";
-const BUILD_TIME   = "2026-03-26T14:55:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.36";
+const BUILD_TIME   = "2026-03-26T15:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -2318,6 +2318,8 @@ function BOMManager({ user }) {
       payment_terms:  vendor.payment_terms  || null,
       lead_time_days: vendor.lead_time_days ? parseInt(vendor.lead_time_days) || null : null,
       notes:          vendor.notes          || null,
+      is_domestic:    vendor.is_domestic !== false,
+      is_api_supplier: vendor.is_api_supplier || false,
       updated_at:     new Date().toISOString(),
     };
     if (vendor.id) {
@@ -8003,7 +8005,7 @@ function BOMManager({ user }) {
                     <tbody>
                       {rows.map(vendor => {
                         const partCount = partCountBySlug[vendor.slug?.toLowerCase()] || 0;
-                        const isEditing = editingVendorId === vendor.id;
+                        const isEditing = false; // editing now happens in full-form panel above
                         const d = vendorDraft;
                         return (
                           <tr key={vendor.id||vendor.slug} style={{ background: isEditing ? (darkMode?"rgba(0,113,227,0.06)":"rgba(0,113,227,0.03)") : "transparent" }}>
@@ -8082,7 +8084,7 @@ function BOMManager({ user }) {
                                 </div>
                               ) : (
                                 <div style={{ display:"flex",gap:5 }}>
-                                  <button onClick={()=>{setEditingVendorId(vendor.id);setVendorDraft({...vendor});}}
+                                  <button onClick={()=>{ setEditingVendorId(vendor.id); setVendorDraft({...vendor}); window.scrollTo({top:0,behavior:"smooth"}); }}
                                     style={{ padding:"4px 10px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor2}`,background:"transparent",color:textPrimary2 }}>Edit</button>
                                   {vendor.website && <a href={vendor.website} target="_blank" rel="noopener noreferrer"
                                     style={{ padding:"4px 10px",borderRadius:980,fontSize:11,fontWeight:600,textDecoration:"none",background:"#0071e3",color:"#fff" }}>↗</a>}
@@ -8123,9 +8125,11 @@ function BOMManager({ user }) {
                   </div>
                 </div>
 
-                {editingVendorId === "new" && (
+                {(editingVendorId === "new" || (editingVendorId && editingVendorId !== false)) && (
                   <div style={{ background:cardBg2,borderRadius:14,border:`1px solid ${borderColor2}`,padding:20,marginBottom:24,boxShadow:"0 2px 8px rgba(0,0,0,0.08)" }}>
-                    <h3 style={{ margin:"0 0 16px",fontSize:16,fontWeight:700,color:textPrimary2 }}>New Vendor</h3>
+                    <h3 style={{ margin:"0 0 16px",fontSize:16,fontWeight:700,color:textPrimary2 }}>
+                      {editingVendorId === "new" ? "New Vendor" : `Edit — ${vendorDraft.display_name || "Vendor"}`}
+                    </h3>
                     <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,marginBottom:16 }}>
                       {[
                         {key:"display_name",label:"Vendor Name *"},
@@ -8152,10 +8156,18 @@ function BOMManager({ user }) {
                       </div>
                       <div>
                         <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Region</div>
-                        <select value={vendorDraft.is_domestic?"domestic":"international"} onChange={e=>setVendorDraft(d=>({...d,is_domestic:e.target.value==="domestic"}))}
+                        <select value={vendorDraft.is_domestic !== false ? "domestic" : "international"} onChange={e=>setVendorDraft(d=>({...d,is_domestic:e.target.value==="domestic"}))}
                           style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }}>
                           <option value="domestic">🇺🇸 Domestic</option>
                           <option value="international">🌐 International</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Supplier Type</div>
+                        <select value={vendorDraft.is_api_supplier ? "api" : "manual"} onChange={e=>setVendorDraft(d=>({...d,is_api_supplier:e.target.value==="api"}))}
+                          style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }}>
+                          <option value="manual">🔒 Manual (no API)</option>
+                          <option value="api">⚡ API Connected</option>
                         </select>
                       </div>
                       <div style={{ gridColumn:"1/-1" }}>
@@ -8164,9 +8176,10 @@ function BOMManager({ user }) {
                           style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",resize:"vertical" }} />
                       </div>
                     </div>
-                    <div style={{ display:"flex",gap:10 }}>
-                      <button onClick={()=>saveVendor(vendorDraft)} style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#34c759",color:"#fff" }}>Save</button>
-                      <button onClick={()=>{setEditingVendorId(null);setVendorDraft({});}} style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor2}`,background:"transparent",color:textPrimary2 }}>Cancel</button>
+                    <div style={{ display:"flex",gap:10,alignItems:"center" }}>
+                      <button onClick={()=>saveVendor({...vendorDraft,id:editingVendorId==="new"?undefined:editingVendorId})} style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#34c759",color:"#fff" }}>Save</button>
+                      <button onClick={()=>{setEditingVendorId(false);setVendorDraft({});}} style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor2}`,background:"transparent",color:textPrimary2 }}>Cancel</button>
+                      {editingVendorId !== "new" && <button onClick={()=>deleteVendor(editingVendorId)} style={{ padding:"8px 16px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#ff3b30",color:"#fff",marginLeft:"auto" }}>Delete Vendor</button>}
                     </div>
                   </div>
                 )}
