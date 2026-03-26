@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.24
+// src/App.jsx — Jackson Audio BOM Manager v7.25
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -1423,7 +1423,7 @@ function BOMManager({ user }) {
   const [supplierSubTab, setSupplierSubTab] = useState("scorecards"); // scorecards | directory
   const [vendors, setVendors] = useState([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
-  const [editingVendorId, setEditingVendorId] = useState(null);
+  const [editingVendorId, setEditingVendorId] = useState(false);
   const [vendorDraft, setVendorDraft] = useState({});
   const [fullReelParts, setFullReelParts] = useState(new Set()); // part IDs where full reel is toggled
   const [settingsSaving, setSettingsSaving] = useState(""); // which section is saving
@@ -7724,12 +7724,7 @@ function BOMManager({ user }) {
               }
             });
 
-            const vendorSlugs = new Set(vendors.map(v => v.slug.toLowerCase()));
-            const extraSlugs = [...new Set(parts.map(p => (p.preferredSupplier||"").toLowerCase().trim()).filter(s => s && !vendorSlugs.has(s)))];
-            const allRows = [
-              ...vendors,
-              ...extraSlugs.map(s => ({ id: null, slug: s, display_name: s, is_api_supplier: API_DISTRIBUTORS.has(s), is_locked_supplier: isLockedSupplier(s), is_domestic: true })),
-            ];
+            const allRows = vendors;
 
             const domestic      = allRows.filter(v => v.is_domestic !== false);
             const international = allRows.filter(v => v.is_domestic === false);
