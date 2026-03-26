@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.27
+// src/App.jsx — Jackson Audio BOM Manager v7.28
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -81,6 +81,8 @@ const DEFAULT_KEYS = {
   zoho_refresh_token: "",  // api-console.zoho.com — Self Client
   ti_api_key: "",          // ti.com — Texas Instruments Store API
   ti_api_secret: "",       // ti.com — Texas Instruments Store API
+  lcsc_api_key: "",        // lcsc.com — apply via support@lcsc.com
+  lcsc_api_secret: "",     // lcsc.com — issued with API key
   shipstation_api_key: "", // shipstation.com — Settings > Account > API Settings
   shipstation_api_secret: "", // shipstation.com — API Secret
   direct_ship_goal: "1",     // days — target turnaround for direct (Shopify) orders
@@ -857,6 +859,19 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
     } catch (e) { console.warn("TI direct failed:", e.message); }
   }
 
+  // 6. LCSC direct
+  if (apiKeys.lcsc_api_key && apiKeys.lcsc_api_secret) {
+    try {
+      const lr = await fetch(`/api/lcsc-search?mpn=${encodeURIComponent(mpn)}&action=search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: apiKeys.lcsc_api_key, secret: apiKeys.lcsc_api_secret }),
+      });
+      const ld = await lr.json();
+      if (ld && ld.unitPrice && !ld.error) pricing.lcsc = ld;
+    } catch (e) { console.warn("LCSC direct failed:", e.message); }
+  }
+
   // Propagate countryOfOrigin across all entries for this part
   // Sources: Nexar _countryOfOrigin, Mouser countryOfOrigin, DigiKey, or tariff-rate inference
   let origin = pricing._countryOfOrigin || null;
@@ -1368,7 +1383,7 @@ function BOMManager({ user }) {
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","shopify","zoho","shipstation","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
+  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","lcsc","shopify","zoho","shipstation","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
   const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
@@ -1531,6 +1546,16 @@ function BOMManager({ user }) {
         if (!apiKeys.ti_api_key || !apiKeys.ti_api_secret) throw new Error("Enter both Client ID and Client Secret first");
         const data = await fetchTIPricing(testMpn, 1, apiKeys.ti_api_key, apiKeys.ti_api_secret);
         if (!data) throw new Error("API responded but returned no pricing data — key may be invalid");
+        setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Connected — $${data.unitPrice?.toFixed(4) || "?"}/ea, ${data.stock || 0} in stock` } }));
+      } else if (sectionId === "lcsc") {
+        if (!apiKeys.lcsc_api_key || !apiKeys.lcsc_api_secret) throw new Error("Enter both API Key and Secret first");
+        const r = await fetch("/api/lcsc-search?mpn=C14663&action=search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: apiKeys.lcsc_api_key, secret: apiKeys.lcsc_api_secret }),
+        });
+        const data = await r.json();
+        if (data.error) throw new Error(data.error);
         setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Connected — $${data.unitPrice?.toFixed(4) || "?"}/ea, ${data.stock || 0} in stock` } }));
       }
       setTimeout(() => setApiTestResult(prev => { const n = { ...prev }; if (n[sectionId]?.status === "ok") delete n[sectionId]; return n; }), 8000);
@@ -1753,6 +1778,26 @@ function BOMManager({ user }) {
             }
           } catch (e) {
             addLog("TI API failed: " + e.message, false);
+          }
+        }
+        if (mergedKeys.lcsc_api_key && mergedKeys.lcsc_api_secret) {
+          addLog("Testing LCSC API...", null);
+          try {
+            const lcscRes = await fetch("/api/lcsc-search?mpn=C14663&action=search", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ key: mergedKeys.lcsc_api_key, secret: mergedKeys.lcsc_api_secret }),
+            });
+            const lcscData = await lcscRes.json();
+            if (lcscData.unitPrice) {
+              addLog(`LCSC connected — test: $${lcscData.unitPrice.toFixed(4)}, ${lcscData.stock} in stock`, true);
+            } else if (lcscData.error) {
+              addLog(`LCSC error: ${lcscData.error}`, false);
+            } else {
+              addLog("LCSC connected (no price returned for test part)", true);
+            }
+          } catch (e) {
+            addLog("LCSC API failed: " + e.message, false);
           }
         }
 
@@ -7736,8 +7781,9 @@ function BOMManager({ user }) {
                 case "digikey":  return (apiKeys.digikey_client_id && apiKeys.digikey_client_secret) ? "direct" : nexarOn ? "nexar" : false;
                 case "arrow":    return apiKeys.arrow_api_key ? "direct" : nexarOn ? "nexar" : false;
                 case "ti":       return (apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "direct" : false;
+                case "lcsc":     return (apiKeys.lcsc_api_key && apiKeys.lcsc_api_secret) ? "direct" : nexarOn ? "nexar" : false;
                 // Nexar-only distributors (no direct key available)
-                case "allied": case "newark": case "lcsc": case "farnell":
+                case "allied": case "newark": case "farnell":
                 case "element14": case "avnet": case "future": case "tti":
                 case "ttelectronics": case "verical": case "rocelec": case "sager":
                 case "heilind": case "tme": case "rutronik": case "rs components":
@@ -11858,6 +11904,38 @@ function BOMManager({ user }) {
                 </div>
                 {sectionSaveBtn("ti", "TI Key")}
                 {testBtn("ti")}
+              </div>}
+            </div>
+
+            {/* ── LCSC Electronics Direct */}
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background: (apiKeys.lcsc_api_key && apiKeys.lcsc_api_secret) ? "#0a8f4c" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("lcsc") ? s.delete("lcsc") : s.add("lcsc"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:(apiKeys.lcsc_api_key && apiKeys.lcsc_api_secret)?"#fff":"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("lcsc") ? "▶" : "▼"}</span>
+                  LCSC Electronics Direct {(apiKeys.lcsc_api_key && apiKeys.lcsc_api_secret) ? "✓" : ""}
+                </div>
+              </div>
+              {!collapsedSettings.has("lcsc") && <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  Direct pricing and stock from LCSC. Requires formal application — email <strong>support@lcsc.com</strong> with your company info and website. They'll issue a key + secret once approved.
+                  <a href="https://www.lcsc.com/docs/index.html" target="_blank" rel="noopener noreferrer"
+                    style={{ marginLeft:6,color:"#0071e3",textDecoration:"none",fontWeight:500 }}>LCSC API Docs →</a>
+                </div>
+                <div className="key-input-row">
+                  <div className="key-label">API Key</div>
+                  <input type="password" placeholder="API Key (User ID from LCSC)" value={apiKeys.lcsc_api_key||""}
+                    onChange={(e)=>setApiKeys((k)=>({...k,lcsc_api_key:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+                </div>
+                <div className="key-input-row">
+                  <div><div className="key-label">API Secret</div><div className="key-hint">Issued alongside the API Key by LCSC support</div></div>
+                  <input type="password" placeholder="API Secret from LCSC" value={apiKeys.lcsc_api_secret||""}
+                    onChange={(e)=>setApiKeys((k)=>({...k,lcsc_api_secret:e.target.value}))}
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
+                </div>
+                {sectionSaveBtn("lcsc", "LCSC Key")}
+                {testBtn("lcsc")}
               </div>}
             </div>
 
