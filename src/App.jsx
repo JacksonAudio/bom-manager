@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.04
+// src/App.jsx — Jackson Audio BOM Manager v7.05
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1352,6 +1352,7 @@ function BOMManager({ user }) {
   const [invoiceResult, setInvoiceResult] = useState(null); // { items: [...], matched: [...] }
   const [invoiceError, setInvoiceError] = useState("");
   const [invoiceScanning, setInvoiceScanning] = useState(false);
+  const [bulkInvoiceProgress, setBulkInvoiceProgress] = useState(null); // { total, done, current, errors }
   const invoiceCamRef = useRef(null);
   const [allPriceHistory, setAllPriceHistory] = useState([]); // price_history rows for all parts
   const [partPriceHistoryCache, setPartPriceHistoryCache] = useState({}); // { [partId]: [...rows] }
@@ -2649,6 +2650,145 @@ function BOMManager({ user }) {
     } finally {
       setInvoiceParsing(false);
     }
+  };
+
+  // ── Bulk invoice import — handles multiple files + ZIP archives
+  const parseBulkInvoices = async (fileList) => {
+    if (!apiKeys.anthropic_api_key) {
+      setInvoiceError("Set your Anthropic API key in Settings → AI first.");
+      return;
+    }
+
+    // Expand ZIP files into individual PDFs
+    let allFiles = [];
+    for (const file of fileList) {
+      if (file.name.toLowerCase().endsWith(".zip")) {
+        try {
+          const { default: JSZip } = await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm");
+          const zip = await JSZip.loadAsync(file);
+          const entries = Object.values(zip.files).filter(f => !f.dir && /\.(pdf|png|jpg|jpeg|csv|txt)$/i.test(f.name));
+          for (const entry of entries) {
+            const blob = await entry.async("blob");
+            const ext = entry.name.split(".").pop().toLowerCase();
+            const mimeMap = { pdf:"application/pdf", png:"image/png", jpg:"image/jpeg", jpeg:"image/jpeg", csv:"text/csv", txt:"text/plain" };
+            const extracted = new File([blob], entry.name, { type: mimeMap[ext] || "application/octet-stream" });
+            allFiles.push(extracted);
+          }
+        } catch (e) {
+          setInvoiceError("Failed to unzip: " + e.message);
+          return;
+        }
+      } else {
+        allFiles.push(file);
+      }
+    }
+
+    if (allFiles.length === 0) {
+      setInvoiceError("No supported files found.");
+      return;
+    }
+
+    setInvoiceParsing(true);
+    setInvoiceError("");
+    setInvoiceResult(null);
+    setBulkInvoiceProgress({ total: allFiles.length, done: 0, current: allFiles[0].name, errors: [] });
+
+    const allItems = [];
+    const errors = [];
+
+    for (let i = 0; i < allFiles.length; i++) {
+      const file = allFiles[i];
+      setBulkInvoiceProgress(prev => ({ ...prev, done: i, current: file.name }));
+
+      try {
+        const ext = file.name.toLowerCase().split(".").pop();
+        const isPDF = ext === "pdf";
+        const isImage = ["png","jpg","jpeg","gif","webp"].includes(ext);
+        let payload;
+
+        if (isPDF || isImage) {
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result.split(",")[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          const mediaType = isPDF ? "application/pdf" : file.type || `image/${ext === "jpg" ? "jpeg" : ext}`;
+          payload = { fileBase64: base64, mediaType, apiKey: apiKeys.anthropic_api_key };
+        } else {
+          const text = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsText(file);
+          });
+          payload = { invoiceText: text.substring(0, 30000), apiKey: apiKeys.anthropic_api_key };
+        }
+
+        const res = await fetch("/api/parse-invoice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `API error ${res.status}`);
+        if (data.items?.length) {
+          for (const item of data.items) {
+            item._sourceFile = file.name;
+            allItems.push(item);
+          }
+        }
+      } catch (e) {
+        errors.push({ file: file.name, error: e.message });
+      }
+    }
+
+    setBulkInvoiceProgress(prev => ({ ...prev, done: allFiles.length, current: "Done", errors }));
+
+    if (allItems.length === 0) {
+      setInvoiceError(`No parts found across ${allFiles.length} files.${errors.length ? ` ${errors.length} files had errors.` : ""}`);
+      setInvoiceParsing(false);
+      setBulkInvoiceProgress(null);
+      return;
+    }
+
+    // Deduplicate by MPN — keep first occurrence (earliest invoice), aggregate quantities
+    const mpnMap = new Map();
+    for (const item of allItems) {
+      const key = (item.mpn || "").toLowerCase();
+      if (!key) continue;
+      if (mpnMap.has(key)) {
+        const existing = mpnMap.get(key);
+        existing.quantity = (existing.quantity || 0) + (item.quantity || 0);
+        existing._invoiceCount = (existing._invoiceCount || 1) + 1;
+      } else {
+        mpnMap.set(key, { ...item, _invoiceCount: 1 });
+      }
+    }
+
+    const uniqueItems = [...mpnMap.values()];
+
+    // Match to existing parts
+    const matched = uniqueItems.map((item) => {
+      const mpnLower = (item.mpn || "").toLowerCase();
+      const match = parts.find(p => p.mpn && p.mpn.toLowerCase() === mpnLower);
+      return { ...item, matchedPart: match || null, apply: !match }; // default: import NEW parts (unmatched)
+    });
+
+    const newCount = matched.filter(i => !i.matchedPart).length;
+    const dupCount = matched.filter(i => i.matchedPart).length;
+
+    setInvoiceResult({
+      items: matched,
+      fileName: `Bulk Import — ${allFiles.length} invoices`,
+      _bulk: true,
+      _totalRawItems: allItems.length,
+      _uniqueCount: uniqueItems.length,
+      _newCount: newCount,
+      _dupCount: dupCount,
+      _errors: errors,
+    });
+    setInvoiceParsing(false);
   };
 
   // ── Apply parsed invoice — update existing parts OR create new ones
@@ -4340,13 +4480,37 @@ function BOMManager({ user }) {
                     border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
                     <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10 }}>
                       <div style={{ width:20,height:20,border:"3px solid #d2d2d7",borderTopColor:"#5856d6",borderRadius:"50%",animation:"spin 0.7s linear infinite" }} />
-                      <span style={{ fontSize:14,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>AI is reading your invoice...</span>
+                      <span style={{ fontSize:14,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                        {bulkInvoiceProgress
+                          ? `Processing invoice ${bulkInvoiceProgress.done + 1} of ${bulkInvoiceProgress.total}...`
+                          : "AI is reading your invoice..."}
+                      </span>
                     </div>
-                    <div style={{ fontSize:12,color:"#86868b" }}>This may take 10-30 seconds for multi-page PDFs. Do not close this page.</div>
-                    <div style={{ marginTop:10,height:4,background:darkMode?"#2c2c2e":"#e5e5ea",borderRadius:2,overflow:"hidden" }}>
-                      <div style={{ height:"100%",background:"linear-gradient(90deg,#5856d6,#0071e3)",borderRadius:2,
-                        animation:"progressIndeterminate 1.5s ease-in-out infinite",width:"40%" }} />
-                    </div>
+                    {bulkInvoiceProgress ? (
+                      <>
+                        <div style={{ fontSize:12,color:"#86868b",marginBottom:4 }}>
+                          Current: <strong>{bulkInvoiceProgress.current}</strong>
+                          {bulkInvoiceProgress.errors.length > 0 && (
+                            <span style={{ marginLeft:8,color:"#ff3b30" }}>{bulkInvoiceProgress.errors.length} error{bulkInvoiceProgress.errors.length !== 1 ? "s" : ""}</span>
+                          )}
+                        </div>
+                        <div style={{ marginTop:8,height:6,background:darkMode?"#2c2c2e":"#e5e5ea",borderRadius:3,overflow:"hidden" }}>
+                          <div style={{ height:"100%",background:"linear-gradient(90deg,#e8500a,#ff9500)",borderRadius:3,
+                            transition:"width 0.3s",width:`${Math.round((bulkInvoiceProgress.done / bulkInvoiceProgress.total) * 100)}%` }} />
+                        </div>
+                        <div style={{ fontSize:11,color:"#aeaeb2",marginTop:4 }}>
+                          {bulkInvoiceProgress.done}/{bulkInvoiceProgress.total} complete · ~{Math.max(0, (bulkInvoiceProgress.total - bulkInvoiceProgress.done) * 15)}s remaining
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize:12,color:"#86868b" }}>This may take 10-30 seconds for multi-page PDFs. Do not close this page.</div>
+                        <div style={{ marginTop:10,height:4,background:darkMode?"#2c2c2e":"#e5e5ea",borderRadius:2,overflow:"hidden" }}>
+                          <div style={{ height:"100%",background:"linear-gradient(90deg,#5856d6,#0071e3)",borderRadius:2,
+                            animation:"progressIndeterminate 1.5s ease-in-out infinite",width:"40%" }} />
+                        </div>
+                      </>
+                    )}
                     <style>{`@keyframes progressIndeterminate { 0% { margin-left:0; width:30%; } 50% { margin-left:40%; width:40%; } 100% { margin-left:90%; width:10%; } }`}</style>
                   </div>
                 )}
@@ -4359,6 +4523,15 @@ function BOMManager({ user }) {
                     {invoiceParsing ? "Processing..." : "Upload Invoice"}
                     <input type="file" accept=".pdf,.csv,.txt,.tsv,.png,.jpg,.jpeg,.gif,.webp,image/*" style={{ display:"none" }}
                       onChange={(e) => { const f = e.target.files[0]; if (f) parseInvoice(f); e.target.value=""; }}
+                      disabled={invoiceParsing} />
+                  </label>
+                  <label style={{ display:"inline-flex",alignItems:"center",gap:8,padding:"10px 20px",borderRadius:980,
+                    fontSize:13,fontWeight:600,cursor:invoiceParsing?"not-allowed":"pointer",border:"none",
+                    background:invoiceParsing?"#aeaeb2":"#e8500a",color:"#fff",
+                    fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                    {invoiceParsing && bulkInvoiceProgress ? `Processing ${bulkInvoiceProgress.done}/${bulkInvoiceProgress.total}...` : "Bulk Import (Multi/ZIP)"}
+                    <input type="file" accept=".pdf,.csv,.txt,.tsv,.png,.jpg,.jpeg,.gif,.webp,.zip,image/*" multiple style={{ display:"none" }}
+                      onChange={(e) => { const files = [...(e.target.files || [])]; if (files.length) parseBulkInvoices(files); e.target.value=""; }}
                       disabled={invoiceParsing} />
                   </label>
                   <button onClick={captureInvoiceFromCamera}
@@ -12324,7 +12497,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.04",
+                      version: "v7.05",
                       tables: {},
                     };
                     // Export each table
@@ -12602,7 +12775,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.04 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.05 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
