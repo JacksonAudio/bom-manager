@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.30
+// src/App.jsx — Jackson Audio BOM Manager v7.31
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.30";
-const BUILD_TIME   = "2026-03-26T22:15:00";   // local time of last push
+const APP_VERSION  = "v7.31";
+const BUILD_TIME   = "2026-03-26T13:53:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -5404,6 +5404,25 @@ function BOMManager({ user }) {
               <div style={{ marginBottom:12,padding:"16px 20px",background:"#fff",borderRadius:10,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                 <div style={{ fontSize:14,fontWeight:700,marginBottom:8 }}>Import Bill of Materials</div>
                 <p style={{ color:"#86868b",fontSize:12,marginBottom:12 }}>CSV/TSV from KiCad, Altium, Eagle, or paste directly.</p>
+
+                {/* Undo last import */}
+                {lastImportBatch && lastImportBatch.ids?.length > 0 && (
+                  <div style={{ marginBottom:12,padding:"10px 14px",background:"rgba(255,149,0,0.07)",border:"1px solid #ff9500",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10 }}>
+                    <div style={{ fontSize:12 }}>
+                      <strong style={{ color:"#ff9500" }}>↩ Undo available</strong>
+                      <span style={{ color:"#6e6e73",marginLeft:8 }}>{lastImportBatch.count} parts{lastImportBatch.filename ? ` from "${lastImportBatch.filename}"` : ""}</span>
+                    </div>
+                    <button style={{ background:"#ff9500",color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontWeight:700,fontSize:12,cursor:"pointer",whiteSpace:"nowrap" }}
+                      onClick={async () => {
+                        if (!window.confirm(`Delete the ${lastImportBatch.count} parts from the last import?`)) return;
+                        await deletePartsMany(lastImportBatch.ids);
+                        setLastImportBatch(null);
+                        try { localStorage.removeItem("bom_last_import"); } catch {}
+                        setImportOk(`↩ Removed ${lastImportBatch.count} parts.`);
+                      }}>Undo Last Import</button>
+                  </div>
+                )}
+
                 <div className={`drop-zone ${dragOver?"drag-over":""}`}
                   onDragOver={(e)=>{e.preventDefault();setDragOver(true);}}
                   onDragLeave={()=>setDragOver(false)}
@@ -5417,13 +5436,52 @@ function BOMManager({ user }) {
                 <textarea placeholder="Or paste BOM text here…" value={pasteText} onChange={(e)=>setPasteText(e.target.value)}
                   style={{ width:"100%",minHeight:60,padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",marginBottom:8 }} />
                 {pasteText.trim() && (
-                  <div style={{ display:"flex",gap:8 }}>
+                  <div style={{ display:"flex",gap:8,marginBottom:8 }}>
                     <button className="btn-primary" style={{ fontSize:12 }} onClick={()=>handleImport(pasteText)}>Parse & Import</button>
                     <button className="btn-ghost" style={{ fontSize:12 }} onClick={()=>setPasteText("")}>Clear</button>
                   </div>
                 )}
                 {importError && <div style={{ marginTop:8,color:"#ff3b30",fontSize:12 }}>{importError}</div>}
                 {importOk && <div style={{ marginTop:8,color:"#34c759",fontSize:12 }}>{importOk}</div>}
+
+                {/* CSV Format Reference */}
+                <div style={{ marginTop:14,borderTop:"1px solid #f5f5f7",paddingTop:14 }}>
+                  <div style={{ fontWeight:700,fontSize:12,marginBottom:8,color:"#1d1d1f" }}>📄 Accepted CSV Columns</div>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
+                    <thead>
+                      <tr style={{ background:"#f5f5f7" }}>
+                        <th style={{ textAlign:"left",padding:"5px 8px",fontWeight:700,color:"#1d1d1f" }}>Column</th>
+                        <th style={{ textAlign:"left",padding:"5px 8px",fontWeight:700,color:"#1d1d1f" }}>Also accepted as</th>
+                        <th style={{ textAlign:"left",padding:"5px 8px",fontWeight:700,color:"#1d1d1f" }}>Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { col:"MPN",          alt:"Part Number, PN, Mfr Part #",        note:"Required — used for pricing lookups", req:true },
+                        { col:"Reference",    alt:"Ref, Designator, RefDes",             note:"R1, C4, U2…" },
+                        { col:"Quantity",     alt:"QTY, Count, Amount",                  note:"Per build — defaults to 1" },
+                        { col:"Value",        alt:"Val, Component, Part Value",          note:"10k, 100nF, etc." },
+                        { col:"Description",  alt:"Desc, Comment, Notes",                note:"Free text" },
+                        { col:"Footprint",    alt:"Package",                             note:"0402, SOIC-8…" },
+                        { col:"Manufacturer", alt:"Mfr, Mfr.",                           note:"Manufacturer name" },
+                        { col:"Supplier",     alt:"Vendor, PreferredSupplier",           note:"Defaults to Mouser" },
+                        { col:"UnitCost",     alt:"Price, Cost, Unit_Cost",              note:"USD" },
+                        { col:"Stock",        alt:"StockQty, Stock_Qty, In Stock",       note:"Units on hand" },
+                      ].map(({ col, alt, note, req }) => (
+                        <tr key={col} style={{ borderTop:"1px solid #f5f5f7" }}>
+                          <td style={{ padding:"5px 8px",fontWeight:700,color:req?"#0071e3":"#1d1d1f",fontFamily:"monospace" }}>{col}{req && <span style={{ marginLeft:4,fontSize:9,color:"#0071e3" }}>required</span>}</td>
+                          <td style={{ padding:"5px 8px",color:"#6e6e73",fontFamily:"monospace",fontSize:10 }}>{alt}</td>
+                          <td style={{ padding:"5px 8px",color:"#6e6e73" }}>{note}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <button className="btn-ghost btn-sm" style={{ marginTop:10,fontSize:11 }} onClick={() => {
+                    const t = "MPN,Reference,Quantity,Value,Description,Footprint,Manufacturer,Supplier,UnitCost,Stock\nCRCW060310K0FKEA,R1,4,10k,Resistor 10k 1% 0603,0603,Vishay,mouser,,\nGRM188R71C104KA01D,C1,2,100nF,Capacitor 100nF 16V 0402,0402,Murata,mouser,,\nLM358DR,U1,1,,Op-Amp Dual 8-SOIC,SOIC-8,Texas Instruments,mouser,,";
+                    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([t],{type:"text/csv"}));
+                    a.download = "bom-template.csv"; a.click();
+                  }}>⬇ Download Template</button>
+                </div>
               </div>
             )}
 
