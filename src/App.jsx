@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.39";
-const BUILD_TIME   = "2026-03-26T19:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.38";
+const BUILD_TIME   = "2026-03-26T16:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -166,7 +166,6 @@ const SUPPLIERS = [
   { id: "allied",   name: "Allied Electronics",   color: "#7c3aed", bg: "rgba(124,58,237,0.06)", logo: "AL", shipping: 9.99,  address: "7151 Jack Newell Blvd S\nFort Worth, TX 76118\nUSA", searchUrl: (pn) => `https://www.alliedelec.com/search/?q=${encodeURIComponent(pn)}` },
   { id: "ti",       name: "Texas Instruments", color: "#c12b2b", bg: "#fef2f2", logo: "TI", shipping: 0,     address: "12500 TI Blvd\nDallas, TX 75243\nUSA", searchUrl: (pn) => `https://www.ti.com/search?q=${encodeURIComponent(pn)}` },
   { id: "amazon",   name: "Amazon",   color: "#f90",    bg: "rgba(255,153,0,0.06)", logo: "Az", shipping: 0,     address: "", searchUrl: (pn) => `https://www.amazon.com/s?k=${encodeURIComponent(pn)}` },
-  { id: "aliexpress", name: "AliExpress", color: "#e43225", bg: "rgba(228,50,37,0.06)", logo: "AE", shipping: 0,  address: "Shenzhen, Guangdong\nChina", searchUrl: (pn) => `https://www.aliexpress.com/wholesale?SearchText=${encodeURIComponent(pn)}` },
 ];
 const DEFAULT_SHIPPING = 15.00; // for distributors not in SUPPLIERS list
 const supplierById = (id) => SUPPLIERS.find((s) => s.id === id) || SUPPLIERS[0];
@@ -1456,7 +1455,6 @@ function BOMManager({ user }) {
   const [skipTariffedParts, setSkipTariffedParts] = useState(false); // toggle to exclude tariffed parts from Mouser PO
   const [usSuppliersOnly, setUsSuppliersOnly] = useState(false); // only use US-based distributors in purchasing
   const [mouserOrderHistory, setMouserOrderHistory] = useState(null); // { loading, error, orders, totalOrders, syncedAt }
-  const [aliexpressImport, setAliexpressImport] = useState(null); // null | { showPaste } | { orders, totalOrders }
   const [poEmailModal, setPoEmailModal] = useState(null); // [{ supplier, email, draft, sid, sent }]
   // Order tracker — DB-backed via poHistory
   const [trackedOrders, setTrackedOrders] = useState([]);
@@ -3696,104 +3694,6 @@ function BOMManager({ user }) {
     }
   };
 
-  // ── ALIEXPRESS ORDER HISTORY (paste & parse) ──
-  const parseAliexpressText = (rawText) => {
-    try {
-      const lines = rawText.split("\n").map(l => l.trim()).filter(Boolean);
-      const orders = [];
-      let i = 0;
-      const statusKeywords = new Set(["Completed","Cancelled","Expired","Awaiting delivery","Awaiting shipment","Processing","To pay","To ship","Shipped"]);
-
-      while (i < lines.length) {
-        // Look for a status line followed by "Order date:"
-        if (statusKeywords.has(lines[i]) && i + 1 < lines.length && lines[i + 1]?.startsWith("Order date:")) {
-          const status = lines[i];
-          i++;
-          const orderDate = lines[i].replace("Order date: ", "").trim();
-          i++;
-          let orderId = "";
-          if (lines[i]?.startsWith("Order ID:")) {
-            orderId = lines[i].replace("Order ID: ", "").replace("Copy", "").trim();
-            i++;
-          }
-          // Skip "Copy" and "Order details" lines
-          while (i < lines.length && (lines[i] === "Copy" || lines[i] === "Order details")) i++;
-
-          // Store name is next non-empty line
-          let store = "";
-          if (i < lines.length && !statusKeywords.has(lines[i]) && !lines[i].startsWith("Order date:") && !lines[i].startsWith("Total:")) {
-            store = lines[i].replace(/\s*>\s*$/, "").trim();
-            i++;
-          }
-          // Skip chat icon marker
-          if (i < lines.length && lines[i] === "💬") i++;
-
-          // Item description — grab lines until we hit a price pattern ($X.XX xN) or Total:
-          let description = "";
-          let variant = "";
-          let unitPrice = 0;
-          let quantity = 1;
-          let total = 0;
-
-          // Collect description lines
-          const descLines = [];
-          while (i < lines.length) {
-            const line = lines[i];
-            // Price line: $XX.XX   xN or $XX.XX xN
-            const priceMatch = line.match(/^\$?([\d,]+\.?\d*)\s+x(\d+)$/);
-            if (priceMatch) {
-              unitPrice = parseFloat(priceMatch[1].replace(",", ""));
-              quantity = parseInt(priceMatch[2]);
-              i++;
-              break;
-            }
-            // Total line means no individual price was listed
-            if (line.startsWith("Total:")) break;
-            // Next order
-            if (statusKeywords.has(line) && i + 1 < lines.length && lines[i + 1]?.startsWith("Order date:")) break;
-            descLines.push(line);
-            i++;
-          }
-
-          if (descLines.length > 0) {
-            description = descLines[0];
-            if (descLines.length > 1) variant = descLines.slice(1).join(" ");
-          }
-
-          // Find total
-          while (i < lines.length) {
-            const line = lines[i];
-            if (line.startsWith("Total:")) {
-              const m = line.match(/Total:\$?([\d,]+\.?\d*)/);
-              if (m) total = parseFloat(m[1].replace(",", ""));
-              i++;
-              break;
-            }
-            // Hit next order? stop
-            if (statusKeywords.has(line) && i + 1 < lines.length && lines[i + 1]?.startsWith("Order date:")) break;
-            i++;
-          }
-
-          // Skip remaining lines until next order (buttons, review text, etc.)
-          while (i < lines.length) {
-            if (statusKeywords.has(lines[i]) && i + 1 < lines.length && lines[i + 1]?.startsWith("Order date:")) break;
-            if (lines[i].startsWith("Order date:")) break;
-            i++;
-          }
-
-          orders.push({ status, orderDate, orderId, store, description, variant, unitPrice, quantity, total });
-        } else {
-          i++;
-        }
-      }
-
-      if (orders.length === 0) throw new Error("No orders found. Make sure you copied the full page text from your AliExpress order history.");
-      setAliexpressImport({ orders, totalOrders: orders.length });
-    } catch (e) {
-      setAliexpressImport({ error: e.message });
-    }
-  };
-
   // ── SALES HISTORY (for forecasting) ──
   const fetchSalesHistory = async () => {
     setHistoryLoading(true);
@@ -5254,10 +5154,6 @@ function BOMManager({ user }) {
                   {mouserOrderHistory?.loading ? "Loading Mouser Orders…" : "Import from Mouser History"}
                 </button>
               )}
-              <button className="btn-ghost btn-sm" onClick={() => setAliexpressImport(aliexpressImport ? null : { showPaste: true })}
-                style={{ color:"#e43225" }}>
-                {aliexpressImport && !aliexpressImport.showPaste ? "Close AliExpress" : "Import from AliExpress"}
-              </button>
             </div>
 
             {/* ── Mouser Order History Import */}
@@ -5379,155 +5275,6 @@ function BOMManager({ user }) {
                   </div>
                 );
               })()
-            )}
-
-            {/* ── AliExpress Order History Import */}
-            {aliexpressImport?.showPaste && (
-              <div style={{ marginBottom:12,padding:"16px 20px",background:"linear-gradient(135deg,#fef2f2,#fff5f5)",borderRadius:10,border:"1px solid #e4322544",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-                  <div>
-                    <div style={{ fontSize:14,fontWeight:700,color:"#e43225" }}>Import from AliExpress</div>
-                    <div style={{ fontSize:12,color:"#6e6e73",marginTop:2 }}>Go to <a href="https://www.aliexpress.com/p/order/index.html" target="_blank" rel="noreferrer" style={{ color:"#e43225" }}>AliExpress Orders</a>, load all orders, then press <kbd style={{ padding:"1px 5px",background:"#f0f0f2",borderRadius:3,fontSize:11,border:"1px solid #d1d1d6" }}>Ctrl+A</kbd> → <kbd style={{ padding:"1px 5px",background:"#f0f0f2",borderRadius:3,fontSize:11,border:"1px solid #d1d1d6" }}>Ctrl+C</kbd> and paste below.</div>
-                  </div>
-                  <button className="btn-ghost" style={{ fontSize:10,color:"#86868b" }} onClick={() => setAliexpressImport(null)}>Close</button>
-                </div>
-                <textarea placeholder="Paste AliExpress order history page text here…"
-                  style={{ width:"100%",minHeight:120,padding:10,borderRadius:8,border:"1px solid #d1d1d6",fontSize:11,fontFamily:"monospace",resize:"vertical" }}
-                  onPaste={(e) => {
-                    setTimeout(() => parseAliexpressText(e.target.value), 50);
-                  }}
-                />
-                <div style={{ marginTop:8,display:"flex",gap:8 }}>
-                  <button className="btn-primary" style={{ background:"#e43225",fontSize:12 }}
-                    onClick={(e) => {
-                      const ta = e.target.closest("div").parentElement.querySelector("textarea");
-                      if (ta?.value) parseAliexpressText(ta.value);
-                    }}>
-                    Parse Orders
-                  </button>
-                  <span style={{ fontSize:11,color:"#86868b",alignSelf:"center" }}>Or paste and hit Parse</span>
-                </div>
-              </div>
-            )}
-            {aliexpressImport && !aliexpressImport.showPaste && !aliexpressImport.error && (
-              (() => {
-                const aeOrders = (aliexpressImport.orders || []).filter(o => o.status === "Completed" && o.description);
-                // Deduplicate by normalized description
-                const allItems = new Map();
-                for (const order of aeOrders) {
-                  const desc = order.description.trim();
-                  if (!desc) continue;
-                  const key = desc.slice(0, 80).toLowerCase().replace(/\s+/g, " ");
-                  const existing = allItems.get(key);
-                  if (!existing) {
-                    allItems.set(key, {
-                      description: desc, variant: order.variant || "",
-                      store: order.store, firstOrdered: order.orderDate, lastOrdered: order.orderDate,
-                      totalQty: order.quantity || 0, unitPrice: order.unitPrice || 0, totalSpent: order.total || 0,
-                      orderCount: 1,
-                    });
-                  } else {
-                    existing.totalQty += (order.quantity || 0);
-                    existing.totalSpent += (order.total || 0);
-                    existing.orderCount++;
-                    existing.lastOrdered = order.orderDate;
-                    if (order.unitPrice) existing.unitPrice = order.unitPrice;
-                  }
-                }
-
-                // Check which are already in library (match by description substring or exact)
-                const existingDescs = new Set(parts.map(p => (p.description || "").slice(0, 60).toLowerCase().replace(/\s+/g, " ")).filter(Boolean));
-                const existingMpns = new Set(parts.map(p => (p.mpn || "").toUpperCase()).filter(Boolean));
-                const missingParts = [...allItems.values()].filter(m => {
-                  const descKey = m.description.slice(0, 60).toLowerCase().replace(/\s+/g, " ");
-                  return !existingDescs.has(descKey);
-                });
-                const existingCount = allItems.size - missingParts.length;
-
-                return (
-                  <div style={{ marginBottom:12,padding:"16px 20px",background:"linear-gradient(135deg,#fef2f2,#fff5f5)",borderRadius:10,border:"1px solid #e4322544",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10 }}>
-                      <div>
-                        <div style={{ fontSize:14,fontWeight:700,color:"#e43225" }}>AliExpress Order History</div>
-                        <div style={{ fontSize:12,color:"#6e6e73",marginTop:2 }}>
-                          {aliexpressImport.totalOrders} orders · {aeOrders.length} completed · {allItems.size} unique items · {existingCount} already in library · <strong>{missingParts.length} new</strong>
-                        </div>
-                      </div>
-                      <button className="btn-ghost" style={{ fontSize:10,color:"#86868b" }} onClick={() => setAliexpressImport(null)}>Close</button>
-                    </div>
-
-                    {missingParts.length === 0 ? (
-                      <div style={{ padding:16,textAlign:"center",color:"#34c759",fontWeight:700,fontSize:13 }}>
-                        All items from your AliExpress orders are already in your library!
-                      </div>
-                    ) : (
-                      <>
-                        <div style={{ maxHeight:300,overflowY:"auto",marginBottom:12,borderRadius:8,border:"1px solid #e5e5ea" }}>
-                          <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
-                            <thead style={{ position:"sticky",top:0,background:"#fff",zIndex:1 }}>
-                              <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
-                                <th style={{ padding:"6px 10px",textAlign:"left",fontSize:10,color:"#86868b",fontWeight:600 }}>DESCRIPTION</th>
-                                <th style={{ padding:"6px 10px",textAlign:"left",fontSize:10,color:"#86868b",fontWeight:600 }}>STORE</th>
-                                <th style={{ padding:"6px 10px",textAlign:"right",fontSize:10,color:"#86868b",fontWeight:600 }}>ORDERS</th>
-                                <th style={{ padding:"6px 10px",textAlign:"right",fontSize:10,color:"#86868b",fontWeight:600 }}>QTY</th>
-                                <th style={{ padding:"6px 10px",textAlign:"right",fontSize:10,color:"#86868b",fontWeight:600 }}>TOTAL SPENT</th>
-                                <th style={{ padding:"6px 10px",textAlign:"right",fontSize:10,color:"#86868b",fontWeight:600 }}>LAST PRICE</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {missingParts.sort((a,b) => b.totalSpent - a.totalSpent).map((p, idx) => (
-                                <tr key={idx} style={{ borderBottom:"1px solid #f0f0f2" }}>
-                                  <td style={{ padding:"6px 10px",color:"#e43225",fontWeight:600,maxWidth:350,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }} title={p.description}>{p.description}</td>
-                                  <td style={{ padding:"6px 10px",color:"#3a3f51",fontSize:10,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.store}</td>
-                                  <td style={{ padding:"6px 10px",textAlign:"right",fontWeight:600 }}>{p.orderCount}x</td>
-                                  <td style={{ padding:"6px 10px",textAlign:"right" }}>{p.totalQty.toLocaleString()}</td>
-                                  <td style={{ padding:"6px 10px",textAlign:"right",fontWeight:600,color:"#1d1d1f" }}>${p.totalSpent.toFixed(2)}</td>
-                                  <td style={{ padding:"6px 10px",textAlign:"right",color:"#6e6e73" }}>{p.unitPrice ? `$${p.unitPrice.toFixed(2)}` : "—"}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <button className="btn-primary" style={{ background:"#e43225",fontSize:12 }}
-                          onClick={async () => {
-                            let added = 0;
-                            for (const p of missingParts) {
-                              try {
-                                const uiPart = {
-                                  mpn: "", manufacturer: p.store,
-                                  description: p.description, quantity: 1,
-                                  preferredSupplier: "aliexpress", unitCost: p.unitPrice || "",
-                                  reference: p.variant || "", value: "", footprint: "",
-                                  projectId: null, reorderQty: "", stockQty: "",
-                                  orderQty: "", flaggedForOrder: false,
-                                  pricing: null, pricingStatus: "idle", pricingError: "", bestSupplier: null,
-                                  addedVia: "aliexpress-history",
-                                };
-                                const dbFields = uiPartToDB(uiPart);
-                                if (p.firstOrdered) {
-                                  try { dbFields.created_at = new Date(p.firstOrdered).toISOString(); } catch {}
-                                }
-                                const created = await createPart(dbFields, user.id);
-                                setParts(prev => [...prev, dbPartToUI(created)]);
-                                added++;
-                              } catch (e) { console.warn("Failed to add AliExpress item:", p.description, e.message); }
-                            }
-                            setAliexpressImport(null);
-                            alert(`Added ${added} parts from AliExpress to your library.`);
-                          }}>
-                          Add {missingParts.length} Missing Item{missingParts.length !== 1 ? "s" : ""} to Library
-                        </button>
-                      </>
-                    )}
-                  </div>
-                );
-              })()
-            )}
-            {aliexpressImport?.error && (
-              <div style={{ marginBottom:12,padding:"12px 16px",background:"#fff0f0",borderRadius:10,border:"1px solid #ff3b30",fontSize:12,color:"#ff3b30",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-                <span>{aliexpressImport.error}</span>
-                <button className="btn-ghost" style={{ fontSize:10 }} onClick={() => setAliexpressImport(null)}>×</button>
-              </div>
             )}
 
             {/* ── Quick Add from URL Section */}
@@ -6508,7 +6255,7 @@ function BOMManager({ user }) {
                                     })()}
                                     {part.addedVia && <div>Added via: <span style={{ fontWeight:600,color:"#5856d6" }}>{{
                                       "manual":"Manual Entry", "quick-add-url":"Quick Add URL", "csv-import":"CSV/BOM Import",
-                                      "invoice-import":"Invoice Scanner", "mouser-history":"Mouser Order History", "aliexpress-history":"AliExpress Order History",
+                                      "invoice-import":"Invoice Scanner", "mouser-history":"Mouser Order History",
                                       "component-library":"Component Library",
                                     }[part.addedVia] || part.addedVia}</span></div>}
                                   </div>
