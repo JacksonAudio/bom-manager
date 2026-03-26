@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.23
+// src/App.jsx — Jackson Audio BOM Manager v7.24
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -7724,14 +7724,134 @@ function BOMManager({ user }) {
               }
             });
 
-            // Show all vendors + any suppliers in parts not yet in vendors table
             const vendorSlugs = new Set(vendors.map(v => v.slug.toLowerCase()));
             const extraSlugs = [...new Set(parts.map(p => (p.preferredSupplier||"").toLowerCase().trim()).filter(s => s && !vendorSlugs.has(s)))];
-
             const allRows = [
               ...vendors,
-              ...extraSlugs.map(s => ({ id: null, slug: s, display_name: s, is_api_supplier: API_DISTRIBUTORS.has(s), is_locked_supplier: isLockedSupplier(s) })),
+              ...extraSlugs.map(s => ({ id: null, slug: s, display_name: s, is_api_supplier: API_DISTRIBUTORS.has(s), is_locked_supplier: isLockedSupplier(s), is_domestic: true })),
             ];
+
+            const domestic      = allRows.filter(v => v.is_domestic !== false);
+            const international = allRows.filter(v => v.is_domestic === false);
+
+            const inputStyle = { width:"100%",padding:"5px 7px",borderRadius:6,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:12,fontFamily:"inherit",boxSizing:"border-box" };
+            const thStyle    = { padding:"8px 12px",fontSize:11,fontWeight:700,color:textSecondary2,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left",whiteSpace:"nowrap",borderBottom:`2px solid ${borderColor2}` };
+            const tdStyle    = (editing) => ({ padding: editing ? "6px 8px" : "10px 12px", verticalAlign:"middle", borderBottom:`1px solid ${borderColor2}`, fontSize:13 });
+
+            const VendorSection = ({ title, flag, rows }) => rows.length === 0 ? null : (
+              <div style={{ marginBottom:32 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:12 }}>
+                  <span style={{ fontSize:20 }}>{flag}</span>
+                  <h3 style={{ margin:0,fontSize:17,fontWeight:700,color:textPrimary2 }}>{title}</h3>
+                  <span style={{ fontSize:12,color:textSecondary2 }}>({rows.length} vendor{rows.length!==1?"s":""})</span>
+                </div>
+                <div style={{ background:cardBg2,borderRadius:12,border:`1px solid ${borderColor2}`,overflow:"hidden" }}>
+                  <table style={{ width:"100%",borderCollapse:"collapse" }}>
+                    <thead>
+                      <tr style={{ background:darkMode?"#3a3a3e":"#f5f5f7" }}>
+                        <th style={thStyle}>Vendor</th>
+                        <th style={thStyle}>Account #</th>
+                        <th style={thStyle}>Contact</th>
+                        <th style={thStyle}>Email</th>
+                        <th style={thStyle}>Phone</th>
+                        <th style={thStyle}>Terms</th>
+                        <th style={thStyle}>Lead Time</th>
+                        <th style={thStyle}>Notes</th>
+                        <th style={{ ...thStyle,width:90 }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(vendor => {
+                        const partCount = partCountBySlug[vendor.slug?.toLowerCase()] || 0;
+                        const isEditing = editingVendorId === vendor.id;
+                        const d = vendorDraft;
+                        return (
+                          <tr key={vendor.id||vendor.slug} style={{ background: isEditing ? (darkMode?"rgba(0,113,227,0.06)":"rgba(0,113,227,0.03)") : "transparent" }}>
+                            <td style={tdStyle(isEditing)}>
+                              {isEditing ? (
+                                <input style={inputStyle} value={d.display_name||""} onChange={e=>setVendorDraft(x=>({...x,display_name:e.target.value}))} />
+                              ) : (
+                                <div>
+                                  <div style={{ fontWeight:700,color:textPrimary2 }}>{vendor.display_name}</div>
+                                  <div style={{ display:"flex",gap:4,marginTop:3,flexWrap:"wrap" }}>
+                                    {vendor.is_api_supplier    && <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:980,background:"rgba(0,113,227,0.1)",color:"#0071e3" }}>API</span>}
+                                    {vendor.is_locked_supplier && <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:980,background:"rgba(255,149,0,0.1)",color:"#ff9500" }}>🔒 Manual</span>}
+                                    {partCount > 0             && <span style={{ fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:980,background:"rgba(52,199,89,0.1)",color:"#34c759" }}>{partCount} parts</span>}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                            <td style={tdStyle(isEditing)}>
+                              {isEditing
+                                ? <input style={inputStyle} value={d.account_number||""} onChange={e=>setVendorDraft(x=>({...x,account_number:e.target.value}))} />
+                                : <span style={{ color:textPrimary2,fontWeight:vendor.account_number?600:400 }}>{vendor.account_number||<span style={{ color:textSecondary2 }}>—</span>}</span>}
+                            </td>
+                            <td style={tdStyle(isEditing)}>
+                              {isEditing
+                                ? <input style={inputStyle} value={d.contact_name||""} onChange={e=>setVendorDraft(x=>({...x,contact_name:e.target.value}))} />
+                                : <span style={{ color:textPrimary2 }}>{vendor.contact_name||<span style={{ color:textSecondary2 }}>—</span>}</span>}
+                            </td>
+                            <td style={tdStyle(isEditing)}>
+                              {isEditing
+                                ? <input style={inputStyle} type="email" value={d.contact_email||""} onChange={e=>setVendorDraft(x=>({...x,contact_email:e.target.value}))} />
+                                : vendor.contact_email
+                                  ? <a href={`mailto:${vendor.contact_email}`} style={{ color:"#0071e3",fontWeight:600,fontSize:12 }}>{vendor.contact_email}</a>
+                                  : <span style={{ color:textSecondary2 }}>—</span>}
+                            </td>
+                            <td style={tdStyle(isEditing)}>
+                              {isEditing
+                                ? <input style={inputStyle} type="tel" value={d.contact_phone||""} onChange={e=>setVendorDraft(x=>({...x,contact_phone:e.target.value}))} />
+                                : vendor.contact_phone
+                                  ? <a href={`tel:${vendor.contact_phone}`} style={{ color:"#0071e3",fontWeight:600,fontSize:12 }}>{vendor.contact_phone}</a>
+                                  : <span style={{ color:textSecondary2 }}>—</span>}
+                            </td>
+                            <td style={tdStyle(isEditing)}>
+                              {isEditing
+                                ? <select style={inputStyle} value={d.payment_terms||""} onChange={e=>setVendorDraft(x=>({...x,payment_terms:e.target.value}))}>
+                                    <option value="">—</option>
+                                    {PAYMENT_TERMS.map(t=><option key={t} value={t}>{t}</option>)}
+                                  </select>
+                                : <span style={{ color:textPrimary2 }}>{vendor.payment_terms||<span style={{ color:textSecondary2 }}>—</span>}</span>}
+                            </td>
+                            <td style={tdStyle(isEditing)}>
+                              {isEditing
+                                ? <input style={{...inputStyle,width:70}} type="number" value={d.lead_time_days||""} onChange={e=>setVendorDraft(x=>({...x,lead_time_days:e.target.value}))} />
+                                : vendor.lead_time_days
+                                  ? <span style={{ color:textPrimary2 }}>{vendor.lead_time_days}d</span>
+                                  : <span style={{ color:textSecondary2 }}>—</span>}
+                            </td>
+                            <td style={tdStyle(isEditing)}>
+                              {isEditing
+                                ? <input style={inputStyle} value={d.notes||""} onChange={e=>setVendorDraft(x=>({...x,notes:e.target.value}))} />
+                                : <span style={{ color:textSecondary2,fontSize:12 }}>{vendor.notes||"—"}</span>}
+                            </td>
+                            <td style={{ ...tdStyle(isEditing), whiteSpace:"nowrap" }}>
+                              {isEditing ? (
+                                <div style={{ display:"flex",gap:5 }}>
+                                  <button onClick={()=>saveVendor({...d,id:vendor.id})}
+                                    style={{ padding:"4px 10px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#34c759",color:"#fff" }}>Save</button>
+                                  <button onClick={()=>{setEditingVendorId(null);setVendorDraft({});}}
+                                    style={{ padding:"4px 10px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor2}`,background:"transparent",color:textPrimary2 }}>✕</button>
+                                  {vendor.id && <button onClick={()=>deleteVendor(vendor.id)}
+                                    style={{ padding:"4px 8px",borderRadius:980,fontSize:11,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#ff3b30",color:"#fff" }}>🗑</button>}
+                                </div>
+                              ) : (
+                                <div style={{ display:"flex",gap:5 }}>
+                                  <button onClick={()=>{setEditingVendorId(vendor.id);setVendorDraft({...vendor});}}
+                                    style={{ padding:"4px 10px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor2}`,background:"transparent",color:textPrimary2 }}>Edit</button>
+                                  {vendor.website && <a href={vendor.website} target="_blank" rel="noopener noreferrer"
+                                    style={{ padding:"4px 10px",borderRadius:980,fontSize:11,fontWeight:600,textDecoration:"none",background:"#0071e3",color:"#fff" }}>↗</a>}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
 
             return (
               <div>
@@ -7741,10 +7861,9 @@ function BOMManager({ user }) {
                     <p style={{ fontSize:14,color:textSecondary2,marginTop:4,marginBottom:0 }}>Contact info, account numbers, and payment terms for all suppliers.</p>
                   </div>
                   <div style={{ display:"flex",gap:10,alignItems:"center" }}>
-                    {/* Sub-tab switcher */}
                     <div style={{ display:"flex",borderRadius:980,overflow:"hidden",border:`1px solid ${borderColor2}` }}>
                       {["scorecards","directory"].map(t => (
-                        <button key={t} onClick={() => setSupplierSubTab(t)}
+                        <button key={t} onClick={()=>setSupplierSubTab(t)}
                           style={{ padding:"7px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",
                             background:supplierSubTab===t?(darkMode?"#3a3a3e":"#1d1d1f"):"transparent",
                             color:supplierSubTab===t?"#fff":textSecondary2,textTransform:"capitalize" }}>
@@ -7752,153 +7871,68 @@ function BOMManager({ user }) {
                         </button>
                       ))}
                     </div>
-                    <button onClick={() => { setEditingVendorId("new"); setVendorDraft({ slug:"", display_name:"", website:"", account_number:"", contact_name:"", contact_email:"", contact_phone:"", payment_terms:"Net 30", lead_time_days:"", notes:"" }); }}
+                    <button onClick={()=>{setEditingVendorId("new");setVendorDraft({slug:"",display_name:"",website:"",account_number:"",contact_name:"",contact_email:"",contact_phone:"",payment_terms:"Net 30",lead_time_days:"",notes:"",is_domestic:true});}}
                       style={{ padding:"8px 18px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff" }}>
                       + Add Vendor
                     </button>
                   </div>
                 </div>
 
-                {/* Add new vendor form */}
                 {editingVendorId === "new" && (
-                  <div style={{ background:cardBg2,borderRadius:14,border:`1px solid ${borderColor2}`,padding:20,marginBottom:20,boxShadow:"0 2px 8px rgba(0,0,0,0.08)" }}>
+                  <div style={{ background:cardBg2,borderRadius:14,border:`1px solid ${borderColor2}`,padding:20,marginBottom:24,boxShadow:"0 2px 8px rgba(0,0,0,0.08)" }}>
                     <h3 style={{ margin:"0 0 16px",fontSize:16,fontWeight:700,color:textPrimary2 }}>New Vendor</h3>
-                    <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:16 }}>
+                    <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,marginBottom:16 }}>
                       {[
-                        { key:"display_name", label:"Vendor Name *", type:"text" },
-                        { key:"slug",         label:"Slug (lowercase ID) *", type:"text", placeholder:"e.g. bolt-depot" },
-                        { key:"website",      label:"Website", type:"text", placeholder:"https://" },
-                        { key:"account_number", label:"Account #", type:"text" },
-                        { key:"contact_name", label:"Contact Name", type:"text" },
-                        { key:"contact_email",label:"Contact Email", type:"email" },
-                        { key:"contact_phone",label:"Contact Phone", type:"tel" },
-                        { key:"lead_time_days",label:"Default Lead Time (days)", type:"number" },
-                      ].map(f => (
+                        {key:"display_name",label:"Vendor Name *"},
+                        {key:"slug",label:"Slug *",placeholder:"e.g. bolt-depot"},
+                        {key:"website",label:"Website",placeholder:"https://"},
+                        {key:"account_number",label:"Account #"},
+                        {key:"contact_name",label:"Contact Name"},
+                        {key:"contact_email",label:"Contact Email"},
+                        {key:"contact_phone",label:"Contact Phone"},
+                        {key:"lead_time_days",label:"Lead Time (days)"},
+                      ].map(f=>(
                         <div key={f.key}>
                           <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>{f.label}</div>
-                          <input type={f.type} placeholder={f.placeholder||""} value={vendorDraft[f.key]||""}
-                            onChange={e => setVendorDraft(d => ({ ...d, [f.key]: e.target.value }))}
+                          <input placeholder={f.placeholder||""} value={vendorDraft[f.key]||""} onChange={e=>setVendorDraft(d=>({...d,[f.key]:e.target.value}))}
                             style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }} />
                         </div>
                       ))}
                       <div>
                         <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Payment Terms</div>
-                        <select value={vendorDraft.payment_terms||"Net 30"} onChange={e => setVendorDraft(d => ({ ...d, payment_terms: e.target.value }))}
+                        <select value={vendorDraft.payment_terms||"Net 30"} onChange={e=>setVendorDraft(d=>({...d,payment_terms:e.target.value}))}
                           style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }}>
-                          {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t}</option>)}
+                          {PAYMENT_TERMS.map(t=><option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Region</div>
+                        <select value={vendorDraft.is_domestic?"domestic":"international"} onChange={e=>setVendorDraft(d=>({...d,is_domestic:e.target.value==="domestic"}))}
+                          style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }}>
+                          <option value="domestic">🇺🇸 Domestic</option>
+                          <option value="international">🌐 International</option>
                         </select>
                       </div>
                       <div style={{ gridColumn:"1/-1" }}>
                         <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Notes</div>
-                        <textarea value={vendorDraft.notes||""} onChange={e => setVendorDraft(d => ({ ...d, notes: e.target.value }))} rows={2}
+                        <textarea value={vendorDraft.notes||""} onChange={e=>setVendorDraft(d=>({...d,notes:e.target.value}))} rows={2}
                           style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",resize:"vertical" }} />
                       </div>
                     </div>
                     <div style={{ display:"flex",gap:10 }}>
-                      <button onClick={() => saveVendor(vendorDraft)}
-                        style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#34c759",color:"#fff" }}>Save</button>
-                      <button onClick={() => { setEditingVendorId(null); setVendorDraft({}); }}
-                        style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor2}`,background:"transparent",color:textPrimary2 }}>Cancel</button>
+                      <button onClick={()=>saveVendor(vendorDraft)} style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#34c759",color:"#fff" }}>Save</button>
+                      <button onClick={()=>{setEditingVendorId(null);setVendorDraft({});}} style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor2}`,background:"transparent",color:textPrimary2 }}>Cancel</button>
                     </div>
                   </div>
                 )}
 
-                {/* Vendor cards */}
                 {vendorsLoading ? (
                   <div style={{ textAlign:"center",padding:40,color:textSecondary2 }}>Loading vendors…</div>
                 ) : (
-                  <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:16 }}>
-                    {allRows.map(vendor => {
-                      const partCount = partCountBySlug[vendor.slug?.toLowerCase()] || 0;
-                      const isEditing = editingVendorId === vendor.id;
-                      const draft = isEditing ? vendorDraft : vendor;
-                      return (
-                        <div key={vendor.id || vendor.slug} style={{ background:cardBg2,borderRadius:14,border:`1px solid ${borderColor2}`,padding:18,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-                          {/* Header */}
-                          <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12 }}>
-                            <div>
-                              <div style={{ fontSize:16,fontWeight:700,color:textPrimary2,marginBottom:4 }}>
-                                {vendor.display_name}
-                              </div>
-                              <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
-                                {vendor.is_api_supplier && <span style={{ fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:980,background:"rgba(0,113,227,0.1)",color:"#0071e3" }}>API</span>}
-                                {vendor.is_locked_supplier && <span style={{ fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:980,background:"rgba(255,149,0,0.1)",color:"#ff9500" }}>🔒 Manual</span>}
-                                {partCount > 0 && <span style={{ fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:980,background:"rgba(52,199,89,0.1)",color:"#34c759" }}>{partCount} part{partCount!==1?"s":""}</span>}
-                              </div>
-                            </div>
-                            <div style={{ display:"flex",gap:6 }}>
-                              {!isEditing && (
-                                <button onClick={() => { setEditingVendorId(vendor.id); setVendorDraft({ ...vendor }); }}
-                                  style={{ padding:"5px 12px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor2}`,background:"transparent",color:textPrimary2 }}>Edit</button>
-                              )}
-                              {vendor.website && !isEditing && (
-                                <a href={vendor.website} target="_blank" rel="noopener noreferrer"
-                                  style={{ padding:"5px 12px",borderRadius:980,fontSize:11,fontWeight:600,textDecoration:"none",border:"none",background:"#0071e3",color:"#fff" }}>Visit →</a>
-                              )}
-                            </div>
-                          </div>
-
-                          {isEditing ? (
-                            /* Edit form */
-                            <div>
-                              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12 }}>
-                                {[
-                                  { key:"display_name", label:"Name" },
-                                  { key:"website",      label:"Website" },
-                                  { key:"account_number", label:"Account #" },
-                                  { key:"contact_name", label:"Contact Name" },
-                                  { key:"contact_email",label:"Contact Email" },
-                                  { key:"contact_phone",label:"Contact Phone" },
-                                  { key:"lead_time_days",label:"Lead Time (days)" },
-                                ].map(f => (
-                                  <div key={f.key}>
-                                    <div style={{ fontSize:10,fontWeight:600,color:textSecondary2,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em" }}>{f.label}</div>
-                                    <input type="text" value={vendorDraft[f.key]||""} onChange={e => setVendorDraft(d => ({ ...d, [f.key]: e.target.value }))}
-                                      style={{ width:"100%",padding:"6px 8px",borderRadius:7,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:12,fontFamily:"inherit",boxSizing:"border-box" }} />
-                                  </div>
-                                ))}
-                                <div>
-                                  <div style={{ fontSize:10,fontWeight:600,color:textSecondary2,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em" }}>Payment Terms</div>
-                                  <select value={vendorDraft.payment_terms||""} onChange={e => setVendorDraft(d => ({ ...d, payment_terms: e.target.value }))}
-                                    style={{ width:"100%",padding:"6px 8px",borderRadius:7,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:12,fontFamily:"inherit",boxSizing:"border-box" }}>
-                                    <option value="">—</option>
-                                    {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t}</option>)}
-                                  </select>
-                                </div>
-                              </div>
-                              <div style={{ marginBottom:12 }}>
-                                <div style={{ fontSize:10,fontWeight:600,color:textSecondary2,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em" }}>Notes</div>
-                                <textarea value={vendorDraft.notes||""} onChange={e => setVendorDraft(d => ({ ...d, notes: e.target.value }))} rows={2}
-                                  style={{ width:"100%",padding:"6px 8px",borderRadius:7,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f5f5f7",color:textPrimary2,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",resize:"vertical" }} />
-                              </div>
-                              <div style={{ display:"flex",gap:8 }}>
-                                <button onClick={() => saveVendor(vendorDraft)}
-                                  style={{ padding:"6px 16px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#34c759",color:"#fff" }}>Save</button>
-                                <button onClick={() => { setEditingVendorId(null); setVendorDraft({}); }}
-                                  style={{ padding:"6px 16px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor2}`,background:"transparent",color:textPrimary2 }}>Cancel</button>
-                                {vendor.id && <button onClick={() => deleteVendor(vendor.id)}
-                                  style={{ padding:"6px 16px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#ff3b30",color:"#fff",marginLeft:"auto" }}>Remove</button>}
-                              </div>
-                            </div>
-                          ) : (
-                            /* Read view */
-                            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 16px",fontSize:13 }}>
-                              {vendor.account_number && <div><span style={{ color:textSecondary2,fontSize:11 }}>Account # </span><strong style={{ color:textPrimary2 }}>{vendor.account_number}</strong></div>}
-                              {vendor.payment_terms  && <div><span style={{ color:textSecondary2,fontSize:11 }}>Terms </span><strong style={{ color:textPrimary2 }}>{vendor.payment_terms}</strong></div>}
-                              {vendor.lead_time_days && <div><span style={{ color:textSecondary2,fontSize:11 }}>Lead Time </span><strong style={{ color:textPrimary2 }}>{vendor.lead_time_days} days</strong></div>}
-                              {vendor.contact_name   && <div><span style={{ color:textSecondary2,fontSize:11 }}>Contact </span><strong style={{ color:textPrimary2 }}>{vendor.contact_name}</strong></div>}
-                              {vendor.contact_email  && <div style={{ gridColumn:"1/-1" }}><span style={{ color:textSecondary2,fontSize:11 }}>Email </span><a href={`mailto:${vendor.contact_email}`} style={{ color:"#0071e3",fontWeight:600,fontSize:13 }}>{vendor.contact_email}</a></div>}
-                              {vendor.contact_phone  && <div><span style={{ color:textSecondary2,fontSize:11 }}>Phone </span><a href={`tel:${vendor.contact_phone}`} style={{ color:"#0071e3",fontWeight:600,fontSize:13 }}>{vendor.contact_phone}</a></div>}
-                              {vendor.notes          && <div style={{ gridColumn:"1/-1",marginTop:4,padding:"8px 10px",borderRadius:8,background:darkMode?"#1c1c1e":"#f5f5f7",fontSize:12,color:textSecondary2,lineHeight:"1.5" }}>{vendor.notes}</div>}
-                              {!vendor.account_number && !vendor.contact_name && !vendor.contact_email && !vendor.notes && (
-                                <div style={{ gridColumn:"1/-1",color:textSecondary2,fontSize:12,fontStyle:"italic" }}>No details yet — click Edit to add contact info.</div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <>
+                    <VendorSection title="Domestic Suppliers" flag="🇺🇸" rows={domestic} />
+                    <VendorSection title="International Suppliers" flag="🌐" rows={international} />
+                  </>
                 )}
               </div>
             );
