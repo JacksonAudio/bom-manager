@@ -74,7 +74,27 @@
       "Bash(git commit -m \"v7.02 - Database backup export + auto-create PO records on email send:*)",
       "Bash(grep -r \"GITHUB\" /Users/BradJackson/Downloads/jackson-bom/.env*)",
       "Bash(gh auth:*)",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "Bash(git commit -m \"v7.04 - Mouser import uses first purchase date as Added date:*)",
+      "WebFetch(domain:www.mcmaster.com)",
+      "WebFetch(domain:www.boltdepot.com)",
+      "Bash(git commit -m \"v7.05 - Bulk invoice import: multi-file + ZIP support with progress bar:*)",
+      "Bash(git commit -m \"v7.06 - Lock Supplier dropdown for bulk invoice import:*)",
+      "Bash(git commit -m \"Fix: paginate fetchParts and fetchAllPriceHistory past Supabase 1000-row default:*)",
+      "Read(//Users/BradJackson/Downloads/CEDIST/**)",
+      "Bash(xxd)",
+      "Bash(git commit -m \"v7.07 - Fix HTML-as-PDF detection, better bulk import errors, filter macOS junk:*)",
+      "Bash(ls /Users/BradJackson/Downloads/CEDIST/*.pdf)",
+      "Bash(grep -l \"Part Number\\\\|Item Number\\\\|SKU\\\\|Quantity\\\\|Unit Price\\\\|invoice\\\\|Invoice\" /Users/BradJackson/Downloads/CEDIST/*.pdf)",
+      "Bash(git commit -m \"v7.08 - CSV import supports addedDate, supplier, unitCost columns + pagination fix:*)",
+      "Bash(git commit -m \"v7.09 - Locked supplier: skip API lookups for non-API distributors:*)",
+      "Bash(git commit -m \"v7.10 - Auto-populate country of origin from Mouser API during pricing fetch:*)",
+      "Bash(git commit -m \"Add debug logging for missing Mouser CountryOfOrigin:*)",
+      "Bash(git commit -m \"Debug: log ProductCompliance array contents and broaden COO field name matching:*)",
+      "Bash(git commit -m \"Extract COO from DigiKey + HTS codes from Mouser compliance array:*)",
+      "Bash(git commit -m \"Track how parts were added to library \\(added_via field\\):*)",
+      "Bash(grep -r VITE_SUPABASE /Users/BradJackson/Downloads/jackson-bom/.env*)",
+      "Bash(git commit:*)"
     ]
   }
 }

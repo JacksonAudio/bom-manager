@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.11
+// src/App.jsx — Jackson Audio BOM Manager v7.12
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -835,13 +835,18 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
   }
 
   // Propagate countryOfOrigin across all entries for this part
-  // Sources: Nexar _countryOfOrigin, Mouser countryOfOrigin, or manufacturer-based lookup
+  // Sources: Nexar _countryOfOrigin, Mouser countryOfOrigin, DigiKey, or tariff-rate inference
   let origin = pricing._countryOfOrigin || null;
   if (!origin) {
     // Check if any direct API returned it
     for (const data of Object.values(pricing)) {
       if (data?.countryOfOrigin) { origin = data.countryOfOrigin; break; }
     }
+  }
+  // Fallback: if Mouser reports a tariff surcharge, infer China origin.
+  // US tariffs with >0% currently apply almost exclusively to Chinese-origin goods.
+  if (!origin && pricing.mouser?.mouserTariffRate > 0) {
+    origin = "CN";
   }
   if (origin) {
     for (const [key, data] of Object.entries(pricing)) {
@@ -2009,6 +2014,7 @@ function BOMManager({ user }) {
         unit_cost:      newUnitCost !== "" ? parseFloat(newUnitCost) || null : null,
         preferred_supplier: newPref,
       };
+      if (detectedOrigin) dbFields.country_of_origin = detectedOrigin;
       await dbUpdatePart(partId, dbFields, user.id);
     } catch (e) {
       setParts((prev) => prev.map((p) => p.id === partId ? {
@@ -2157,6 +2163,8 @@ function BOMManager({ user }) {
       updatedAt:         row.updated_at || null,
       createdAt:         row.created_at || null,
       addedVia:          row.added_via || null,
+      countryOfOrigin:   row.country_of_origin || null,
+      htsCode:           row.hts_code || null,
     };
   }
 
@@ -2188,6 +2196,8 @@ function BOMManager({ user }) {
     }
     // Track how the part was added to the library
     if (part.addedVia) row.added_via = part.addedVia;
+    if (part.countryOfOrigin) row.country_of_origin = part.countryOfOrigin.toUpperCase();
+    if (part.htsCode) row.hts_code = part.htsCode;
     return row;
   }
 
@@ -5820,6 +5830,25 @@ function BOMManager({ user }) {
                                     <div>Unit Cost: {priceAtQty(part) > 0 ? "$"+fmtPrice(priceAtQty(part)) : "—"}</div>
                                     <div>Stock Value: {sn * priceAtQty(part) > 0 ? "$"+fmtDollar(sn * priceAtQty(part)) : "—"}</div>
                                     <div>Supplier: {part.preferredSupplier || "—"}{isLockedSupplier(part.preferredSupplier) && <span style={{ marginLeft:4,fontSize:10,color:"#ff9500",fontWeight:600 }} title="Locked — pricing from this supplier only, no API lookups">🔒 Locked</span>}</div>
+                                    {(() => {
+                                      // COO: prefer saved column, fall back to live pricing data
+                                      let coo = part.countryOfOrigin || "";
+                                      if (!coo && part.pricing) {
+                                        for (const [k, d] of Object.entries(part.pricing)) {
+                                          if (k.startsWith("_") || !d || typeof d !== "object") continue;
+                                          if (d.countryOfOrigin) { coo = d.countryOfOrigin; break; }
+                                        }
+                                      }
+                                      if (!coo) return null;
+                                      const tariffs = (() => { try { return { ...DEFAULT_TARIFFS, ...JSON.parse(apiKeys.tariffs_json || "{}") }; } catch { return { ...DEFAULT_TARIFFS }; } })();
+                                      const rate = getTariffRate(coo, tariffs);
+                                      return (
+                                        <div>Origin: <strong>{coo}</strong>
+                                          {rate > 0 && <span style={{ marginLeft:6,fontSize:10,fontWeight:700,color:"#ff9500" }}>+{rate}% tariff</span>}
+                                          {rate === 0 && <span style={{ marginLeft:6,fontSize:10,fontWeight:600,color:"#34c759" }}>tariff-free</span>}
+                                        </div>
+                                      );
+                                    })()}
                                     {part.addedVia && <div>Added via: <span style={{ fontWeight:600,color:"#5856d6" }}>{{
                                       "manual":"Manual Entry", "quick-add-url":"Quick Add URL", "csv-import":"CSV/BOM Import",
                                       "invoice-import":"Invoice Scanner", "mouser-history":"Mouser Order History",
@@ -12609,7 +12638,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.11",
+                      version: "v7.12",
                       tables: {},
                     };
                     // Export each table
@@ -12887,7 +12916,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.11 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.12 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
