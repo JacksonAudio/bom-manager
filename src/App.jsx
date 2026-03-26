@@ -1,6 +1,6 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.20
-// Monday, March 24, 2026
+// src/App.jsx — Jackson Audio BOM Manager v7.21
+// Thursday, March 26, 2026
 //
 // Changelog:
 //   [1] Fix Nexar query — inline MPN string instead of GraphQL variable (fixes 400)
@@ -174,6 +174,18 @@ const LOCKED_SUPPLIERS = new Set([
   "ce dist","cedist","ce-dist","mcmaster","mcmaster-carr","bolt depot","boltdepot",
 ]);
 const isLockedSupplier = (supplier) => supplier && LOCKED_SUPPLIERS.has(supplier.toLowerCase().trim());
+
+// Website URLs for manual (locked) suppliers that have no API
+const SUPPLIER_WEBSITES = {
+  "bolt depot":    "https://www.boltdepot.com",
+  "boltdepot":     "https://www.boltdepot.com",
+  "mcmaster":      "https://www.mcmaster.com",
+  "mcmaster-carr": "https://www.mcmaster.com",
+  "ce dist":       "https://www.cedist.com",
+  "cedist":        "https://www.cedist.com",
+  "ce-dist":       "https://www.cedist.com",
+};
+const getSupplierWebsite = (supplier) => supplier ? SUPPLIER_WEBSITES[supplier.toLowerCase().trim()] || null : null;
 
 const NEXAR_DIST_MAP = {
   "Mouser Electronics": "mouser",
@@ -5835,7 +5847,15 @@ function BOMManager({ user }) {
                                     <div>Reel Qty: {part.reelQty || "—"}</div>
                                     <div>Unit Cost: {priceAtQty(part) > 0 ? "$"+fmtPrice(priceAtQty(part)) : "—"}</div>
                                     <div>Stock Value: {sn * priceAtQty(part) > 0 ? "$"+fmtDollar(sn * priceAtQty(part)) : "—"}</div>
-                                    <div>Supplier: {part.preferredSupplier || "—"}{isLockedSupplier(part.preferredSupplier) && <span style={{ marginLeft:4,fontSize:10,color:"#ff9500",fontWeight:600 }} title="Locked — pricing from this supplier only, no API lookups">🔒 Locked</span>}</div>
+                                    <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+                                      <span>Supplier: {part.preferredSupplier || "—"}{isLockedSupplier(part.preferredSupplier) && <span style={{ marginLeft:4,fontSize:10,color:"#ff9500",fontWeight:600 }} title="Locked — pricing from this supplier only, no API lookups">🔒 Locked</span>}</span>
+                                      {getSupplierWebsite(part.preferredSupplier) && (
+                                        <a href={getSupplierWebsite(part.preferredSupplier)} target="_blank" rel="noopener noreferrer"
+                                          style={{ fontSize:11,padding:"2px 10px",borderRadius:980,background:"#0071e3",color:"#fff",fontWeight:600,textDecoration:"none",whiteSpace:"nowrap" }}>
+                                          Visit {part.preferredSupplier} →
+                                        </a>
+                                      )}
+                                    </div>
                                     {(() => {
                                       // COO: prefer saved column, fall back to live pricing data
                                       let coo = part.countryOfOrigin || "";
@@ -6111,7 +6131,16 @@ function BOMManager({ user }) {
                             ) : part.pricingStatus === "error" ? (
                               <span style={{ fontSize:11,color:"#ff3b30" }}>Error</span>
                             ) : part.pricingStatus === "locked" || isLockedSupplier(part.preferredSupplier) ? (
-                              <span style={{ fontSize:11,color:"#ff9500",fontWeight:600 }} title={`Locked to ${part.preferredSupplier} — no API lookups`}>🔒 {part.preferredSupplier}</span>
+                              <span style={{ display:"inline-flex",alignItems:"center",gap:6 }}>
+                                <span style={{ fontSize:11,color:"#ff9500",fontWeight:600 }} title={`Locked to ${part.preferredSupplier} — no API lookups`}>🔒 {part.preferredSupplier}</span>
+                                {getSupplierWebsite(part.preferredSupplier) && (
+                                  <a href={getSupplierWebsite(part.preferredSupplier)} target="_blank" rel="noopener noreferrer"
+                                    onClick={e=>e.stopPropagation()}
+                                    style={{ fontSize:10,padding:"2px 8px",borderRadius:980,background:"#0071e3",color:"#fff",fontWeight:600,textDecoration:"none",whiteSpace:"nowrap" }}>
+                                    Visit →
+                                  </a>
+                                )}
+                              </span>
                             ) : (
                               <button onClick={(e)=>{e.stopPropagation();if(part.mpn&&hasAnyKey)fetchPartPricing(part.id);}}
                                 disabled={!part.mpn||!hasAnyKey}
@@ -12650,7 +12679,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.20",
+                      version: "v7.21",
                       tables: {},
                     };
                     // Export each table
