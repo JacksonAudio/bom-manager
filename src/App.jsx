@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.06
+// src/App.jsx — Jackson Audio BOM Manager v7.07
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -2609,8 +2609,16 @@ function BOMManager({ user }) {
       const isImage = ["png","jpg","jpeg","gif","webp"].includes(ext);
       let payload;
 
-      if (isPDF || isImage) {
-        // Read as base64 for Claude vision/document understanding
+      // Detect HTML files disguised as PDFs
+      let isActuallyHTML = false;
+      if (isPDF) {
+        const headerBytes = await file.slice(0, 20).text();
+        if (headerBytes.startsWith("<!DOCTYPE") || headerBytes.startsWith("<html") || headerBytes.startsWith("<HTML")) {
+          isActuallyHTML = true;
+        }
+      }
+
+      if ((isPDF && !isActuallyHTML) || isImage) {
         const base64 = await new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = (e) => resolve(e.target.result.split(",")[1]);
@@ -2620,14 +2628,13 @@ function BOMManager({ user }) {
         const mediaType = isPDF ? "application/pdf" : file.type || `image/${ext === "jpg" ? "jpeg" : ext}`;
         payload = { fileBase64: base64, mediaType, apiKey: apiKeys.anthropic_api_key };
       } else {
-        // Read as text for CSV/TSV/TXT
         const text = await new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = (e) => resolve(e.target.result);
           reader.onerror = reject;
           reader.readAsText(file);
         });
-        payload = { invoiceText: text.substring(0, 30000), apiKey: apiKeys.anthropic_api_key };
+        payload = { invoiceText: text.substring(0, 50000), apiKey: apiKeys.anthropic_api_key };
       }
 
       const res = await fetch("/api/parse-invoice", {
@@ -2667,7 +2674,7 @@ function BOMManager({ user }) {
         try {
           const { default: JSZip } = await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm");
           const zip = await JSZip.loadAsync(file);
-          const entries = Object.values(zip.files).filter(f => !f.dir && /\.(pdf|png|jpg|jpeg|csv|txt)$/i.test(f.name));
+          const entries = Object.values(zip.files).filter(f => !f.dir && !f.name.startsWith("__MACOSX") && !f.name.includes("/.") && /\.(pdf|png|jpg|jpeg|csv|txt)$/i.test(f.name));
           for (const entry of entries) {
             const blob = await entry.async("blob");
             const ext = entry.name.split(".").pop().toLowerCase();
@@ -2707,7 +2714,16 @@ function BOMManager({ user }) {
         const isImage = ["png","jpg","jpeg","gif","webp"].includes(ext);
         let payload;
 
-        if (isPDF || isImage) {
+        // Detect HTML files disguised as PDFs (common with web downloads)
+        let isActuallyHTML = false;
+        if (isPDF) {
+          const headerBytes = await file.slice(0, 20).text();
+          if (headerBytes.startsWith("<!DOCTYPE") || headerBytes.startsWith("<html") || headerBytes.startsWith("<HTML")) {
+            isActuallyHTML = true;
+          }
+        }
+
+        if ((isPDF && !isActuallyHTML) || isImage) {
           const base64 = await new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve(e.target.result.split(",")[1]);
@@ -2717,13 +2733,14 @@ function BOMManager({ user }) {
           const mediaType = isPDF ? "application/pdf" : file.type || `image/${ext === "jpg" ? "jpeg" : ext}`;
           payload = { fileBase64: base64, mediaType, apiKey: apiKeys.anthropic_api_key };
         } else {
+          // Text, CSV, or HTML-disguised-as-PDF
           const text = await new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve(e.target.result);
             reader.onerror = reject;
             reader.readAsText(file);
           });
-          payload = { invoiceText: text.substring(0, 30000), apiKey: apiKeys.anthropic_api_key };
+          payload = { invoiceText: text.substring(0, 50000), apiKey: apiKeys.anthropic_api_key };
         }
 
         const res = await fetch("/api/parse-invoice", {
@@ -2747,7 +2764,8 @@ function BOMManager({ user }) {
     setBulkInvoiceProgress(prev => ({ ...prev, done: allFiles.length, current: "Done", errors }));
 
     if (allItems.length === 0) {
-      setInvoiceError(`No parts found across ${allFiles.length} files.${errors.length ? ` ${errors.length} files had errors.` : ""}`);
+      const topErrors = errors.slice(0, 5).map(e => `${e.file}: ${e.error}`).join(" | ");
+      setInvoiceError(`No parts found across ${allFiles.length} files. ${errors.length} errors. First errors: ${topErrors}`);
       setInvoiceParsing(false);
       setBulkInvoiceProgress(null);
       return;
@@ -12507,7 +12525,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.06",
+                      version: "v7.07",
                       tables: {},
                     };
                     // Export each table
@@ -12785,7 +12803,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.06 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.07 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
