@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.15
+// src/App.jsx — Jackson Audio BOM Manager v7.16
 // Monday, March 24, 2026
 //
 // Changelog:
@@ -1358,6 +1358,8 @@ function BOMManager({ user }) {
   const [bootLog,     setBootLog]     = useState([]);  // [{text, ok}] — on-page API debug log
   const [showBootLog, setShowBootLog] = useState(false);
   const [fetchingAll, setFetchingAll] = useState(false);
+  const [pricingDebug, setPricingDebug] = useState([]);
+  const dbg = (msg, ok=true) => { const ts = new Date().toLocaleTimeString(); setPricingDebug(p => [...p.slice(-19), {ts, msg, ok}]); console.log(`[DBG] ${msg}`); };
 
   // quickAdd state — one per product card: { partNumber, qty, description, value, manufacturer }
   const [quickAdd,    setQuickAdd]    = useState({}); // { [productId]: { pn, qty, desc, value, mfr, showOptional } }
@@ -1910,15 +1912,18 @@ function BOMManager({ user }) {
 
   // ── Fetch pricing for a single part — results saved back to DB
   const fetchPartPricing = async (partId) => {
+    dbg(`fetchPartPricing called: id=${partId}`);
     // Read latest part state using Promise to handle React 18 batching
     const part = await new Promise(resolve => {
       setParts(prev => { resolve(prev.find(p => p.id === partId) || null); return prev; });
     });
-    if (!part) return;
+    if (!part) { dbg(`part not found in state for id=${partId}`, false); return; }
+    dbg(`found part: ${part.mpn || "(no mpn)"} status=${part.pricingStatus}`);
 
     // Skip API lookups for parts locked to non-API suppliers (CE Dist, McMaster-Carr, Bolt Depot, etc.)
     const supplier = part.preferredSupplier || part.preferred_supplier || "";
     if (isLockedSupplier(supplier)) {
+      dbg(`locked supplier: ${supplier}`, false);
       setParts((prev) => prev.map((p) => p.id === partId ? { ...p, pricingStatus: "locked" } : p));
       return;
     }
@@ -1934,6 +1939,7 @@ function BOMManager({ user }) {
     // Skip API fetch if part has an exclusive custom supplier — that's the only source
     const hasExclusive = Object.values(customEntries).some(v => v.exclusive);
     if (hasExclusive) {
+      dbg(`exclusive custom supplier — skipping API`, false);
       const best = bestPriceSupplier(customEntries);
       const bestPrice = customEntries[best]?.unitPrice;
       setParts((prev) => prev.map((p) => p.id === partId ? {
@@ -1945,6 +1951,7 @@ function BOMManager({ user }) {
 
     // Parts with no MPN but custom pricing should still show as "done"
     if (!part.mpn) {
+      dbg(`no MPN — skipping`, false);
       if (Object.keys(customEntries).length > 0) {
         const best = bestPriceSupplier(customEntries, apiKeys.preferred_supplier, apiKeys.preferred_margin);
         const bestPrice = customEntries[best]?.unitPrice;
@@ -1959,6 +1966,7 @@ function BOMManager({ user }) {
     }
 
     // Optimistic loading state
+    dbg(`fetching prices for ${part.mpn}…`);
     setParts((prev) => prev.map((p) => p.id === partId ? { ...p, pricingStatus: "loading" } : p));
     try {
       const apiPricing = await fetchAllPricing(part.mpn, part.quantity, apiKeys, nexarToken, dkToken);
@@ -2015,8 +2023,10 @@ function BOMManager({ user }) {
         preferred_supplier: newPref,
       };
       if (detectedOrigin) dbFields.country_of_origin = detectedOrigin;
+      dbg(`done: best=${best} price=${bestPrice} origin=${detectedOrigin||"unknown"}`);
       await dbUpdatePart(partId, dbFields, user.id);
     } catch (e) {
+      dbg(`ERROR: ${e.message}`, false);
       setParts((prev) => prev.map((p) => p.id === partId ? {
         ...p, pricingStatus: "error", pricingError: e.message,
       } : p));
@@ -5941,6 +5951,19 @@ function BOMManager({ user }) {
               </div>
             </div>
 
+            {/* ── On-page debug panel ── */}
+            {pricingDebug.length > 0 && (
+              <div style={{ marginBottom:12,padding:"10px 14px",background:"#1c1c1e",borderRadius:10,fontFamily:"'SF Mono',Menlo,monospace",fontSize:11,lineHeight:1.7 }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
+                  <span style={{ color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",fontSize:10 }}>Debug Log</span>
+                  <button type="button" onPointerDown={()=>setPricingDebug([])} style={{ background:"none",border:"none",color:"#ff3b30",fontSize:11,cursor:"pointer",fontFamily:"inherit" }}>Clear</button>
+                </div>
+                {pricingDebug.map((e,i)=>(
+                  <div key={i} style={{ color:e.ok?"#34c759":"#ff453a" }}><span style={{ color:"#636366",marginRight:8 }}>{e.ts}</span>{e.msg}</div>
+                ))}
+              </div>
+            )}
+
             {parts.length === 0 ? (
               <div style={{ textAlign:"center",padding:60,color:"#86868b" }}>
                 <div style={{ fontSize:14,fontFamily:"-apple-system,sans-serif" }}>Import a BOM first</div>
@@ -6262,7 +6285,7 @@ function BOMManager({ user }) {
                               </button>
                               {(effectiveStatus === "done" || part.pricingStatus === "loading") && (
                                 <button type="button"
-                                  onPointerDown={(e)=>{e.stopPropagation();e.preventDefault();if(part.pricingStatus!=="loading")fetchPartPricing(part.id);}}
+                                  onPointerDown={(e)=>{e.stopPropagation();e.preventDefault();dbg(`button pointerDown: id=${part.id} mpn=${part.mpn} status=${part.pricingStatus}`);if(part.pricingStatus!=="loading")fetchPartPricing(part.id);}}
                                   style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:part.pricingStatus==="loading"?"default":"pointer",fontFamily:"inherit",
                                     border:"1px solid #0071e3",background:"none",color:"#0071e3",
                                     opacity:part.pricingStatus==="loading"?0.5:1 }}>
@@ -12640,7 +12663,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.15",
+                      version: "v7.16",
                       tables: {},
                     };
                     // Export each table
@@ -12918,7 +12941,7 @@ function BOMManager({ user }) {
 
       <footer style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"10px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"#1c1c1e":"transparent" }}>
-        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.15 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager v7.16 — deployed {new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
       </footer>
     </div>
