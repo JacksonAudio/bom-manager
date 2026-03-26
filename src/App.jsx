@@ -450,10 +450,17 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
   if (part.ProductCompliance) result.compliance = part.ProductCompliance;
   // Parse COO from ProductCompliance array if not found in top-level field
   if (!result.countryOfOrigin && Array.isArray(part.ProductCompliance)) {
+    console.log(`[Mouser] ${mpn}: scanning ProductCompliance:`, JSON.stringify(part.ProductCompliance));
     for (const comp of part.ProductCompliance) {
-      if (comp.ComplianceName && /country.*origin/i.test(comp.ComplianceName) && comp.ComplianceValue) {
-        result.countryOfOrigin = comp.ComplianceValue.toUpperCase();
-        break;
+      const name = (comp.ComplianceName || comp.complianceName || comp.Name || comp.name || "").toLowerCase();
+      const val = comp.ComplianceValue || comp.complianceValue || comp.Value || comp.value || "";
+      // Match "country of origin", "COO", "origin", etc.
+      if ((name.includes("country") && name.includes("origin")) || name === "coo" || name === "countryoforigin") {
+        if (val && val.length >= 2) {
+          result.countryOfOrigin = val.toUpperCase();
+          console.log(`[Mouser] ${mpn}: found COO in compliance: ${val}`);
+          break;
+        }
       }
     }
   }
