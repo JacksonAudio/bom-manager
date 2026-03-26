@@ -1406,6 +1406,7 @@ function BOMManager({ user }) {
   const [importError,   setImportError]   = useState("");
   const [importOk,      setImportOk]      = useState("");
   const [importPreview, setImportPreview] = useState(null); // { parts, filename } — awaiting user confirm
+  const [importExcluded, setImportExcluded] = useState(new Set()); // indices of unchecked rows in import preview
   const [dragOver,      setDragOver]      = useState(false);
   const [lastImportBatch, setLastImportBatch] = useState(() => {
     try { const s = localStorage.getItem("bom_last_import"); return s ? JSON.parse(s) : null; } catch { return null; }
@@ -2158,7 +2159,7 @@ function BOMManager({ user }) {
 
   // ── BOM import — Phase 1: parse & dedupe, show preview for approval
   const handleImport = useCallback((rawText, filename = "") => {
-    setImportError(""); setImportOk(""); setImportPreview(null);
+    setImportError(""); setImportOk(""); setImportPreview(null); setImportExcluded(new Set());
     try {
       const parsed = parseBOM(rawText);
       if (!parsed.length) { setImportError("No parts found. Check header row."); return; }
@@ -2176,7 +2177,9 @@ function BOMManager({ user }) {
     if (!importPreview) return;
     setImportError("");
     try {
-      const { parts: fresh, filename } = importPreview;
+      const { parts: allParts, filename } = importPreview;
+      const fresh = allParts.filter((_, i) => !importExcluded.has(i));
+      if (!fresh.length) { setImportError("No parts selected for import."); return; }
       const dbRows = fresh.map((p) => uiPartToDB({ ...p, addedVia: "csv-import" }));
       const inserted = await upsertParts(dbRows, user.id);
       const batch = { ids: (inserted || []).map(r => r.id).filter(Boolean), count: fresh.length, filename: filename || null, importedAt: new Date().toISOString() };
@@ -2186,7 +2189,7 @@ function BOMManager({ user }) {
       setImportOk(`✓ Imported ${fresh.length} parts${filename ? ` from "${filename}"` : ""}. Use "Undo Last Import" below to reverse.`);
       setActiveView("bom");
     } catch (e) { setImportError("Import error: " + e.message); }
-  }, [importPreview, user.id]);
+  }, [importPreview, importExcluded, user.id]);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault(); setDragOver(false);
@@ -4982,23 +4985,31 @@ function BOMManager({ user }) {
             {importOk    && <div style={{ marginTop:14,padding:"11px 16px",background:"rgba(52,199,89,0.06)",border:"1px solid #34c759",borderRadius:8,color:"#34c759",fontSize:13 }}>{importOk}</div>}
 
             {/* ── Import Preview — approve before committing */}
-            {importPreview && (
+            {importPreview && (() => {
+              const selectedCount = importPreview.parts.length - importExcluded.size;
+              return (
               <div style={{ marginTop:18,border:"1px solid #007aff",borderRadius:12,overflow:"hidden" }}>
                 <div style={{ background:"rgba(0,122,255,0.07)",padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
                   <div>
-                    <span style={{ fontWeight:700,fontSize:14,color:"#007aff" }}>Preview — {importPreview.parts.length} parts ready to import</span>
+                    <span style={{ fontWeight:700,fontSize:14,color:"#007aff" }}>Preview — {selectedCount} of {importPreview.parts.length} parts selected</span>
                     {importPreview.skipped > 0 && <span style={{ fontSize:12,color:"#6e6e73",marginLeft:10 }}>{importPreview.skipped} duplicate{importPreview.skipped>1?"s":""} skipped</span>}
                     {importPreview.filename && <span style={{ fontSize:12,color:"#6e6e73",marginLeft:10 }}>from "{importPreview.filename}"</span>}
                   </div>
                   <div style={{ display:"flex",gap:8 }}>
                     <button className="btn-ghost" style={{ fontSize:13 }} onClick={()=>setImportPreview(null)}>Cancel</button>
-                    <button className="btn-primary" style={{ fontSize:13 }} onClick={confirmImport}>✓ Confirm Import ({importPreview.parts.length})</button>
+                    <button className="btn-primary" style={{ fontSize:13 }} onClick={confirmImport} disabled={!selectedCount}>✓ Confirm Import ({selectedCount})</button>
                   </div>
                 </div>
                 <div style={{ overflowX:"auto",maxHeight:420,overflowY:"auto" }}>
                   <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                     <thead style={{ position:"sticky",top:0,background:"#f5f5f7",zIndex:1 }}>
                       <tr>
+                        <th style={{ padding:"7px 8px",borderBottom:"1px solid #e5e5ea",width:32 }}>
+                          <input type="checkbox" checked={importExcluded.size === 0} onChange={(e) => {
+                            if (e.target.checked) setImportExcluded(new Set());
+                            else setImportExcluded(new Set(importPreview.parts.map((_,i)=>i)));
+                          }} />
+                        </th>
                         {["MPN","Value","Description","Supplier","Date"].map(h=>(
                           <th key={h} style={{ textAlign:"left",padding:"7px 12px",fontWeight:700,color:"#1d1d1f",borderBottom:"1px solid #e5e5ea",whiteSpace:"nowrap" }}>{h}</th>
                         ))}
@@ -5006,7 +5017,12 @@ function BOMManager({ user }) {
                     </thead>
                     <tbody>
                       {importPreview.parts.map((p,i)=>(
-                        <tr key={i} style={{ borderBottom:"1px solid #f5f5f7",background:i%2===0?"#fff":"#fafafa" }}>
+                        <tr key={i} style={{ borderBottom:"1px solid #f5f5f7",background:importExcluded.has(i)?"#f8f8f8":i%2===0?"#fff":"#fafafa",opacity:importExcluded.has(i)?0.45:1 }}>
+                          <td style={{ padding:"6px 8px",width:32 }}>
+                            <input type="checkbox" checked={!importExcluded.has(i)} onChange={() => {
+                              setImportExcluded(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; });
+                            }} />
+                          </td>
                           <td style={{ padding:"6px 12px",fontFamily:"monospace",whiteSpace:"nowrap" }}>{p.mpn||"—"}</td>
                           <td style={{ padding:"6px 12px",whiteSpace:"nowrap" }}>{p.value||"—"}</td>
                           <td style={{ padding:"6px 12px",color:"#6e6e73",maxWidth:320,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
@@ -5018,7 +5034,8 @@ function BOMManager({ user }) {
                   </table>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* ── CSV Format Reference */}
             <div style={{ marginTop:28,padding:"20px 22px",background:"#fff",borderRadius:12,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
@@ -5521,22 +5538,30 @@ function BOMManager({ user }) {
                 {importOk && <div style={{ marginTop:8,color:"#34c759",fontSize:12 }}>{importOk}</div>}
 
                 {/* ── Inline Import Preview */}
-                {importPreview && (
+                {importPreview && (() => {
+                  const selectedCount = importPreview.parts.length - importExcluded.size;
+                  return (
                   <div style={{ marginTop:10,border:"1px solid #007aff",borderRadius:10,overflow:"hidden" }}>
                     <div style={{ background:"rgba(0,122,255,0.07)",padding:"10px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap" }}>
                       <div style={{ fontSize:12 }}>
-                        <span style={{ fontWeight:700,color:"#007aff" }}>{importPreview.parts.length} parts ready</span>
+                        <span style={{ fontWeight:700,color:"#007aff" }}>{selectedCount} of {importPreview.parts.length} parts selected</span>
                         {importPreview.skipped > 0 && <span style={{ color:"#6e6e73",marginLeft:8 }}>{importPreview.skipped} duplicate{importPreview.skipped>1?"s":""} skipped</span>}
                       </div>
                       <div style={{ display:"flex",gap:6 }}>
                         <button className="btn-ghost" style={{ fontSize:11,padding:"4px 10px" }} onClick={()=>setImportPreview(null)}>Cancel</button>
-                        <button className="btn-primary" style={{ fontSize:11,padding:"4px 10px" }} onClick={confirmImport}>✓ Confirm ({importPreview.parts.length})</button>
+                        <button className="btn-primary" style={{ fontSize:11,padding:"4px 10px" }} onClick={confirmImport} disabled={!selectedCount}>✓ Confirm ({selectedCount})</button>
                       </div>
                     </div>
                     <div style={{ overflowX:"auto",maxHeight:300,overflowY:"auto" }}>
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
                         <thead style={{ position:"sticky",top:0,background:"#f5f5f7",zIndex:1 }}>
                           <tr>
+                            <th style={{ padding:"5px 6px",borderBottom:"1px solid #e5e5ea",width:28 }}>
+                              <input type="checkbox" checked={importExcluded.size === 0} onChange={(e) => {
+                                if (e.target.checked) setImportExcluded(new Set());
+                                else setImportExcluded(new Set(importPreview.parts.map((_,i)=>i)));
+                              }} />
+                            </th>
                             {["MPN","Value","Description","Supplier","Date"].map(h=>(
                               <th key={h} style={{ textAlign:"left",padding:"5px 10px",fontWeight:700,color:"#1d1d1f",borderBottom:"1px solid #e5e5ea",whiteSpace:"nowrap" }}>{h}</th>
                             ))}
@@ -5544,7 +5569,12 @@ function BOMManager({ user }) {
                         </thead>
                         <tbody>
                           {importPreview.parts.map((p,i)=>(
-                            <tr key={i} style={{ borderBottom:"1px solid #f5f5f7",background:i%2===0?"#fff":"#fafafa" }}>
+                            <tr key={i} style={{ borderBottom:"1px solid #f5f5f7",background:importExcluded.has(i)?"#f8f8f8":i%2===0?"#fff":"#fafafa",opacity:importExcluded.has(i)?0.45:1 }}>
+                              <td style={{ padding:"5px 6px",width:28 }}>
+                                <input type="checkbox" checked={!importExcluded.has(i)} onChange={() => {
+                                  setImportExcluded(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; });
+                                }} />
+                              </td>
                               <td style={{ padding:"5px 10px",fontFamily:"monospace",whiteSpace:"nowrap" }}>{p.mpn||"—"}</td>
                               <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>{p.value||"—"}</td>
                               <td style={{ padding:"5px 10px",color:"#6e6e73",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
@@ -5556,7 +5586,8 @@ function BOMManager({ user }) {
                       </table>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* CSV Format Reference */}
                 <div style={{ marginTop:14,borderTop:"1px solid #f5f5f7",paddingTop:14 }}>
