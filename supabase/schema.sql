@@ -44,6 +44,7 @@ create table if not exists parts (
   pricing_status     text not null default 'idle',  -- idle|loading|done|error|no-mpn
   pricing_error      text not null default '',
   best_supplier      text,
+  notes              text not null default '',   -- free-form notes; e.g. AliExpress reorder URL
   -- Attribution
   created_by         uuid references auth.users(id) on delete set null,
   updated_by         uuid references auth.users(id) on delete set null,

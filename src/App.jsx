@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.39";
-const BUILD_TIME   = "2026-03-26T19:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.40";
+const BUILD_TIME   = "2026-03-26T21:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -299,6 +299,7 @@ function parseBOM(raw) {
     unitCost:     ["unitcost", "unit_cost", "price", "cost"],
     stockQty:     ["stockqty", "stock_qty", "stock", "in stock"],
     addedDate:    ["addeddate", "added_date", "added", "created_at", "date"],
+    notes:        ["notes", "purchaseurl", "purchase_url", "sourceurl", "source_url", "reorderurl", "reorder_url"],
   };
   // If header detected, map columns; otherwise assume PN,QTY (2-column format)
   const idx = {};
@@ -329,6 +330,7 @@ function parseBOM(raw) {
       stockQty: get("stockQty") || "",
       preferredSupplier: get("preferredSupplier") || "mouser",
       addedDate: get("addedDate") || "",
+      notes: get("notes") || "",
       orderQty: "", flaggedForOrder: false,
       // Pricing data — populated by API
       pricing: null,      // { [supplierId]: { unitPrice, stock, moq, priceBreaks: [{qty, price}], url } }
@@ -2289,6 +2291,7 @@ function BOMManager({ user }) {
       addedVia:          row.added_via || null,
       countryOfOrigin:   row.country_of_origin || null,
       htsCode:           row.hts_code || null,
+      notes:             row.notes || "",
     };
   }
 
@@ -2322,6 +2325,7 @@ function BOMManager({ user }) {
     if (part.addedVia) row.added_via = part.addedVia;
     if (part.countryOfOrigin) row.country_of_origin = part.countryOfOrigin.toUpperCase();
     if (part.htsCode) row.hts_code = part.htsCode;
+    row.notes = part.notes || "";
     return row;
   }
 
@@ -5013,6 +5017,9 @@ function BOMManager({ user }) {
                         {["MPN","Value","Description","Supplier","Date"].map(h=>(
                           <th key={h} style={{ textAlign:"left",padding:"7px 12px",fontWeight:700,color:"#1d1d1f",borderBottom:"1px solid #e5e5ea",whiteSpace:"nowrap" }}>{h}</th>
                         ))}
+                        {importPreview.parts.some(p=>p.notes) && (
+                          <th style={{ textAlign:"left",padding:"7px 12px",fontWeight:700,color:"#1d1d1f",borderBottom:"1px solid #e5e5ea",whiteSpace:"nowrap" }}>Reorder</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -5028,6 +5035,11 @@ function BOMManager({ user }) {
                           <td style={{ padding:"6px 12px",color:"#6e6e73",maxWidth:320,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
                           <td style={{ padding:"6px 12px",whiteSpace:"nowrap" }}>{p.preferredSupplier||"—"}</td>
                           <td style={{ padding:"6px 12px",whiteSpace:"nowrap",color:"#6e6e73" }}>{p.addedDate||"—"}</td>
+                          {importPreview.parts.some(q=>q.notes) && (
+                            <td style={{ padding:"6px 12px",whiteSpace:"nowrap" }}>
+                              {p.notes ? <a href={p.notes} target="_blank" rel="noopener noreferrer" style={{ fontSize:11,color:"#e8500a" }}>View Order ↗</a> : "—"}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -5065,6 +5077,7 @@ function BOMManager({ user }) {
                     { col:"UnitCost",    alt:"Price, Cost, Unit_Cost",                note:"Unit price in USD" },
                     { col:"Stock",       alt:"StockQty, Stock_Qty, In Stock",         note:"Current stock on hand" },
                     { col:"Date",        alt:"AddedDate, Added, Created_At",          note:"Import date for historical records" },
+                    { col:"PurchaseURL", alt:"Notes, SourceURL, ReorderURL",          note:"Reorder link saved with part (e.g. AliExpress order URL)" },
                   ].map(({ col, alt, note, req }) => (
                     <tr key={col} style={{ borderTop:"1px solid #f5f5f7" }}>
                       <td style={{ padding:"7px 10px",fontWeight:700,color: req?"#0071e3":"#1d1d1f",fontFamily:"monospace" }}>
@@ -5565,6 +5578,9 @@ function BOMManager({ user }) {
                             {["MPN","Value","Description","Supplier","Date"].map(h=>(
                               <th key={h} style={{ textAlign:"left",padding:"5px 10px",fontWeight:700,color:"#1d1d1f",borderBottom:"1px solid #e5e5ea",whiteSpace:"nowrap" }}>{h}</th>
                             ))}
+                            {importPreview.parts.some(p=>p.notes) && (
+                              <th style={{ textAlign:"left",padding:"5px 10px",fontWeight:700,color:"#1d1d1f",borderBottom:"1px solid #e5e5ea",whiteSpace:"nowrap" }}>Reorder</th>
+                            )}
                           </tr>
                         </thead>
                         <tbody>
@@ -5580,6 +5596,11 @@ function BOMManager({ user }) {
                               <td style={{ padding:"5px 10px",color:"#6e6e73",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
                               <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>{p.preferredSupplier||"—"}</td>
                               <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:"#6e6e73" }}>{p.addedDate||"—"}</td>
+                              {importPreview.parts.some(q=>q.notes) && (
+                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>
+                                  {p.notes ? <a href={p.notes} target="_blank" rel="noopener noreferrer" style={{ fontSize:11,color:"#e8500a" }}>View Order ↗</a> : "—"}
+                                </td>
+                              )}
                             </tr>
                           ))}
                         </tbody>
