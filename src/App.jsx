@@ -1,5 +1,5 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.21
+// src/App.jsx — Jackson Audio BOM Manager v7.22
 // Thursday, March 26, 2026
 //
 // Changelog:
@@ -175,17 +175,22 @@ const LOCKED_SUPPLIERS = new Set([
 ]);
 const isLockedSupplier = (supplier) => supplier && LOCKED_SUPPLIERS.has(supplier.toLowerCase().trim());
 
-// Website URLs for manual (locked) suppliers that have no API
-const SUPPLIER_WEBSITES = {
-  "bolt depot":    "https://www.boltdepot.com",
-  "boltdepot":     "https://www.boltdepot.com",
-  "mcmaster":      "https://www.mcmaster.com",
-  "mcmaster-carr": "https://www.mcmaster.com",
-  "ce dist":       "https://www.cedist.com",
-  "cedist":        "https://www.cedist.com",
-  "ce-dist":       "https://www.cedist.com",
+// Build direct search/product URLs for manual (locked) suppliers
+const getSupplierWebsite = (supplier, mpn) => {
+  if (!supplier) return null;
+  const s = supplier.toLowerCase().trim();
+  const q = mpn ? encodeURIComponent(mpn) : "";
+  if (s === "bolt depot" || s === "boltdepot") {
+    return q ? `https://www.boltdepot.com/Search.aspx?kw=${q}` : "https://www.boltdepot.com";
+  }
+  if (s === "mcmaster" || s === "mcmaster-carr") {
+    return q ? `https://www.mcmaster.com/search/?query=${q}` : "https://www.mcmaster.com";
+  }
+  if (s === "ce dist" || s === "cedist" || s === "ce-dist") {
+    return q ? `https://www.cedist.com/search?q=${q}` : "https://www.cedist.com";
+  }
+  return null;
 };
-const getSupplierWebsite = (supplier) => supplier ? SUPPLIER_WEBSITES[supplier.toLowerCase().trim()] || null : null;
 
 const NEXAR_DIST_MAP = {
   "Mouser Electronics": "mouser",
@@ -5849,10 +5854,10 @@ function BOMManager({ user }) {
                                     <div>Stock Value: {sn * priceAtQty(part) > 0 ? "$"+fmtDollar(sn * priceAtQty(part)) : "—"}</div>
                                     <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
                                       <span>Supplier: {part.preferredSupplier || "—"}{isLockedSupplier(part.preferredSupplier) && <span style={{ marginLeft:4,fontSize:10,color:"#ff9500",fontWeight:600 }} title="Locked — pricing from this supplier only, no API lookups">🔒 Locked</span>}</span>
-                                      {getSupplierWebsite(part.preferredSupplier) && (
-                                        <a href={getSupplierWebsite(part.preferredSupplier)} target="_blank" rel="noopener noreferrer"
+                                      {getSupplierWebsite(part.preferredSupplier, part.mpn) && (
+                                        <a href={getSupplierWebsite(part.preferredSupplier, part.mpn)} target="_blank" rel="noopener noreferrer"
                                           style={{ fontSize:11,padding:"2px 10px",borderRadius:980,background:"#0071e3",color:"#fff",fontWeight:600,textDecoration:"none",whiteSpace:"nowrap" }}>
-                                          Visit {part.preferredSupplier} →
+                                          {part.mpn ? `Search "${part.mpn}" →` : `Visit ${part.preferredSupplier} →`}
                                         </a>
                                       )}
                                     </div>
@@ -6133,8 +6138,8 @@ function BOMManager({ user }) {
                             ) : part.pricingStatus === "locked" || isLockedSupplier(part.preferredSupplier) ? (
                               <span style={{ display:"inline-flex",alignItems:"center",gap:6 }}>
                                 <span style={{ fontSize:11,color:"#ff9500",fontWeight:600 }} title={`Locked to ${part.preferredSupplier} — no API lookups`}>🔒 {part.preferredSupplier}</span>
-                                {getSupplierWebsite(part.preferredSupplier) && (
-                                  <a href={getSupplierWebsite(part.preferredSupplier)} target="_blank" rel="noopener noreferrer"
+                                {getSupplierWebsite(part.preferredSupplier, part.mpn) && (
+                                  <a href={getSupplierWebsite(part.preferredSupplier, part.mpn)} target="_blank" rel="noopener noreferrer"
                                     onClick={e=>e.stopPropagation()}
                                     style={{ fontSize:10,padding:"2px 8px",borderRadius:980,background:"#0071e3",color:"#fff",fontWeight:600,textDecoration:"none",whiteSpace:"nowrap" }}>
                                     Visit →
@@ -12679,7 +12684,7 @@ function BOMManager({ user }) {
                     const backup = {
                       exportedAt: new Date().toISOString(),
                       exportedBy: user.email,
-                      version: "v7.21",
+                      version: "v7.22",
                       tables: {},
                     };
                     // Export each table
