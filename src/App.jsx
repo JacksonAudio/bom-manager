@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.61";
-const BUILD_TIME   = "2026-03-27T17:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.62";
+const BUILD_TIME   = "2026-03-27T17:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -1379,12 +1379,13 @@ function BOMManager({ user }) {
   const [loading,     setLoading]     = useState(true);  // initial DB fetch in progress
   const [activeView,  setActiveViewRaw]  = useState(() => {
     const hash = window.location.hash.replace("#","");
+    if (hash === "products") return "projects";
     const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","scoreboard","projects","suppliers","alerts","settings","admin"];
     return validTabs.includes(hash) ? hash : "dashboard";
   });
   const setActiveView = (view) => {
     setActiveViewRaw(view);
-    window.history.pushState(null, "", "#" + view);
+    window.history.pushState(null, "", "#" + (view === "projects" ? "products" : view));
   };
   const [selProject,  setSelProject]  = useState("all");
   const [selBrand,    setSelBrand]    = useState("all");
@@ -1436,6 +1437,9 @@ function BOMManager({ user }) {
   });
   const [bulkRenameOpen, setBulkRenameOpen] = useState(false);
   const [bulkRenameEdits, setBulkRenameEdits] = useState([]); // [{ id, original, newName, changed }]
+  const [bulkRenameSearch, setBulkRenameSearch] = useState("");
+  const [bulkRenameBrand, setBulkRenameBrand] = useState("all");
+  const [bulkRenameFilter, setBulkRenameFilter] = useState("all"); // "all" | "changed" | "unchanged"
   const [selectedProductIds, setSelectedProductIds] = useState(new Set());
   const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","lcsc","shopify","zoho","shipstation","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
   const [buildQueue, setBuildQueue] = useState([]);
@@ -1958,6 +1962,7 @@ function BOMManager({ user }) {
   useEffect(() => {
     const onPopState = () => {
       const hash = window.location.hash.replace("#","");
+      if (hash === "products") { setActiveViewRaw("projects"); return; }
       const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","scoreboard","projects","suppliers","alerts","settings","admin"];
       if (validTabs.includes(hash)) setActiveViewRaw(hash);
     };
@@ -9885,11 +9890,43 @@ function BOMManager({ user }) {
                     Reset All
                   </button>
                 </div>
-                <div style={{ marginTop:8,fontSize:12,color:"#86868b" }}>
-                  {bulkRenameEdits.filter(e => e.changed).length} of {bulkRenameEdits.length} products modified
+                <div style={{ display:"flex",gap:8,marginTop:10,alignItems:"center",flexWrap:"wrap" }}>
+                  <div style={{ position:"relative",flex:1,minWidth:150 }}>
+                    <input type="text" placeholder="Search products..." value={bulkRenameSearch}
+                      onChange={e => setBulkRenameSearch(e.target.value)}
+                      style={{ width:"100%",padding:"6px 10px",paddingRight:bulkRenameSearch?26:10,borderRadius:8,fontSize:12,border:"1px solid #d2d2d7",
+                        background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",boxSizing:"border-box" }} />
+                    {bulkRenameSearch && <span onClick={()=>setBulkRenameSearch("")} style={{ position:"absolute",right:7,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:13,color:"#86868b",lineHeight:1 }}>✕</span>}
+                  </div>
+                  <select value={bulkRenameBrand} onChange={e => setBulkRenameBrand(e.target.value)}
+                    style={{ padding:"6px 10px",borderRadius:8,fontSize:11,border:"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                    <option value="all">All Brands</option>
+                    {[...new Set(bulkRenameEdits.map(e => e.brand))].sort().map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                  <select value={bulkRenameFilter} onChange={e => setBulkRenameFilter(e.target.value)}
+                    style={{ padding:"6px 10px",borderRadius:8,fontSize:11,border:"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                    <option value="all">All ({bulkRenameEdits.length})</option>
+                    <option value="changed">Changed ({bulkRenameEdits.filter(e => e.changed).length})</option>
+                    <option value="unchanged">Unchanged ({bulkRenameEdits.filter(e => !e.changed).length})</option>
+                  </select>
+                  <div style={{ fontSize:12,color:"#86868b" }}>
+                    {bulkRenameEdits.filter(e => e.changed).length} of {bulkRenameEdits.length} modified
+                  </div>
                 </div>
               </div>
               {/* Product list */}
+              {(() => {
+                const brFiltered = bulkRenameEdits.map((e, i) => ({ ...e, _idx: i })).filter(e => {
+                  if (bulkRenameBrand !== "all" && e.brand !== bulkRenameBrand) return false;
+                  if (bulkRenameFilter === "changed" && !e.changed) return false;
+                  if (bulkRenameFilter === "unchanged" && e.changed) return false;
+                  if (bulkRenameSearch) {
+                    const q = bulkRenameSearch.toLowerCase();
+                    if (!e.original.toLowerCase().includes(q) && !e.newName.toLowerCase().includes(q)) return false;
+                  }
+                  return true;
+                });
+                return (
               <div style={{ flex:1,overflowY:"auto",padding:"0 24px" }}>
                 <table style={{ width:"100%",borderCollapse:"collapse" }}>
                   <thead><tr style={{ position:"sticky",top:0,background:darkMode?"#1c1c1e":"#fff",zIndex:1 }}>
@@ -9898,7 +9935,7 @@ function BOMManager({ user }) {
                     <th style={{ padding:"10px 0 6px",textAlign:"center",width:30 }}></th>
                     <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>New Name</th>
                   </tr></thead>
-                  <tbody>{bulkRenameEdits.map((e, i) => (
+                  <tbody>{brFiltered.map((e) => { const i = e._idx; return (
                     <tr key={e.id} style={{ borderBottom:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2") }}>
                       <td style={{ padding:"5px 8px 5px 0",fontSize:10,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em" }}>{e.brand}</td>
                       <td style={{ padding:"5px 4px",fontSize:13,color:e.changed?(darkMode?"#86868b":"#aeaeb2"):(darkMode?"#f5f5f7":"#1d1d1f"),
@@ -9915,9 +9952,10 @@ function BOMManager({ user }) {
                             color:darkMode?"#f5f5f7":"#1d1d1f",boxSizing:"border-box" }} />
                       </td>
                     </tr>
-                  ))}</tbody>
+                  ); })}</tbody>
                 </table>
               </div>
+                ); })()}
               {/* Footer */}
               <div style={{ padding:"14px 24px",borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center" }}>
                 <div style={{ flex:1,fontSize:12,color:bulkRenameEdits.filter(e => e.changed).length > 0?"#0071e3":"#86868b",fontWeight:600 }}>
