@@ -15,7 +15,6 @@ const BUILD_TIME   = "2026-03-27T14:43:00";   // local time of last push (Centra
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import QRCode from "qrcode";
-import JsBarcode from "jsbarcode";
 import AuthScreen from "./components/AuthScreen.jsx";
 import QRLabelModal from "./components/QRLabelModal.jsx";
 import StickerPrintModal from "./components/StickerPrintModal.jsx";
@@ -2114,6 +2113,7 @@ function BOMManager({ user }) {
 
   // Print box label (QR + barcode + serial number for package exterior)
   const printBoxLabel = async (unitOrUnits) => {
+    const JsBarcode = (await import("jsbarcode")).default;
     const units = Array.isArray(unitOrUnits) ? unitOrUnits : [unitOrUnits];
     const labelData = [];
     for (const unit of units) {
@@ -9184,7 +9184,7 @@ function BOMManager({ user }) {
             onClick={() => { setUpcImportOpen(false); setUpcImportResults(null); setUpcImportText(""); }}>
             <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:16,maxWidth:700,width:"100%",maxHeight:"85vh",overflow:"auto",padding:"24px 28px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
               onClick={e => e.stopPropagation()}>
-              <div style={{ fontSize:18,fontWeight:700,color:textPrimary,marginBottom:4 }}>Import UPC Codes</div>
+              <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>Import UPC Codes</div>
               <p style={{ fontSize:13,color:"#86868b",marginBottom:16 }}>
                 Paste CSV data with columns: UPC, EAN, SKU (product name). The SKU/product name column is matched against existing products.
               </p>
@@ -9195,7 +9195,7 @@ function BOMManager({ user }) {
                   value={upcImportText} onChange={e => setUpcImportText(e.target.value)} />
                 <div style={{ display:"flex",gap:8,marginTop:12,justifyContent:"flex-end" }}>
                   <button onClick={() => { setUpcImportOpen(false); setUpcImportText(""); }}
-                    style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:textPrimary }}>
+                    style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
                     Cancel
                   </button>
                   <button onClick={() => {
@@ -9271,7 +9271,7 @@ function BOMManager({ user }) {
                           <select value={r.match?.id || ""} onChange={e => {
                             const prod = products.find(p => p.id === e.target.value);
                             setUpcImportResults(prev => prev.map((x, j) => j === i ? { ...x, match: prod || null, confirmed: !!prod } : x));
-                          }} style={{ fontSize:11,padding:"3px 6px",borderRadius:4,border:"1px solid #d2d2d7",minWidth:160,background:darkMode?"#2c2c2e":"#fff",color:textPrimary }}>
+                          }} style={{ fontSize:11,padding:"3px 6px",borderRadius:4,border:"1px solid #d2d2d7",minWidth:160,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
                             <option value="">— No match —</option>
                             {products.map(p => <option key={p.id} value={p.id}>{p.name} {p.brand !== "Jackson Audio" ? `(${p.brand})` : ""}</option>)}
                           </select>
@@ -9288,7 +9288,7 @@ function BOMManager({ user }) {
                 </div>
                 <div style={{ display:"flex",gap:8,marginTop:14,justifyContent:"flex-end" }}>
                   <button onClick={() => { setUpcImportResults(null); }}
-                    style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:textPrimary }}>
+                    style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
                     Back
                   </button>
                   <button onClick={async () => {
