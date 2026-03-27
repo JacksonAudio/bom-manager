@@ -49,6 +49,8 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
   const [dragState, setDragState] = useState(null)
   const [qrDataUrl, setQrDataUrl] = useState('')
   const canvasRef = useRef(null)
+  const imageInputRef = useRef(null)
+  let nextId = useRef(1)
 
   const sz = STICKER_SIZES[stickerSize]
   const pxW = sz.width * SCALE
@@ -139,6 +141,51 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
     setSelectedId(null)
   }
 
+  // Add a new text element
+  const handleAddText = () => {
+    const id = `text_${Date.now()}`
+    const newElem = {
+      id, type: 'text', x: 20, y: 20, w: 150, h: 16,
+      text: 'New Text', fontSize: 10, fontWeight: 400, color: '#1a1a1a',
+      fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif",
+      letterSpacing: 'normal', textTransform: 'none', visible: true,
+    }
+    setElements(prev => [...prev, newElem])
+    setSelectedId(id)
+  }
+
+  // Add an image element (upload file)
+  const handleAddImage = () => {
+    imageInputRef.current?.click()
+  }
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const id = `img_${Date.now()}`
+      const newElem = {
+        id, type: 'image', x: 10, y: 10, w: 60, h: 60,
+        src: ev.target.result, // base64 data URL
+        objectFit: 'contain', visible: true,
+        label: file.name.replace(/\.[^.]+$/, ''),
+      }
+      setElements(prev => [...prev, newElem])
+      setSelectedId(id)
+    }
+    reader.readAsDataURL(file)
+    e.target.value = '' // reset so same file can be re-uploaded
+  }
+
+  // Delete a custom element (not default ones)
+  const handleDeleteElement = (id) => {
+    const isDefault = DEFAULT_ELEMENTS.some(e => e.id === id)
+    if (isDefault) return // protect defaults
+    setElements(prev => prev.filter(e => e.id !== id))
+    if (selectedId === id) setSelectedId(null)
+  }
+
   // Apply current design to StickerPrintModal
   const handleApply = () => {
     if (onApplyTemplate) {
@@ -219,6 +266,19 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
               </select>
             </div>
 
+            {/* Add element buttons */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleAddText}
+                style={{ fontSize: 11, padding: '5px 14px', borderRadius: 980, border: 'none', cursor: 'pointer', fontWeight: 600, background: '#0071e3', color: '#fff' }}>
+                + Add Text
+              </button>
+              <button onClick={handleAddImage}
+                style={{ fontSize: 11, padding: '5px 14px', borderRadius: 980, border: 'none', cursor: 'pointer', fontWeight: 600, background: '#34c759', color: '#fff' }}>
+                + Add Image
+              </button>
+              <input ref={imageInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageUpload} />
+            </div>
+
             {/* Sticker canvas */}
             <div ref={canvasRef}
               onClick={() => setSelectedId(null)}
@@ -247,6 +307,9 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
                   {elem.type === 'qr' ? (
                     qrDataUrl ? <img src={qrDataUrl} alt="QR" style={{ width: elem.w, height: elem.h, imageRendering: 'pixelated' }} draggable={false} /> :
                     <div style={{ width: elem.w, height: elem.h, background: '#e0e0e0', borderRadius: 4 }} />
+                  ) : elem.type === 'image' ? (
+                    <img src={elem.src} alt={elem.label || 'Image'} draggable={false}
+                      style={{ width: elem.w, height: elem.h, objectFit: elem.objectFit || 'contain', borderRadius: 2 }} />
                   ) : (
                     <span style={{
                       fontSize: elem.fontSize || 12,
@@ -278,7 +341,10 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
             {/* Element list */}
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#1d1d1f', marginBottom: 8 }}>Elements</div>
-              {elements.map(elem => (
+              {elements.map(elem => {
+                const isDefault = DEFAULT_ELEMENTS.some(d => d.id === elem.id)
+                const displayName = elem.type === 'qr' ? 'QR Code' : elem.type === 'image' ? (elem.label || 'Image') : elem.id.charAt(0).toUpperCase() + elem.id.slice(1)
+                return (
                 <div key={elem.id} onClick={() => setSelectedId(elem.id)}
                   style={{
                     padding: '6px 10px', borderRadius: 8, marginBottom: 4, cursor: 'pointer',
@@ -286,16 +352,26 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
                     border: selectedId === elem.id ? '1px solid #0071e3' : '1px solid transparent',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#1d1d1f' }}>
-                    {elem.type === 'qr' ? 'QR Code' : elem.id.charAt(0).toUpperCase() + elem.id.slice(1)}
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#1d1d1f', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 9, color: '#aeaeb2' }}>{elem.type === 'qr' ? 'QR' : elem.type === 'image' ? 'IMG' : 'Aa'}</span>
+                    {displayName}
                   </span>
-                  <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <input type="checkbox" checked={elem.visible}
-                      onChange={(e) => { e.stopPropagation(); updateElement(elem.id, { visible: e.target.checked }) }} />
-                    Show
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <input type="checkbox" checked={elem.visible}
+                        onChange={(e) => { e.stopPropagation(); updateElement(elem.id, { visible: e.target.checked }) }} />
+                      Show
+                    </label>
+                    {!isDefault && (
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteElement(elem.id) }}
+                        style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, border: 'none', background: '#ff3b30', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                        Del
+                      </button>
+                    )}
+                  </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Selected element properties */}
@@ -324,6 +400,38 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
                     <input type="number" value={selected.h} onChange={e => updateElement(selected.id, { h: +e.target.value })} style={inputStyle} />
                   </div>
                 </div>
+
+                {/* Image properties */}
+                {selected.type === 'image' && (
+                  <>
+                    <div style={{ marginBottom: 8 }}>
+                      <label style={labelStyle}>Label</label>
+                      <input value={selected.label || ''} onChange={e => updateElement(selected.id, { label: e.target.value })} style={inputStyle} placeholder="e.g. Logo" />
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                      <label style={labelStyle}>Fit Mode</label>
+                      <select value={selected.objectFit || 'contain'} onChange={e => updateElement(selected.id, { objectFit: e.target.value })} style={inputStyle}>
+                        <option value="contain">Contain (fit inside)</option>
+                        <option value="cover">Cover (fill, may crop)</option>
+                        <option value="fill">Stretch to fill</option>
+                        <option value="none">Original size</option>
+                      </select>
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                      <label style={labelStyle}>Replace Image</label>
+                      <input type="file" accept="image/*" style={{ fontSize: 11 }} onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        const reader = new FileReader()
+                        reader.onload = (ev) => updateElement(selected.id, { src: ev.target.result, label: file.name.replace(/\.[^.]+$/, '') })
+                        reader.readAsDataURL(file)
+                      }} />
+                    </div>
+                    <div style={{ marginBottom: 8, textAlign: 'center' }}>
+                      <img src={selected.src} alt="Preview" style={{ maxWidth: '100%', maxHeight: 80, objectFit: 'contain', borderRadius: 4, border: '1px solid #e5e5ea' }} />
+                    </div>
+                  </>
+                )}
 
                 {/* Text properties */}
                 {selected.type === 'text' && (
@@ -452,6 +560,11 @@ export function renderStickerHTML(elements, sz, bgColor, borderColor, qrDataUrl,
     if (elem.type === 'qr') {
       return qrDataUrl
         ? `<img src="${qrDataUrl}" style="position:absolute;left:${elem.x}px;top:${elem.y}px;width:${elem.w}px;height:${elem.h}px;image-rendering:pixelated" />`
+        : ''
+    }
+    if (elem.type === 'image') {
+      return elem.src
+        ? `<img src="${elem.src}" style="position:absolute;left:${elem.x}px;top:${elem.y}px;width:${elem.w}px;height:${elem.h}px;object-fit:${elem.objectFit || 'contain'};border-radius:2px" />`
         : ''
     }
     const text = (elem.text || '')
