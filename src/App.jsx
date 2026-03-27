@@ -37,6 +37,9 @@ import {
   fetchPOHistory, createPORecord, updatePORecord,
   fetchScrapLog, createScrapEntry, subscribeToScrapLog,
   saveDemandCache, fetchDemandCache, findPOByNumber,
+  fetchPlayTesters, createPlayTester, updatePlayTester, deletePlayTester,
+  fetchPlayTests, createPlayTest, updatePlayTest, deletePlayTest,
+  subscribeToPlayTesters, subscribeToPlayTests,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -1522,6 +1525,17 @@ function BOMManager({ user }) {
   const [scrapFormOpen, setScrapFormOpen] = useState(null); // build_order id or null
   const [scrapForm, setScrapForm] = useState({ quantity: 1, category: "other", notes: "" });
 
+  // ── Play Testing state
+  const [playTesters, setPlayTesters] = useState([]);
+  const [playTests, setPlayTests] = useState([]);
+  const [newPlayTester, setNewPlayTester] = useState({ name:"", email:"", phone:"", address:"", notes:"" });
+  const [newPlayTest, setNewPlayTest] = useState({ product_id:"", build_order_id:"", play_tester_id:"", serial_number:"", due_date:"", notes:"" });
+  const [playTestBusy, setPlayTestBusy] = useState(false);
+  const [playTestersPanelOpen, setPlayTestersPanelOpen] = useState(false);
+  const [editingPlayTest, setEditingPlayTest] = useState(null); // play_test id being edited for feedback
+  const [playTestFeedback, setPlayTestFeedback] = useState({ rating: 0, passed: null, feedback:"" });
+  const [playTestFilter, setPlayTestFilter] = useState("active"); // "active" | "all" | "returned"
+
   const [pdPasteText, setPdPasteText] = useState(""); // product detail page paste text
   const [pdDragOver, setPdDragOver] = useState(false); // product detail page drag state
   const [pdImportError, setPdImportError] = useState("");
@@ -1771,6 +1785,10 @@ function BOMManager({ user }) {
         // Load scrap log from DB
         fetchScrapLog().then(rows => setScrapLog(rows || [])).catch(() => {});
 
+        // Load play testing data from DB
+        fetchPlayTesters().then(rows => setPlayTesters(rows || [])).catch(() => {});
+        fetchPlayTests().then(rows => setPlayTests(rows || [])).catch(() => {});
+
         // Load BOM snapshots from DB
         fetchBomSnapshots().then(snaps => setBomSnapshots(snaps || [])).catch(() => {});
 
@@ -1976,6 +1994,28 @@ function BOMManager({ user }) {
       }
     });
 
+    // Play testers channel
+    const ptChannel = subscribeToPlayTesters((eventType, newRow, oldRow) => {
+      if (eventType === "INSERT") {
+        setPlayTesters((prev) => prev.find(t => t.id === newRow.id) ? prev : [...prev, newRow]);
+      } else if (eventType === "UPDATE") {
+        setPlayTesters((prev) => prev.map(t => t.id === newRow.id ? newRow : t));
+      } else if (eventType === "DELETE") {
+        setPlayTesters((prev) => prev.filter(t => t.id !== oldRow.id));
+      }
+    });
+
+    // Play tests channel
+    const ptsChannel = subscribeToPlayTests((eventType, newRow, oldRow) => {
+      if (eventType === "INSERT") {
+        setPlayTests((prev) => prev.find(t => t.id === newRow.id) ? prev : [newRow, ...prev]);
+      } else if (eventType === "UPDATE") {
+        setPlayTests((prev) => prev.map(t => t.id === newRow.id ? newRow : t));
+      } else if (eventType === "DELETE") {
+        setPlayTests((prev) => prev.filter(t => t.id !== oldRow.id));
+      }
+    });
+
     return () => {
       prodChannel.unsubscribe();
       partChannel.unsubscribe();
@@ -1983,6 +2023,8 @@ function BOMManager({ user }) {
       boChannel.unsubscribe();
       baChannel.unsubscribe();
       scrapChannel.unsubscribe();
+      ptChannel.unsubscribe();
+      ptsChannel.unsubscribe();
     };
   }, []); // eslint-disable-line
 
@@ -4201,6 +4243,7 @@ function BOMManager({ user }) {
           { id:"scan",      label:"Scan In",    step:6, color:"#00c7be" },
           { id:"orders",    label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}`, step:null, color:null },
           { id:"production",label:`Production${buildOrders.filter(b=>b.status!=="completed").length>0?` (${buildOrders.filter(b=>b.status!=="completed").length})`:""}`, step:null, color:null },
+          { id:"playtesting",label:`Play Testing${playTests.filter(t=>t.status!=="returned").length>0?` (${playTests.filter(t=>t.status!=="returned").length})`:""}`, step:null, color:null },
           { id:"scoreboard",label:"Scoreboard", step:null, color:null },
           { id:"suppliers", label:"Suppliers",   step:null, color:null },
           { id:"alerts",    label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}`, step:null, color:null },
@@ -11930,6 +11973,379 @@ function BOMManager({ user }) {
                 </div>
               )}
             </div>
+          </div>
+          );
+        })()}
+
+        {/* ══════════════════════════════════════
+            PLAY TESTING — Assign & Track Play Tests
+        ══════════════════════════════════════ */}
+        {activeView === "playtesting" && (() => {
+          const activeTests = playTests.filter(t => t.status !== "returned");
+          const returnedTests = playTests.filter(t => t.status === "returned");
+          const activeTesters = playTesters.filter(t => t.active !== false);
+          const statusLabels = { assigned:"Assigned", shipped:"Shipped", in_testing:"In Testing", feedback_received:"Feedback Received", returned:"Returned" };
+          const statusColors = { assigned:"#0071e3", shipped:"#ff9500", in_testing:"#5856d6", feedback_received:"#34c759", returned:"#86868b" };
+          const statusFlow = ["assigned","shipped","in_testing","feedback_received","returned"];
+          const inputStyle = { fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7", outline:"none", width:"100%", background:darkMode?"#2c2c2e":"#fff", color:darkMode?"#f5f5f7":"#1d1d1f" };
+          const selectStyle = { ...inputStyle, cursor:"pointer" };
+          const cardBg = darkMode ? "#1c1c1e" : "#fff";
+          const cardBorder = darkMode ? "1px solid #3a3a3e" : "1px solid #e5e5ea";
+          const textPrimary = darkMode ? "#f5f5f7" : "#1d1d1f";
+
+          const filteredTests = playTestFilter === "active" ? activeTests : playTestFilter === "returned" ? returnedTests : playTests;
+
+          const handleCreatePlayTester = async () => {
+            if (!newPlayTester.name.trim()) return;
+            setPlayTestBusy(true);
+            try {
+              const row = await createPlayTester(newPlayTester);
+              setPlayTesters(prev => [...prev, row]);
+              setNewPlayTester({ name:"", email:"", phone:"", address:"", notes:"" });
+            } catch (e) { alert("Failed to create tester: " + e.message); }
+            setPlayTestBusy(false);
+          };
+
+          const handleCreatePlayTest = async () => {
+            if (!newPlayTest.product_id || !newPlayTest.play_tester_id) return;
+            setPlayTestBusy(true);
+            try {
+              const fields = { ...newPlayTest };
+              if (!fields.build_order_id) delete fields.build_order_id;
+              if (fields.due_date) fields.due_date = new Date(fields.due_date).toISOString();
+              else delete fields.due_date;
+              const row = await createPlayTest(fields, user.id);
+              setPlayTests(prev => [row, ...prev]);
+              setNewPlayTest({ product_id:"", build_order_id:"", play_tester_id:"", serial_number:"", due_date:"", notes:"" });
+            } catch (e) { alert("Failed to create play test: " + e.message); }
+            setPlayTestBusy(false);
+          };
+
+          const advanceStatus = async (test) => {
+            const idx = statusFlow.indexOf(test.status);
+            if (idx < 0 || idx >= statusFlow.length - 1) return;
+            const nextStatus = statusFlow[idx + 1];
+            const updates = { status: nextStatus };
+            if (nextStatus === "shipped") updates.shipped_at = new Date().toISOString();
+            if (nextStatus === "returned") updates.returned_at = new Date().toISOString();
+            try {
+              await updatePlayTest(test.id, updates);
+              setPlayTests(prev => prev.map(t => t.id === test.id ? { ...t, ...updates } : t));
+            } catch (e) { alert("Update failed: " + e.message); }
+          };
+
+          const saveFeedback = async (testId) => {
+            try {
+              const updates = { ...playTestFeedback, status: "feedback_received" };
+              if (updates.rating === 0) delete updates.rating;
+              await updatePlayTest(testId, updates);
+              setPlayTests(prev => prev.map(t => t.id === testId ? { ...t, ...updates } : t));
+              setEditingPlayTest(null);
+              setPlayTestFeedback({ rating: 0, passed: null, feedback:"" });
+            } catch (e) { alert("Save feedback failed: " + e.message); }
+          };
+
+          return (
+          <div style={{ maxWidth:"100%" }}>
+            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Play Testing</h2>
+            <p style={{ fontSize:14,color:"#86868b",marginBottom:20 }}>Assign finished builds to testers and track feedback.</p>
+
+            {/* ── Summary cards ── */}
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))",gap:16,marginBottom:28 }}>
+              {[
+                { label:"Active Tests", value:activeTests.length, color:activeTests.length>0?"#ff9500":"#34c759" },
+                { label:"Testers", value:activeTesters.length, color:"#0071e3" },
+                { label:"Awaiting Feedback", value:playTests.filter(t=>t.status==="in_testing").length, color:"#5856d6" },
+                { label:"Returned", value:returnedTests.length, color:"#86868b" },
+                { label:"Avg Rating", value: (() => { const rated = playTests.filter(t=>t.rating); return rated.length ? (rated.reduce((s,t)=>s+t.rating,0)/rated.length).toFixed(1) : "—"; })(), color:"#34c759" },
+              ].map(card => (
+                <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:cardBorder }}>
+                  <div style={{ fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
+                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Play Testers Directory (collapsible) ── */}
+            <div style={{ background:cardBg,borderRadius:14,padding:"18px 22px",marginBottom:20,border:cardBorder }}>
+              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer" }}
+                onClick={() => setPlayTestersPanelOpen(!playTestersPanelOpen)}>
+                <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>Play Testers ({activeTesters.length} active)</div>
+                <span style={{ fontSize:18,color:"#86868b",transform:playTestersPanelOpen?"rotate(180deg)":"none",transition:"transform 0.2s" }}>&#9662;</span>
+              </div>
+              {playTestersPanelOpen && (
+                <div style={{ marginTop:16 }}>
+                  {/* Add new tester form */}
+                  <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr auto",gap:8,marginBottom:16,alignItems:"end" }}>
+                    <div>
+                      <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Name *</div>
+                      <input style={inputStyle} placeholder="Full name" value={newPlayTester.name}
+                        onChange={e => setNewPlayTester(f=>({...f,name:e.target.value}))} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Email</div>
+                      <input style={inputStyle} placeholder="email@example.com" value={newPlayTester.email}
+                        onChange={e => setNewPlayTester(f=>({...f,email:e.target.value}))} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Phone</div>
+                      <input style={inputStyle} placeholder="(555) 123-4567" value={newPlayTester.phone}
+                        onChange={e => setNewPlayTester(f=>({...f,phone:e.target.value}))} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Notes</div>
+                      <input style={inputStyle} placeholder="e.g. Genre, location" value={newPlayTester.notes}
+                        onChange={e => setNewPlayTester(f=>({...f,notes:e.target.value}))} />
+                    </div>
+                    <button className="btn-primary" disabled={playTestBusy || !newPlayTester.name.trim()} onClick={handleCreatePlayTester}
+                      style={{ fontSize:12,padding:"8px 16px",whiteSpace:"nowrap" }}>
+                      + Add Tester
+                    </button>
+                  </div>
+                  {/* Tester list */}
+                  {playTesters.length === 0 && <div style={{ fontSize:13,color:"#86868b",textAlign:"center",padding:20 }}>No play testers yet. Add one above.</div>}
+                  {playTesters.map(tester => (
+                    <div key={tester.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderTop:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2" }}>
+                      <div style={{ width:32,height:32,borderRadius:"50%",background:tester.active !== false?"#0071e3":"#86868b",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:13,fontWeight:700,flexShrink:0 }}>
+                        {tester.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ fontSize:14,fontWeight:600,color:textPrimary }}>{tester.name}</div>
+                        <div style={{ fontSize:11,color:"#86868b" }}>
+                          {[tester.email, tester.phone].filter(Boolean).join(" · ") || "No contact info"}
+                          {tester.notes && ` — ${tester.notes}`}
+                        </div>
+                      </div>
+                      <div style={{ fontSize:11,color:"#86868b" }}>
+                        {playTests.filter(t => t.play_tester_id === tester.id).length} tests
+                      </div>
+                      <button onClick={async () => {
+                        await updatePlayTester(tester.id, { active: !tester.active });
+                        setPlayTesters(prev => prev.map(t => t.id === tester.id ? { ...t, active: !t.active } : t));
+                      }} style={{ fontSize:11,padding:"4px 10px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,
+                        background:tester.active !== false ? (darkMode?"#2c2c2e":"#f0f0f2") : "#0071e3",
+                        color:tester.active !== false ? "#86868b" : "#fff" }}>
+                        {tester.active !== false ? "Deactivate" : "Activate"}
+                      </button>
+                      {isAdmin && <button onClick={async () => {
+                        if (!window.confirm(`Delete tester "${tester.name}"?`)) return;
+                        try { await deletePlayTester(tester.id); setPlayTesters(prev => prev.filter(t => t.id !== tester.id)); }
+                        catch (e) { alert("Delete failed: " + e.message); }
+                      }} style={{ fontSize:11,padding:"4px 10px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#ff3b30",color:"#fff" }}>
+                        Delete
+                      </button>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── Create New Play Test ── */}
+            <div style={{ background:cardBg,borderRadius:14,padding:"18px 22px",marginBottom:20,border:cardBorder }}>
+              <div style={{ fontSize:16,fontWeight:700,color:textPrimary,marginBottom:14 }}>New Play Test</div>
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr auto",gap:8,alignItems:"end" }}>
+                <div>
+                  <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Product *</div>
+                  <select style={selectStyle} value={newPlayTest.product_id} onChange={e => setNewPlayTest(f=>({...f,product_id:e.target.value}))}>
+                    <option value="">Select product…</option>
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Tester *</div>
+                  <select style={selectStyle} value={newPlayTest.play_tester_id} onChange={e => setNewPlayTest(f=>({...f,play_tester_id:e.target.value}))}>
+                    <option value="">Select tester…</option>
+                    {activeTesters.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Build Order</div>
+                  <select style={selectStyle} value={newPlayTest.build_order_id} onChange={e => setNewPlayTest(f=>({...f,build_order_id:e.target.value}))}>
+                    <option value="">None (optional)</option>
+                    {buildOrders.filter(b => !newPlayTest.product_id || b.product_id === newPlayTest.product_id).map(b => {
+                      const prod = products.find(p => p.id === b.product_id);
+                      return <option key={b.id} value={b.id}>{prod?.name || "?"} — qty {b.quantity}{b.for_order ? ` (${b.for_order})` : ""}</option>;
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Serial #</div>
+                  <input style={inputStyle} placeholder="S/N (optional)" value={newPlayTest.serial_number}
+                    onChange={e => setNewPlayTest(f=>({...f,serial_number:e.target.value}))} />
+                </div>
+                <div>
+                  <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Due Date</div>
+                  <input type="date" style={inputStyle} value={newPlayTest.due_date}
+                    onChange={e => setNewPlayTest(f=>({...f,due_date:e.target.value}))} />
+                </div>
+                <button className="btn-primary" disabled={playTestBusy || !newPlayTest.product_id || !newPlayTest.play_tester_id}
+                  onClick={handleCreatePlayTest} style={{ fontSize:12,padding:"8px 16px",whiteSpace:"nowrap" }}>
+                  + Assign Test
+                </button>
+              </div>
+              {newPlayTest.product_id && (
+                <div style={{ marginTop:8 }}>
+                  <input style={{ ...inputStyle, marginTop:4 }} placeholder="Notes (optional)" value={newPlayTest.notes}
+                    onChange={e => setNewPlayTest(f=>({...f,notes:e.target.value}))} />
+                </div>
+              )}
+            </div>
+
+            {/* ── Filter tabs ── */}
+            <div style={{ display:"flex",gap:4,marginBottom:16 }}>
+              {[
+                { id:"active", label:`Active (${activeTests.length})` },
+                { id:"returned", label:`Returned (${returnedTests.length})` },
+                { id:"all", label:`All (${playTests.length})` },
+              ].map(f => (
+                <button key={f.id} onClick={() => setPlayTestFilter(f.id)}
+                  style={{ padding:"6px 16px",borderRadius:980,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",
+                    background: playTestFilter === f.id ? "#0071e3" : (darkMode?"#2c2c2e":"#f0f0f2"),
+                    color: playTestFilter === f.id ? "#fff" : (darkMode?"#f5f5f7":"#1d1d1f") }}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* ── Play Tests List ── */}
+            {filteredTests.length === 0 && (
+              <div style={{ textAlign:"center",padding:40,color:"#86868b",fontSize:14 }}>
+                {playTestFilter === "active" ? "No active play tests. Create one above." : "No play tests found."}
+              </div>
+            )}
+            {filteredTests.map(test => {
+              const prod = products.find(p => p.id === test.product_id);
+              const tester = playTesters.find(t => t.id === test.play_tester_id);
+              const bo = test.build_order_id ? buildOrders.find(b => b.id === test.build_order_id) : null;
+              const isOverdue = test.due_date && new Date(test.due_date) < new Date() && test.status !== "returned";
+              const nextStatus = statusFlow[statusFlow.indexOf(test.status) + 1];
+              const isEditing = editingPlayTest === test.id;
+
+              return (
+                <div key={test.id} style={{ background:cardBg,borderRadius:14,padding:"18px 22px",marginBottom:12,border:cardBorder,
+                  borderLeft:`4px solid ${statusColors[test.status] || "#86868b"}` }}>
+                  <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,flexWrap:"wrap" }}>
+                    {/* Left: info */}
+                    <div style={{ flex:1,minWidth:200 }}>
+                      <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
+                        <span style={{ fontSize:16,fontWeight:700,color:textPrimary }}>{prod?.name || "Unknown Product"}</span>
+                        <span style={{ fontSize:11,fontWeight:700,padding:"2px 10px",borderRadius:980,
+                          background:statusColors[test.status]+"18", color:statusColors[test.status] }}>
+                          {statusLabels[test.status] || test.status}
+                        </span>
+                        {isOverdue && <span style={{ fontSize:11,fontWeight:700,padding:"2px 10px",borderRadius:980,background:"#ff3b3018",color:"#ff3b30" }}>Overdue</span>}
+                      </div>
+                      <div style={{ fontSize:13,color:"#86868b",display:"flex",gap:16,flexWrap:"wrap" }}>
+                        <span>Tester: <strong style={{ color:textPrimary }}>{tester?.name || "Unknown"}</strong></span>
+                        {test.serial_number && <span>S/N: <strong style={{ color:textPrimary }}>{test.serial_number}</strong></span>}
+                        {bo && <span>Build: qty {bo.quantity}</span>}
+                        {test.due_date && <span>Due: {new Date(test.due_date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
+                        {test.tracking_number && <span>Tracking: {test.tracking_number}</span>}
+                      </div>
+                      {test.notes && <div style={{ fontSize:12,color:"#86868b",marginTop:4,fontStyle:"italic" }}>{test.notes}</div>}
+                      {/* Feedback display */}
+                      {(test.rating || test.passed !== null || test.feedback) && (
+                        <div style={{ marginTop:8,padding:"8px 12px",borderRadius:8,background:darkMode?"#2c2c2e":"#f9f9fb",fontSize:12 }}>
+                          <div style={{ display:"flex",gap:12,alignItems:"center",flexWrap:"wrap" }}>
+                            {test.rating && <span style={{ color:"#ff9500" }}>{"★".repeat(test.rating)}{"☆".repeat(5-test.rating)}</span>}
+                            {test.passed !== null && <span style={{ fontWeight:700,color:test.passed?"#34c759":"#ff3b30" }}>{test.passed?"PASS":"FAIL"}</span>}
+                          </div>
+                          {test.feedback && <div style={{ marginTop:4,color:textPrimary }}>{test.feedback}</div>}
+                        </div>
+                      )}
+                    </div>
+                    {/* Right: actions */}
+                    <div style={{ display:"flex",gap:6,flexShrink:0,flexWrap:"wrap" }}>
+                      {test.status !== "returned" && nextStatus && (
+                        <button onClick={() => advanceStatus(test)}
+                          style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,
+                            background:statusColors[nextStatus],color:"#fff" }}>
+                          {nextStatus === "shipped" ? "Mark Shipped" : nextStatus === "in_testing" ? "Mark In Testing" : nextStatus === "feedback_received" ? "Record Feedback" : "Mark Returned"}
+                        </button>
+                      )}
+                      {test.status !== "returned" && (
+                        <button onClick={() => {
+                          if (isEditing) { setEditingPlayTest(null); }
+                          else { setEditingPlayTest(test.id); setPlayTestFeedback({ rating: test.rating || 0, passed: test.passed, feedback: test.feedback || "" }); }
+                        }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,
+                          background:darkMode?"#2c2c2e":"#f0f0f2",color:textPrimary }}>
+                          {isEditing ? "Cancel" : "Feedback"}
+                        </button>
+                      )}
+                      {test.status === "assigned" && (
+                        <button onClick={async () => {
+                          const tn = prompt("Enter tracking number:");
+                          if (tn === null) return;
+                          const updates = { status:"shipped", shipped_at: new Date().toISOString(), tracking_number: tn };
+                          await updatePlayTest(test.id, updates);
+                          setPlayTests(prev => prev.map(t => t.id === test.id ? { ...t, ...updates } : t));
+                        }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,
+                          background:"#ff9500",color:"#fff" }}>
+                          Ship + Track
+                        </button>
+                      )}
+                      {isAdmin && <button onClick={async () => {
+                        if (!window.confirm("Delete this play test?")) return;
+                        try { await deletePlayTest(test.id); setPlayTests(prev => prev.filter(t => t.id !== test.id)); }
+                        catch (e) { alert("Delete failed: " + e.message); }
+                      }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#ff3b30",color:"#fff" }}>
+                        Delete
+                      </button>}
+                    </div>
+                  </div>
+                  {/* Inline feedback form */}
+                  {isEditing && (
+                    <div style={{ marginTop:14,padding:"14px 16px",borderRadius:10,background:darkMode?"#2c2c2e":"#f9f9fb",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                      <div style={{ fontSize:13,fontWeight:700,color:textPrimary,marginBottom:10 }}>Record Feedback</div>
+                      <div style={{ display:"grid",gridTemplateColumns:"auto auto 1fr",gap:12,alignItems:"center" }}>
+                        <div>
+                          <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase" }}>Rating</div>
+                          <div style={{ display:"flex",gap:2 }}>
+                            {[1,2,3,4,5].map(n => (
+                              <button key={n} onClick={() => setPlayTestFeedback(f=>({...f,rating:f.rating===n?0:n}))}
+                                style={{ fontSize:20,background:"none",border:"none",cursor:"pointer",padding:2,
+                                  color: n <= playTestFeedback.rating ? "#ff9500" : "#d2d2d7" }}>
+                                ★
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase" }}>Result</div>
+                          <div style={{ display:"flex",gap:4 }}>
+                            <button onClick={() => setPlayTestFeedback(f=>({...f,passed:f.passed===true?null:true}))}
+                              style={{ fontSize:12,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,
+                                background:playTestFeedback.passed===true?"#34c759":"#e5e5ea",color:playTestFeedback.passed===true?"#fff":"#86868b" }}>
+                              Pass
+                            </button>
+                            <button onClick={() => setPlayTestFeedback(f=>({...f,passed:f.passed===false?null:false}))}
+                              style={{ fontSize:12,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,
+                                background:playTestFeedback.passed===false?"#ff3b30":"#e5e5ea",color:playTestFeedback.passed===false?"#fff":"#86868b" }}>
+                              Fail
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase" }}>Feedback Notes</div>
+                          <textarea style={{ ...inputStyle, minHeight:60,resize:"vertical" }} placeholder="Tester's feedback, observations, issues found…"
+                            value={playTestFeedback.feedback} onChange={e => setPlayTestFeedback(f=>({...f,feedback:e.target.value}))} />
+                        </div>
+                      </div>
+                      <div style={{ marginTop:10,display:"flex",gap:8 }}>
+                        <button className="btn-primary" onClick={() => saveFeedback(test.id)}
+                          style={{ fontSize:12,padding:"7px 18px" }}>
+                          Save Feedback
+                        </button>
+                        <button onClick={() => { setEditingPlayTest(null); setPlayTestFeedback({ rating:0, passed:null, feedback:"" }); }}
+                          style={{ fontSize:12,padding:"7px 18px",borderRadius:980,border:"none",cursor:"pointer",background:darkMode?"#3a3a3e":"#e5e5ea",color:textPrimary }}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
           );
         })()}

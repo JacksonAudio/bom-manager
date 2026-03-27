@@ -609,6 +609,106 @@ export async function fetchDemandCache(id) {
   return data
 }
 
+// ─────────────────────────────────────────────
+// PLAY TESTERS
+// ─────────────────────────────────────────────
+
+export async function fetchPlayTesters() {
+  const { data, error } = await supabase
+    .from('play_testers')
+    .select('*')
+    .order('name', { ascending: true })
+  check(error, 'fetchPlayTesters')
+  return data
+}
+
+export async function createPlayTester(fields) {
+  const { data, error } = await supabase
+    .from('play_testers')
+    .insert(fields)
+    .select()
+    .single()
+  check(error, 'createPlayTester')
+  return data
+}
+
+export async function updatePlayTester(id, fields) {
+  const { error } = await supabase
+    .from('play_testers')
+    .update(fields)
+    .eq('id', id)
+  check(error, 'updatePlayTester')
+}
+
+export async function deletePlayTester(id) {
+  const { error } = await supabase
+    .from('play_testers')
+    .delete()
+    .eq('id', id)
+  check(error, 'deletePlayTester')
+}
+
+// ─────────────────────────────────────────────
+// PLAY TESTS
+// ─────────────────────────────────────────────
+
+export async function fetchPlayTests() {
+  const { data, error } = await supabase
+    .from('play_tests')
+    .select('*')
+    .order('created_at', { ascending: false })
+  check(error, 'fetchPlayTests')
+  return data
+}
+
+export async function createPlayTest(fields, userId) {
+  const { data, error } = await supabase
+    .from('play_tests')
+    .insert({ ...fields, created_by: userId })
+    .select()
+    .single()
+  check(error, 'createPlayTest')
+  return data
+}
+
+export async function updatePlayTest(id, fields) {
+  const { error } = await supabase
+    .from('play_tests')
+    .update(fields)
+    .eq('id', id)
+  check(error, 'updatePlayTest')
+}
+
+export async function deletePlayTest(id) {
+  const { error } = await supabase
+    .from('play_tests')
+    .delete()
+    .eq('id', id)
+  check(error, 'deletePlayTest')
+}
+
+// ─────────────────────────────────────────────
+// REALTIME — Play Testing tables
+// ─────────────────────────────────────────────
+
+export function subscribeToPlayTesters(callback) {
+  return supabase
+    .channel('play-testers-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'play_testers' },
+      (payload) => callback(payload.eventType, payload.new, payload.old)
+    )
+    .subscribe()
+}
+
+export function subscribeToPlayTests(callback) {
+  return supabase
+    .channel('play-tests-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'play_tests' },
+      (payload) => callback(payload.eventType, payload.new, payload.old)
+    )
+    .subscribe()
+}
+
 // Fetch all price history (for product-level rollups)
 export async function fetchAllPriceHistory() {
   const all = [];
