@@ -11,7 +11,7 @@ const BRANDS = {
   'Jackson Audio': {
     logo: 'JACKSON AUDIO',
     tagline: 'Premium Guitar Effects',
-    website: 'jacksonaudio.com',
+    website: 'jackson.audio',
     accentColor: '#c8a84e',
     bgGradient: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)',
     cardBg: '#ffffff',
