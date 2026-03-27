@@ -65,6 +65,7 @@ export default function RegisterProduct() {
     purchased_from: '',
     notes: '',
   })
+  const [emailOptIn, setEmailOptIn] = useState(false)
 
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -86,7 +87,7 @@ export default function RegisterProduct() {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, brand }),
+        body: JSON.stringify({ ...form, brand, email_opt_in: emailOptIn }),
       })
       const data = await res.json()
 
@@ -269,6 +270,18 @@ export default function RegisterProduct() {
               placeholder="How are you using this pedal? Any feedback for us?" />
           </div>
 
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20, cursor: 'pointer', userSelect: 'none' }}
+            onClick={() => setEmailOptIn(!emailOptIn)}>
+            <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${emailOptIn ? cfg.accentColor : '#d2d2d7'}`,
+              background: emailOptIn ? cfg.accentColor : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
+              {emailOptIn && <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+            </div>
+            <span style={{ fontSize: 13, color: '#555', lineHeight: 1.5 }}>
+              Yes, I'd like to receive news, updates, and exclusive offers from {brand}. You can unsubscribe at any time.
+            </span>
+          </label>
+
           <button type="submit" disabled={submitting}
             style={{ width: '100%', padding: '14px 28px', borderRadius: 980, border: 'none',
               background: cfg.accentColor, color: '#fff', fontSize: 16, fontWeight: 700,
@@ -279,8 +292,7 @@ export default function RegisterProduct() {
           </button>
 
           <p style={{ fontSize: 11, color: '#aeaeb2', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
-            By registering, you agree to receive product updates and warranty information from {brand}.
-            We never share your information.
+            By registering, you activate your warranty. We never share your information.
           </p>
         </form>
       </div>

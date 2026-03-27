@@ -16,6 +16,7 @@ export default async function handler(req, res) {
     customer_name, customer_email, customer_phone,
     customer_address, customer_city, customer_state, customer_zip, customer_country,
     purchase_date, purchased_from, dealer_name, notes,
+    email_opt_in,
   } = req.body || {};
 
   if (!serial_number || !customer_name || !customer_email) {
@@ -55,6 +56,7 @@ export default async function handler(req, res) {
       purchased_from: (purchased_from || '').trim(),
       dealer_name: (dealer_name || '').trim(),
       notes: (notes || '').trim(),
+      email_opt_in: email_opt_in || false,
     })
     .select()
     .single();
@@ -64,10 +66,10 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Failed to save registration. Please try again." });
   }
 
-  // Auto-push to Klaviyo — route to correct account based on brand
+  // Only push to Klaviyo if customer opted in to marketing emails
   let klaviyoResult = null;
   const registrationBrand = (brand || 'Jackson Audio').trim();
-  const klaviyoKey = await getKlaviyoKey(supabase, registrationBrand);
+  const klaviyoKey = email_opt_in ? await getKlaviyoKey(supabase, registrationBrand) : null;
   if (klaviyoKey) {
     klaviyoResult = await pushToKlaviyo(klaviyoKey, {
       email: customer_email.trim().toLowerCase(),
