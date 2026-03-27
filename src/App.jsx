@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.62";
-const BUILD_TIME   = "2026-03-27T17:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.63";
+const BUILD_TIME   = "2026-03-27T17:18:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -9202,7 +9202,7 @@ function BOMManager({ user }) {
                 <button onClick={() => {
                   const brandProds = selBrand === "all" ? products : products.filter(p => (p.brand || "Jackson Audio") === selBrand);
                   const sorted = [...brandProds].sort((a, b) => (a.brand || "").localeCompare(b.brand || "") || a.name.localeCompare(b.name));
-                  setBulkRenameEdits(sorted.map(p => ({ id: p.id, brand: p.brand || "Jackson Audio", original: p.name, newName: p.name, changed: false })));
+                  setBulkRenameEdits(sorted.map(p => ({ id: p.id, brand: p.brand || "Jackson Audio", original: p.name, newName: p.name, changed: false, selected: false })));
                   setBulkRenameOpen(true);
                 }}
                   style={{ padding:"6px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
@@ -9930,13 +9930,26 @@ function BOMManager({ user }) {
               <div style={{ flex:1,overflowY:"auto",padding:"0 24px" }}>
                 <table style={{ width:"100%",borderCollapse:"collapse" }}>
                   <thead><tr style={{ position:"sticky",top:0,background:darkMode?"#1c1c1e":"#fff",zIndex:1 }}>
+                    <th style={{ padding:"10px 0 6px",textAlign:"center",width:30 }}>
+                      <input type="checkbox"
+                        checked={brFiltered.length > 0 && brFiltered.every(e => e.selected)}
+                        onChange={ev => {
+                          const ids = new Set(brFiltered.map(e => e.id));
+                          setBulkRenameEdits(prev => prev.map(e => ids.has(e.id) ? { ...e, selected: ev.target.checked } : e));
+                        }} />
+                    </th>
                     <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em",width:90 }}>Brand</th>
                     <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>Current Name</th>
                     <th style={{ padding:"10px 0 6px",textAlign:"center",width:30 }}></th>
                     <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>New Name</th>
                   </tr></thead>
                   <tbody>{brFiltered.map((e) => { const i = e._idx; return (
-                    <tr key={e.id} style={{ borderBottom:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2") }}>
+                    <tr key={e.id} style={{ borderBottom:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2"),
+                      background:e.selected?(darkMode?"#2a1a1a":"#fff0f0"):"transparent" }}>
+                      <td style={{ padding:"5px 6px",textAlign:"center" }}>
+                        <input type="checkbox" checked={!!e.selected}
+                          onChange={ev => setBulkRenameEdits(prev => prev.map((x, j) => j === i ? { ...x, selected: ev.target.checked } : x))} />
+                      </td>
                       <td style={{ padding:"5px 8px 5px 0",fontSize:10,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em" }}>{e.brand}</td>
                       <td style={{ padding:"5px 4px",fontSize:13,color:e.changed?(darkMode?"#86868b":"#aeaeb2"):(darkMode?"#f5f5f7":"#1d1d1f"),
                         textDecoration:e.changed?"line-through":"none",fontWeight:e.changed?400:500 }}>
@@ -9957,9 +9970,34 @@ function BOMManager({ user }) {
               </div>
                 ); })()}
               {/* Footer */}
-              <div style={{ padding:"14px 24px",borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center" }}>
-                <div style={{ flex:1,fontSize:12,color:bulkRenameEdits.filter(e => e.changed).length > 0?"#0071e3":"#86868b",fontWeight:600 }}>
-                  {bulkRenameEdits.filter(e => e.changed).length} changes to save
+              <div style={{ padding:"14px 24px",borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap" }}>
+                <div style={{ flex:1,fontSize:12,fontWeight:600,display:"flex",gap:12,alignItems:"center" }}>
+                  {bulkRenameEdits.filter(e => e.selected).length > 0 && (
+                    <button onClick={async () => {
+                      const toDelete = bulkRenameEdits.filter(e => e.selected);
+                      const count = toDelete.length;
+                      const totalParts = parts.filter(p => toDelete.some(d => d.id === p.projectId)).length;
+                      const msg = totalParts > 0
+                        ? `Delete ${count} product${count !== 1 ? "s" : ""} and their ${totalParts} part${totalParts !== 1 ? "s" : ""}?\n\nThis cannot be undone.`
+                        : `Delete ${count} product${count !== 1 ? "s" : ""}?\n\nThis cannot be undone.`;
+                      if (!window.confirm(msg)) return;
+                      let deleted = 0;
+                      const deletedIds = new Set();
+                      for (const d of toDelete) {
+                        try { await deleteProduct(d.id); deleted++; deletedIds.add(d.id); } catch (err) { console.error("Delete failed:", d.original, err); }
+                      }
+                      setProducts(prev => prev.filter(p => !deletedIds.has(p.id)));
+                      setParts(prev => prev.filter(p => !deletedIds.has(p.projectId)));
+                      setBulkRenameEdits(prev => prev.filter(e => !deletedIds.has(e.id)));
+                      alert(`Deleted ${deleted} product${deleted !== 1 ? "s" : ""}.`);
+                    }}
+                      style={{ padding:"5px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:"#ff3b30",color:"#fff" }}>
+                      Delete {bulkRenameEdits.filter(e => e.selected).length} Selected
+                    </button>
+                  )}
+                  <span style={{ color:bulkRenameEdits.filter(e => e.changed).length > 0?"#0071e3":"#86868b" }}>
+                    {bulkRenameEdits.filter(e => e.changed).length} rename{bulkRenameEdits.filter(e => e.changed).length !== 1 ? "s" : ""} to save
+                  </span>
                 </div>
                 <button onClick={() => setBulkRenameOpen(false)}
                   style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
