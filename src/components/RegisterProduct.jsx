@@ -47,6 +47,9 @@ export default function RegisterProduct() {
   const [brand] = useState(detectBrand)
   const cfg = BRANDS[brand] || BRANDS['Jackson Audio']
 
+  // Set page title to brand name
+  useEffect(() => { document.title = `${brand} — Product Registration` }, [brand])
+
   const [form, setForm] = useState({
     serial_number: snFromUrl,
     product_name: productFromUrl,
