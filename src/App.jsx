@@ -1577,6 +1577,28 @@ function BOMManager({ user }) {
   const [upcImportOpen, setUpcImportOpen] = useState(false);
   const [upcImportText, setUpcImportText] = useState("");
   const [upcImportResults, setUpcImportResults] = useState(null);
+  const [upcGenerateOpen, setUpcGenerateOpen] = useState(false);
+  const [upcGenerateResults, setUpcGenerateResults] = useState(null);
+
+  // GS1 Company Prefixes for UPC-A generation
+  const GS1_PREFIXES = {
+    "Jackson Audio": "605258",
+    "Fulltone USA": "676891",
+  };
+
+  // Calculate UPC-A check digit (mod 10 algorithm)
+  const calcUpcCheckDigit = (digits11) => {
+    const d = digits11.split("").map(Number);
+    const sum = d[0]*3+d[1]+d[2]*3+d[3]+d[4]*3+d[5]+d[6]*3+d[7]+d[8]*3+d[9]+d[10]*3;
+    return String((10 - (sum % 10)) % 10);
+  };
+
+  // Generate UPC for a product given brand prefix and product number
+  const generateUpc = (prefix, productNum) => {
+    const padded = String(productNum).padStart(5, "0");
+    const base = prefix + padded;
+    return base + calcUpcCheckDigit(base);
+  };
   const qtyTimers = useRef({}); // debounce timers for qty→price refresh
   const simTimer = useRef(null); // debounce timer for sim auto-run
   const recentLocalWrites = useRef(new Set()); // part IDs written locally — skip realtime for these
@@ -9015,6 +9037,46 @@ function BOMManager({ user }) {
                   style={{ padding:"6px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
                   Import UPCs
                 </button>
+                <button onClick={() => {
+                  // Build list of products missing UPCs, grouped by brand
+                  const missing = products.filter(p => !p.upc);
+                  if (missing.length === 0) { alert("All products already have UPC codes assigned!"); return; }
+                  // Find highest existing product numbers per prefix
+                  const results = [];
+                  for (const brand of Object.keys(GS1_PREFIXES)) {
+                    const prefix = GS1_PREFIXES[brand];
+                    // Find existing product numbers for this prefix
+                    const existingNums = products.filter(p => p.upc && p.upc.startsWith(prefix))
+                      .map(p => parseInt(p.upc.slice(6, 11))).filter(n => !isNaN(n));
+                    let nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 1;
+                    // Generate UPCs for products of this brand that are missing UPCs
+                    const brandProducts = missing.filter(p => (p.brand || "Jackson Audio") === brand);
+                    for (const p of brandProducts) {
+                      const upc = generateUpc(prefix, nextNum);
+                      results.push({ product: p, brand, upc, productNum: nextNum, confirmed: true });
+                      nextNum++;
+                    }
+                  }
+                  // Also handle products with unknown brands
+                  const knownBrands = Object.keys(GS1_PREFIXES);
+                  const unknownBrand = missing.filter(p => !knownBrands.includes(p.brand || "Jackson Audio"));
+                  if (unknownBrand.length > 0) {
+                    const prefix = GS1_PREFIXES["Jackson Audio"];
+                    const existingNums = [...products.filter(p => p.upc && p.upc.startsWith(prefix)).map(p => parseInt(p.upc.slice(6, 11))).filter(n => !isNaN(n)),
+                      ...results.filter(r => r.brand === "Jackson Audio").map(r => r.productNum)];
+                    let nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 1;
+                    for (const p of unknownBrand) {
+                      const upc = generateUpc(prefix, nextNum);
+                      results.push({ product: p, brand: "Jackson Audio", upc, productNum: nextNum, confirmed: true });
+                      nextNum++;
+                    }
+                  }
+                  setUpcGenerateResults(results);
+                  setUpcGenerateOpen(true);
+                }}
+                  style={{ padding:"6px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:"#0071e3",color:"#fff" }}>
+                  Generate UPCs
+                </button>
                 <input type="text" placeholder="New product name…" value={newProjName}
                   onChange={(e)=>setNewProjName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addProduct()}
                   style={{ marginLeft:"auto",padding:"6px 12px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:180,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
@@ -9313,6 +9375,89 @@ function BOMManager({ user }) {
                       background:"#34c759",color:"#fff",opacity:upcImportResults.filter(r => r.confirmed && r.match).length === 0 ? 0.4 : 1 }}>
                     Save {upcImportResults.filter(r => r.confirmed && r.match).length} UPC{upcImportResults.filter(r => r.confirmed && r.match).length !== 1 ? "s" : ""}
                   </button>
+                </div>
+              </>)}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════
+            UPC GENERATE MODAL
+        ══════════════════════════════════════ */}
+        {upcGenerateOpen && upcGenerateResults && (
+          <div style={{ position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.5)",padding:20 }}
+            onClick={() => { setUpcGenerateOpen(false); setUpcGenerateResults(null); }}>
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:16,maxWidth:750,width:"100%",maxHeight:"85vh",overflow:"auto",padding:"24px 28px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>Generate UPC Codes</div>
+              <p style={{ fontSize:13,color:"#86868b",marginBottom:6 }}>
+                Auto-assigns UPC-A codes to products missing them using your GS1 Company Prefixes.
+              </p>
+              <div style={{ display:"flex",gap:16,marginBottom:14,flexWrap:"wrap" }}>
+                {Object.entries(GS1_PREFIXES).map(([brand, prefix]) => (
+                  <div key={brand} style={{ fontSize:12,color:"#86868b",background:darkMode?"#2c2c2e":"#f5f5f7",padding:"4px 10px",borderRadius:6 }}>
+                    <strong style={{ color:darkMode?"#f5f5f7":"#1d1d1f" }}>{brand}</strong>: {prefix}-XXXXX-C
+                  </div>
+                ))}
+              </div>
+              {upcGenerateResults.length === 0 ? (
+                <div style={{ textAlign:"center",padding:20,color:"#86868b" }}>All products already have UPC codes!</div>
+              ) : (<>
+                <div style={{ fontSize:13,color:"#86868b",marginBottom:10 }}>
+                  {upcGenerateResults.filter(r => r.confirmed).length} of {upcGenerateResults.length} products selected for UPC assignment:
+                </div>
+                <div style={{ maxHeight:400,overflowY:"auto",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10 }}>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                    <thead><tr style={{ background:darkMode?"#2c2c2e":"#f9f9fb",position:"sticky",top:0 }}>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>Brand</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>Generated UPC</th>
+                      <th style={{ padding:"8px 10px",textAlign:"center",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>Prod #</th>
+                      <th style={{ padding:"8px 10px",textAlign:"center",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>✓</th>
+                    </tr></thead>
+                    <tbody>{upcGenerateResults.map((r, i) => (
+                      <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2") }}>
+                        <td style={{ padding:"6px 10px",fontWeight:500,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{r.product.name}</td>
+                        <td style={{ padding:"6px 10px",color:"#86868b",fontSize:11 }}>{r.brand}</td>
+                        <td style={{ padding:"6px 10px",fontFamily:"SF Mono,Menlo,monospace",fontSize:11,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{r.upc}</td>
+                        <td style={{ padding:"6px 10px",textAlign:"center",fontFamily:"SF Mono,Menlo,monospace",fontSize:11,color:"#86868b" }}>{String(r.productNum).padStart(5,"0")}</td>
+                        <td style={{ padding:"6px 10px",textAlign:"center" }}>
+                          <input type="checkbox" checked={r.confirmed} onChange={e => {
+                            setUpcGenerateResults(prev => prev.map((x, j) => j === i ? { ...x, confirmed: e.target.checked } : x));
+                          }} />
+                        </td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+                <div style={{ display:"flex",gap:8,marginTop:14,justifyContent:"space-between",alignItems:"center" }}>
+                  <div style={{ fontSize:11,color:"#86868b" }}>
+                    {products.filter(p => p.upc).length} products already have UPCs
+                  </div>
+                  <div style={{ display:"flex",gap:8 }}>
+                    <button onClick={() => { setUpcGenerateOpen(false); setUpcGenerateResults(null); }}
+                      style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                      Cancel
+                    </button>
+                    <button onClick={async () => {
+                      const toSave = upcGenerateResults.filter(r => r.confirmed);
+                      if (toSave.length === 0) return;
+                      let saved = 0;
+                      for (const r of toSave) {
+                        try {
+                          await supabase.from("products").update({ upc: r.upc }).eq("id", r.product.id);
+                          setProducts(prev => prev.map(p => p.id === r.product.id ? { ...p, upc: r.upc } : p));
+                          saved++;
+                        } catch (e) { console.error("UPC save failed for", r.product.name, e); }
+                      }
+                      alert(`Assigned UPC codes to ${saved} product${saved !== 1 ? "s" : ""}.`);
+                      setUpcGenerateOpen(false); setUpcGenerateResults(null);
+                    }} disabled={upcGenerateResults.filter(r => r.confirmed).length === 0}
+                      style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",
+                        background:"#34c759",color:"#fff",opacity:upcGenerateResults.filter(r => r.confirmed).length === 0 ? 0.4 : 1 }}>
+                      Save {upcGenerateResults.filter(r => r.confirmed).length} UPC{upcGenerateResults.filter(r => r.confirmed).length !== 1 ? "s" : ""}
+                    </button>
+                  </div>
                 </div>
               </>)}
             </div>
