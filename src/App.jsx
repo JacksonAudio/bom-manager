@@ -1434,6 +1434,8 @@ function BOMManager({ user }) {
   const [lastProductImport, setLastProductImport] = useState(() => {
     try { const s = localStorage.getItem("bom_last_product_import"); return s ? JSON.parse(s) : null; } catch { return null; }
   });
+  const [bulkRenameOpen, setBulkRenameOpen] = useState(false);
+  const [bulkRenameEdits, setBulkRenameEdits] = useState([]); // [{ id, original, newName, changed }]
   const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","lcsc","shopify","zoho","shipstation","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
   const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
@@ -9166,6 +9168,15 @@ function BOMManager({ user }) {
                   style={{ padding:"6px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
                   Export Dealer Sheet
                 </button>
+                <button onClick={() => {
+                  const brandProds = selBrand === "all" ? products : products.filter(p => (p.brand || "Jackson Audio") === selBrand);
+                  const sorted = [...brandProds].sort((a, b) => (a.brand || "").localeCompare(b.brand || "") || a.name.localeCompare(b.name));
+                  setBulkRenameEdits(sorted.map(p => ({ id: p.id, brand: p.brand || "Jackson Audio", original: p.name, newName: p.name, changed: false })));
+                  setBulkRenameOpen(true);
+                }}
+                  style={{ padding:"6px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                  Bulk Rename
+                </button>
                 <input type="text" placeholder="New product name…" value={newProjName}
                   onChange={(e)=>setNewProjName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addProduct()}
                   style={{ marginLeft:"auto",padding:"6px 12px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:180,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
@@ -9732,6 +9743,131 @@ function BOMManager({ user }) {
                   </div>
                 </div>
               </>)}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════
+            BULK RENAME MODAL
+        ══════════════════════════════════════ */}
+        {bulkRenameOpen && (
+          <div style={{ position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.5)",padding:20 }}
+            onClick={() => setBulkRenameOpen(false)}>
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:16,maxWidth:860,width:"100%",maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
+              onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div style={{ padding:"20px 24px 12px",borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:8 }}>Bulk Rename Products</div>
+                <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
+                  {/* Find & Replace */}
+                  <input id="br-find" type="text" placeholder="Find…"
+                    style={{ padding:"6px 10px",borderRadius:8,fontSize:12,border:"1px solid #d2d2d7",width:140,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                  <input id="br-replace" type="text" placeholder="Replace with…"
+                    style={{ padding:"6px 10px",borderRadius:8,fontSize:12,border:"1px solid #d2d2d7",width:140,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                  <button onClick={() => {
+                    const find = document.getElementById("br-find").value;
+                    const replace = document.getElementById("br-replace").value;
+                    if (!find) return;
+                    setBulkRenameEdits(prev => prev.map(e => {
+                      const newName = e.newName.replaceAll(find, replace);
+                      return { ...e, newName, changed: newName !== e.original };
+                    }));
+                  }} style={{ padding:"6px 12px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #0071e3",background:"transparent",color:"#0071e3" }}>
+                    Replace All
+                  </button>
+                  <div style={{ width:1,height:20,background:darkMode?"#3a3a3e":"#d2d2d7" }} />
+                  {/* Quick actions */}
+                  <button onClick={() => {
+                    setBulkRenameEdits(prev => prev.map(e => {
+                      const newName = e.newName.replace(/\b\w/g, c => c.toUpperCase());
+                      return { ...e, newName, changed: newName !== e.original };
+                    }));
+                  }} style={{ padding:"6px 12px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                    Title Case
+                  </button>
+                  <button onClick={() => {
+                    setBulkRenameEdits(prev => prev.map(e => {
+                      const newName = e.newName.trim().replace(/\s{2,}/g, " ");
+                      return { ...e, newName, changed: newName !== e.original };
+                    }));
+                  }} style={{ padding:"6px 12px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                    Trim Spaces
+                  </button>
+                  <button onClick={() => {
+                    setBulkRenameEdits(prev => prev.map(e => {
+                      const newName = e.newName.replace(/\s*[-–—]\s*/g, " — ");
+                      return { ...e, newName, changed: newName !== e.original };
+                    }));
+                  }} style={{ padding:"6px 12px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                    Fix Dashes
+                  </button>
+                  <button onClick={() => {
+                    setBulkRenameEdits(prev => prev.map(e => ({ ...e, newName: e.original, changed: false })));
+                  }} style={{ padding:"6px 12px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:"#ff3b30" }}>
+                    Reset All
+                  </button>
+                </div>
+                <div style={{ marginTop:8,fontSize:12,color:"#86868b" }}>
+                  {bulkRenameEdits.filter(e => e.changed).length} of {bulkRenameEdits.length} products modified
+                </div>
+              </div>
+              {/* Product list */}
+              <div style={{ flex:1,overflowY:"auto",padding:"0 24px" }}>
+                <table style={{ width:"100%",borderCollapse:"collapse" }}>
+                  <thead><tr style={{ position:"sticky",top:0,background:darkMode?"#1c1c1e":"#fff",zIndex:1 }}>
+                    <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em",width:90 }}>Brand</th>
+                    <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>Current Name</th>
+                    <th style={{ padding:"10px 0 6px",textAlign:"center",width:30 }}></th>
+                    <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>New Name</th>
+                  </tr></thead>
+                  <tbody>{bulkRenameEdits.map((e, i) => (
+                    <tr key={e.id} style={{ borderBottom:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2") }}>
+                      <td style={{ padding:"5px 8px 5px 0",fontSize:10,color:"#86868b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em" }}>{e.brand}</td>
+                      <td style={{ padding:"5px 4px",fontSize:13,color:e.changed?(darkMode?"#86868b":"#aeaeb2"):(darkMode?"#f5f5f7":"#1d1d1f"),
+                        textDecoration:e.changed?"line-through":"none",fontWeight:e.changed?400:500 }}>
+                        {e.original}
+                      </td>
+                      <td style={{ padding:"5px 4px",textAlign:"center",fontSize:12,color:e.changed?"#0071e3":"#d2d2d7" }}>→</td>
+                      <td style={{ padding:"5px 0" }}>
+                        <input type="text" value={e.newName}
+                          onChange={ev => setBulkRenameEdits(prev => prev.map((x, j) => j === i ? { ...x, newName: ev.target.value, changed: ev.target.value !== x.original } : x))}
+                          style={{ width:"100%",padding:"5px 8px",borderRadius:6,fontSize:13,fontWeight:500,
+                            border:e.changed?"2px solid #0071e3":"1px solid "+(darkMode?"#3a3a3e":"#d2d2d7"),
+                            background:e.changed?(darkMode?"#1a2040":"#eef4ff"):(darkMode?"#2c2c2e":"#fff"),
+                            color:darkMode?"#f5f5f7":"#1d1d1f",boxSizing:"border-box" }} />
+                      </td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              {/* Footer */}
+              <div style={{ padding:"14px 24px",borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center" }}>
+                <div style={{ flex:1,fontSize:12,color:bulkRenameEdits.filter(e => e.changed).length > 0?"#0071e3":"#86868b",fontWeight:600 }}>
+                  {bulkRenameEdits.filter(e => e.changed).length} changes to save
+                </div>
+                <button onClick={() => setBulkRenameOpen(false)}
+                  style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                  Cancel
+                </button>
+                <button onClick={async () => {
+                  const changes = bulkRenameEdits.filter(e => e.changed && e.newName.trim());
+                  if (changes.length === 0) return;
+                  let saved = 0;
+                  for (const c of changes) {
+                    try {
+                      await supabase.from("products").update({ name: c.newName.trim() }).eq("id", c.id);
+                      setProducts(prev => prev.map(p => p.id === c.id ? { ...p, name: c.newName.trim() } : p));
+                      saved++;
+                    } catch (e) { console.error("Rename failed:", c.original, e); }
+                  }
+                  alert(`Renamed ${saved} product${saved !== 1 ? "s" : ""}.`);
+                  setBulkRenameOpen(false);
+                }} disabled={bulkRenameEdits.filter(e => e.changed && e.newName.trim()).length === 0}
+                  style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",
+                    background:"#0071e3",color:"#fff",opacity:bulkRenameEdits.filter(e => e.changed && e.newName.trim()).length === 0 ? 0.4 : 1 }}>
+                  Save {bulkRenameEdits.filter(e => e.changed && e.newName.trim()).length} Rename{bulkRenameEdits.filter(e => e.changed && e.newName.trim()).length !== 1 ? "s" : ""}
+                </button>
+              </div>
             </div>
           </div>
         )}
