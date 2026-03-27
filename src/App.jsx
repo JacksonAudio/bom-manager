@@ -11227,31 +11227,37 @@ function BOMManager({ user }) {
                 for_order: newBuildOrder.for_order.trim() || null,
                 completed_count: 0,
               }, user.id);
+              // Immediately update local state (don't rely solely on realtime)
+              setBuildOrders(prev => prev.find(b => b.id === bo.id) ? prev : [bo, ...prev]);
+
               if (newBuildOrder.team_member_id) {
-                await createBuildAssignment({
+                const ba = await createBuildAssignment({
                   build_order_id: bo.id,
                   team_member_id: newBuildOrder.team_member_id,
                   status: "assigned",
                 });
-                // SMS notify the assigned builder
+                setBuildAssignments(prev => prev.find(a => a.id === ba.id) ? prev : [ba, ...prev]);
+                // Notify the assigned builder (email + SMS)
                 const member = teamMembers.find(m => m.id === newBuildOrder.team_member_id);
                 const prod = products.find(p => p.id === newBuildOrder.product_id);
-                console.log("[SMS] member:", member?.name, "phone:", member?.phone, "twilio_sid:", apiKeys.twilio_account_sid ? "SET" : "EMPTY");
-                if (member?.phone && apiKeys.twilio_account_sid) {
-                  const dueStr = newBuildOrder.due_date ? ` Due: ${new Date(newBuildOrder.due_date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}` : "";
-                  console.log("[SMS] Sending to", member.phone, "from", apiKeys.twilio_phone_number);
-                  fetch("/api/notifications?type=sms", {
+                if (member?.email || (member?.phone && apiKeys.twilio_account_sid)) {
+                  fetch("/api/notifications?type=build-assigned", {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                      to: member.phone,
-                      message: `New build assigned: ${bo.quantity}x ${prod?.name || "product"}. Priority: ${newBuildOrder.priority}.${dueStr}\n— Jackson Audio BOM Manager`,
-                      accountSid: apiKeys.twilio_account_sid,
-                      authToken: apiKeys.twilio_auth_token,
-                      fromNumber: apiKeys.twilio_phone_number,
+                      productName: prod?.name || "Product",
+                      quantity: bo.quantity,
+                      priority: newBuildOrder.priority,
+                      dueDate: newBuildOrder.due_date || null,
+                      forOrder: newBuildOrder.for_order || null,
+                      assignerName: user?.email || "",
+                      notifyEmail: member?.email || null,
+                      notifyName: member?.name || "",
+                      notifyPhone: member?.phone || null,
+                      accountSid: apiKeys.twilio_account_sid || null,
+                      authToken: apiKeys.twilio_auth_token || null,
+                      fromNumber: apiKeys.twilio_phone_number || null,
                     }),
-                  }).then(r => r.json()).then(d => console.log("[SMS] Response:", d)).catch(e => console.error("[SMS] Failed:", e));
-                } else {
-                  console.warn("[SMS] Skipped — phone:", member?.phone, "twilio_sid:", apiKeys.twilio_account_sid);
+                  }).then(r => r.json()).then(d => console.log("[Notify] Build assigned:", d)).catch(e => console.error("[Notify] Failed:", e));
                 }
               }
               setNewBuildOrder({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"", for_order:"" });

@@ -19,6 +19,8 @@ export default async function handler(req, res) {
       return await handleSms(req, res);
     case "playtest-failed":
       return await handlePlaytestFailed(req, res);
+    case "build-assigned":
+      return await handleBuildAssigned(req, res);
     default:
       return res.status(400).json({ error: `Unknown type: ${type}` });
   }
@@ -201,4 +203,82 @@ async function handlePlaytestFailed(req, res) {
   }
 
   return res.status(200).json({ message: "Playtest failure notification processed", results });
+}
+
+// ── Build Assigned — Email + SMS the assigned team member ──────────────────────
+async function handleBuildAssigned(req, res) {
+  const {
+    productName, quantity, priority, dueDate, forOrder, assignerName,
+    notifyEmail, notifyName,
+    notifyPhone, accountSid, authToken, fromNumber,
+  } = req.body || {};
+
+  const dueStr = dueDate ? new Date(dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "No due date";
+  const priorityLabel = (priority || "normal").charAt(0).toUpperCase() + (priority || "normal").slice(1);
+
+  const emailBody = [
+    `New Build Order Assigned`,
+    ``,
+    `Product: ${productName || "Unknown"}`,
+    `Quantity: ${quantity || 0} units`,
+    `Priority: ${priorityLabel}`,
+    `Due: ${dueStr}`,
+    forOrder ? `For Order/PO: ${forOrder}` : "",
+    assignerName ? `Assigned by: ${assignerName}` : "",
+    ``,
+    `Log in to the BOM Manager to view details and start building.`,
+    ``,
+    `— Jackson Audio BOM Manager`,
+  ].filter(Boolean).join("\n");
+
+  const smsBody = `New build assigned: ${quantity}x ${productName || "product"}. Priority: ${priorityLabel}. Due: ${dueStr}.${forOrder ? ` PO: ${forOrder}` : ""}\n— Jackson Audio BOM Manager`;
+
+  const results = { email: null, sms: null };
+
+  // Send email via Resend
+  if (notifyEmail) {
+    const resendKey = process.env.RESEND_API_KEY;
+    if (resendKey) {
+      try {
+        const emailRes = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: "BOM Manager <alerts@jackson.audio>",
+            to: [notifyEmail],
+            subject: `Build Assigned — ${quantity}x ${productName || "Product"} (${priorityLabel})`,
+            text: emailBody,
+          }),
+        });
+        results.email = emailRes.ok ? "sent" : "failed";
+      } catch (e) {
+        console.error("build-assigned email error:", e);
+        results.email = "error";
+      }
+    } else {
+      console.log("No RESEND_API_KEY — would email:", notifyEmail, emailBody);
+      results.email = "no_key";
+    }
+  }
+
+  // Send SMS via Twilio
+  if (notifyPhone && accountSid && authToken && fromNumber) {
+    const cleanTo = notifyPhone.replace(/[^+\d]/g, "");
+    const fullTo = cleanTo.startsWith("+") ? cleanTo : "+1" + cleanTo;
+    try {
+      const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+      const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+      const twilioRes = await fetch(twilioUrl, {
+        method: "POST",
+        headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ To: fullTo, From: fromNumber, Body: smsBody }),
+      });
+      results.sms = twilioRes.ok ? "sent" : "failed";
+    } catch (e) {
+      console.error("build-assigned sms error:", e);
+      results.sms = "error";
+    }
+  }
+
+  return res.status(200).json({ message: "Build assigned notification processed", results });
 }
