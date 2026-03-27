@@ -6,9 +6,19 @@
 // Formatted for Zebra thermal transfer / metallic label printers
 // ============================================================
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import QRCode from 'qrcode'
+import JsBarcode from 'jsbarcode'
 import { renderStickerHTML } from './StickerEditor.jsx'
+
+function generateBarcodeSVG(text, opts = {}) {
+  const svgNs = 'http://www.w3.org/2000/svg'
+  const svg = document.createElementNS(svgNs, 'svg')
+  try {
+    JsBarcode(svg, text, { format: 'CODE128', width: opts.width || 1.5, height: opts.height || 30, displayValue: false, margin: 0 })
+    return new XMLSerializer().serializeToString(svg)
+  } catch { return '' }
+}
 
 const STICKER_SIZES = {
   '2x1':   { name: '2" × 1" (standard pedal)', width: 2, height: 1, qr: 70, fontSN: 11, fontProd: 9, fontBrand: 8 },
@@ -43,7 +53,9 @@ const BRAND_CONFIG = {
 
 export default function StickerPrintModal({ units, products, playTesters, teamMembers, stickerTemplate, onClose }) {
   const [qrImages, setQrImages] = useState({})
+  const [barcodes, setBarcodes] = useState({})
   const [stickerSize, setStickerSize] = useState(stickerTemplate?.stickerSize || '2x1')
+  const [showBarcode, setShowBarcode] = useState(true)
   const [selectedUnits, setSelectedUnits] = useState(new Set(units.map(u => u.id)))
   const sz = STICKER_SIZES[stickerSize]
   const hasCustomTemplate = !!(stickerTemplate?.elements)
@@ -52,6 +64,7 @@ export default function StickerPrintModal({ units, products, playTesters, teamMe
     let cancelled = false
     async function gen() {
       const imgs = {}
+      const bars = {}
       for (const unit of units) {
         const prod = products.find(p => p.id === unit.product_id)
         const brand = prod?.brand || 'Jackson Audio'
@@ -66,8 +79,10 @@ export default function StickerPrintModal({ units, products, playTesters, teamMe
         } catch (e) {
           console.error('QR generation failed for', unit.serial_number, e)
         }
+        // Generate barcode SVG
+        bars[unit.id] = generateBarcodeSVG(unit.serial_number, { height: Math.round(sz.qr * 0.35), width: 1.2 })
       }
-      if (!cancelled) setQrImages(imgs)
+      if (!cancelled) { setQrImages(imgs); setBarcodes(bars); }
     }
     gen()
     return () => { cancelled = true }
@@ -97,6 +112,7 @@ export default function StickerPrintModal({ units, products, playTesters, teamMe
       const brand = prod?.brand || 'Jackson Audio'
       const cfg = BRAND_CONFIG[brand] || BRAND_CONFIG['Jackson Audio']
       const qr = qrImages[unit.id] || ''
+      const barcodeSvg = showBarcode ? (barcodes[unit.id] || '') : ''
 
       // Use custom template from sticker editor if available
       if (hasCustomTemplate) {
@@ -105,6 +121,7 @@ export default function StickerPrintModal({ units, products, playTesters, teamMe
           product: prod?.name || 'Product',
           brand: cfg.logo,
           tagline: cfg.tagline,
+          barcode: barcodeSvg,
         })
       }
 
@@ -114,6 +131,7 @@ export default function StickerPrintModal({ units, products, playTesters, teamMe
           <div style="font-size:${sz.fontBrand}px;font-weight:900;letter-spacing:0.12em;text-transform:uppercase;color:${cfg.accentColor};margin-bottom:1px">${cfg.logo}</div>
           <div style="font-size:${sz.fontProd}px;font-weight:700;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${prod?.name || 'Product'}</div>
           <div style="font-size:${sz.fontSN}px;font-weight:800;font-family:'SF Mono',Menlo,monospace;color:#1a1a1a;letter-spacing:0.04em;margin-top:1px">S/N ${unit.serial_number}</div>
+          ${barcodeSvg ? `<div style="margin-top:2px;max-width:${Math.round(sz.width * 40)}px;overflow:hidden">${barcodeSvg}</div>` : ''}
           <div style="font-size:${Math.max(sz.fontBrand - 2, 5)}px;color:#888;margin-top:1px">Scan QR to register · ${cfg.tagline}</div>
         </div>
       </div>`
@@ -161,6 +179,11 @@ export default function StickerPrintModal({ units, products, playTesters, teamMe
                 <option key={key} value={key}>{val.name}</option>
               ))}
             </select>
+            <button onClick={() => setShowBarcode(!showBarcode)}
+              style={{ padding:'6px 14px',borderRadius:980,fontSize:11,fontWeight:600,cursor:'pointer',
+                border:'none',background:showBarcode?'#34c759':'#f0f0f2',color:showBarcode?'#fff':'#1d1d1f' }}>
+              {showBarcode ? 'Barcode ON' : 'Barcode OFF'}
+            </button>
             <button onClick={toggleAll}
               style={{ padding:'6px 14px',borderRadius:980,fontSize:11,fontWeight:600,cursor:'pointer',
                 border:'none',background:'#f0f0f2',color:'#1d1d1f' }}>

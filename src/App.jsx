@@ -2100,12 +2100,11 @@ function BOMManager({ user }) {
   }, []); // eslint-disable-line
 
   // ── Pipeline Automation Helpers ──────────────────────────────────────────────
-  // Generate serial numbers for a product (format: PRODUCT-YYYYMMDD-NNN)
-  const generateSerialNumber = (productName, index) => {
-    const d = new Date();
-    const date = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
-    const prefix = (productName || "PED").replace(/[^A-Z0-9]/gi,"").slice(0,6).toUpperCase();
-    return `${prefix}-${date}-${String(index).padStart(3,"0")}`;
+  // Generate serial numbers for a product (format: PREFIX-0001)
+  const generateSerialNumber = (product, index) => {
+    const prefix = (product?.serial_prefix || product?.name || "PED").replace(/[^A-Z0-9]/gi,"").slice(0,10).toUpperCase();
+    const startNum = parseInt(product?.serial_start) || 1;
+    return `${prefix}-${String(startNum + index - 1).padStart(4,"0")}`;
   };
 
   // Auto-generate pedal units when a build order completes
@@ -2120,7 +2119,7 @@ function BOMManager({ user }) {
     const rows = [];
     for (let i = 0; i < toCreate; i++) {
       rows.push({
-        serial_number: generateSerialNumber(prod?.name, existingSNs + existingCount + i + 1),
+        serial_number: generateSerialNumber(prod, existingSNs + existingCount + i + 1),
         product_id: buildOrder.product_id,
         build_order_id: buildOrder.id,
         status: "awaiting_playtest",
@@ -9184,6 +9183,31 @@ function BOMManager({ user }) {
                     {prod.buildMinutes ? (prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h ${prod.buildMinutes%60}m`) : "min"}
                   </span>
                 </div>
+                <div style={{ display:"flex",alignItems:"center",gap:4 }}>
+                  <span style={{ fontSize:10,color:"#86868b" }}>S/N Prefix:</span>
+                  <input type="text" placeholder={prod.name.replace(/[^A-Z0-9]/gi,"").slice(0,10).toUpperCase()}
+                    value={prod.serial_prefix || ""}
+                    onChange={async (e) => {
+                      const val = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g,"").slice(0,10) || "";
+                      setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, serial_prefix: val || null } : p));
+                      try { await supabase.from("products").update({ serial_prefix: val || null }).eq("id", prod.id); } catch (err) { console.error("Serial prefix save failed:", err); }
+                    }}
+                    style={{ width:80,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #d2d2d7",fontFamily:"monospace",outline:"none",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",letterSpacing:"0.05em" }} />
+                </div>
+                <div style={{ display:"flex",alignItems:"center",gap:4 }}>
+                  <span style={{ fontSize:10,color:"#86868b" }}>Start #:</span>
+                  <input type="number" min="1" placeholder="1"
+                    value={prod.serial_start || ""}
+                    onChange={async (e) => {
+                      const val = e.target.value ? parseInt(e.target.value) : 1;
+                      setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, serial_start: val } : p));
+                      try { await supabase.from("products").update({ serial_start: val }).eq("id", prod.id); } catch (err) { console.error("Serial start save failed:", err); }
+                    }}
+                    style={{ width:60,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #d2d2d7",fontFamily:"monospace",outline:"none",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                  <span style={{ fontSize:10,color:"#86868b",fontFamily:"monospace" }}>
+                    → {(prod.serial_prefix || prod.name.replace(/[^A-Z0-9]/gi,"").slice(0,10).toUpperCase())}-{String(parseInt(prod.serial_start) || 1).padStart(4,"0")}
+                  </span>
+                </div>
                 {shopifyProducts.length > 0 && (
                   <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                     <span style={{ fontSize:10,color:"#86868b" }}>Shopify:</span>
@@ -11964,6 +11988,51 @@ function BOMManager({ user }) {
                 </div>
               )}
             </div>
+
+            {/* ── Load Demo Data ── */}
+            {products.length === 0 && buildOrders.length === 0 && (
+              <div style={{ background:darkMode?"#2c2c2e":"#fff8e1",borderRadius:14,padding:"20px 22px",marginBottom:20,border:"2px dashed #ff9500",textAlign:"center" }}>
+                <div style={{ fontSize:15,fontWeight:700,color:"#ff9500",marginBottom:6 }}>No production data yet</div>
+                <p style={{ fontSize:13,color:"#86868b",marginBottom:14 }}>Load demo products and build orders to explore the production workflow.</p>
+                <button onClick={async () => {
+                  try {
+                    const demoProducts = [
+                      { name:"Bloom V2", color:"#c8a84e", brand:"Jackson Audio", serial_prefix:"BLOOM", serial_start:1 },
+                      { name:"Broken Arrow V3", color:"#ff3b30", brand:"Jackson Audio", serial_prefix:"BA", serial_start:1 },
+                      { name:"El Guapo", color:"#5856d6", brand:"Jackson Audio", serial_prefix:"ELGUAPO", serial_start:1 },
+                      { name:"Modular Fuzz", color:"#ff9500", brand:"Jackson Audio", serial_prefix:"MODFUZZ", serial_start:1 },
+                      { name:"Golden Boy", color:"#34c759", brand:"Jackson Audio", serial_prefix:"GB", serial_start:1 },
+                      { name:"Asabi", color:"#0071e3", brand:"Jackson Audio", serial_prefix:"ASABI", serial_start:1 },
+                      { name:"Belle Aire", color:"#ff2d55", brand:"Jackson Audio", serial_prefix:"BELLE", serial_start:1 },
+                      { name:"OCD", color:"#b22222", brand:"Fulltone USA", serial_prefix:"OCD", serial_start:1 },
+                      { name:"Full-Drive 3", color:"#e44d26", brand:"Fulltone USA", serial_prefix:"FD3", serial_start:1 },
+                      { name:"Clyde Wah", color:"#8b4513", brand:"Fulltone USA", serial_prefix:"CLYDE", serial_start:1 },
+                    ];
+                    for (const dp of demoProducts) {
+                      await createProduct({ name: dp.name, color: dp.color, userId: user.id, brand: dp.brand });
+                    }
+                    // Update serial prefixes after realtime creates them
+                    setTimeout(async () => {
+                      const { data: prods } = await supabase.from("products").select("*").order("created_at", { ascending: false });
+                      if (prods) {
+                        for (const p of prods) {
+                          const demo = demoProducts.find(d => d.name === p.name);
+                          if (demo) await supabase.from("products").update({ serial_prefix: demo.serial_prefix, serial_start: demo.serial_start }).eq("id", p.id);
+                        }
+                        setProducts(prods.map(p => {
+                          const demo = demoProducts.find(d => d.name === p.name);
+                          return demo ? { ...p, serial_prefix: demo.serial_prefix, serial_start: demo.serial_start } : p;
+                        }));
+                      }
+                    }, 1500);
+                    alert("Demo products loaded! They'll appear in a moment.");
+                  } catch (e) { alert("Failed to load demo data: " + e.message); }
+                }}
+                  style={{ padding:"10px 24px",borderRadius:980,fontSize:14,fontWeight:600,cursor:"pointer",border:"none",background:"#ff9500",color:"#fff" }}>
+                  Load Demo Products
+                </button>
+              </div>
+            )}
 
             {/* ── Create Build Order ── */}
             <div id="create-build-order-section" style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
