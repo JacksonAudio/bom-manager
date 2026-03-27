@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.63";
-const BUILD_TIME   = "2026-03-27T17:18:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.64";
+const BUILD_TIME   = "2026-03-27T17:01:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -10104,6 +10104,33 @@ function BOMManager({ user }) {
                     onMouseOut={e=>{e.currentTarget.style.borderColor="#d2d2d7";e.currentTarget.style.color="#86868b"}}>
                     Delete
                   </button>
+                  <div style={{ width:1,height:20,background:darkMode?"#3a3a3e":"#d2d2d7",margin:"0 4px" }} />
+                  <button title="Preview sticker label"
+                    onClick={() => {
+                      const prefix = prod.serial_prefix || prod.name.replace(/[^A-Z0-9]/gi,"").slice(0,10).toUpperCase();
+                      const startNum = parseInt(prod.serial_start) || 1;
+                      const sn = `${prefix}-${String(startNum).padStart(4,"0")}`;
+                      setStickerModalUnits([{ serial_number: sn, product_id: prod.id, id: "preview" }]);
+                    }}
+                    style={{ background:"none",border:"1px solid #d2d2d7",borderRadius:6,cursor:"pointer",padding:"4px 10px",
+                      fontSize:12,color:"#86868b",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
+                    onMouseOver={e=>e.currentTarget.style.borderColor="#5856d6"}
+                    onMouseOut={e=>e.currentTarget.style.borderColor="#d2d2d7"}>
+                    Preview Sticker
+                  </button>
+                  <button title="Preview box label"
+                    onClick={() => {
+                      const prefix = prod.serial_prefix || prod.name.replace(/[^A-Z0-9]/gi,"").slice(0,10).toUpperCase();
+                      const startNum = parseInt(prod.serial_start) || 1;
+                      const sn = `${prefix}-${String(startNum).padStart(4,"0")}`;
+                      printBoxLabel({ serial_number: sn, product_id: prod.id, id: "preview" });
+                    }}
+                    style={{ background:"none",border:"1px solid #d2d2d7",borderRadius:6,cursor:"pointer",padding:"4px 10px",
+                      fontSize:12,color:"#86868b",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
+                    onMouseOver={e=>e.currentTarget.style.borderColor="#5856d6"}
+                    onMouseOut={e=>e.currentTarget.style.borderColor="#d2d2d7"}>
+                    Preview Box Label
+                  </button>
                 </div>
                 <div style={{ display:"flex",gap:20,fontSize:13,color:"#86868b",flexWrap:"wrap",alignItems:"center" }}>
                   <span><strong style={{ color:darkMode?"#f5f5f7":"#1d1d1f" }}>{"$"}{fmtDollar(prod.total)}</strong> BOM cost/unit</span>
@@ -14117,17 +14144,7 @@ function BOMManager({ user }) {
               </div>
             </div>
 
-            {/* ── Sticker Print Modal ── */}
-            {stickerModalUnits && (
-              <StickerPrintModal
-                units={stickerModalUnits}
-                products={products}
-                playTesters={playTesters}
-                teamMembers={teamMembers}
-                stickerTemplate={stickerTemplate}
-                onClose={() => setStickerModalUnits(null)}
-              />
-            )}
+            {/* Sticker Print Modal moved to top level so it renders from any view */}
 
             {/* ── Sticker Editor ── */}
             {stickerEditorOpen && (
@@ -16372,6 +16389,17 @@ function BOMManager({ user }) {
             </div>
           </div>
         </div>
+      )}
+
+      {stickerModalUnits && (
+        <StickerPrintModal
+          units={stickerModalUnits}
+          products={products}
+          playTesters={playTesters}
+          teamMembers={teamMembers}
+          stickerTemplate={stickerTemplate}
+          onClose={() => setStickerModalUnits(null)}
+        />
       )}
 
       <footer style={{ position:"fixed",bottom:0,left:0,right:0,zIndex:999,borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"7px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
