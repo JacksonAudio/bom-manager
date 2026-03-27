@@ -37,20 +37,6 @@ export default async function handler(req, res) {
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Check for duplicate registration (same serial number)
-  const { data: existing } = await supabase
-    .from('product_registrations')
-    .select('id, customer_email')
-    .eq('serial_number', serial_number)
-    .limit(1);
-
-  if (existing && existing.length > 0) {
-    return res.status(409).json({
-      error: "This serial number has already been registered.",
-      already_registered: true,
-    });
-  }
-
   const { data, error } = await supabase
     .from('product_registrations')
     .insert({
