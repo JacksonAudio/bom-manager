@@ -14,6 +14,8 @@ const BUILD_TIME   = "2026-03-27T11:30:00";   // local time of last push (Centra
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import QRCode from "qrcode";
+import JsBarcode from "jsbarcode";
 import AuthScreen from "./components/AuthScreen.jsx";
 import QRLabelModal from "./components/QRLabelModal.jsx";
 import StickerPrintModal from "./components/StickerPrintModal.jsx";
@@ -2105,6 +2107,80 @@ function BOMManager({ user }) {
     const prefix = (product?.serial_prefix || product?.name || "PED").replace(/[^A-Z0-9]/gi,"").slice(0,10).toUpperCase();
     const startNum = parseInt(product?.serial_start) || 1;
     return `${prefix}-${String(startNum + index - 1).padStart(4,"0")}`;
+  };
+
+  // Print box label (QR + barcode + serial number for package exterior)
+  const printBoxLabel = async (unitOrUnits) => {
+    const units = Array.isArray(unitOrUnits) ? unitOrUnits : [unitOrUnits];
+    const labelData = [];
+    for (const unit of units) {
+      const prod = products.find(p => p.id === unit.product_id);
+      const brand = prod?.brand || "Jackson Audio";
+      const brandCfg = { "Jackson Audio": { logo: "JACKSON AUDIO", color: "#c8a84e", website: "jackson.audio" }, "Fulltone USA": { logo: "FULLTONE USA", color: "#b22222", website: "www.fulltoneusa.com" } };
+      const cfg = brandCfg[brand] || brandCfg["Jackson Audio"];
+      const regUrl = `${window.location.origin}${window.location.pathname}#register?sn=${encodeURIComponent(unit.serial_number)}&product=${encodeURIComponent(prod?.name || "")}&brand=${encodeURIComponent(brand)}`;
+      let qrDataUrl = "";
+      try { qrDataUrl = await QRCode.toDataURL(regUrl, { width: 360, margin: 1, errorCorrectionLevel: "M" }); } catch {}
+      // Generate barcode SVG
+      let barcodeSvg = "";
+      try {
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        JsBarcode(svg, unit.serial_number, { format: "CODE128", width: 2, height: 50, displayValue: false, margin: 0 });
+        barcodeSvg = new XMLSerializer().serializeToString(svg);
+      } catch {}
+      // Generate UPC barcode if product has one
+      let upcBarcodeSvg = "";
+      if (prod?.upc) {
+        try {
+          const svg2 = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          JsBarcode(svg2, prod.upc, { format: prod.upc.length === 13 ? "EAN13" : "UPC", width: 2, height: 50, displayValue: true, margin: 0, fontSize: 12 });
+          upcBarcodeSvg = new XMLSerializer().serializeToString(svg2);
+        } catch {}
+      }
+      labelData.push({ unit, prod, cfg, brand, qrDataUrl, barcodeSvg, upcBarcodeSvg });
+    }
+    const w = window.open("", "_blank", "width=700,height=900");
+    const labelsHtml = labelData.map(({ unit, prod, cfg, brand, qrDataUrl, barcodeSvg, upcBarcodeSvg }) => `
+      <div class="box-label" style="width:4in;height:3in;border:1px solid #ccc;page-break-inside:avoid;box-sizing:border-box;padding:16px 20px;display:flex;flex-direction:column;justify-content:space-between;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-size:12px;font-weight:900;letter-spacing:0.15em;text-transform:uppercase;color:${cfg.color}">${cfg.logo}</div>
+            <div style="font-size:20px;font-weight:800;color:#1a1a1a;margin-top:4px">${prod?.name || "Product"}</div>
+          </div>
+          ${qrDataUrl ? `<img src="${qrDataUrl}" style="width:80px;height:80px;image-rendering:pixelated" />` : ""}
+        </div>
+        <div style="text-align:center;margin:8px 0">
+          <div style="font-size:22px;font-weight:800;font-family:'SF Mono',Menlo,monospace;color:#1a1a1a;letter-spacing:0.06em">S/N ${unit.serial_number}</div>
+          ${barcodeSvg ? `<div style="margin-top:6px;display:flex;justify-content:center">${barcodeSvg}</div>` : ""}
+        </div>
+        ${upcBarcodeSvg ? `
+          <div style="text-align:center;margin-top:4px">
+            <div style="font-size:8px;color:#86868b;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px">UPC</div>
+            <div style="display:flex;justify-content:center">${upcBarcodeSvg}</div>
+          </div>
+        ` : ""}
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;font-size:9px;color:#86868b;margin-top:auto;padding-top:6px;border-top:1px solid #e5e5ea">
+          <span>${cfg.website}</span>
+          <span>Scan QR to register</span>
+        </div>
+      </div>
+    `).join("");
+    w.document.write(`<!DOCTYPE html><html><head><title>Box Labels</title>
+      <style>
+        @page { margin: 0.25in; size: letter; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; }
+        .sheet { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding: 10px; }
+        @media print { .box-label { border: none !important; } .no-print { display: none !important; } }
+      </style></head><body>
+      <div class="no-print" style="text-align:center;padding:12px;background:#f5f5f7;border-bottom:1px solid #e5e5ea">
+        <button onclick="window.print()" style="padding:10px 24px;border-radius:980px;border:none;background:#0071e3;color:#fff;font-weight:600;cursor:pointer;font-size:14px">Print Box Labels</button>
+        <span style="margin-left:12px;font-size:13px;color:#86868b">${labelData.length} label${labelData.length !== 1 ? "s" : ""} — 4" × 3"</span>
+      </div>
+      <div class="sheet">${labelsHtml}</div>
+      <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); }<\/script>
+    </body></html>`);
+    w.document.close();
   };
 
   // Auto-generate pedal units when a build order completes
@@ -9208,6 +9284,20 @@ function BOMManager({ user }) {
                     → {(prod.serial_prefix || prod.name.replace(/[^A-Z0-9]/gi,"").slice(0,10).toUpperCase())}-{String(parseInt(prod.serial_start) || 1).padStart(4,"0")}
                   </span>
                 </div>
+                <div style={{ display:"flex",alignItems:"center",gap:4 }}>
+                  <span style={{ fontSize:10,color:"#86868b" }}>UPC:</span>
+                  <input type="text" placeholder="UPC / EAN"
+                    value={prod.upc || ""}
+                    onChange={async (e) => {
+                      const val = e.target.value.replace(/[^0-9]/g,"").slice(0,13);
+                      setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, upc: val || null } : p));
+                      try { await supabase.from("products").update({ upc: val || null }).eq("id", prod.id); } catch (err) { console.error("UPC save failed:", err); }
+                    }}
+                    style={{ width:120,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #d2d2d7",fontFamily:"monospace",outline:"none",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",letterSpacing:"0.08em" }} />
+                  {prod.upc && <span style={{ fontSize:10,color:prod.upc.length === 12 || prod.upc.length === 13 ? "#34c759" : "#ff9500" }}>
+                    {prod.upc.length === 12 ? "UPC-A" : prod.upc.length === 13 ? "EAN-13" : `${prod.upc.length} digits`}
+                  </span>}
+                </div>
                 {shopifyProducts.length > 0 && (
                   <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                     <span style={{ fontSize:10,color:"#86868b" }}>Shopify:</span>
@@ -12994,6 +13084,13 @@ function BOMManager({ user }) {
                         <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>
                           Done {new Date(task.completed_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}
                         </span>
+                        <button onClick={() => {
+                          const taskUnits = pedalUnits.filter(u => u.build_order_id === task.build_order_id && (u.status === "boxed" || u.status === "shipped"));
+                          if (taskUnits.length > 0) printBoxLabel(taskUnits);
+                          else alert("No boxed units found for this task. Units must be boxed before printing box labels.");
+                        }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#007aff",color:"#fff" }}>
+                          Box Labels
+                        </button>
                         <button onClick={() => openShipModal({
                           orderName: task.for_order || `BOX-${(task.completed_count || task.quantity || 0)}x-${prod?.name || "Product"}`,
                           customer: task.for_order || "",
@@ -13311,10 +13408,16 @@ function BOMManager({ user }) {
                       {/* Actions */}
                       <div style={{ display:"flex",gap:4 }}>
                         {/* Reprint single sticker */}
-                        <button onClick={() => setStickerModalUnits([unit])} title="Reprint sticker"
+                        <button onClick={() => setStickerModalUnits([unit])} title="Print pedal sticker"
                           style={{ fontSize:11,padding:"5px 10px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#e5e5ea",color:"#1d1d1f" }}>
-                          Print
+                          Sticker
                         </button>
+                        {(unit.status === "boxed" || unit.status === "shipped" || unit.status === "boxing") && (
+                          <button onClick={() => printBoxLabel(unit)} title="Print box label"
+                            style={{ fontSize:11,padding:"5px 10px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#007aff",color:"#fff" }}>
+                            Box Label
+                          </button>
+                        )}
                         {unit.status === "in_playtest" && (
                           <>
                             <button onClick={() => handlePlayTestResult(unit, true, 5, "")}
