@@ -129,32 +129,51 @@ async function handleOrders(req, res, domain, access_token) {
 
 // ── Products ────────────────────────────────────────────────────────────────────
 async function handleProducts(req, res, domain, access_token) {
-  const shopRes = await fetch(
-    `https://${domain}/admin/api/2024-01/products.json?fields=id,title,variants,status&limit=250`,
-    {
+  const allProducts = [];
+  let url = `https://${domain}/admin/api/2024-01/products.json?fields=id,title,variants,status,product_type,vendor,tags,images&limit=250`;
+
+  while (url) {
+    const shopRes = await fetch(url, {
       headers: {
         "X-Shopify-Access-Token": access_token,
         "Content-Type": "application/json",
       },
-    }
-  );
-
-  if (!shopRes.ok) {
-    const errText = await shopRes.text().catch(() => "");
-    return res.status(shopRes.status).json({
-      error: `Shopify API error: ${shopRes.status}`,
-      detail: errText.slice(0, 500),
     });
+
+    if (!shopRes.ok) {
+      const errText = await shopRes.text().catch(() => "");
+      return res.status(shopRes.status).json({
+        error: `Shopify API error: ${shopRes.status}`,
+        detail: errText.slice(0, 500),
+      });
+    }
+
+    const data = await shopRes.json();
+    allProducts.push(...(data.products || []));
+
+    const linkHeader = shopRes.headers.get("Link") || "";
+    const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+    url = nextMatch ? nextMatch[1] : null;
   }
 
-  const data = await shopRes.json();
-  const products = (data.products || []).map(p => ({
+  const products = allProducts.map(p => ({
     id: String(p.id),
     title: p.title,
     status: p.status,
+    productType: p.product_type || "",
+    vendor: p.vendor || "",
+    tags: p.tags || "",
+    imageUrl: p.images?.[0]?.src || null,
     variants: (p.variants || []).map(v => ({
       id: String(v.id),
       title: v.title,
+      sku: v.sku || "",
+      price: v.price || "",
+      barcode: v.barcode || "",
+      inventoryQuantity: v.inventory_quantity ?? null,
+      option1: v.option1 || null,
+      option2: v.option2 || null,
+      option3: v.option3 || null,
     })),
   }));
 

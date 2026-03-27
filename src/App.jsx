@@ -1599,6 +1599,8 @@ function BOMManager({ user }) {
     const base = prefix + padded;
     return base + calcUpcCheckDigit(base);
   };
+  const [shopifyImportOpen, setShopifyImportOpen] = useState(false);
+  const [shopifyImportData, setShopifyImportData] = useState(null); // { loading, error, products: [{...shopify product, variants, selected, expandVariants}] }
   const qtyTimers = useRef({}); // debounce timers for qty→price refresh
   const simTimer = useRef(null); // debounce timer for sim auto-run
   const recentLocalWrites = useRef(new Set()); // part IDs written locally — skip realtime for these
@@ -9077,6 +9079,59 @@ function BOMManager({ user }) {
                   style={{ padding:"6px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:"#0071e3",color:"#fff" }}>
                   Generate UPCs
                 </button>
+                <button onClick={async () => {
+                  const stores = getShopifyStores();
+                  if (!stores.length) { alert("No Shopify stores configured. Add them in Settings → Shopify."); return; }
+                  setShopifyImportOpen(true);
+                  setShopifyImportData({ loading: true, error: null, products: [] });
+                  try {
+                    const allShopProducts = [];
+                    for (const store of stores) {
+                      if (!store.domain || !store.clientId || !store.clientSecret) continue;
+                      const q = `domain=${encodeURIComponent(store.domain)}&client_id=${encodeURIComponent(store.clientId)}&client_secret=${encodeURIComponent(store.clientSecret)}`;
+                      const res = await fetch(`/api/shopify?action=products&${q}`);
+                      if (!res.ok) { const e = await res.json().catch(() => ({})); console.error(`Shopify ${store.name}:`, e); continue; }
+                      const data = await res.json();
+                      allShopProducts.push(...(data.products || []).map(p => ({ ...p, storeName: store.name || store.domain })));
+                    }
+                    // Mark which ones already exist in BOM Manager
+                    const importProducts = [];
+                    for (const sp of allShopProducts) {
+                      if (sp.status === "archived") continue;
+                      const hasVariants = sp.variants.length > 1 || (sp.variants.length === 1 && sp.variants[0].title !== "Default Title");
+                      if (hasVariants) {
+                        // Each variant = a separate BOM product
+                        for (const v of sp.variants) {
+                          const variantName = `${sp.title} — ${v.title}`;
+                          const existsExact = products.find(p => p.shopifyProductId === sp.id && p.name.toLowerCase() === variantName.toLowerCase());
+                          const existsFuzzy = !existsExact && products.find(p => p.shopifyProductId === sp.id || p.name.toLowerCase() === variantName.toLowerCase() || p.name.toLowerCase() === sp.title.toLowerCase());
+                          importProducts.push({
+                            shopifyId: sp.id, variantId: v.id, title: sp.title, variantTitle: v.title,
+                            displayName: variantName, sku: v.sku, price: v.price, barcode: v.barcode,
+                            storeName: sp.storeName, vendor: sp.vendor, productType: sp.productType,
+                            existing: existsExact || existsFuzzy || null, selected: !existsExact, isVariant: true,
+                          });
+                        }
+                      } else {
+                        const v = sp.variants[0] || {};
+                        const existsExact = products.find(p => p.shopifyProductId === sp.id);
+                        const existsFuzzy = !existsExact && products.find(p => p.name.toLowerCase() === sp.title.toLowerCase());
+                        importProducts.push({
+                          shopifyId: sp.id, variantId: v.id, title: sp.title, variantTitle: null,
+                          displayName: sp.title, sku: v.sku, price: v.price, barcode: v.barcode,
+                          storeName: sp.storeName, vendor: sp.vendor, productType: sp.productType,
+                          existing: existsExact || existsFuzzy || null, selected: !existsExact, isVariant: false,
+                        });
+                      }
+                    }
+                    setShopifyImportData({ loading: false, error: null, products: importProducts });
+                  } catch (e) {
+                    setShopifyImportData({ loading: false, error: e.message, products: [] });
+                  }
+                }}
+                  style={{ padding:"6px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:"#96bf48",color:"#fff" }}>
+                  Import from Shopify
+                </button>
                 <input type="text" placeholder="New product name…" value={newProjName}
                   onChange={(e)=>setNewProjName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addProduct()}
                   style={{ marginLeft:"auto",padding:"6px 12px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:180,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
@@ -9456,6 +9511,154 @@ function BOMManager({ user }) {
                       style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",
                         background:"#34c759",color:"#fff",opacity:upcGenerateResults.filter(r => r.confirmed).length === 0 ? 0.4 : 1 }}>
                       Save {upcGenerateResults.filter(r => r.confirmed).length} UPC{upcGenerateResults.filter(r => r.confirmed).length !== 1 ? "s" : ""}
+                    </button>
+                  </div>
+                </div>
+              </>)}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════
+            SHOPIFY PRODUCT IMPORT MODAL
+        ══════════════════════════════════════ */}
+        {shopifyImportOpen && shopifyImportData && (
+          <div style={{ position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.5)",padding:20 }}
+            onClick={() => { setShopifyImportOpen(false); setShopifyImportData(null); }}>
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:16,maxWidth:900,width:"100%",maxHeight:"88vh",overflow:"auto",padding:"24px 28px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:4 }}>
+                <div style={{ width:28,height:28,borderRadius:7,background:"#96bf48",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#fff",fontWeight:700 }}>S</div>
+                <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>Import Products from Shopify</div>
+              </div>
+              <p style={{ fontSize:13,color:"#86868b",marginBottom:16 }}>
+                Pulls all products and variants from your Shopify store(s). Each color/size variant becomes its own BOM product. Existing products are detected and can be updated with UPC/barcode data.
+              </p>
+              {shopifyImportData.loading ? (
+                <div style={{ textAlign:"center",padding:40,color:"#86868b" }}>Fetching products from Shopify...</div>
+              ) : shopifyImportData.error ? (
+                <div style={{ textAlign:"center",padding:40,color:"#ff3b30" }}>Error: {shopifyImportData.error}</div>
+              ) : (<>
+                <div style={{ display:"flex",gap:10,marginBottom:10,alignItems:"center",flexWrap:"wrap" }}>
+                  <div style={{ fontSize:13,color:"#86868b" }}>
+                    {shopifyImportData.products.length} products found
+                    {" • "}{shopifyImportData.products.filter(p => p.existing).length} already in BOM Manager
+                    {" • "}{shopifyImportData.products.filter(p => p.selected && !p.existing).length} new to import
+                  </div>
+                  <div style={{ marginLeft:"auto",display:"flex",gap:6 }}>
+                    <button onClick={() => setShopifyImportData(prev => ({ ...prev, products: prev.products.map(p => ({ ...p, selected: !p.existing })) }))}
+                      style={{ fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#86868b",cursor:"pointer" }}>
+                      Select New Only
+                    </button>
+                    <button onClick={() => setShopifyImportData(prev => ({ ...prev, products: prev.products.map(p => ({ ...p, selected: true })) }))}
+                      style={{ fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#86868b",cursor:"pointer" }}>
+                      Select All
+                    </button>
+                  </div>
+                </div>
+                <div style={{ maxHeight:450,overflowY:"auto",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10 }}>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                    <thead><tr style={{ background:darkMode?"#2c2c2e":"#f9f9fb",position:"sticky",top:0,zIndex:1 }}>
+                      <th style={{ padding:"8px 10px",textAlign:"center",width:30 }}>
+                        <input type="checkbox" checked={shopifyImportData.products.every(p => p.selected)}
+                          onChange={e => setShopifyImportData(prev => ({ ...prev, products: prev.products.map(p => ({ ...p, selected: e.target.checked })) }))} />
+                      </th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>SKU</th>
+                      <th style={{ padding:"8px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>Price</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>UPC/Barcode</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>Store</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>Status</th>
+                    </tr></thead>
+                    <tbody>{shopifyImportData.products.map((p, i) => (
+                      <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2"),
+                        background: p.existing ? (darkMode?"#1a2a1a":"#f0faf0") : "transparent" }}>
+                        <td style={{ padding:"6px 10px",textAlign:"center" }}>
+                          <input type="checkbox" checked={p.selected} onChange={e =>
+                            setShopifyImportData(prev => ({ ...prev, products: prev.products.map((x, j) => j === i ? { ...x, selected: e.target.checked } : x) }))
+                          } />
+                        </td>
+                        <td style={{ padding:"6px 10px" }}>
+                          <div style={{ fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f",fontSize:12 }}>{p.displayName}</div>
+                          {p.vendor && <div style={{ fontSize:10,color:"#86868b" }}>{p.vendor}{p.productType ? ` • ${p.productType}` : ""}</div>}
+                        </td>
+                        <td style={{ padding:"6px 10px",fontFamily:"SF Mono,Menlo,monospace",fontSize:10,color:"#86868b" }}>{p.sku || "—"}</td>
+                        <td style={{ padding:"6px 10px",textAlign:"right",fontWeight:500,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{p.price ? `$${p.price}` : "—"}</td>
+                        <td style={{ padding:"6px 10px",fontFamily:"SF Mono,Menlo,monospace",fontSize:10,color:"#86868b" }}>{p.barcode || "—"}</td>
+                        <td style={{ padding:"6px 10px",fontSize:10,color:"#86868b" }}>{p.storeName}</td>
+                        <td style={{ padding:"6px 10px",fontSize:10 }}>
+                          {p.existing
+                            ? <span style={{ color:"#34c759",fontWeight:600 }}>Exists{p.barcode && !p.existing.upc ? " (will add UPC)" : ""}</span>
+                            : <span style={{ color:"#0071e3",fontWeight:600 }}>New</span>
+                          }
+                        </td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+                <div style={{ display:"flex",gap:8,marginTop:14,justifyContent:"space-between",alignItems:"center" }}>
+                  <div style={{ fontSize:11,color:"#86868b" }}>
+                    Selected: {shopifyImportData.products.filter(p => p.selected).length} products
+                    ({shopifyImportData.products.filter(p => p.selected && !p.existing).length} new,
+                    {" "}{shopifyImportData.products.filter(p => p.selected && p.existing).length} existing to update)
+                  </div>
+                  <div style={{ display:"flex",gap:8 }}>
+                    <button onClick={() => { setShopifyImportOpen(false); setShopifyImportData(null); }}
+                      style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                      Cancel
+                    </button>
+                    <button onClick={async () => {
+                      const selected = shopifyImportData.products.filter(p => p.selected);
+                      if (selected.length === 0) return;
+                      let created = 0, updated = 0, errors = 0;
+                      for (const p of selected) {
+                        try {
+                          if (p.existing) {
+                            // Update existing product with UPC/barcode and sales price
+                            const updates = {};
+                            if (p.barcode && !p.existing.upc) updates.upc = p.barcode;
+                            if (p.price && !p.existing.salesPrice) updates.sales_price = parseFloat(p.price);
+                            if (Object.keys(updates).length > 0) {
+                              await supabase.from("products").update(updates).eq("id", p.existing.id);
+                              setProducts(prev => prev.map(prod => prod.id === p.existing.id ? { ...prod, ...updates, upc: updates.upc || prod.upc, salesPrice: updates.sales_price || prod.salesPrice } : prod));
+                            }
+                            updated++;
+                          } else {
+                            // Determine brand from vendor/store name
+                            let brand = "Jackson Audio";
+                            if (p.vendor?.toLowerCase().includes("fulltone") || p.storeName?.toLowerCase().includes("fulltone")) brand = "Fulltone USA";
+                            // Create new product
+                            const newProd = await createProduct({
+                              name: p.displayName,
+                              color: p.isVariant ? "#" + Math.floor(Math.random()*16777215).toString(16).padStart(6,"0") : "#5856d6",
+                              userId: user.id,
+                              brand,
+                              shopify_product_id: p.shopifyId,
+                            });
+                            // Update with UPC and sales price if available
+                            const extras = {};
+                            if (p.barcode) extras.upc = p.barcode;
+                            if (p.price) extras.sales_price = parseFloat(p.price);
+                            if (Object.keys(extras).length > 0) {
+                              await supabase.from("products").update(extras).eq("id", newProd.id);
+                            }
+                            const uiProd = dbProductToUI(newProd);
+                            if (p.barcode) uiProd.upc = p.barcode;
+                            if (p.price) uiProd.salesPrice = parseFloat(p.price);
+                            setProducts(prev => [...prev, uiProd]);
+                            created++;
+                          }
+                        } catch (e) {
+                          console.error("Shopify import error for", p.displayName, e);
+                          errors++;
+                        }
+                      }
+                      alert(`Import complete!\n${created} products created\n${updated} products updated${errors > 0 ? `\n${errors} errors` : ""}`);
+                      setShopifyImportOpen(false); setShopifyImportData(null);
+                    }} disabled={shopifyImportData.products.filter(p => p.selected).length === 0}
+                      style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",
+                        background:"#96bf48",color:"#fff",opacity:shopifyImportData.products.filter(p => p.selected).length === 0 ? 0.4 : 1 }}>
+                      Import {shopifyImportData.products.filter(p => p.selected).length} Products
                     </button>
                   </div>
                 </div>
