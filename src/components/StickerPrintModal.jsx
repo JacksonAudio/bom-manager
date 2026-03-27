@@ -8,6 +8,7 @@
 
 import { useState, useEffect } from 'react'
 import QRCode from 'qrcode'
+import { renderStickerHTML } from './StickerEditor.jsx'
 
 const STICKER_SIZES = {
   '2x1':   { name: '2" × 1" (standard pedal)', width: 2, height: 1, qr: 70, fontSN: 11, fontProd: 9, fontBrand: 8 },
@@ -40,11 +41,12 @@ const BRAND_CONFIG = {
   },
 }
 
-export default function StickerPrintModal({ units, products, playTesters, teamMembers, onClose }) {
+export default function StickerPrintModal({ units, products, playTesters, teamMembers, stickerTemplate, onClose }) {
   const [qrImages, setQrImages] = useState({})
-  const [stickerSize, setStickerSize] = useState('2x1')
+  const [stickerSize, setStickerSize] = useState(stickerTemplate?.stickerSize || '2x1')
   const [selectedUnits, setSelectedUnits] = useState(new Set(units.map(u => u.id)))
   const sz = STICKER_SIZES[stickerSize]
+  const hasCustomTemplate = !!(stickerTemplate?.elements)
 
   useEffect(() => {
     let cancelled = false
@@ -95,6 +97,16 @@ export default function StickerPrintModal({ units, products, playTesters, teamMe
       const brand = prod?.brand || 'Jackson Audio'
       const cfg = BRAND_CONFIG[brand] || BRAND_CONFIG['Jackson Audio']
       const qr = qrImages[unit.id] || ''
+
+      // Use custom template from sticker editor if available
+      if (hasCustomTemplate) {
+        return renderStickerHTML(stickerTemplate.elements, sz, stickerTemplate.bgColor || '#f5f5f5', stickerTemplate.borderColor || '#cccccc', qr, {
+          serial: unit.serial_number,
+          product: prod?.name || 'Product',
+          brand: cfg.logo,
+          tagline: cfg.tagline,
+        })
+      }
 
       return `<div class="sticker" style="width:${sz.width}in;height:${sz.height}in;display:flex;align-items:center;padding:4px 8px;gap:6px;border:0.5px solid #ccc;page-break-inside:avoid;box-sizing:border-box;overflow:hidden">
         ${qr ? `<img src="${qr}" style="width:${sz.qr}px;height:${sz.qr}px;flex-shrink:0;image-rendering:pixelated" />` : ''}

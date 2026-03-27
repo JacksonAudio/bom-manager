@@ -9,14 +9,15 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.42";
-const BUILD_TIME   = "2026-03-26T21:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.43";
+const BUILD_TIME   = "2026-03-27T10:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import AuthScreen from "./components/AuthScreen.jsx";
 import QRLabelModal from "./components/QRLabelModal.jsx";
 import StickerPrintModal from "./components/StickerPrintModal.jsx";
+import StickerEditor from "./components/StickerEditor.jsx";
 import ScannerView from "./components/ScannerView.jsx";
 import Scoreboard from "./components/Scoreboard.jsx";
 import BuildView from "./components/BuildView.jsx";
@@ -1557,6 +1558,10 @@ function BOMManager({ user }) {
   const [pipelineSearch, setPipelineSearch] = useState("");
   const [packingListOrder, setPackingListOrder] = useState(""); // for_order reference to filter packing list
   const [stickerModalUnits, setStickerModalUnits] = useState(null); // array of pedal_units to print stickers for, or null
+  const [stickerEditorOpen, setStickerEditorOpen] = useState(false);
+  const [stickerTemplate, setStickerTemplate] = useState(null); // custom sticker template from editor
+  const [simMode, setSimMode] = useState(false); // pipeline simulation mode
+  const [simLog, setSimLog] = useState([]); // simulation event log
   const [productRegistrations, setProductRegistrations] = useState([]);
 
   const [pdPasteText, setPdPasteText] = useState(""); // product detail page paste text
@@ -12912,12 +12917,23 @@ function BOMManager({ user }) {
                 </button>
               )}
               <span style={{ fontSize:12,color:"#86868b" }}>{filtered.length} units</span>
-              {filtered.length > 0 && (
-                <button onClick={() => setStickerModalUnits(filtered)}
-                  style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#c8a84e",color:"#fff",marginLeft:"auto" }}>
-                  Print Stickers ({filtered.length})
+              <div style={{ display:"flex",gap:6,marginLeft:"auto" }}>
+                <button onClick={() => setSimMode(!simMode)}
+                  style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,
+                    background:simMode?"#ff9500":"#f0f0f2",color:simMode?"#fff":"#1d1d1f" }}>
+                  {simMode ? "Exit Simulation" : "Simulate Pipeline"}
                 </button>
-              )}
+                <button onClick={() => setStickerEditorOpen(true)}
+                  style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#5856d6",color:"#fff" }}>
+                  Edit Sticker
+                </button>
+                {filtered.length > 0 && (
+                  <button onClick={() => setStickerModalUnits(filtered)}
+                    style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#c8a84e",color:"#fff" }}>
+                    Print Stickers ({filtered.length})
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* ── Sticker Print Modal ── */}
@@ -12927,9 +12943,152 @@ function BOMManager({ user }) {
                 products={products}
                 playTesters={playTesters}
                 teamMembers={teamMembers}
+                stickerTemplate={stickerTemplate}
                 onClose={() => setStickerModalUnits(null)}
               />
             )}
+
+            {/* ── Sticker Editor ── */}
+            {stickerEditorOpen && (
+              <StickerEditor
+                onClose={() => setStickerEditorOpen(false)}
+                onApplyTemplate={(tmpl) => setStickerTemplate(tmpl)}
+              />
+            )}
+
+            {/* ── Pipeline Simulation Panel ── */}
+            {simMode && (() => {
+              const simProductOptions = products.filter(p => p.name);
+              return (
+              <div style={{ background:darkMode?"#2c2c2e":"#fff8e1",borderRadius:14,padding:"20px 24px",marginBottom:20,border:"2px solid #ff9500",boxShadow:"0 2px 12px rgba(255,149,0,0.15)" }}>
+                <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12 }}>
+                  <div>
+                    <div style={{ fontSize:15,fontWeight:700,color:"#ff9500" }}>Pipeline Simulator</div>
+                    <div style={{ fontSize:11,color:"#86868b",marginTop:2 }}>Test the full workflow: Build → Play Test → Box → Ship — without affecting real data</div>
+                  </div>
+                  <button onClick={() => { setSimMode(false); setSimLog([]); }}
+                    style={{ fontSize:11,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#ff3b30",color:"#fff" }}>
+                    Close Simulator
+                  </button>
+                </div>
+                <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>
+                  {/* Step 1: Simulate build completion → creates a unit */}
+                  <button onClick={async () => {
+                    const prod = simProductOptions[0];
+                    if (!prod) { alert("Create at least one product first."); return; }
+                    const simSN = `SIM-${Date.now().toString(36).toUpperCase()}-${String(Math.floor(Math.random()*999)+1).padStart(3,"0")}`;
+                    try {
+                      const created = await createPedalUnits([{
+                        serial_number: simSN,
+                        product_id: prod.id,
+                        build_order_id: null,
+                        status: "built",
+                        built_by: teamMembers[0]?.id || null,
+                        built_at: new Date().toISOString(),
+                      }], user?.id);
+                      setPedalUnits(prev => [...created, ...prev]);
+                      setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: `Created unit ${simSN} (${prod.name}) — status: built`, color: "#86868b" }]);
+                    } catch (e) { setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: `Error: ${e.message}`, color: "#ff3b30" }]); }
+                  }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#86868b",color:"#fff" }}>
+                    1. Simulate Build
+                  </button>
+
+                  {/* Step 2: Auto-assign play tester */}
+                  <button onClick={async () => {
+                    const builtUnits = pedalUnits.filter(u => u.status === "built" || u.status === "awaiting_playtest");
+                    const toMove = builtUnits.filter(u => u.status === "built");
+                    if (toMove.length > 0) {
+                      for (const u of toMove) {
+                        await updatePedalUnit(u.id, { status: "awaiting_playtest" });
+                        setPedalUnits(prev => prev.map(x => x.id === u.id ? { ...x, status: "awaiting_playtest" } : x));
+                      }
+                      setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: `Moved ${toMove.length} unit(s) to awaiting_playtest`, color: "#ff9500" }]);
+                    }
+                    if (toMove.length === 0 && builtUnits.length === 0) {
+                      setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: "No units awaiting play test", color: "#ff9500" }]);
+                      return;
+                    }
+                    await autoAssignPlayTesters(toMove.length > 0 ? toMove : builtUnits);
+                    setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: `Auto-assigned ${toMove.length || builtUnits.length} unit(s) to play testers — status: in_playtest`, color: "#5856d6" }]);
+                  }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#5856d6",color:"#fff" }}>
+                    2. Assign Play Test
+                  </button>
+
+                  {/* Step 3: Pass play test */}
+                  <button onClick={async () => {
+                    const inTest = pedalUnits.filter(u => u.status === "in_playtest");
+                    if (inTest.length === 0) { setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: "No units in play test", color: "#ff9500" }]); return; }
+                    const unit = inTest[0];
+                    await handlePlayTestResult(unit, true, 5, "Simulation — sounds great!");
+                    setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: `${unit.serial_number} PASSED play test — auto-assigned to boxing`, color: "#34c759" }]);
+                  }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#34c759",color:"#fff" }}>
+                    3. Pass Play Test
+                  </button>
+
+                  {/* Alt Step 3: Fail play test */}
+                  <button onClick={async () => {
+                    const inTest = pedalUnits.filter(u => u.status === "in_playtest");
+                    if (inTest.length === 0) { setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: "No units in play test", color: "#ff9500" }]); return; }
+                    const unit = inTest[0];
+                    await handlePlayTestResult(unit, false, 2, "Simulation — knob crackle on gain pot");
+                    setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: `${unit.serial_number} FAILED play test — Brady notified`, color: "#ff3b30" }]);
+                  }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#ff3b30",color:"#fff" }}>
+                    3. Fail Play Test
+                  </button>
+
+                  {/* Step 4: Mark boxed */}
+                  <button onClick={async () => {
+                    const boxingUnits = pedalUnits.filter(u => u.status === "boxing");
+                    if (boxingUnits.length === 0) { setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: "No units in boxing", color: "#ff9500" }]); return; }
+                    const unit = boxingUnits[0];
+                    await updatePedalUnit(unit.id, { status: "boxed", boxed_at: new Date().toISOString(), boxed_by: teamMembers[0]?.id || null });
+                    setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, status: "boxed", boxed_at: new Date().toISOString(), boxed_by: teamMembers[0]?.id || null } : u));
+                    setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: `${unit.serial_number} marked as BOXED`, color: "#00c7be" }]);
+                  }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#00c7be",color:"#fff" }}>
+                    4. Mark Boxed
+                  </button>
+
+                  {/* Step 5: Ship */}
+                  <button onClick={async () => {
+                    const boxedUnits = pedalUnits.filter(u => u.status === "boxed");
+                    if (boxedUnits.length === 0) { setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: "No boxed units to ship", color: "#ff9500" }]); return; }
+                    const unit = boxedUnits[0];
+                    await updatePedalUnit(unit.id, { status: "shipped", shipped_at: new Date().toISOString(), customer_name: "Sim Customer", dealer_name: "Sim Dealer", customer_order: "SIM-PO-001" });
+                    setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, status: "shipped", shipped_at: new Date().toISOString(), customer_name: "Sim Customer", dealer_name: "Sim Dealer", customer_order: "SIM-PO-001" } : u));
+                    setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: `${unit.serial_number} SHIPPED to Sim Customer / Sim Dealer`, color: "#86868b" }]);
+                  }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#636366",color:"#fff" }}>
+                    5. Ship
+                  </button>
+
+                  {/* Cleanup: delete sim units */}
+                  <button onClick={async () => {
+                    const simUnits = pedalUnits.filter(u => (u.serial_number || "").startsWith("SIM-"));
+                    if (simUnits.length === 0) { setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: "No simulation units to clean up", color: "#ff9500" }]); return; }
+                    for (const u of simUnits) {
+                      try { await deletePedalUnit(u.id); } catch {}
+                    }
+                    setPedalUnits(prev => prev.filter(u => !(u.serial_number || "").startsWith("SIM-")));
+                    setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: `Cleaned up ${simUnits.length} simulation unit(s)`, color: "#ff9500" }]);
+                  }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"1px solid #ff3b30",cursor:"pointer",fontWeight:600,background:"transparent",color:"#ff3b30" }}>
+                    Clean Up Sim Data
+                  </button>
+                </div>
+
+                {/* Simulation log */}
+                {simLog.length > 0 && (
+                  <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:10,padding:12,maxHeight:180,overflowY:"auto",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                    <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em" }}>Simulation Log</div>
+                    {simLog.map((entry, i) => (
+                      <div key={i} style={{ fontSize:11,color:entry.color || textPrimary,marginBottom:3,fontFamily:"SF Mono,Menlo,monospace" }}>
+                        <span style={{ color:"#aeaeb2",marginRight:8 }}>{entry.time}</span>
+                        {entry.msg}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              );
+            })()}
 
             {/* ── Unit Cards ── */}
             <div style={{ display:"grid",gap:8,marginBottom:40 }}>
@@ -12971,6 +13130,11 @@ function BOMManager({ user }) {
                       </div>
                       {/* Actions */}
                       <div style={{ display:"flex",gap:4 }}>
+                        {/* Reprint single sticker */}
+                        <button onClick={() => setStickerModalUnits([unit])} title="Reprint sticker"
+                          style={{ fontSize:11,padding:"5px 10px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#e5e5ea",color:"#1d1d1f" }}>
+                          Print
+                        </button>
                         {unit.status === "in_playtest" && (
                           <>
                             <button onClick={() => handlePlayTestResult(unit, true, 5, "")}
