@@ -1436,6 +1436,7 @@ function BOMManager({ user }) {
   });
   const [bulkRenameOpen, setBulkRenameOpen] = useState(false);
   const [bulkRenameEdits, setBulkRenameEdits] = useState([]); // [{ id, original, newName, changed }]
+  const [selectedProductIds, setSelectedProductIds] = useState(new Set());
   const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","lcsc","shopify","zoho","shipstation","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
   const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
@@ -9270,11 +9271,51 @@ function BOMManager({ user }) {
               sorted.forEach(p => { const b = p.brand || "Jackson Audio"; (groups[b] = groups[b] || []).push(p); });
               const brandKeys = Object.keys(groups);
               return (
+                {/* Bulk action bar */}
+                {selectedProductIds.size > 0 && (
+                  <div style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 22px",marginBottom:10,borderRadius:10,
+                    background:darkMode?"#2a1a1a":"#fff0f0",border:"1px solid #ff3b30" }}>
+                    <span style={{ fontSize:13,fontWeight:600,color:"#ff3b30",flex:1 }}>
+                      {selectedProductIds.size} product{selectedProductIds.size !== 1 ? "s" : ""} selected
+                    </span>
+                    <button onClick={() => setSelectedProductIds(new Set())}
+                      style={{ padding:"5px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                      Deselect All
+                    </button>
+                    <button onClick={async () => {
+                      const count = selectedProductIds.size;
+                      const totalParts = parts.filter(p => selectedProductIds.has(p.projectId)).length;
+                      const msg = totalParts > 0
+                        ? `Delete ${count} product${count !== 1 ? "s" : ""} and their ${totalParts} part${totalParts !== 1 ? "s" : ""}?\n\nThis cannot be undone.`
+                        : `Delete ${count} product${count !== 1 ? "s" : ""}?\n\nThis cannot be undone.`;
+                      if (!window.confirm(msg)) return;
+                      let deleted = 0;
+                      for (const id of selectedProductIds) {
+                        try { await deleteProduct(id); deleted++; } catch (e) { console.error("Delete failed:", id, e); }
+                      }
+                      setProducts(prev => prev.filter(p => !selectedProductIds.has(p.id)));
+                      setParts(prev => prev.filter(p => !selectedProductIds.has(p.projectId)));
+                      setSelectedProductIds(new Set());
+                      alert(`Deleted ${deleted} product${deleted !== 1 ? "s" : ""}.`);
+                    }}
+                      style={{ padding:"5px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:"#ff3b30",color:"#fff" }}>
+                      Delete Selected
+                    </button>
+                  </div>
+                )}
                 <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                   {/* Column headers */}
-                  <div style={{ display:"grid",gridTemplateColumns:"24px 1fr 90px 80px 100px 70px 80px 36px",gap:8,padding:"10px 22px",
+                  <div style={{ display:"grid",gridTemplateColumns:"30px 24px 1fr 90px 80px 100px 70px 80px 36px",gap:8,padding:"10px 22px",
                     fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",
                     borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),background:darkMode?"#1c1c1e":"#fafafa" }}>
+                    <div style={{ display:"flex",alignItems:"center" }}>
+                      <input type="checkbox"
+                        checked={sorted.length > 0 && sorted.every(p => selectedProductIds.has(p.id))}
+                        onChange={e => {
+                          if (e.target.checked) setSelectedProductIds(new Set(sorted.map(p => p.id)));
+                          else setSelectedProductIds(new Set());
+                        }} />
+                    </div>
                     <div></div><div>Product</div><div>Brand</div><div style={{textAlign:"right"}}>Parts</div>
                     <div style={{textAlign:"right"}}>BOM Cost</div><div style={{textAlign:"right"}}>Build Qty</div><div></div><div></div>
                   </div>
@@ -9293,11 +9334,22 @@ function BOMManager({ user }) {
                       groups[brand].map(prod => (
                         <div key={prod.id}
                           onClick={() => { setSelectedProduct(prod.id); setPdImportError(""); setPdImportOk(""); setPdPasteText(""); }}
-                          style={{ display:"grid",gridTemplateColumns:"24px 1fr 90px 80px 100px 70px 80px 36px",gap:8,alignItems:"center",
+                          style={{ display:"grid",gridTemplateColumns:"30px 24px 1fr 90px 80px 100px 70px 80px 36px",gap:8,alignItems:"center",
                             padding:"12px 22px",cursor:"pointer",
+                            background:selectedProductIds.has(prod.id)?(darkMode?"#1a2040":"#eef4ff"):"transparent",
                             borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#ededf0"),transition:"background 0.12s" }}
-                          onMouseOver={e=>e.currentTarget.style.background=darkMode?"#3a3a3e":"#f5f5f7"}
-                          onMouseOut={e=>e.currentTarget.style.background="transparent"}>
+                          onMouseOver={e=>{if(!selectedProductIds.has(prod.id))e.currentTarget.style.background=darkMode?"#3a3a3e":"#f5f5f7"}}
+                          onMouseOut={e=>{if(!selectedProductIds.has(prod.id))e.currentTarget.style.background="transparent"}}>
+                          <div onClick={e => e.stopPropagation()} style={{ display:"flex",alignItems:"center" }}>
+                            <input type="checkbox" checked={selectedProductIds.has(prod.id)}
+                              onChange={e => {
+                                setSelectedProductIds(prev => {
+                                  const next = new Set(prev);
+                                  if (e.target.checked) next.add(prod.id); else next.delete(prod.id);
+                                  return next;
+                                });
+                              }} />
+                          </div>
                           <span style={{ display:"inline-block",width:10,height:10,borderRadius:"50%",background:prod.color }} />
                           <div style={{ fontSize:15,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
                             {prod.name}
