@@ -16,11 +16,17 @@ const STICKER_SIZES = {
   '2x0.75':{ name: '2" × ¾" (mini pedal)',      width: 2, height: 0.75, qr: 50, fontSN: 9, fontProd: 7, fontBrand: 7 },
 }
 
+// Registration URL uses the app's own #register page
+// The QR code links to: {appUrl}#register?sn=XXX&product=YYY&brand=ZZZ
+const getRegUrl = () => {
+  const base = window.location.origin + window.location.pathname
+  return base
+}
+
 const BRAND_CONFIG = {
   'Jackson Audio': {
     logo: 'JACKSON AUDIO',
     tagline: 'jacksonaudio.com',
-    regUrl: 'https://jacksonaudio.com/register',
     accentColor: '#c8a84e',
     textColor: '#1a1a1a',
     bgColor: '#f5f5f5',
@@ -28,7 +34,6 @@ const BRAND_CONFIG = {
   'Fulltone USA': {
     logo: 'FULLTONE USA',
     tagline: 'fulltone.com',
-    regUrl: 'https://fulltone.com/register',
     accentColor: '#b22222',
     textColor: '#1a1a1a',
     bgColor: '#f5f5f5',
@@ -49,8 +54,8 @@ export default function StickerPrintModal({ units, products, playTesters, teamMe
         const prod = products.find(p => p.id === unit.product_id)
         const brand = prod?.brand || 'Jackson Audio'
         const cfg = BRAND_CONFIG[brand] || BRAND_CONFIG['Jackson Audio']
-        // QR payload: registration URL with serial number and product
-        const regUrl = `${cfg.regUrl}?sn=${encodeURIComponent(unit.serial_number)}&product=${encodeURIComponent(prod?.name || '')}`
+        // QR payload: registration URL with serial number, product, and brand
+        const regUrl = `${getRegUrl()}#register?sn=${encodeURIComponent(unit.serial_number)}&product=${encodeURIComponent(prod?.name || '')}&brand=${encodeURIComponent(brand)}`
         try {
           imgs[unit.id] = await QRCode.toDataURL(regUrl, {
             width: sz.qr * 3, margin: 1, errorCorrectionLevel: 'M',

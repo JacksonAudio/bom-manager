@@ -826,6 +826,28 @@ export function subscribeToPedalUnits(callback) {
     .subscribe()
 }
 
+// ─────────────────────────────────────────────
+// PRODUCT REGISTRATIONS
+// ─────────────────────────────────────────────
+
+export async function fetchProductRegistrations() {
+  const { data, error } = await supabase
+    .from('product_registrations')
+    .select('*')
+    .order('registered_at', { ascending: false })
+  check(error, 'fetchProductRegistrations')
+  return data
+}
+
+export function subscribeToProductRegistrations(callback) {
+  return supabase
+    .channel('product-registrations-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'product_registrations' },
+      (payload) => callback(payload.eventType, payload.new, payload.old)
+    )
+    .subscribe()
+}
+
 // Fetch all price history (for product-level rollups)
 export async function fetchAllPriceHistory() {
   const all = [];

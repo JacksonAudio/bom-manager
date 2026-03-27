@@ -45,6 +45,7 @@ import {
   subscribeToBoxingTasks,
   fetchPedalUnits, createPedalUnit, createPedalUnits, updatePedalUnit, deletePedalUnit,
   subscribeToPedalUnits,
+  fetchProductRegistrations, subscribeToProductRegistrations,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -102,6 +103,7 @@ const DEFAULT_KEYS = {
   dealer_ship_goal: "14",    // days — target turnaround for dealer (Zoho) orders
   playtest_fail_email: "brad@jacksonaudio.net", // Email to alert on failed play tests
   playtest_fail_phone: "",                     // Phone to SMS on failed play tests
+  klaviyo_api_key: "",                         // klaviyo.com — private API key for subscriber sync
   admin_emails: "brad@jacksonaudio.net",
   timezone: "America/Chicago",  // Central Time default // comma-separated list of admin email addresses
 };
@@ -1555,6 +1557,7 @@ function BOMManager({ user }) {
   const [pipelineSearch, setPipelineSearch] = useState("");
   const [packingListOrder, setPackingListOrder] = useState(""); // for_order reference to filter packing list
   const [stickerModalUnits, setStickerModalUnits] = useState(null); // array of pedal_units to print stickers for, or null
+  const [productRegistrations, setProductRegistrations] = useState([]);
 
   const [pdPasteText, setPdPasteText] = useState(""); // product detail page paste text
   const [pdDragOver, setPdDragOver] = useState(false); // product detail page drag state
@@ -1812,8 +1815,9 @@ function BOMManager({ user }) {
         // Load boxing tasks from DB
         fetchBoxingTasks().then(rows => setBoxingTasks(rows || [])).catch(() => {});
 
-        // Load pedal units from DB
+        // Load pedal units and registrations from DB
         fetchPedalUnits().then(rows => setPedalUnits(rows || [])).catch(() => {});
+        fetchProductRegistrations().then(rows => setProductRegistrations(rows || [])).catch(() => {});
 
         // Load BOM snapshots from DB
         fetchBomSnapshots().then(snaps => setBomSnapshots(snaps || [])).catch(() => {});
@@ -2042,6 +2046,15 @@ function BOMManager({ user }) {
       }
     });
 
+    // Product registrations channel
+    const regChannel = subscribeToProductRegistrations((eventType, newRow, oldRow) => {
+      if (eventType === "INSERT") {
+        setProductRegistrations((prev) => prev.find(r => r.id === newRow.id) ? prev : [newRow, ...prev]);
+      } else if (eventType === "DELETE") {
+        setProductRegistrations((prev) => prev.filter(r => r.id !== oldRow.id));
+      }
+    });
+
     // Pedal units channel
     const puChannel = subscribeToPedalUnits((eventType, newRow, oldRow) => {
       if (eventType === "INSERT") {
@@ -2075,6 +2088,7 @@ function BOMManager({ user }) {
       ptsChannel.unsubscribe();
       boxChannel.unsubscribe();
       puChannel.unsubscribe();
+      regChannel.unsubscribe();
     };
   }, []); // eslint-disable-line
 
@@ -13135,6 +13149,50 @@ function BOMManager({ user }) {
                 </div>
               )}
             </div>
+
+            {/* ══════════════════════════════════════
+                PRODUCT REGISTRATIONS
+            ══════════════════════════════════════ */}
+            <div style={{ borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",paddingTop:28,marginTop:32 }}>
+              <h3 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:22,fontWeight:700,color:textPrimary,marginBottom:4 }}>Product Registrations</h3>
+              <p style={{ fontSize:13,color:"#86868b",marginBottom:16 }}>
+                Customers who scanned the QR code on their pedal and registered. Auto-synced to Klaviyo.
+                <span style={{ marginLeft:8,fontWeight:600 }}>{productRegistrations.length} total</span>
+              </p>
+
+              {productRegistrations.length === 0 ? (
+                <div style={{ textAlign:"center",padding:30,color:"#86868b",fontSize:13,background:darkMode?"#1c1c1e":"#f9f9fb",borderRadius:10 }}>
+                  No registrations yet. Once customers scan QR codes on their pedals, their info will appear here and sync to Klaviyo.
+                </div>
+              ) : (
+                <div style={{ background:cardBg,borderRadius:14,border:cardBorder,overflow:"hidden" }}>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                    <thead>
+                      <tr>
+                        {["Date","S/N","Product","Brand","Customer","Email","Phone","Purchased From"].map(h => (
+                          <th key={h} style={{ textAlign:"left",padding:"10px 12px",borderBottom:darkMode?"2px solid #3a3a3e":"2px solid #d2d2d7",fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",color:"#86868b",fontWeight:700 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {productRegistrations.slice(0, 50).map(reg => (
+                        <tr key={reg.id}>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:"#86868b",fontSize:11,whiteSpace:"nowrap" }}>{new Date(reg.registered_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",fontFamily:"SF Mono,monospace",fontWeight:700,color:textPrimary,fontSize:11 }}>{reg.serial_number}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}>{reg.product_name}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:"#86868b",fontSize:11 }}>{reg.brand}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary,fontWeight:600 }}>{reg.customer_name}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}><a href={`mailto:${reg.customer_email}`} style={{ color:"#0071e3",textDecoration:"none" }}>{reg.customer_email}</a></td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:"#86868b" }}>{reg.customer_phone || "—"}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:"#86868b" }}>{reg.purchased_from || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {productRegistrations.length > 50 && <div style={{ padding:10,textAlign:"center",fontSize:11,color:"#86868b" }}>Showing first 50 of {productRegistrations.length}</div>}
+                </div>
+              )}
+            </div>
           </div>
           );
         })()}
@@ -13908,6 +13966,28 @@ function BOMManager({ user }) {
                   <input type="text" value={apiKeys.playtest_fail_phone||""} onChange={e=>setApiKeys(k=>({...k,playtest_fail_phone:e.target.value}))} placeholder="+15551234567" style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
                 {sectionSaveBtn("playtest", "Alert Settings")}
+              </div>}
+            </div>
+
+            {/* ── Klaviyo (Email Marketing) */}
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#1a1a2e",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("klaviyo") ? s.delete("klaviyo") : s.add("klaviyo"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("klaviyo") ? "▶" : "▼"}</span>
+                  Klaviyo — Email Newsletter Sync
+                </div>
+              </div>
+              {!collapsedSettings.has("klaviyo") && <div style={{ padding:"16px 20px" }}>
+                <p style={{ fontSize:12,color:"#86868b",marginBottom:14 }}>
+                  When a customer registers a product (via QR code on the pedal), their info is automatically pushed to Klaviyo as a profile with product details.
+                  Get your private API key from <a href="https://www.klaviyo.com/settings/account/api-keys" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}>Klaviyo → Settings → API Keys</a>.
+                </p>
+                <div className="key-input-row">
+                  <div><div className="key-label">Private API Key</div><div className="key-hint">pk_... — required for server-side profile sync</div></div>
+                  <input type="password" value={apiKeys.klaviyo_api_key||""} onChange={e=>setApiKeys(k=>({...k,klaviyo_api_key:e.target.value}))} placeholder="pk_xxxxxxxxxxxxxxxxxxxx" style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                {sectionSaveBtn("klaviyo", "Klaviyo Settings")}
               </div>}
             </div>
 
