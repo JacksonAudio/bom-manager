@@ -1431,6 +1431,9 @@ function BOMManager({ user }) {
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [lastProductImport, setLastProductImport] = useState(() => {
+    try { const s = localStorage.getItem("bom_last_product_import"); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
   const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","lcsc","shopify","zoho","shipstation","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
   const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
@@ -9132,6 +9135,37 @@ function BOMManager({ user }) {
                   style={{ padding:"6px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:"#96bf48",color:"#fff" }}>
                   Import from Shopify
                 </button>
+                <button onClick={() => {
+                  // Export dealer product data sheet (CSV)
+                  const rows = [];
+                  const brandProducts = selBrand === "all" ? products : products.filter(p => (p.brand || "Jackson Audio") === selBrand);
+                  for (const p of brandProducts) {
+                    const pc = productCosts.find(c => c.id === p.id);
+                    rows.push({
+                      brand: p.brand || "Jackson Audio",
+                      name: p.name,
+                      upc: p.upc || "",
+                      sku: p.serial_prefix || p.name.replace(/[^A-Z0-9]/gi,"").slice(0,10).toUpperCase(),
+                      msrp: p.salesPrice ? `$${parseFloat(p.salesPrice).toFixed(2)}` : "",
+                      bomCost: pc?.total ? `$${pc.total.toFixed(2)}` : "",
+                      weight: p.weight || "",
+                    });
+                  }
+                  if (rows.length === 0) { alert("No products to export."); return; }
+                  const header = "Brand,Product Name,UPC,SKU,MSRP,BOM Cost,Weight";
+                  const csvRows = rows.map(r =>
+                    `"${r.brand}","${r.name}","${r.upc}","${r.sku}","${r.msrp}","${r.bomCost}","${r.weight}"`
+                  );
+                  const csv = [header, ...csvRows].join("\n");
+                  const blob = new Blob([csv], { type: "text/csv" });
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `dealer-product-sheet-${selBrand === "all" ? "all-brands" : selBrand.replace(/\s+/g,"-").toLowerCase()}-${new Date().toISOString().slice(0,10)}.csv`;
+                  a.click();
+                }}
+                  style={{ padding:"6px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                  Export Dealer Sheet
+                </button>
                 <input type="text" placeholder="New product name…" value={newProjName}
                   onChange={(e)=>setNewProjName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addProduct()}
                   style={{ marginLeft:"auto",padding:"6px 12px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:180,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
@@ -9152,6 +9186,33 @@ function BOMManager({ user }) {
                 </button>
               </div>
             </div>
+
+            {/* Undo last product import */}
+            {lastProductImport && lastProductImport.ids?.length > 0 && (
+              <div style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 16px",marginBottom:12,borderRadius:10,
+                background:darkMode?"#2a2a1e":"#fff8e1",border:"1px solid #ff9500" }}>
+                <span style={{ fontSize:13,color:darkMode?"#f5f5f7":"#1d1d1f",flex:1 }}>
+                  Last import: <strong>{lastProductImport.count} products</strong>
+                  {lastProductImport.source ? ` from ${lastProductImport.source}` : ""}
+                  {lastProductImport.importedAt ? ` · ${new Date(lastProductImport.importedAt).toLocaleString()}` : ""}
+                </span>
+                <button onClick={async () => {
+                  if (!window.confirm(`Delete the ${lastProductImport.count} products from the last import? This cannot be undone.`)) return;
+                  try {
+                    for (const id of lastProductImport.ids) {
+                      await supabase.from("products").delete().eq("id", id);
+                    }
+                    setProducts(prev => prev.filter(p => !lastProductImport.ids.includes(p.id)));
+                    setLastProductImport(null);
+                    localStorage.removeItem("bom_last_product_import");
+                  } catch (e) { alert("Undo failed: " + e.message); }
+                }} style={{ padding:"5px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #ff3b30",background:"transparent",color:"#ff3b30" }}>
+                  Undo Import
+                </button>
+                <button onClick={() => { setLastProductImport(null); localStorage.removeItem("bom_last_product_import"); }}
+                  style={{ background:"none",border:"none",cursor:"pointer",color:"#86868b",fontSize:14,padding:"2px 6px" }}>✕</button>
+              </div>
+            )}
 
             {products.length === 0 && (
               <div style={{ textAlign:"center",padding:60,color:"#86868b" }}>
@@ -9611,6 +9672,7 @@ function BOMManager({ user }) {
                       const selected = shopifyImportData.products.filter(p => p.selected);
                       if (selected.length === 0) return;
                       let created = 0, updated = 0, errors = 0;
+                      const createdIds = [];
                       for (const p of selected) {
                         try {
                           if (p.existing) {
@@ -9646,12 +9708,19 @@ function BOMManager({ user }) {
                             if (p.barcode) uiProd.upc = p.barcode;
                             if (p.price) uiProd.salesPrice = parseFloat(p.price);
                             setProducts(prev => [...prev, uiProd]);
+                            createdIds.push(newProd.id);
                             created++;
                           }
                         } catch (e) {
                           console.error("Shopify import error for", p.displayName, e);
                           errors++;
                         }
+                      }
+                      // Save undo batch
+                      if (createdIds.length > 0) {
+                        const batch = { ids: createdIds, count: createdIds.length, source: "Shopify", importedAt: new Date().toISOString() };
+                        setLastProductImport(batch);
+                        localStorage.setItem("bom_last_product_import", JSON.stringify(batch));
                       }
                       alert(`Import complete!\n${created} products created\n${updated} products updated${errors > 0 ? `\n${errors} errors` : ""}`);
                       setShopifyImportOpen(false); setShopifyImportData(null);
