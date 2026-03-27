@@ -64,9 +64,10 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Failed to save registration. Please try again." });
   }
 
-  // Auto-push to Klaviyo if API key is configured
+  // Auto-push to Klaviyo — route to correct account based on brand
   let klaviyoResult = null;
-  const klaviyoKey = await getKlaviyoKey(supabase);
+  const registrationBrand = (brand || 'Jackson Audio').trim();
+  const klaviyoKey = await getKlaviyoKey(supabase, registrationBrand);
   if (klaviyoKey) {
     klaviyoResult = await pushToKlaviyo(klaviyoKey, {
       email: customer_email.trim().toLowerCase(),
@@ -90,12 +91,15 @@ export default async function handler(req, res) {
 
 // ── Klaviyo Integration ──────────────────────────────────────────────────────
 
-async function getKlaviyoKey(supabase) {
+async function getKlaviyoKey(supabase, brand) {
   try {
+    // Determine which key to use based on brand
+    const isFulltone = (brand || '').toLowerCase().includes('fulltone');
+    const keyName = isFulltone ? 'klaviyo_api_key_fulltone' : 'klaviyo_api_key';
     const { data } = await supabase
       .from('api_keys')
       .select('key_value')
-      .eq('key_name', 'klaviyo_api_key')
+      .eq('key_name', keyName)
       .single();
     return data?.key_value || null;
   } catch { return null; }

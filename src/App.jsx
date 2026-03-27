@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.44";
-const BUILD_TIME   = "2026-03-27T11:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.45";
+const BUILD_TIME   = "2026-03-27T11:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -104,7 +104,8 @@ const DEFAULT_KEYS = {
   dealer_ship_goal: "14",    // days — target turnaround for dealer (Zoho) orders
   playtest_fail_email: "brad@jacksonaudio.net", // Email to alert on failed play tests
   playtest_fail_phone: "",                     // Phone to SMS on failed play tests
-  klaviyo_api_key: "",                         // klaviyo.com — private API key for subscriber sync
+  klaviyo_api_key: "",                         // klaviyo.com — Jackson Audio private API key
+  klaviyo_api_key_fulltone: "",                // klaviyo.com — Fulltone USA private API key
   admin_emails: "brad@jacksonaudio.net",
   timezone: "America/Chicago",  // Central Time default // comma-separated list of admin email addresses
 };
@@ -12831,11 +12832,20 @@ function BOMManager({ user }) {
                           </select>
                         </>
                       )}
-                      {task.status === "completed" && task.completed_at && (
+                      {task.status === "completed" && task.completed_at && (<>
                         <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>
                           Done {new Date(task.completed_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}
                         </span>
-                      )}
+                        <button onClick={() => openShipModal({
+                          orderName: task.for_order || `BOX-${(task.completed_count || task.quantity || 0)}x-${prod?.name || "Product"}`,
+                          customer: task.for_order || "",
+                          dealerPO: task.for_order || "",
+                          shipTo: { name: task.for_order || "", street1: "", city: "", state: "", postalCode: "", country: "US" },
+                          lineItems: [{ title: prod?.name || "Product", quantity: task.completed_count || task.quantity || 1, unitPrice: 0 }],
+                        })} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#5856d6",color:"#fff" }}>
+                          Ship Label
+                        </button>
+                      </>)}
                       {isAdmin && <button onClick={async () => {
                         if (!window.confirm("Delete this boxing task?")) return;
                         try { await deleteBoxingTask(task.id); setBoxingTasks(prev => prev.filter(t => t.id !== task.id)); }
@@ -14156,12 +14166,16 @@ function BOMManager({ user }) {
               </div>
               {!collapsedSettings.has("klaviyo") && <div style={{ padding:"16px 20px" }}>
                 <p style={{ fontSize:12,color:"#86868b",marginBottom:14 }}>
-                  When a customer registers a product (via QR code on the pedal), their info is automatically pushed to Klaviyo as a profile with product details.
-                  Get your private API key from <a href="https://www.klaviyo.com/settings/account/api-keys" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}>Klaviyo → Settings → API Keys</a>.
+                  When a customer registers a product (via QR code on the pedal), their info is automatically pushed to the correct Klaviyo account based on the brand (Jackson Audio or Fulltone USA).
+                  Get your private API keys from <a href="https://www.klaviyo.com/settings/account/api-keys" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}>Klaviyo → Settings → API Keys</a>.
                 </p>
-                <div className="key-input-row">
-                  <div><div className="key-label">Private API Key</div><div className="key-hint">pk_... — required for server-side profile sync</div></div>
+                <div className="key-input-row" style={{ marginBottom:12 }}>
+                  <div><div className="key-label" style={{ color:"#c8a84e" }}>Jackson Audio — Private API Key</div><div className="key-hint">Registrations with brand "Jackson Audio" sync to this account</div></div>
                   <input type="password" value={apiKeys.klaviyo_api_key||""} onChange={e=>setApiKeys(k=>({...k,klaviyo_api_key:e.target.value}))} placeholder="pk_xxxxxxxxxxxxxxxxxxxx" style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                <div className="key-input-row">
+                  <div><div className="key-label" style={{ color:"#b22222" }}>Fulltone USA — Private API Key</div><div className="key-hint">Registrations with brand "Fulltone USA" sync to this account</div></div>
+                  <input type="password" value={apiKeys.klaviyo_api_key_fulltone||""} onChange={e=>setApiKeys(k=>({...k,klaviyo_api_key_fulltone:e.target.value}))} placeholder="pk_xxxxxxxxxxxxxxxxxxxx" style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
                 {sectionSaveBtn("klaviyo", "Klaviyo Settings")}
               </div>}

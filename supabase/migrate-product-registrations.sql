@@ -34,7 +34,8 @@ create table if not exists product_registrations (
 -- Klaviyo API key for auto-sync
 -- ─────────────────────────────────────────────
 insert into api_keys (key_name, key_value) values
-  ('klaviyo_api_key', '')
+  ('klaviyo_api_key', ''),
+  ('klaviyo_api_key_fulltone', '')
 on conflict (key_name) do nothing;
 
 -- ─────────────────────────────────────────────
