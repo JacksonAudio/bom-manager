@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.41";
-const BUILD_TIME   = "2026-03-26T21:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.42";
+const BUILD_TIME   = "2026-03-26T21:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -3344,7 +3344,7 @@ function BOMManager({ user }) {
     const mP = selProject === "all" || p.projectId === selProject || (selProject === "unassigned" && !p.projectId);
     if (!search.trim()) return mP;
     const words = search.toLowerCase().split(/\s+/).filter(Boolean);
-    const blob = [p.reference, p.value, p.mpn, p.description, p.manufacturer].join(" ").toLowerCase();
+    const blob = [p.reference, p.value, p.mpn, p.description, p.manufacturer, p.preferredSupplier, p.footprint].join(" ").toLowerCase();
     return mP && words.every(w => blob.includes(w));
   });
 
