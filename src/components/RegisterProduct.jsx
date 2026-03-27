@@ -31,10 +31,15 @@ export default function RegisterProduct() {
   const snFromUrl = params.get('sn') || ''
   const productFromUrl = params.get('product') || ''
 
-  // Detect brand from URL or product name
+  // Detect brand from hostname, URL param, or product name
   const detectBrand = () => {
+    // 1. Hostname detection (register.fulltoneusa.com → Fulltone USA)
+    const host = window.location.hostname.toLowerCase()
+    if (host.includes('fulltone')) return 'Fulltone USA'
+    // 2. Explicit URL param
     const b = params.get('brand')
     if (b && BRANDS[b]) return b
+    // 3. Product name fallback
     if (productFromUrl.toLowerCase().includes('fulltone')) return 'Fulltone USA'
     return 'Jackson Audio'
   }
