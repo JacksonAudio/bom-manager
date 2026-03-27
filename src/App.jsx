@@ -9270,7 +9270,7 @@ function BOMManager({ user }) {
               const groups = {};
               sorted.forEach(p => { const b = p.brand || "Jackson Audio"; (groups[b] = groups[b] || []).push(p); });
               const brandKeys = Object.keys(groups);
-              return (
+              return (<>
                 {/* Bulk action bar */}
                 {selectedProductIds.size > 0 && (
                   <div style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 22px",marginBottom:10,borderRadius:10,
@@ -9431,7 +9431,7 @@ function BOMManager({ user }) {
                     </div>
                   ))}
                 </div>
-              );
+              </>);
             })()}
           </div>
         )}
