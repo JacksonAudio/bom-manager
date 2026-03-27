@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.66";
-const BUILD_TIME   = "2026-03-27T18:17:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.67";
+const BUILD_TIME   = "2026-03-27T18:38:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -80,6 +80,7 @@ const DEFAULT_KEYS = {
   twilio_account_sid: "", // twilio.com — SMS notifications to builders
   twilio_auth_token: "",  // twilio.com
   twilio_phone_number: "", // twilio.com — your Twilio phone number (e.g. +1234567890)
+    twilio_messaging_service_sid: "", // twilio.com — Messaging Service SID (MG...) for 10DLC compliance
   labor_rate_hourly: "25", // $/hr labor rate for profit analysis
   ad_spend_pct: "35",     // % of sales price spent on ads (Facebook, Google, etc.)
   preferred_distributors: '["mouser"]', // JSON array of preferred supplier IDs — get priority in pricing
@@ -2329,6 +2330,7 @@ function BOMManager({ user }) {
           accountSid: apiKeys.twilio_account_sid,
           authToken: apiKeys.twilio_auth_token,
           fromNumber: apiKeys.twilio_phone_number,
+          messagingServiceSid: apiKeys.twilio_messaging_service_sid || null,
         }),
       }).catch(e => console.error("Playtest fail notification error:", e));
     } else {
@@ -12277,6 +12279,7 @@ function BOMManager({ user }) {
                         accountSid: apiKeys.twilio_account_sid || null,
                         authToken: apiKeys.twilio_auth_token || null,
                         fromNumber: apiKeys.twilio_phone_number || null,
+                        messagingServiceSid: apiKeys.twilio_messaging_service_sid || null,
                       }),
                     });
                     const notifyData = await notifyRes.json();
@@ -12372,6 +12375,7 @@ function BOMManager({ user }) {
                       accountSid: apiKeys.twilio_account_sid,
                       authToken: apiKeys.twilio_auth_token,
                       fromNumber: apiKeys.twilio_phone_number,
+                      messagingServiceSid: apiKeys.twilio_messaging_service_sid || null,
                     }),
                   }).catch(e => console.error("SMS notification failed:", e));
                 }
@@ -15331,6 +15335,10 @@ function BOMManager({ user }) {
                   <div><div className="key-label">Twilio Phone Number</div><div className="key-hint">+1XXXXXXXXXX</div></div>
                   <input type="text" value={apiKeys.twilio_phone_number||""} onChange={e=>setApiKeys(k=>({...k,twilio_phone_number:e.target.value}))} placeholder="+15551234567" style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
+                <div className="key-input-row">
+                  <div><div className="key-label">Messaging Service SID</div><div className="key-hint">MG… — Required for 10DLC compliance. Find in Twilio → Messaging → Services</div></div>
+                  <input type="text" value={apiKeys.twilio_messaging_service_sid||""} onChange={e=>setApiKeys(k=>({...k,twilio_messaging_service_sid:e.target.value}))} placeholder="MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
                 {sectionSaveBtn("sms", "SMS Settings")}
                 {apiKeys.twilio_account_sid && apiKeys.twilio_auth_token && apiKeys.twilio_phone_number && (
                   <div style={{ marginTop:14,paddingTop:14,borderTop:"1px solid #e5e5ea" }}>
@@ -15349,6 +15357,7 @@ function BOMManager({ user }) {
                               accountSid: apiKeys.twilio_account_sid,
                               authToken: apiKeys.twilio_auth_token,
                               fromNumber: apiKeys.twilio_phone_number,
+                              messagingServiceSid: apiKeys.twilio_messaging_service_sid || null,
                             }),
                           });
                           const d = await r.json();

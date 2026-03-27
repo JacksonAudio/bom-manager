@@ -89,43 +89,42 @@ async function handleBuildComplete(req, res) {
   }
 }
 
+// ── Helper: Send SMS via Twilio (uses Messaging Service if available) ─────────
+async function sendTwilioSms({ to, body, accountSid, authToken, fromNumber, messagingServiceSid }) {
+  const cleanTo = to.replace(/[^+\d]/g, "");
+  const fullTo = cleanTo.startsWith("+") ? cleanTo : "+1" + cleanTo;
+  const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+  const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+  const params = { To: fullTo, Body: body };
+  if (messagingServiceSid) {
+    params.MessagingServiceSid = messagingServiceSid;
+  } else {
+    params.From = fromNumber;
+  }
+  const twilioRes = await fetch(twilioUrl, {
+    method: "POST",
+    headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(params),
+  });
+  const data = await twilioRes.json();
+  return { ok: twilioRes.ok, data };
+}
+
 // ── Send SMS ────────────────────────────────────────────────────────────────────
 async function handleSms(req, res) {
-  const { to, message, accountSid, authToken, fromNumber } = req.body || {};
+  const { to, message, accountSid, authToken, fromNumber, messagingServiceSid } = req.body || {};
   if (!to || !message) return res.status(400).json({ error: "Missing 'to' or 'message'" });
-  if (!accountSid || !authToken || !fromNumber) {
+  if (!accountSid || !authToken || (!fromNumber && !messagingServiceSid)) {
     return res.status(400).json({ error: "Missing Twilio credentials. Configure in Settings → SMS." });
   }
 
-  // Clean phone number — ensure it starts with +
-  const cleanTo = to.replace(/[^+\d]/g, "");
-  if (cleanTo.length < 10) return res.status(400).json({ error: "Invalid phone number" });
-  const fullTo = cleanTo.startsWith("+") ? cleanTo : "+1" + cleanTo;
-
   try {
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
-
-    const twilioRes = await fetch(twilioUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${auth}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        To: fullTo,
-        From: fromNumber,
-        Body: message,
-      }),
-    });
-
-    const data = await twilioRes.json();
-    if (!twilioRes.ok) {
-      console.error("Twilio error:", data);
-      return res.status(502).json({ error: data.message || "Twilio send failed", code: data.code });
+    const result = await sendTwilioSms({ to, body: message, accountSid, authToken, fromNumber, messagingServiceSid });
+    if (!result.ok) {
+      console.error("Twilio error:", result.data);
+      return res.status(502).json({ error: result.data.message || "Twilio send failed", code: result.data.code });
     }
-
-    return res.status(200).json({ success: true, sid: data.sid });
+    return res.status(200).json({ success: true, sid: result.data.sid });
   } catch (err) {
     console.error("send-sms error:", err);
     return res.status(500).json({ error: err.message });
@@ -137,7 +136,7 @@ async function handlePlaytestFailed(req, res) {
   const {
     serialNumber, productName, testerName, rating, feedback,
     notifyEmail, notifyPhone,
-    accountSid, authToken, fromNumber,
+    accountSid, authToken, fromNumber, messagingServiceSid,
   } = req.body || {};
 
   const body = [
@@ -186,18 +185,10 @@ async function handlePlaytestFailed(req, res) {
   }
 
   // Send SMS via Twilio
-  if (notifyPhone && accountSid && authToken && fromNumber) {
-    const cleanTo = notifyPhone.replace(/[^+\d]/g, "");
-    const fullTo = cleanTo.startsWith("+") ? cleanTo : "+1" + cleanTo;
+  if (notifyPhone && accountSid && authToken && (fromNumber || messagingServiceSid)) {
     try {
-      const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-      const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
-      const twilioRes = await fetch(twilioUrl, {
-        method: "POST",
-        headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ To: fullTo, From: fromNumber, Body: smsBody }),
-      });
-      results.sms = twilioRes.ok ? "sent" : "failed";
+      const result = await sendTwilioSms({ to: notifyPhone, body: smsBody, accountSid, authToken, fromNumber, messagingServiceSid });
+      results.sms = result.ok ? "sent" : "failed";
     } catch (e) {
       console.error("playtest-failed sms error:", e);
       results.sms = "error";
@@ -212,7 +203,7 @@ async function handleBuildAssigned(req, res) {
   const {
     productName, quantity, priority, dueDate, forOrder, assignerName,
     notifyEmail, notifyName,
-    notifyPhone, accountSid, authToken, fromNumber,
+    notifyPhone, accountSid, authToken, fromNumber, messagingServiceSid,
   } = req.body || {};
 
   const dueStr = dueDate ? new Date(dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "No due date";
@@ -264,18 +255,10 @@ async function handleBuildAssigned(req, res) {
   }
 
   // Send SMS via Twilio
-  if (notifyPhone && accountSid && authToken && fromNumber) {
-    const cleanTo = notifyPhone.replace(/[^+\d]/g, "");
-    const fullTo = cleanTo.startsWith("+") ? cleanTo : "+1" + cleanTo;
+  if (notifyPhone && accountSid && authToken && (fromNumber || messagingServiceSid)) {
     try {
-      const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-      const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
-      const twilioRes = await fetch(twilioUrl, {
-        method: "POST",
-        headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ To: fullTo, From: fromNumber, Body: smsBody }),
-      });
-      results.sms = twilioRes.ok ? "sent" : "failed";
+      const result = await sendTwilioSms({ to: notifyPhone, body: smsBody, accountSid, authToken, fromNumber, messagingServiceSid });
+      results.sms = result.ok ? "sent" : "failed";
     } catch (e) {
       console.error("build-assigned sms error:", e);
       results.sms = "error";
@@ -289,7 +272,7 @@ async function handleBuildAssigned(req, res) {
 async function handleTest(req, res) {
   const {
     testEmail, testPhone,
-    accountSid, authToken, fromNumber,
+    accountSid, authToken, fromNumber, messagingServiceSid,
   } = req.body || {};
 
   const results = { email: null, sms: null, details: {} };
@@ -329,27 +312,18 @@ async function handleTest(req, res) {
 
   // Test SMS via Twilio
   if (testPhone) {
-    if (!accountSid || !authToken || !fromNumber) {
+    if (!accountSid || !authToken || (!fromNumber && !messagingServiceSid)) {
       results.sms = "no_credentials";
-      results.details.sms = "Missing Twilio credentials. Fill in Account SID, Auth Token, and Phone Number above, then save.";
+      results.details.sms = "Missing Twilio credentials. Fill in Account SID, Auth Token, and Phone Number or Messaging Service SID, then save.";
     } else {
-      const cleanTo = testPhone.replace(/[^+\d]/g, "");
-      const fullTo = cleanTo.startsWith("+") ? cleanTo : "+1" + cleanTo;
       try {
-        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-        const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
-        const twilioRes = await fetch(twilioUrl, {
-          method: "POST",
-          headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ To: fullTo, From: fromNumber, Body: "Test from Jackson Audio BOM Manager — SMS notifications are working." }),
-        });
-        const data = await twilioRes.json();
-        if (twilioRes.ok) {
+        const result = await sendTwilioSms({ to: testPhone, body: "Test from Jackson Audio BOM Manager — SMS notifications are working.", accountSid, authToken, fromNumber, messagingServiceSid });
+        if (result.ok) {
           results.sms = "sent";
-          results.details.sms = `Test SMS sent to ${fullTo} (SID: ${data.sid})`;
+          results.details.sms = `Test SMS sent to ${testPhone} (SID: ${result.data.sid})${messagingServiceSid ? " via Messaging Service" : ""}`;
         } else {
           results.sms = "failed";
-          results.details.sms = `Twilio error ${data.code || ""}: ${data.message || "Unknown error"}`;
+          results.details.sms = `Twilio error ${result.data.code || ""}: ${result.data.message || "Unknown error"}`;
         }
       } catch (e) {
         results.sms = "error";
