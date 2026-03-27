@@ -16,6 +16,7 @@ const BUILD_TIME   = "2026-03-26T21:30:00";   // local time of last push (Centra
 import { useState, useCallback, useRef, useEffect } from "react";
 import AuthScreen from "./components/AuthScreen.jsx";
 import QRLabelModal from "./components/QRLabelModal.jsx";
+import StickerPrintModal from "./components/StickerPrintModal.jsx";
 import ScannerView from "./components/ScannerView.jsx";
 import Scoreboard from "./components/Scoreboard.jsx";
 import BuildView from "./components/BuildView.jsx";
@@ -1553,6 +1554,7 @@ function BOMManager({ user }) {
   const [pipelineFilter, setPipelineFilter] = useState("all"); // "all" | status filter
   const [pipelineSearch, setPipelineSearch] = useState("");
   const [packingListOrder, setPackingListOrder] = useState(""); // for_order reference to filter packing list
+  const [stickerModalUnits, setStickerModalUnits] = useState(null); // array of pedal_units to print stickers for, or null
 
   const [pdPasteText, setPdPasteText] = useState(""); // product detail page paste text
   const [pdDragOver, setPdDragOver] = useState(false); // product detail page drag state
@@ -12896,7 +12898,24 @@ function BOMManager({ user }) {
                 </button>
               )}
               <span style={{ fontSize:12,color:"#86868b" }}>{filtered.length} units</span>
+              {filtered.length > 0 && (
+                <button onClick={() => setStickerModalUnits(filtered)}
+                  style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#c8a84e",color:"#fff",marginLeft:"auto" }}>
+                  Print Stickers ({filtered.length})
+                </button>
+              )}
             </div>
+
+            {/* ── Sticker Print Modal ── */}
+            {stickerModalUnits && (
+              <StickerPrintModal
+                units={stickerModalUnits}
+                products={products}
+                playTesters={playTesters}
+                teamMembers={teamMembers}
+                onClose={() => setStickerModalUnits(null)}
+              />
+            )}
 
             {/* ── Unit Cards ── */}
             <div style={{ display:"grid",gap:8,marginBottom:40 }}>
