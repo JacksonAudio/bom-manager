@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.64";
-const BUILD_TIME   = "2026-03-27T17:01:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.65";
+const BUILD_TIME   = "2026-03-27T18:08:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -15257,6 +15257,29 @@ function BOMManager({ user }) {
                   </div>
                 )}
                 {sectionSaveBtn("notifications", "Email Settings")}
+                {apiKeys.notify_email && (
+                  <div style={{ marginTop:14,paddingTop:14,borderTop:"1px solid #e5e5ea" }}>
+                    <button className="btn-ghost" onClick={async () => {
+                      try {
+                        const r = await fetch("/api/notifications?type=test", {
+                          method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ testEmail: apiKeys.notify_email }),
+                        });
+                        const d = await r.json();
+                        if (d.results?.email === "sent") {
+                          alert("Test email sent to " + apiKeys.notify_email + ". Check your inbox!");
+                        } else if (d.results?.email === "no_key") {
+                          alert("RESEND_API_KEY is not configured on the server.\n\nGo to Vercel → Project Settings → Environment Variables and add RESEND_API_KEY with your Resend API key.\n\nSign up at resend.com if you don't have one.");
+                        } else {
+                          alert("Email test failed:\n" + (d.results?.details?.email || "Unknown error"));
+                        }
+                      } catch (e) { alert("Network error: " + e.message); }
+                    }} style={{ fontSize:12 }}>
+                      Send Test Email
+                    </button>
+                    <span style={{ fontSize:11,color:"#86868b",marginLeft:8 }}>Sends a test email to {apiKeys.notify_email}</span>
+                  </div>
+                )}
               </div>}
             </div>
 
@@ -15309,6 +15332,38 @@ function BOMManager({ user }) {
                   <input type="text" value={apiKeys.twilio_phone_number||""} onChange={e=>setApiKeys(k=>({...k,twilio_phone_number:e.target.value}))} placeholder="+15551234567" style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
                 {sectionSaveBtn("sms", "SMS Settings")}
+                {apiKeys.twilio_account_sid && apiKeys.twilio_auth_token && apiKeys.twilio_phone_number && (
+                  <div style={{ marginTop:14,paddingTop:14,borderTop:"1px solid #e5e5ea" }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+                      <input type="text" placeholder="Phone number to test" id="test-sms-phone"
+                        defaultValue={apiKeys.playtest_fail_phone || ""}
+                        style={{ padding:"8px 12px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,width:180 }} />
+                      <button className="btn-ghost" onClick={async () => {
+                        const phone = document.getElementById("test-sms-phone")?.value;
+                        if (!phone) { alert("Enter a phone number to test."); return; }
+                        try {
+                          const r = await fetch("/api/notifications?type=test", {
+                            method: "POST", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              testPhone: phone,
+                              accountSid: apiKeys.twilio_account_sid,
+                              authToken: apiKeys.twilio_auth_token,
+                              fromNumber: apiKeys.twilio_phone_number,
+                            }),
+                          });
+                          const d = await r.json();
+                          if (d.results?.sms === "sent") {
+                            alert("Test SMS sent to " + phone + "!");
+                          } else {
+                            alert("SMS test failed:\n" + (d.results?.details?.sms || "Unknown error"));
+                          }
+                        } catch (e) { alert("Network error: " + e.message); }
+                      }} style={{ fontSize:12 }}>
+                        Send Test SMS
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>}
             </div>
 

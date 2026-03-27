@@ -21,6 +21,8 @@ export default async function handler(req, res) {
       return await handlePlaytestFailed(req, res);
     case "build-assigned":
       return await handleBuildAssigned(req, res);
+    case "test":
+      return await handleTest(req, res);
     default:
       return res.status(400).json({ error: `Unknown type: ${type}` });
   }
@@ -281,4 +283,80 @@ async function handleBuildAssigned(req, res) {
   }
 
   return res.status(200).json({ message: "Build assigned notification processed", results });
+}
+
+// ── Test — Verify email (Resend) and SMS (Twilio) configuration ────────────────
+async function handleTest(req, res) {
+  const {
+    testEmail, testPhone,
+    accountSid, authToken, fromNumber,
+  } = req.body || {};
+
+  const results = { email: null, sms: null, details: {} };
+
+  // Test email via Resend
+  if (testEmail) {
+    const resendKey = process.env.RESEND_API_KEY;
+    if (!resendKey) {
+      results.email = "no_key";
+      results.details.email = "RESEND_API_KEY is not set in Vercel environment variables. Add it at: Vercel → Project → Settings → Environment Variables.";
+    } else {
+      try {
+        const emailRes = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: "BOM Manager <alerts@jackson.audio>",
+            to: [testEmail],
+            subject: "Test — BOM Manager Email Notifications Working",
+            text: "This is a test email from Jackson Audio BOM Manager.\n\nIf you received this, email notifications are configured correctly.\n\n— Jackson Audio BOM Manager",
+          }),
+        });
+        if (emailRes.ok) {
+          results.email = "sent";
+          results.details.email = `Test email sent to ${testEmail}`;
+        } else {
+          const err = await emailRes.text();
+          results.email = "failed";
+          results.details.email = `Resend API error: ${err}`;
+        }
+      } catch (e) {
+        results.email = "error";
+        results.details.email = `Network error: ${e.message}`;
+      }
+    }
+  }
+
+  // Test SMS via Twilio
+  if (testPhone) {
+    if (!accountSid || !authToken || !fromNumber) {
+      results.sms = "no_credentials";
+      results.details.sms = "Missing Twilio credentials. Fill in Account SID, Auth Token, and Phone Number above, then save.";
+    } else {
+      const cleanTo = testPhone.replace(/[^+\d]/g, "");
+      const fullTo = cleanTo.startsWith("+") ? cleanTo : "+1" + cleanTo;
+      try {
+        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+        const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+        const twilioRes = await fetch(twilioUrl, {
+          method: "POST",
+          headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ To: fullTo, From: fromNumber, Body: "Test from Jackson Audio BOM Manager — SMS notifications are working." }),
+        });
+        const data = await twilioRes.json();
+        if (twilioRes.ok) {
+          results.sms = "sent";
+          results.details.sms = `Test SMS sent to ${fullTo} (SID: ${data.sid})`;
+        } else {
+          results.sms = "failed";
+          results.details.sms = `Twilio error ${data.code || ""}: ${data.message || "Unknown error"}`;
+        }
+      } catch (e) {
+        results.sms = "error";
+        results.details.sms = `Network error: ${e.message}`;
+      }
+    }
+  }
+
+  return res.status(200).json({ message: "Notification test complete", results });
 }
