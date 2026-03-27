@@ -72,8 +72,8 @@ export async function fetchProducts() {
 }
 
 // Insert a new product and return the created row
-export async function createProduct({ name, color, userId, shopify_product_id, zoho_product_id, brand }) {
-  const row = { name, color, created_by: userId };
+export async function createProduct({ name, color, userId, shopify_product_id, zoho_product_id, brand, import_name }) {
+  const row = { name, color, created_by: userId, import_name: import_name || name };
   if (shopify_product_id) row.shopify_product_id = shopify_product_id;
   if (zoho_product_id) row.zoho_product_id = zoho_product_id;
   if (brand) row.brand = brand;

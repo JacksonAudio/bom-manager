@@ -1796,6 +1796,16 @@ function BOMManager({ user }) {
         setProducts(uiProducts);
         setParts(pts.map(dbPartToUI));
 
+        // Backfill import_name for products that don't have one yet
+        // This locks in the current name so order matching survives future renames
+        const needsImportName = uiProducts.filter(p => !p.importName && p.name);
+        if (needsImportName.length > 0) {
+          for (const p of needsImportName) {
+            supabase.from("products").update({ import_name: p.name }).eq("id", p.id).then();
+            p.importName = p.name;
+          }
+        }
+
         // Restore build queue from products
         const restoredQueue = uiProducts
           .filter(p => p.buildQueueQty && p.buildQueueQty > 0)
@@ -2628,7 +2638,20 @@ function BOMManager({ user }) {
       salesPrice: row.sales_price || null,
       brand: row.brand || "Jackson Audio",
       buildQueueQty: row.build_queue_qty || null,
+      importName: row.import_name || null,
     };
+  }
+
+  // Match a BOM product to an external order title (Shopify/Zoho)
+  // Checks import_name first (the frozen original name), then falls back to current name
+  function productMatchesTitle(product, title) {
+    if (!title) return false;
+    const t = title.toLowerCase();
+    const names = [product.importName, product.name].filter(Boolean);
+    return names.some(n => {
+      const nl = n.toLowerCase();
+      return nl === t || t.includes(nl) || nl.includes(t);
+    });
   }
 
   function dbPartToUI(row) {
@@ -4379,9 +4402,7 @@ function BOMManager({ user }) {
     if (hasShopify) {
       for (const sp of shopifyDemand.products) {
         const bomProduct = products.find(p =>
-          p.shopifyProductId === sp.shopifyProductId ||
-          sp.title.toLowerCase().includes(p.name.toLowerCase()) ||
-          p.name.toLowerCase().includes(sp.title.toLowerCase())
+          p.shopifyProductId === sp.shopifyProductId || productMatchesTitle(p, sp.title)
         );
         if (!bomProduct) continue;
         const productParts = parts.filter(p => p.projectId === bomProduct.id);
@@ -4396,9 +4417,7 @@ function BOMManager({ user }) {
     if (hasZoho) {
       for (const zp of zohoDemand.products) {
         const bomProduct = products.find(p =>
-          p.zohoProductId === zp.zohoProductId ||
-          zp.title.toLowerCase().includes(p.name.toLowerCase()) ||
-          p.name.toLowerCase().includes(zp.title.toLowerCase())
+          p.zohoProductId === zp.zohoProductId || productMatchesTitle(p, zp.title)
         );
         if (!bomProduct) continue;
         const productParts = parts.filter(p => p.projectId === bomProduct.id);
@@ -9109,7 +9128,7 @@ function BOMManager({ user }) {
                         for (const v of sp.variants) {
                           const variantName = `${sp.title} — ${v.title}`;
                           const existsExact = products.find(p => p.shopifyProductId === sp.id && p.name.toLowerCase() === variantName.toLowerCase());
-                          const existsFuzzy = !existsExact && products.find(p => p.shopifyProductId === sp.id || p.name.toLowerCase() === variantName.toLowerCase() || p.name.toLowerCase() === sp.title.toLowerCase());
+                          const existsFuzzy = !existsExact && products.find(p => p.shopifyProductId === sp.id || productMatchesTitle(p, variantName) || productMatchesTitle(p, sp.title));
                           importProducts.push({
                             shopifyId: sp.id, variantId: v.id, title: sp.title, variantTitle: v.title,
                             displayName: variantName, sku: v.sku, price: v.price, barcode: v.barcode,
@@ -9120,7 +9139,7 @@ function BOMManager({ user }) {
                       } else {
                         const v = sp.variants[0] || {};
                         const existsExact = products.find(p => p.shopifyProductId === sp.id);
-                        const existsFuzzy = !existsExact && products.find(p => p.name.toLowerCase() === sp.title.toLowerCase());
+                        const existsFuzzy = !existsExact && products.find(p => productMatchesTitle(p, sp.title));
                         importProducts.push({
                           shopifyId: sp.id, variantId: v.id, title: sp.title, variantTitle: null,
                           displayName: sp.title, sku: v.sku, price: v.price, barcode: v.barcode,
@@ -9708,14 +9727,15 @@ function BOMManager({ user }) {
                               brand,
                               shopify_product_id: p.shopifyId,
                             });
-                            // Update with UPC and sales price if available
-                            const extras = {};
+                            // Update with UPC, sales price, and import_name
+                            const extras = { import_name: p.displayName };
                             if (p.barcode) extras.upc = p.barcode;
                             if (p.price) extras.sales_price = parseFloat(p.price);
                             if (Object.keys(extras).length > 0) {
                               await supabase.from("products").update(extras).eq("id", newProd.id);
                             }
                             const uiProd = dbProductToUI(newProd);
+                            uiProd.importName = p.displayName;
                             if (p.barcode) uiProd.upc = p.barcode;
                             if (p.price) uiProd.salesPrice = parseFloat(p.price);
                             setProducts(prev => [...prev, uiProd]);
@@ -9904,6 +9924,11 @@ function BOMManager({ user }) {
                   </h2>
                   {prod.brand && prod.brand !== "Jackson Audio" && (
                     <span style={{ fontSize:11,fontWeight:700,color:"#fff",background:"#5856d6",padding:"3px 10px",borderRadius:980 }}>{prod.brand}</span>
+                  )}
+                  {prod.importName && prod.importName !== prod.name && (
+                    <span style={{ fontSize:10,color:"#86868b",fontStyle:"italic" }} title="Original import name — used for matching Shopify/Zoho orders">
+                      (imported as: {prod.importName})
+                    </span>
                   )}
                   <button title="Duplicate product"
                     onClick={async () => {
@@ -10528,17 +10553,13 @@ function BOMManager({ user }) {
           const unmapped = shopifyDemand?.products?.filter(sp => {
             if (_isNonProduct(sp.title)) return false;
             return !products.find(p =>
-              p.shopifyProductId === sp.shopifyProductId ||
-              sp.title.toLowerCase().includes(p.name.toLowerCase()) ||
-              p.name.toLowerCase().includes(sp.title.toLowerCase())
+              p.shopifyProductId === sp.shopifyProductId || productMatchesTitle(p, sp.title)
             );
           }) || [];
           const unmappedZoho = zohoDemand?.products?.filter(zp => {
             if (_isNonProduct(zp.title)) return false;
             return !products.find(p =>
-              p.zohoProductId === zp.zohoProductId ||
-              zp.title.toLowerCase().includes(p.name.toLowerCase()) ||
-              p.name.toLowerCase().includes(zp.title.toLowerCase())
+              p.zohoProductId === zp.zohoProductId || productMatchesTitle(p, zp.title)
             );
           }) || [];
           return (
@@ -10699,7 +10720,7 @@ function BOMManager({ user }) {
                     for (const li of order.lineItems) {
                       const remaining = (li.quantity || 0) - (li.quantityShipped || 0);
                       if (remaining <= 0) continue;
-                      const bomProduct = products.find(p => p.zohoProductId === li.productId || li.title.toLowerCase().includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(li.title.toLowerCase()));
+                      const bomProduct = products.find(p => p.zohoProductId === li.productId || productMatchesTitle(p, li.title));
                       if (!bomProduct) continue;
                       const bomParts = parts.filter(p => p.productId === bomProduct.id || (p.products && p.products.includes(bomProduct.id)));
                       for (const bp of bomParts) {
@@ -10747,7 +10768,7 @@ function BOMManager({ user }) {
                     for (const li of items) {
                       const remaining = (li.unfulfilled || 0);
                       if (remaining <= 0) continue;
-                      const bomProduct = products.find(p => p.shopifyProductId === li.productId || li.title.toLowerCase().includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(li.title.toLowerCase()));
+                      const bomProduct = products.find(p => p.shopifyProductId === li.productId || productMatchesTitle(p, li.title));
                       if (!bomProduct) continue;
                       const bomParts = parts.filter(p => p.productId === bomProduct.id || (p.products && p.products.includes(bomProduct.id)));
                       for (const bp of bomParts) {
@@ -10918,7 +10939,7 @@ function BOMManager({ user }) {
                                               for (const li of po.lineItems) {
                                                 const remaining = li.quantity - li.fulfilled;
                                                 if (remaining <= 0) continue;
-                                                const bomProduct = products.find(p => li.title.toLowerCase().includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(li.title.toLowerCase()));
+                                                const bomProduct = products.find(p => productMatchesTitle(p, li.title));
                                                 if (bomProduct && !buildQueue.find(q => q.productId === bomProduct.id)) {
                                                   newQueue.push({ productId: bomProduct.id, name: bomProduct.name, qty: remaining, color: bomProduct.color, forOrder: po.orderName });
                                                 }
@@ -11261,8 +11282,7 @@ function BOMManager({ user }) {
                                 {section.products.map(prod => {
                                   const bomProduct = products.find(p =>
                                     (section.source === "zoho" ? p.zohoProductId === prod.zohoProductId : p.shopifyProductId === prod.shopifyProductId) ||
-                                    prod.title.toLowerCase().includes(p.name.toLowerCase()) ||
-                                    p.name.toLowerCase().includes(prod.title.toLowerCase())
+                                    productMatchesTitle(p, prod.title)
                                   );
                                   return (
                                     <tr key={prod.zohoProductId || prod.shopifyProductId || prod.title} style={{ borderBottom:"1px solid #f0f0f2" }}>
@@ -12609,13 +12629,13 @@ function BOMManager({ user }) {
               const suggestions = shopifyDemand.products.filter(sp => {
                 const unfulfilled = (sp.ordered || 0) - (sp.fulfilled || 0);
                 if (unfulfilled <= 0) return false;
-                // Match shopify product to local product by name
-                const localProd = products.find(p => p.name && sp.title && p.name.toLowerCase() === sp.title.toLowerCase());
+                // Match shopify product to local product by name or import_name
+                const localProd = products.find(p => p.shopifyProductId === sp.shopifyProductId || productMatchesTitle(p, sp.title));
                 if (!localProd) return false;
                 if (activeBOProductIds.has(localProd.id)) return false;
                 return true;
               }).map(sp => {
-                const localProd = products.find(p => p.name && sp.title && p.name.toLowerCase() === sp.title.toLowerCase());
+                const localProd = products.find(p => p.shopifyProductId === sp.shopifyProductId || productMatchesTitle(p, sp.title));
                 return { ...sp, localProduct: localProd, unfulfilled: (sp.ordered || 0) - (sp.fulfilled || 0) };
               });
               if (suggestions.length === 0) return null;
@@ -15285,7 +15305,7 @@ function BOMManager({ user }) {
             const spData = prod.shopifyProductId ? shopifyPriceLookup[prod.shopifyProductId] : null;
             // Also try matching by product name if no shopifyProductId match
             const spByName = !spData && hasShopifyPrices ? shopifySalesPrices.products.find(sp =>
-              sp.title && prod.name && sp.title.toLowerCase().includes(prod.name.toLowerCase())
+              productMatchesTitle(prod, sp.title)
             ) : null;
             const sp = spData || spByName || null;
             const avgActual = sp ? sp.avgPrice : null;
@@ -15625,8 +15645,7 @@ function BOMManager({ user }) {
               // Zoho dealer margin: use avgRate from Zoho orders as sale price
               const zohoMargins = zohoDemand?.products?.length > 0 ? rows.map(r => {
                 const zp = zohoDemand.products.find(z =>
-                  r.zohoProductId === z.zohoProductId ||
-                  (z.title && r.name && z.title.toLowerCase().includes(r.name.toLowerCase()))
+                  r.zohoProductId === z.zohoProductId || productMatchesTitle(r, z.title)
                 );
                 if (!zp || !zp.avgRate || zp.avgRate <= 0) return null;
                 const zohoPrice = zp.avgRate;
