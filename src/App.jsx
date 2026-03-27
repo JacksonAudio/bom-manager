@@ -12009,12 +12009,17 @@ function BOMManager({ user }) {
                     const outstandingOrders = [
                       ...(zohoDemand?.orders || []).filter(o => o.lineItems?.length > 0 && !dismissedOrders.has(o.id)).map(o => ({
                         label: o.name || o.dealerPO || o.id,
-                        sub: o.customerName || o.companyName || "",
+                        sub: (o.customerName || o.companyName || "") + " (Dealer PO)",
                         value: o.dealerPO || o.name || o.id,
+                      })),
+                      ...(shopifyDemand?.orders || []).filter(o => o.fulfillmentStatus !== "fulfilled" && !dismissedOrders.has(o.id)).map(o => ({
+                        label: o.name || o.orderNumber || o.id,
+                        sub: (o.name || "Customer") + " (Direct Order)",
+                        value: o.name || o.orderNumber || o.id,
                       })),
                       ...trackedOrders.filter(o => o.status !== "delivered" && o.status !== "received").map(o => ({
                         label: o.poNumber || o.id,
-                        sub: o.supplier || "",
+                        sub: (o.supplier || "") + " (Supplier PO)",
                         value: o.poNumber || o.id,
                       })),
                     ];
@@ -12773,12 +12778,17 @@ function BOMManager({ user }) {
                         const outstandingOrders = [
                           ...(zohoDemand?.orders || []).filter(o => o.lineItems?.length > 0 && !dismissedOrders.has(o.id)).map(o => ({
                             label: o.name || o.dealerPO || o.id,
-                            sub: o.customerName || o.companyName || "",
+                            sub: (o.customerName || o.companyName || "") + " (Dealer PO)",
                             value: o.dealerPO || o.name || o.id,
+                          })),
+                          ...(shopifyDemand?.orders || []).filter(o => o.fulfillmentStatus !== "fulfilled" && !dismissedOrders.has(o.id)).map(o => ({
+                            label: o.name || o.orderNumber || o.id,
+                            sub: (o.name || "Customer") + " (Direct Order)",
+                            value: o.name || o.orderNumber || o.id,
                           })),
                           ...trackedOrders.filter(o => o.status !== "delivered" && o.status !== "received").map(o => ({
                             label: o.poNumber || o.id,
-                            sub: o.supplier || "",
+                            sub: (o.supplier || "") + " (Supplier PO)",
                             value: o.poNumber || o.id,
                           })),
                         ];
