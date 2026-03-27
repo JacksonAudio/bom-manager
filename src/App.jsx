@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.43";
-const BUILD_TIME   = "2026-03-27T10:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.44";
+const BUILD_TIME   = "2026-03-27T11:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -1520,6 +1520,7 @@ function BOMManager({ user }) {
   const [newTeamMember,    setNewTeamMember]     = useState({ name:"", role:"assembler", phone:"", email:"", pin_code:"" });
   const [newBuildOrder,    setNewBuildOrder]     = useState({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"", for_order:"" });
   const [prodBusy,         setProdBusy]          = useState(false);
+  const [prodSubTab,       setProdSubTab]        = useState("builds"); // "builds" | "playtesting" | "boxing"
   // ── Production Calendar state
   const [calendarView,     setCalendarView]      = useState("week"); // "week" or "month"
   const [calendarWeekStart, setCalendarWeekStart] = useState(() => {
@@ -4454,7 +4455,7 @@ function BOMManager({ user }) {
         borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
         background:darkMode?"#1c1c1e":"#fff" }}>
         {[
-          { id:"dashboard", label:"Dashboard",  step:null, color:null },
+          { id:"dashboard", label:`Dashboard${lowStockParts.length>0?` ⚠${lowStockParts.length}`:""}`,  step:null, color:null },
           { id:"bom",       label:`Parts (${parts.length})`, step:1, color:"#0071e3" },
           { id:"projects",  label:"Products",   step:2, color:"#5856d6" },
           { id:"pricing",   label:`Pricing${pricedCount>0?` (${pricedCount}/${parts.length})`:""}`, step:3, color:"#ff9500" },
@@ -4462,13 +4463,10 @@ function BOMManager({ user }) {
           { id:"purchasing",label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}`, step:5, color:"#ff3b30" },
           { id:"scan",      label:"Scan In",    step:6, color:"#00c7be" },
           { id:"orders",    label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}`, step:null, color:null },
-          { id:"production",label:`Production${buildOrders.filter(b=>b.status!=="completed").length>0?` (${buildOrders.filter(b=>b.status!=="completed").length})`:""}`, step:null, color:null },
-          { id:"playtesting",label:`Play Testing${playTests.filter(t=>t.status!=="returned").length>0?` (${playTests.filter(t=>t.status!=="returned").length})`:""}`, step:null, color:null },
-          { id:"boxing",label:`Boxing${boxingTasks.filter(t=>t.status!=="completed").length>0?` (${boxingTasks.filter(t=>t.status!=="completed").length})`:""}`, step:null, color:null },
+          { id:"production",label:`Production${(()=>{ const c=buildOrders.filter(b=>b.status!=="completed").length+playTests.filter(t=>t.status!=="returned").length+boxingTasks.filter(t=>t.status!=="completed").length; return c>0?` (${c})`:""; })()}`, step:null, color:null },
           { id:"pipeline",label:`Pipeline${pedalUnits.filter(u=>u.status!=="shipped"&&u.status!=="boxed").length>0?` (${pedalUnits.filter(u=>u.status!=="shipped"&&u.status!=="boxed").length})`:""}`, step:null, color:null },
           { id:"scoreboard",label:"Scoreboard", step:null, color:null },
           { id:"suppliers", label:"Suppliers",   step:null, color:null },
-          { id:"alerts",    label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}`, step:null, color:null },
           { id:"settings",  label:"Settings",   step:null, color:null },
           { id:"admin",     label:"Admin",       step:null, color:null },
         ].filter(tab => tab.id !== "admin" || isAdmin).map((tab) => (
@@ -4498,7 +4496,7 @@ function BOMManager({ user }) {
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:16,marginBottom:24 }}>
               {[
                 { label:"Inventory Value", value:`$${fmtDollar(inventoryValue)}`, sub:`${totalStockParts} parts, ${totalStockUnits.toLocaleString()} units`, color:"#0071e3", nav:"bom" },
-                { label:"Low Stock Alerts", value:lowStockParts.length, sub:lowStockParts.length>0?`${lowStockParts.slice(0,3).map(p=>p.mpn||p.reference).join(", ")}${lowStockParts.length>3?" ...":""}`:"All parts stocked", color:lowStockParts.length>0?"#ff3b30":"#34c759", nav:"alerts" },
+                { label:"Low Stock Alerts", value:lowStockParts.length, sub:lowStockParts.length>0?`${lowStockParts.slice(0,3).map(p=>p.mpn||p.reference).join(", ")}${lowStockParts.length>3?" ...":""}`:"All parts stocked", color:lowStockParts.length>0?"#ff3b30":"#34c759", nav:"dashboard" },
                 { label:"Parts to Order", value:poPartCount, sub:poPartCount>0?`across ${Object.keys(purchaseOrders).length} suppliers`:"No orders pending", color:poPartCount>0?"#ff9500":"#34c759", nav:"purchasing" },
                 { label:"Products", value:products.length, sub:`${pricedCount}/${parts.length} parts priced`, color:"#5856d6", nav:"projects" },
                 ...(shopifyDemand?.totalOrders ? [{ label:"Shopify Orders", value:shopifyDemand.totalOrders, sub:"Direct / consumer", color:"#96bf48", nav:"demand" }] : []),
@@ -4987,6 +4985,55 @@ function BOMManager({ user }) {
                     })()}
                   </div>
                 )}
+
+            {/* ── Low Stock Alerts (merged from Alerts tab) ── */}
+            <div style={{ borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",paddingTop:28,marginTop:28 }}>
+              <h3 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:22,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>Low Stock Alerts</h3>
+              <p style={{ color:"#86868b",fontSize:13,marginBottom:16 }}>Parts at or below reorder threshold.</p>
+              {lowStockParts.length===0 ? (
+                <div style={{ textAlign:"center",padding:40,background:darkMode?"#1c1c1e":"#fff",borderRadius:14,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                  <div style={{ fontSize:28,marginBottom:8 }}>✅</div>
+                  <div style={{ fontWeight:700,fontSize:14,color:"#34c759" }}>All parts above reorder thresholds</div>
+                </div>
+              ) : (
+                <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+                  {lowStockParts.slice(0, 10).map((part) => {
+                    const projList = products.filter((p)=>part.projectId === p.id);
+                    const sup = supplierById(part.preferredSupplier);
+                    return (
+                      <div key={part.id} style={{ borderLeft:"3px solid #ff3b30",display:"flex",alignItems:"center",gap:14,padding:"12px 16px",flexWrap:"wrap",
+                        background:darkMode?"#1c1c1e":"#fff",borderRadius:12,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                        <span className="alert-dot" />
+                        <div style={{ flex:1,minWidth:200 }}>
+                          <div style={{ display:"flex",gap:8,alignItems:"center",marginBottom:3,flexWrap:"wrap" }}>
+                            <span style={{ fontWeight:800,color:"#0071e3",fontSize:13 }}>{part.reference}</span>
+                            <span style={{ color:"#86868b",fontSize:12 }}>{part.value}</span>
+                            <span style={{ color:"#0071e3",fontSize:12 }}>{part.mpn}</span>
+                            {projList.map(pr=><span key={pr.id} className="badge" style={{ background:pr.color+"22",color:pr.color }}>{pr.name}</span>)}
+                          </div>
+                          <div style={{ fontSize:12,color:"#86868b" }}>
+                            Stock: <span style={{ color:"#ff3b30",fontWeight:700 }}>{part.stockQty}</span>
+                            &nbsp;· Reorder at: {part.reorderQty}
+                            &nbsp;· Via: <span style={{ color:sup.color,fontWeight:700 }}>{sup.name}</span>
+                          </div>
+                        </div>
+                        <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+                          <input type="checkbox" style={{ width:16,height:16,cursor:"pointer",accentColor:"#0071e3" }}
+                            checked={part.flaggedForOrder} onChange={()=>toggleFlag(part.id)} />
+                          <span style={{ fontSize:11,color:"#86868b" }}>Flag</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {lowStockParts.length > 10 && <div style={{ fontSize:12,color:"#86868b",textAlign:"center" }}>...and {lowStockParts.length - 10} more low-stock parts</div>}
+                  <button className="btn-primary" style={{ alignSelf:"flex-start",marginTop:6 }}
+                    onClick={()=>{ setParts((prev)=>prev.map((p)=>{ const s=parseInt(p.stockQty),r=parseInt(p.reorderQty); if(!isNaN(s)&&!isNaN(r)&&s<=r) return {...p,flaggedForOrder:true}; return p; })); setActiveView("purchasing"); }}>
+                    Flag All & Go to Purchasing
+                  </button>
+                </div>
+              )}
+            </div>
+
             </div>
           </div>
         )}
@@ -11100,60 +11147,6 @@ function BOMManager({ user }) {
           );
         })()}
 
-        {activeView === "alerts" && (
-          <div style={{ maxWidth:"100%" }}>
-            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:6 }}>Low Stock Alerts</h2>
-            <p style={{ color:"#86868b",fontSize:13,marginBottom:22 }}>Parts at or below reorder threshold.</p>
-            {lowStockParts.length===0 ? (
-              <div className="card" style={{ textAlign:"center",padding:60 }}>
-                <div style={{ fontSize:40,marginBottom:12 }}>✅</div>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:15,color:"#34c759" }}>All parts above reorder thresholds</div>
-              </div>
-            ) : (
-              <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-                {lowStockParts.map((part) => {
-                  const projList = products.filter((p)=>part.projectId === p.id);
-                  const sup = supplierById(part.preferredSupplier);
-                  return (
-                    <div key={part.id} className="card" style={{ borderLeft:"3px solid #ff3b30",display:"flex",alignItems:"center",gap:16,padding:"14px 18px",flexWrap:"wrap" }}>
-                      <span className="alert-dot" />
-                      <div style={{ flex:1,minWidth:200 }}>
-                        <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:4,flexWrap:"wrap" }}>
-                          <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,color:"#0071e3" }}>{part.reference}</span>
-                          <span style={{ color:"#86868b",fontSize:12 }}>{part.value}</span>
-                          <span style={{ color:"#0071e3",fontSize:12 }}>{part.mpn}</span>
-                          {projList.map(pr=><span key={pr.id} className="badge" style={{ background:pr.color+"22",color:pr.color }}>{pr.name}</span>)}
-                        </div>
-                        <div style={{ fontSize:12,color:"#86868b" }}>
-                          Stock: <span style={{ color:"#ff3b30",fontWeight:700 }}>{part.stockQty}</span>
-                          &nbsp;· Reorder at: <span style={{ color:"#86868b" }}>{part.reorderQty}</span>
-                          &nbsp;· Via: <span style={{ color:sup.color,fontWeight:700 }}>{sup.name}</span>
-                        </div>
-                      </div>
-                      <div style={{ display:"flex",gap:8,alignItems:"center" }}>
-                        <input type="checkbox" style={{ width:16,height:16,cursor:"pointer",accentColor:"#0071e3" }}
-                          checked={part.flaggedForOrder} onChange={()=>toggleFlag(part.id)} />
-                        <span style={{ fontSize:11,color:"#86868b" }}>Flag for PO</span>
-                        {part.mpn && (
-                          <a href={sup.searchUrl(part.mpn)} target="_blank" rel="noopener noreferrer">
-                            <button className="btn-ghost" style={{ fontSize:11 }}>Order on {sup.name} →</button>
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                <div style={{ marginTop:8,display:"flex",gap:10 }}>
-                  <button className="btn-primary"
-                    onClick={()=>{ setParts((prev)=>prev.map((p)=>{ const s=parseInt(p.stockQty),r=parseInt(p.reorderQty); if(!isNaN(s)&&!isNaN(r)&&s<=r) return {...p,flaggedForOrder:true}; return p; })); setActiveView("purchasing"); }}>
-                    🚩 Flag All & Go to Purchasing
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* ══════════════════════════════════════
             PRODUCTION FLOOR
         ══════════════════════════════════════ */}
@@ -11370,8 +11363,29 @@ function BOMManager({ user }) {
           return (
           <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>Production Floor</h2>
-            <p style={{ fontSize:14,color:"#86868b",marginBottom:12 }}>Manage build orders, team assignments, and track production progress.</p>
+            <p style={{ fontSize:14,color:"#86868b",marginBottom:12 }}>Manage build orders, team assignments, play testing, and boxing.</p>
 
+            {/* ── Sub-tab navigation ── */}
+            <div style={{ display:"flex",gap:6,marginBottom:20 }}>
+              {[
+                { id:"builds", label:"Build Orders", count: activeOrders.length },
+                { id:"playtesting", label:"Play Testing", count: playTests.filter(t=>t.status!=="returned").length },
+                { id:"boxing", label:"Boxing", count: boxingTasks.filter(t=>t.status!=="completed").length },
+              ].map(sub => (
+                <button key={sub.id} onClick={() => setProdSubTab(sub.id)}
+                  style={{
+                    padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",
+                    border:prodSubTab===sub.id?"none":(darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7"),
+                    background:prodSubTab===sub.id?(darkMode?"#0071e3":"#0071e3"):(darkMode?"#2c2c2e":"#fff"),
+                    color:prodSubTab===sub.id?"#fff":(darkMode?"#f5f5f7":"#1d1d1f"),
+                    transition:"all 0.15s",
+                  }}>
+                  {sub.label}{sub.count > 0 ? ` (${sub.count})` : ""}
+                </button>
+              ))}
+            </div>
+
+            {prodSubTab === "builds" && (<>
             {/* ── Mobile Builder App link ── */}
             <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:24,flexWrap:"wrap" }}>
               <span style={{ fontSize:13,color:"#86868b" }}>Mobile Builder App:</span>
@@ -12197,14 +12211,10 @@ function BOMManager({ user }) {
                 </div>
               )}
             </div>
-          </div>
-          );
-        })()}
+            </>)}
 
-        {/* ══════════════════════════════════════
-            PLAY TESTING — Assign & Track Play Tests
-        ══════════════════════════════════════ */}
-        {activeView === "playtesting" && (() => {
+            {/* ── Play Testing Sub-tab ── */}
+            {prodSubTab === "playtesting" && (() => {
           const activeTests = playTests.filter(t => t.status !== "returned");
           const returnedTests = playTests.filter(t => t.status === "returned");
           const activeTesters = playTesters.filter(t => t.active !== false);
@@ -12572,12 +12582,10 @@ function BOMManager({ user }) {
             })}
           </div>
           );
-        })()}
+            })()}
 
-        {/* ══════════════════════════════════════
-            BOXING — Package finished, play-tested units
-        ══════════════════════════════════════ */}
-        {activeView === "boxing" && (() => {
+            {/* ── Boxing Sub-tab ── */}
+            {prodSubTab === "boxing" && (() => {
           const activeTasks = boxingTasks.filter(t => t.status !== "completed");
           const completedTasks = boxingTasks.filter(t => t.status === "completed");
           const activeMembers = teamMembers.filter(t => t.active !== false);
@@ -12840,6 +12848,10 @@ function BOMManager({ user }) {
                 </div>
               );
             })}
+          </div>
+          );
+            })()}
+
           </div>
           );
         })()}
