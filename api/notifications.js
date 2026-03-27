@@ -69,7 +69,7 @@ async function handleBuildComplete(req, res) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "BOM Manager <alerts@jackson.audio>",
+        from: "BOM Manager <alerts@jacksonaudio.net>",
         to: [notifyEmail],
         subject: `Build Complete — ${quantity}x ${productName || "Product"} by ${builderName || "team"}`,
         text: body,
@@ -168,7 +168,7 @@ async function handlePlaytestFailed(req, res) {
           method: "POST",
           headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            from: "BOM Manager <alerts@jackson.audio>",
+            from: "BOM Manager <alerts@jacksonaudio.net>",
             to: [notifyEmail],
             subject: `FAILED Play Test — ${serialNumber || "?"} ${productName || ""}`,
             text: body,
@@ -246,7 +246,7 @@ async function handleBuildAssigned(req, res) {
           method: "POST",
           headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            from: "BOM Manager <alerts@jackson.audio>",
+            from: "BOM Manager <alerts@jacksonaudio.net>",
             to: [notifyEmail],
             subject: `Build Assigned — ${quantity}x ${productName || "Product"} (${priorityLabel})`,
             text: emailBody,
@@ -306,7 +306,7 @@ async function handleTest(req, res) {
           method: "POST",
           headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            from: "BOM Manager <alerts@jackson.audio>",
+            from: "BOM Manager <alerts@jacksonaudio.net>",
             to: [testEmail],
             subject: "Test — BOM Manager Email Notifications Working",
             text: "This is a test email from Jackson Audio BOM Manager.\n\nIf you received this, email notifications are configured correctly.\n\n— Jackson Audio BOM Manager",
