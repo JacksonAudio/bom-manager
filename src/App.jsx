@@ -1575,6 +1575,9 @@ function BOMManager({ user }) {
 
   const fileRef = useRef();
   const pdFileRef = useRef(); // product detail page file input ref
+  const [upcImportOpen, setUpcImportOpen] = useState(false);
+  const [upcImportText, setUpcImportText] = useState("");
+  const [upcImportResults, setUpcImportResults] = useState(null);
   const qtyTimers = useRef({}); // debounce timers for qty→price refresh
   const simTimer = useRef(null); // debounce timer for sim auto-run
   const recentLocalWrites = useRef(new Set()); // part IDs written locally — skip realtime for these
@@ -9008,6 +9011,10 @@ function BOMManager({ user }) {
                     <option key={b} value={b}>{b}</option>
                   )}
                 </select>
+                <button onClick={() => setUpcImportOpen(true)}
+                  style={{ padding:"6px 14px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                  Import UPCs
+                </button>
                 <input type="text" placeholder="New product name…" value={newProjName}
                   onChange={(e)=>setNewProjName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addProduct()}
                   style={{ marginLeft:"auto",padding:"6px 12px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:180,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
@@ -9166,6 +9173,149 @@ function BOMManager({ user }) {
                 </div>
               );
             })()}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════
+            UPC IMPORT MODAL
+        ══════════════════════════════════════ */}
+        {upcImportOpen && (
+          <div style={{ position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.5)",padding:20 }}
+            onClick={() => { setUpcImportOpen(false); setUpcImportResults(null); setUpcImportText(""); }}>
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:16,maxWidth:700,width:"100%",maxHeight:"85vh",overflow:"auto",padding:"24px 28px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize:18,fontWeight:700,color:textPrimary,marginBottom:4 }}>Import UPC Codes</div>
+              <p style={{ fontSize:13,color:"#86868b",marginBottom:16 }}>
+                Paste CSV data with columns: UPC, EAN, SKU (product name). The SKU/product name column is matched against existing products.
+              </p>
+              {!upcImportResults ? (<>
+                <textarea style={{ width:"100%",minHeight:200,padding:12,borderRadius:10,border:"1px solid #d2d2d7",fontSize:12,fontFamily:"SF Mono,Menlo,monospace",
+                  background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",resize:"vertical",boxSizing:"border-box" }}
+                  placeholder={"UPC,EAN,SKU,Weight,Size\n302128186087,0302128186087,Bloom v2,1.35lbs,\n..."}
+                  value={upcImportText} onChange={e => setUpcImportText(e.target.value)} />
+                <div style={{ display:"flex",gap:8,marginTop:12,justifyContent:"flex-end" }}>
+                  <button onClick={() => { setUpcImportOpen(false); setUpcImportText(""); }}
+                    style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:textPrimary }}>
+                    Cancel
+                  </button>
+                  <button onClick={() => {
+                    const lines = upcImportText.trim().split("\n").filter(Boolean);
+                    if (lines.length < 2) { alert("Paste CSV data with a header row and at least one data row."); return; }
+                    const header = lines[0].toLowerCase();
+                    // Parse CSV (handle quoted fields)
+                    const parseCSVLine = (line) => {
+                      const result = []; let current = ""; let inQuote = false;
+                      for (let i = 0; i < line.length; i++) {
+                        if (line[i] === '"') { inQuote = !inQuote; }
+                        else if (line[i] === ',' && !inQuote) { result.push(current.trim()); current = ""; }
+                        else { current += line[i]; }
+                      }
+                      result.push(current.trim());
+                      return result;
+                    };
+                    const headerCols = parseCSVLine(header);
+                    const upcIdx = headerCols.indexOf("upc");
+                    const skuIdx = headerCols.indexOf("sku");
+                    const weightIdx = headerCols.indexOf("weight");
+                    if (upcIdx === -1 || skuIdx === -1) { alert("CSV must have 'UPC' and 'SKU' columns in the header row."); return; }
+                    const results = [];
+                    for (let i = 1; i < lines.length; i++) {
+                      const cols = parseCSVLine(lines[i]);
+                      const upc = (cols[upcIdx] || "").replace(/[^0-9]/g,"");
+                      const sku = (cols[skuIdx] || "").trim();
+                      const weight = weightIdx >= 0 ? (cols[weightIdx] || "").trim() : "";
+                      if (!upc || !sku) continue;
+                      // Fuzzy match against existing products
+                      const skuLower = sku.toLowerCase().replace(/[^a-z0-9]/g,"");
+                      let bestMatch = null; let bestScore = 0;
+                      for (const p of products) {
+                        const pLower = p.name.toLowerCase().replace(/[^a-z0-9]/g,"");
+                        // Exact match
+                        if (pLower === skuLower) { bestMatch = p; bestScore = 100; break; }
+                        // Contains match
+                        if (pLower.includes(skuLower) || skuLower.includes(pLower)) {
+                          const score = Math.min(pLower.length, skuLower.length) / Math.max(pLower.length, skuLower.length) * 80;
+                          if (score > bestScore) { bestMatch = p; bestScore = score; }
+                        }
+                        // Word overlap
+                        const pWords = p.name.toLowerCase().split(/[\s\-_]+/);
+                        const sWords = sku.toLowerCase().split(/[\s\-_]+/);
+                        const overlap = pWords.filter(w => sWords.some(sw => sw.includes(w) || w.includes(sw))).length;
+                        const wordScore = overlap / Math.max(pWords.length, sWords.length) * 70;
+                        if (wordScore > bestScore) { bestMatch = p; bestScore = wordScore; }
+                      }
+                      results.push({ upc, sku, weight, match: bestMatch, score: Math.round(bestScore), confirmed: bestScore >= 50 });
+                    }
+                    setUpcImportResults(results);
+                  }} style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:"#0071e3",color:"#fff" }}>
+                    Match Products
+                  </button>
+                </div>
+              </>) : (<>
+                <div style={{ fontSize:13,color:"#86868b",marginBottom:12 }}>
+                  {upcImportResults.filter(r => r.confirmed).length} of {upcImportResults.length} matched. Review and confirm:
+                </div>
+                <div style={{ maxHeight:400,overflowY:"auto",border:"1px solid #e5e5ea",borderRadius:10 }}>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                    <thead><tr style={{ background:darkMode?"#2c2c2e":"#f9f9fb",position:"sticky",top:0 }}>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>UPC</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>CSV Name</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>Matched Product</th>
+                      <th style={{ padding:"8px 10px",textAlign:"center",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>✓</th>
+                    </tr></thead>
+                    <tbody>{upcImportResults.map((r, i) => (
+                      <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2") }}>
+                        <td style={{ padding:"6px 10px",fontFamily:"monospace",fontSize:11 }}>{r.upc}</td>
+                        <td style={{ padding:"6px 10px" }}>{r.sku}</td>
+                        <td style={{ padding:"6px 10px" }}>
+                          <select value={r.match?.id || ""} onChange={e => {
+                            const prod = products.find(p => p.id === e.target.value);
+                            setUpcImportResults(prev => prev.map((x, j) => j === i ? { ...x, match: prod || null, confirmed: !!prod } : x));
+                          }} style={{ fontSize:11,padding:"3px 6px",borderRadius:4,border:"1px solid #d2d2d7",minWidth:160,background:darkMode?"#2c2c2e":"#fff",color:textPrimary }}>
+                            <option value="">— No match —</option>
+                            {products.map(p => <option key={p.id} value={p.id}>{p.name} {p.brand !== "Jackson Audio" ? `(${p.brand})` : ""}</option>)}
+                          </select>
+                          {r.match && <span style={{ marginLeft:6,fontSize:10,color:r.score >= 70 ? "#34c759" : r.score >= 40 ? "#ff9500" : "#ff3b30" }}>{r.score}%</span>}
+                        </td>
+                        <td style={{ padding:"6px 10px",textAlign:"center" }}>
+                          <input type="checkbox" checked={r.confirmed} onChange={e => {
+                            setUpcImportResults(prev => prev.map((x, j) => j === i ? { ...x, confirmed: e.target.checked } : x));
+                          }} />
+                        </td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+                <div style={{ display:"flex",gap:8,marginTop:14,justifyContent:"flex-end" }}>
+                  <button onClick={() => { setUpcImportResults(null); }}
+                    style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:textPrimary }}>
+                    Back
+                  </button>
+                  <button onClick={async () => {
+                    const toUpdate = upcImportResults.filter(r => r.confirmed && r.match);
+                    let updated = 0;
+                    for (const r of toUpdate) {
+                      try {
+                        const fields = { upc: r.upc };
+                        if (r.weight) {
+                          const wMatch = r.weight.match(/([\d.]+)\s*(lbs?|oz)?/i);
+                          if (wMatch) fields.weight = r.weight.trim();
+                        }
+                        await supabase.from("products").update(fields).eq("id", r.match.id);
+                        setProducts(prev => prev.map(p => p.id === r.match.id ? { ...p, ...fields } : p));
+                        updated++;
+                      } catch (e) { console.error("UPC update failed for", r.sku, e); }
+                    }
+                    alert(`Updated ${updated} product${updated !== 1 ? "s" : ""} with UPC codes.`);
+                    setUpcImportOpen(false); setUpcImportResults(null); setUpcImportText("");
+                  }} disabled={upcImportResults.filter(r => r.confirmed && r.match).length === 0}
+                    style={{ padding:"8px 18px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",
+                      background:"#34c759",color:"#fff",opacity:upcImportResults.filter(r => r.confirmed && r.match).length === 0 ? 0.4 : 1 }}>
+                    Save {upcImportResults.filter(r => r.confirmed && r.match).length} UPC{upcImportResults.filter(r => r.confirmed && r.match).length !== 1 ? "s" : ""}
+                  </button>
+                </div>
+              </>)}
+            </div>
           </div>
         )}
 
