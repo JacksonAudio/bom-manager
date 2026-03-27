@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.68";
-const BUILD_TIME   = "2026-03-27T18:52:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.69";
+const BUILD_TIME   = "2026-03-27T18:55:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -16469,7 +16469,11 @@ function BOMManager({ user }) {
       <footer style={{ position:"fixed",bottom:0,left:0,right:0,zIndex:999,borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"7px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#aeaeb2",
         background:darkMode?"rgba(28,28,30,0.92)":"rgba(255,255,255,0.92)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)" }}>
         <span style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager {APP_VERSION} — deployed {new Date(BUILD_TIME).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
-        <span>{new Date(BUILD_TIME).toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
+        <span style={{ display:"flex",alignItems:"center",gap:12 }}>
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color:"#aeaeb2",textDecoration:"none" }} onMouseOver={e=>e.currentTarget.style.color="#0071e3"} onMouseOut={e=>e.currentTarget.style.color="#aeaeb2"}>Privacy</a>
+          <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color:"#aeaeb2",textDecoration:"none" }} onMouseOver={e=>e.currentTarget.style.color="#0071e3"} onMouseOut={e=>e.currentTarget.style.color="#aeaeb2"}>Terms</a>
+          <span style={{ color:"#aeaeb2" }}>{new Date(BUILD_TIME).toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
+        </span>
       </footer>
     </div>
   );
