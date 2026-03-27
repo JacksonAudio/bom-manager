@@ -19,7 +19,7 @@ const BRANDS = {
   'Fulltone USA': {
     logo: 'FULLTONE USA',
     tagline: 'Handcrafted Tone Since 1991',
-    website: 'fulltone.com',
+    website: 'www.fulltoneusa.com',
     accentColor: '#b22222',
     bgGradient: 'linear-gradient(135deg, #1a1a1a 0%, #3a1a1a 100%)',
     cardBg: '#ffffff',
