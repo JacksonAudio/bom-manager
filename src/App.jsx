@@ -9950,6 +9950,26 @@ function BOMManager({ user }) {
                     onMouseOut={e=>e.currentTarget.style.borderColor="#d2d2d7"}>
                     Duplicate
                   </button>
+                  <button title="Delete product"
+                    onClick={async () => {
+                      const partCount = parts.filter(p => p.projectId === prod.id).length;
+                      const msg = partCount > 0
+                        ? `Delete "${prod.name}" and its ${partCount} part${partCount !== 1 ? "s" : ""}? This cannot be undone.`
+                        : `Delete "${prod.name}"? This cannot be undone.`;
+                      if (!window.confirm(msg)) return;
+                      try {
+                        await deleteProduct(prod.id);
+                        setProducts(prev => prev.filter(p => p.id !== prod.id));
+                        setParts(prev => prev.filter(p => p.projectId !== prod.id));
+                        setSelectedProduct(null);
+                      } catch (e) { alert("Delete failed: " + e.message); }
+                    }}
+                    style={{ background:"none",border:"1px solid #d2d2d7",borderRadius:6,cursor:"pointer",padding:"4px 10px",
+                      fontSize:12,color:"#86868b",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
+                    onMouseOver={e=>{e.currentTarget.style.borderColor="#ff3b30";e.currentTarget.style.color="#ff3b30"}}
+                    onMouseOut={e=>{e.currentTarget.style.borderColor="#d2d2d7";e.currentTarget.style.color="#86868b"}}>
+                    Delete
+                  </button>
                 </div>
                 <div style={{ display:"flex",gap:20,fontSize:13,color:"#86868b",flexWrap:"wrap",alignItems:"center" }}>
                   <span><strong style={{ color:darkMode?"#f5f5f7":"#1d1d1f" }}>{"$"}{fmtDollar(prod.total)}</strong> BOM cost/unit</span>
