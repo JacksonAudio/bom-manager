@@ -5,12 +5,14 @@ import Scoreboard from './components/Scoreboard.jsx'
 import RegisterProduct from './components/RegisterProduct.jsx'
 
 const hash = window.location.hash
+const hostname = window.location.hostname.toLowerCase()
 
 // Scoreboard is fully standalone (no auth required — TV display)
 const isScoreboard = hash === '#scoreboard'
 
 // Product registration is public (no auth — customer scans QR on pedal)
-const isRegister = hash.startsWith('#register')
+// Auto-detect from hostname (register.jacksonaudio.net, register.fulltoneusa.com)
+const isRegister = hostname.startsWith('register.') || hash.startsWith('#register')
 
 // Build and Invoice views render inside App (auth required)
 // They are handled in App.jsx after authentication
