@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.60";
-const BUILD_TIME   = "2026-03-27T16:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.61";
+const BUILD_TIME   = "2026-03-27T17:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -6298,10 +6298,13 @@ function BOMManager({ user }) {
 
                   {/* Search bar */}
                   <div style={{ display:"flex",gap:8,marginBottom:14,alignItems:"center",flexWrap:"wrap" }}>
-                    <input type="text" value={compSearchQuery} onChange={e=>setCompSearchQuery(e.target.value)}
-                      onKeyDown={e=>{ if(e.key==="Enter") handleCompSearch(); }}
-                      placeholder="Search by MPN prefix or series (e.g. 0603WAF, GRM188R61E)"
-                      style={{ flex:1,padding:"9px 12px",borderRadius:8,fontSize:13,border:"1px solid #d2d2d7",boxSizing:"border-box",fontFamily:"inherit",minWidth:200 }} />
+                    <div style={{ flex:1,position:"relative",minWidth:200 }}>
+                      <input type="text" value={compSearchQuery} onChange={e=>setCompSearchQuery(e.target.value)}
+                        onKeyDown={e=>{ if(e.key==="Enter") handleCompSearch(); }}
+                        placeholder="Search by MPN prefix or series (e.g. 0603WAF, GRM188R61E)"
+                        style={{ width:"100%",padding:"9px 12px",paddingRight:compSearchQuery?28:12,borderRadius:8,fontSize:13,border:"1px solid #d2d2d7",boxSizing:"border-box",fontFamily:"inherit" }} />
+                      {compSearchQuery && <span onClick={()=>{setCompSearchQuery("");setCompSearchResults([]);}} style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#86868b",lineHeight:1 }}>✕</span>}
+                    </div>
                     <div style={{ display:"flex",borderRadius:980,overflow:"hidden",border:"1px solid #d2d2d7" }}>
                       {[
                         { id:"auto", label:"Auto", tip:"Mouser if key exists, else Nexar" },
@@ -9050,9 +9053,12 @@ function BOMManager({ user }) {
             </div>
             <div style={{ marginBottom:16 }}>
               <div style={{ display:"flex",gap:10,flexWrap:"wrap",alignItems:"center" }}>
-                <input type="text" placeholder="Search products..." value={prodSearch}
-                  onChange={e => setProdSearch(e.target.value)}
-                  style={{ padding:"8px 14px",borderRadius:980,fontSize:13,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:220,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                <div style={{ position:"relative",display:"inline-block" }}>
+                  <input type="text" placeholder="Search products..." value={prodSearch}
+                    onChange={e => setProdSearch(e.target.value)}
+                    style={{ padding:"8px 14px",paddingRight:prodSearch?28:14,borderRadius:980,fontSize:13,border:"1px solid #d2d2d7",fontFamily:"inherit",outline:"none",width:220,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                  {prodSearch && <span onClick={()=>setProdSearch("")} style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#86868b",lineHeight:1 }}>✕</span>}
+                </div>
                 <select value={selBrand||"all"} onChange={e=>setSelBrand(e.target.value)}
                   style={{ padding:"7px 10px",borderRadius:980,fontSize:12,border:"1px solid #d2d2d7" }}>
                   <option value="all">All Brands</option>
@@ -14004,8 +14010,11 @@ function BOMManager({ user }) {
 
             {/* ── Search ── */}
             <div style={{ display:"flex",gap:10,marginBottom:16,alignItems:"center" }}>
-              <input style={{ ...inputStyle, flex:1, maxWidth:400 }} placeholder="Search by S/N, product, tester, customer, dealer…"
-                value={pipelineSearch} onChange={e => setPipelineSearch(e.target.value)} />
+              <div style={{ position:"relative",flex:1,maxWidth:400 }}>
+                <input style={{ ...inputStyle, width:"100%", paddingRight:pipelineSearch?28:12 }} placeholder="Search by S/N, product, tester, customer, dealer…"
+                  value={pipelineSearch} onChange={e => setPipelineSearch(e.target.value)} />
+                {pipelineSearch && <span onClick={()=>setPipelineSearch("")} style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#86868b",lineHeight:1 }}>✕</span>}
+              </div>
               {pipelineFilter !== "all" && (
                 <button onClick={() => setPipelineFilter("all")}
                   style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#e5e5ea",color:"#1d1d1f" }}>
