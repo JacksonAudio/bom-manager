@@ -40,6 +40,8 @@ import {
   fetchPlayTesters, createPlayTester, updatePlayTester, deletePlayTester,
   fetchPlayTests, createPlayTest, updatePlayTest, deletePlayTest,
   subscribeToPlayTesters, subscribeToPlayTests,
+  fetchBoxingTasks, createBoxingTask, updateBoxingTask, deleteBoxingTask,
+  subscribeToBoxingTasks,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -1536,6 +1538,12 @@ function BOMManager({ user }) {
   const [playTestFeedback, setPlayTestFeedback] = useState({ rating: 0, passed: null, feedback:"" });
   const [playTestFilter, setPlayTestFilter] = useState("active"); // "active" | "all" | "returned"
 
+  // ── Boxing state
+  const [boxingTasks, setBoxingTasks] = useState([]);
+  const [newBoxingTask, setNewBoxingTask] = useState({ build_order_id:"", team_member_id:"", quantity:"", priority:"normal", due_date:"", for_order:"", notes:"" });
+  const [boxingBusy, setBoxingBusy] = useState(false);
+  const [boxingFilter, setBoxingFilter] = useState("active"); // "active" | "completed" | "all"
+
   const [pdPasteText, setPdPasteText] = useState(""); // product detail page paste text
   const [pdDragOver, setPdDragOver] = useState(false); // product detail page drag state
   const [pdImportError, setPdImportError] = useState("");
@@ -1789,6 +1797,9 @@ function BOMManager({ user }) {
         fetchPlayTesters().then(rows => setPlayTesters(rows || [])).catch(() => {});
         fetchPlayTests().then(rows => setPlayTests(rows || [])).catch(() => {});
 
+        // Load boxing tasks from DB
+        fetchBoxingTasks().then(rows => setBoxingTasks(rows || [])).catch(() => {});
+
         // Load BOM snapshots from DB
         fetchBomSnapshots().then(snaps => setBomSnapshots(snaps || [])).catch(() => {});
 
@@ -2016,6 +2027,17 @@ function BOMManager({ user }) {
       }
     });
 
+    // Boxing tasks channel
+    const boxChannel = subscribeToBoxingTasks((eventType, newRow, oldRow) => {
+      if (eventType === "INSERT") {
+        setBoxingTasks((prev) => prev.find(t => t.id === newRow.id) ? prev : [newRow, ...prev]);
+      } else if (eventType === "UPDATE") {
+        setBoxingTasks((prev) => prev.map(t => t.id === newRow.id ? newRow : t));
+      } else if (eventType === "DELETE") {
+        setBoxingTasks((prev) => prev.filter(t => t.id !== oldRow.id));
+      }
+    });
+
     return () => {
       prodChannel.unsubscribe();
       partChannel.unsubscribe();
@@ -2025,6 +2047,7 @@ function BOMManager({ user }) {
       scrapChannel.unsubscribe();
       ptChannel.unsubscribe();
       ptsChannel.unsubscribe();
+      boxChannel.unsubscribe();
     };
   }, []); // eslint-disable-line
 
@@ -4244,6 +4267,7 @@ function BOMManager({ user }) {
           { id:"orders",    label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}`, step:null, color:null },
           { id:"production",label:`Production${buildOrders.filter(b=>b.status!=="completed").length>0?` (${buildOrders.filter(b=>b.status!=="completed").length})`:""}`, step:null, color:null },
           { id:"playtesting",label:`Play Testing${playTests.filter(t=>t.status!=="returned").length>0?` (${playTests.filter(t=>t.status!=="returned").length})`:""}`, step:null, color:null },
+          { id:"boxing",label:`Boxing${boxingTasks.filter(t=>t.status!=="completed").length>0?` (${boxingTasks.filter(t=>t.status!=="completed").length})`:""}`, step:null, color:null },
           { id:"scoreboard",label:"Scoreboard", step:null, color:null },
           { id:"suppliers", label:"Suppliers",   step:null, color:null },
           { id:"alerts",    label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}`, step:null, color:null },
@@ -12343,6 +12367,276 @@ function BOMManager({ user }) {
                       </div>
                     </div>
                   )}
+                </div>
+              );
+            })}
+          </div>
+          );
+        })()}
+
+        {/* ══════════════════════════════════════
+            BOXING — Package finished, play-tested units
+        ══════════════════════════════════════ */}
+        {activeView === "boxing" && (() => {
+          const activeTasks = boxingTasks.filter(t => t.status !== "completed");
+          const completedTasks = boxingTasks.filter(t => t.status === "completed");
+          const activeMembers = teamMembers.filter(t => t.active !== false);
+          const priorityColors = { low:"#86868b", normal:"#0071e3", high:"#ff9500", urgent:"#ff3b30" };
+          const statusColors = { pending:"#86868b", in_progress:"#ff9500", completed:"#34c759" };
+          const statusLabels = { pending:"Pending", in_progress:"In Progress", completed:"Completed" };
+          const inputStyle = { fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7", outline:"none", width:"100%", background:darkMode?"#2c2c2e":"#fff", color:darkMode?"#f5f5f7":"#1d1d1f" };
+          const selectStyle = { ...inputStyle, cursor:"pointer" };
+          const cardBg = darkMode ? "#1c1c1e" : "#fff";
+          const cardBorder = darkMode ? "1px solid #3a3a3e" : "1px solid #e5e5ea";
+          const textPrimary = darkMode ? "#f5f5f7" : "#1d1d1f";
+
+          const filteredTasks = boxingFilter === "active" ? activeTasks : boxingFilter === "completed" ? completedTasks : boxingTasks;
+
+          // Determine which build orders are eligible for boxing:
+          // Must be completed AND have at least one play test with status "feedback_received" or "returned"
+          const eligibleBuildOrders = buildOrders.filter(bo => {
+            if (bo.status !== "completed") return false;
+            const hasPlayTest = playTests.some(pt =>
+              pt.product_id === bo.product_id &&
+              (pt.status === "feedback_received" || pt.status === "returned")
+            );
+            return hasPlayTest;
+          });
+
+          // Count already-boxed quantity per build order
+          const boxedQtyByBO = {};
+          boxingTasks.forEach(bt => {
+            if (bt.build_order_id) {
+              boxedQtyByBO[bt.build_order_id] = (boxedQtyByBO[bt.build_order_id] || 0) + (bt.quantity || 0);
+            }
+          });
+
+          const handleCreateBoxingTask = async () => {
+            if (!newBoxingTask.build_order_id || !newBoxingTask.team_member_id) return;
+            setBoxingBusy(true);
+            try {
+              const bo = buildOrders.find(b => b.id === newBoxingTask.build_order_id);
+              const fields = {
+                build_order_id: newBoxingTask.build_order_id,
+                product_id: bo?.product_id || "",
+                team_member_id: newBoxingTask.team_member_id,
+                quantity: parseInt(newBoxingTask.quantity) || bo?.quantity || 1,
+                priority: newBoxingTask.priority,
+                for_order: newBoxingTask.for_order || bo?.for_order || "",
+                notes: newBoxingTask.notes,
+              };
+              if (newBoxingTask.due_date) fields.due_date = new Date(newBoxingTask.due_date).toISOString();
+              const row = await createBoxingTask(fields, user.id);
+              setBoxingTasks(prev => [row, ...prev]);
+              setNewBoxingTask({ build_order_id:"", team_member_id:"", quantity:"", priority:"normal", due_date:"", for_order:"", notes:"" });
+            } catch (e) { alert("Failed to create boxing task: " + e.message); }
+            setBoxingBusy(false);
+          };
+
+          const todayBoxed = completedTasks.filter(t => t.completed_at && new Date(t.completed_at) >= new Date(new Date().setHours(0,0,0,0))).reduce((s,t) => s + (t.completed_count || t.quantity || 0), 0);
+
+          return (
+          <div style={{ maxWidth:"100%" }}>
+            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Boxing</h2>
+            <p style={{ fontSize:14,color:"#86868b",marginBottom:20 }}>Package completed, play-tested units into boxes for shipping. Units must be built and play tested before boxing.</p>
+
+            {/* ── Summary cards ── */}
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))",gap:16,marginBottom:28 }}>
+              {[
+                { label:"Pending", value:boxingTasks.filter(t=>t.status==="pending").length, color:boxingTasks.filter(t=>t.status==="pending").length>0?"#ff9500":"#34c759" },
+                { label:"In Progress", value:boxingTasks.filter(t=>t.status==="in_progress").length, color:"#0071e3" },
+                { label:"Boxed Today", value:todayBoxed, color:"#34c759" },
+                { label:"Ready to Box", value:eligibleBuildOrders.length, color:"#5856d6" },
+                { label:"Total Completed", value:completedTasks.reduce((s,t)=>s+(t.completed_count||t.quantity||0),0), color:"#86868b" },
+              ].map(card => (
+                <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:cardBorder }}>
+                  <div style={{ fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
+                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Create New Boxing Task ── */}
+            <div style={{ background:cardBg,borderRadius:14,padding:"18px 22px",marginBottom:20,border:cardBorder }}>
+              <div style={{ fontSize:16,fontWeight:700,color:textPrimary,marginBottom:14 }}>New Boxing Task</div>
+              {eligibleBuildOrders.length === 0 ? (
+                <div style={{ padding:20,textAlign:"center",color:"#86868b",fontSize:13,background:darkMode?"#2c2c2e":"#f9f9fb",borderRadius:10 }}>
+                  No build orders are ready for boxing. A build order must be <strong>completed</strong> and its product must have at least one <strong>play test with feedback</strong> before it can be boxed.
+                </div>
+              ) : (
+                <>
+                  <div style={{ display:"grid",gridTemplateColumns:"1.5fr 1fr 0.5fr 0.8fr 0.8fr auto",gap:8,alignItems:"end" }}>
+                    <div>
+                      <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Build Order *</div>
+                      <select style={selectStyle} value={newBoxingTask.build_order_id} onChange={e => {
+                        const bo = buildOrders.find(b => b.id === e.target.value);
+                        setNewBoxingTask(f => ({ ...f, build_order_id: e.target.value, quantity: bo ? String(bo.quantity - (boxedQtyByBO[bo.id] || 0)) : "", for_order: bo?.for_order || "" }));
+                      }}>
+                        <option value="">Select completed build…</option>
+                        {eligibleBuildOrders.map(bo => {
+                          const prod = products.find(p => p.id === bo.product_id);
+                          const remaining = bo.quantity - (boxedQtyByBO[bo.id] || 0);
+                          return <option key={bo.id} value={bo.id}>{prod?.name || "?"} — {remaining} remaining{bo.for_order ? ` (${bo.for_order})` : ""}</option>;
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Assign To *</div>
+                      <select style={selectStyle} value={newBoxingTask.team_member_id} onChange={e => setNewBoxingTask(f=>({...f,team_member_id:e.target.value}))}>
+                        <option value="">Select team member…</option>
+                        {activeMembers.map(m => <option key={m.id} value={m.id}>{m.name} ({m.role || "assembler"})</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Qty</div>
+                      <input type="number" min="1" style={inputStyle} placeholder="qty" value={newBoxingTask.quantity}
+                        onChange={e => setNewBoxingTask(f=>({...f,quantity:e.target.value}))} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Priority</div>
+                      <select style={selectStyle} value={newBoxingTask.priority} onChange={e => setNewBoxingTask(f=>({...f,priority:e.target.value}))}>
+                        <option value="low">Low</option>
+                        <option value="normal">Normal</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Due Date</div>
+                      <input type="date" style={inputStyle} value={newBoxingTask.due_date}
+                        onChange={e => setNewBoxingTask(f=>({...f,due_date:e.target.value}))} />
+                    </div>
+                    <button className="btn-primary" disabled={boxingBusy || !newBoxingTask.build_order_id || !newBoxingTask.team_member_id}
+                      onClick={handleCreateBoxingTask} style={{ fontSize:12,padding:"8px 16px",whiteSpace:"nowrap" }}>
+                      + Assign Boxing
+                    </button>
+                  </div>
+                  <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8 }}>
+                    <input style={inputStyle} placeholder="Customer PO / Order ref (optional)" value={newBoxingTask.for_order}
+                      onChange={e => setNewBoxingTask(f=>({...f,for_order:e.target.value}))} />
+                    <input style={inputStyle} placeholder="Notes (optional)" value={newBoxingTask.notes}
+                      onChange={e => setNewBoxingTask(f=>({...f,notes:e.target.value}))} />
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* ── Filter tabs ── */}
+            <div style={{ display:"flex",gap:4,marginBottom:16 }}>
+              {[
+                { id:"active", label:`Active (${activeTasks.length})` },
+                { id:"completed", label:`Completed (${completedTasks.length})` },
+                { id:"all", label:`All (${boxingTasks.length})` },
+              ].map(f => (
+                <button key={f.id} onClick={() => setBoxingFilter(f.id)}
+                  style={{ padding:"6px 16px",borderRadius:980,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",
+                    background: boxingFilter === f.id ? "#0071e3" : (darkMode?"#2c2c2e":"#f0f0f2"),
+                    color: boxingFilter === f.id ? "#fff" : (darkMode?"#f5f5f7":"#1d1d1f") }}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* ── Boxing Tasks List ── */}
+            {filteredTasks.length === 0 && (
+              <div style={{ textAlign:"center",padding:40,color:"#86868b",fontSize:14 }}>
+                {boxingFilter === "active" ? "No active boxing tasks." : "No boxing tasks found."}
+              </div>
+            )}
+            {filteredTasks.map(task => {
+              const prod = products.find(p => p.id === task.product_id);
+              const member = teamMembers.find(m => m.id === task.team_member_id);
+              const bo = task.build_order_id ? buildOrders.find(b => b.id === task.build_order_id) : null;
+              const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== "completed";
+              const pct = task.quantity > 0 ? Math.round((task.completed_count || 0) / task.quantity * 100) : 0;
+
+              return (
+                <div key={task.id} style={{ background:cardBg,borderRadius:14,padding:"18px 22px",marginBottom:12,border:cardBorder,
+                  borderLeft:`4px solid ${statusColors[task.status] || "#86868b"}` }}>
+                  <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,flexWrap:"wrap" }}>
+                    <div style={{ flex:1,minWidth:200 }}>
+                      <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
+                        <span style={{ fontSize:16,fontWeight:700,color:textPrimary }}>{prod?.name || "Unknown Product"}</span>
+                        <span style={{ fontSize:11,fontWeight:700,padding:"2px 10px",borderRadius:980,
+                          background:statusColors[task.status]+"18", color:statusColors[task.status] }}>
+                          {statusLabels[task.status] || task.status}
+                        </span>
+                        <span style={{ fontSize:11,fontWeight:700,padding:"2px 10px",borderRadius:980,
+                          background:priorityColors[task.priority]+"18", color:priorityColors[task.priority] }}>
+                          {task.priority}
+                        </span>
+                        {isOverdue && <span style={{ fontSize:11,fontWeight:700,padding:"2px 10px",borderRadius:980,background:"#ff3b3018",color:"#ff3b30" }}>Overdue</span>}
+                      </div>
+                      <div style={{ fontSize:13,color:"#86868b",display:"flex",gap:16,flexWrap:"wrap" }}>
+                        <span>Assigned: <strong style={{ color:textPrimary }}>{member?.name || "Unassigned"}</strong></span>
+                        <span>Qty: <strong style={{ color:textPrimary }}>{task.completed_count || 0} / {task.quantity}</strong></span>
+                        {task.for_order && <span>PO: <strong style={{ color:textPrimary }}>{task.for_order}</strong></span>}
+                        {task.due_date && <span>Due: {new Date(task.due_date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
+                      </div>
+                      {task.notes && <div style={{ fontSize:12,color:"#86868b",marginTop:4,fontStyle:"italic" }}>{task.notes}</div>}
+                      {/* Progress bar */}
+                      {task.quantity > 0 && (
+                        <div style={{ marginTop:10,display:"flex",alignItems:"center",gap:10 }}>
+                          <div style={{ flex:1,height:8,borderRadius:4,background:darkMode?"#2c2c2e":"#e5e5ea",overflow:"hidden" }}>
+                            <div style={{ height:"100%",borderRadius:4,background:pct>=100?"#34c759":"#0071e3",width:`${Math.min(pct,100)}%`,transition:"width 0.3s" }} />
+                          </div>
+                          <span style={{ fontSize:12,fontWeight:700,color:pct>=100?"#34c759":"#0071e3",minWidth:40 }}>{pct}%</span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Actions */}
+                    <div style={{ display:"flex",gap:6,flexShrink:0,flexWrap:"wrap",alignItems:"center" }}>
+                      {task.status !== "completed" && (
+                        <>
+                          {/* Increment counter */}
+                          <button onClick={async () => {
+                            const newCount = (task.completed_count || 0) + 1;
+                            const updates = { completed_count: newCount };
+                            if (task.status === "pending") { updates.status = "in_progress"; updates.started_at = new Date().toISOString(); }
+                            if (newCount >= task.quantity) { updates.status = "completed"; updates.completed_at = new Date().toISOString(); }
+                            await updateBoxingTask(task.id, updates);
+                            setBoxingTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t));
+                          }} style={{ fontSize:13,padding:"8px 16px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,
+                            background:"#34c759",color:"#fff" }}>
+                            +1 Boxed
+                          </button>
+                          {/* Bulk increment */}
+                          <button onClick={async () => {
+                            const amt = prompt("How many units boxed?", "5");
+                            if (!amt || isNaN(parseInt(amt))) return;
+                            const newCount = Math.min((task.completed_count || 0) + parseInt(amt), task.quantity);
+                            const updates = { completed_count: newCount };
+                            if (task.status === "pending") { updates.status = "in_progress"; updates.started_at = new Date().toISOString(); }
+                            if (newCount >= task.quantity) { updates.status = "completed"; updates.completed_at = new Date().toISOString(); }
+                            await updateBoxingTask(task.id, updates);
+                            setBoxingTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t));
+                          }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,
+                            background:darkMode?"#2c2c2e":"#f0f0f2",color:textPrimary }}>
+                            +N
+                          </button>
+                          {/* Reassign */}
+                          <select value={task.team_member_id || ""} onChange={async (e) => {
+                            await updateBoxingTask(task.id, { team_member_id: e.target.value });
+                            setBoxingTasks(prev => prev.map(t => t.id === task.id ? { ...t, team_member_id: e.target.value } : t));
+                          }} style={{ fontSize:11,padding:"5px 8px",borderRadius:8,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#fff",color:textPrimary,cursor:"pointer" }}>
+                            {activeMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                          </select>
+                        </>
+                      )}
+                      {task.status === "completed" && task.completed_at && (
+                        <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>
+                          Done {new Date(task.completed_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}
+                        </span>
+                      )}
+                      {isAdmin && <button onClick={async () => {
+                        if (!window.confirm("Delete this boxing task?")) return;
+                        try { await deleteBoxingTask(task.id); setBoxingTasks(prev => prev.filter(t => t.id !== task.id)); }
+                        catch (e) { alert("Delete failed: " + e.message); }
+                      }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#ff3b30",color:"#fff" }}>
+                        Delete
+                      </button>}
+                    </div>
+                  </div>
                 </div>
               );
             })}

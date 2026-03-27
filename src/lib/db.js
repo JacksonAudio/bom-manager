@@ -709,6 +709,54 @@ export function subscribeToPlayTests(callback) {
     .subscribe()
 }
 
+// ─────────────────────────────────────────────
+// BOXING TASKS
+// ─────────────────────────────────────────────
+
+export async function fetchBoxingTasks() {
+  const { data, error } = await supabase
+    .from('boxing_tasks')
+    .select('*')
+    .order('created_at', { ascending: false })
+  check(error, 'fetchBoxingTasks')
+  return data
+}
+
+export async function createBoxingTask(fields, userId) {
+  const { data, error } = await supabase
+    .from('boxing_tasks')
+    .insert({ ...fields, created_by: userId })
+    .select()
+    .single()
+  check(error, 'createBoxingTask')
+  return data
+}
+
+export async function updateBoxingTask(id, fields) {
+  const { error } = await supabase
+    .from('boxing_tasks')
+    .update(fields)
+    .eq('id', id)
+  check(error, 'updateBoxingTask')
+}
+
+export async function deleteBoxingTask(id) {
+  const { error } = await supabase
+    .from('boxing_tasks')
+    .delete()
+    .eq('id', id)
+  check(error, 'deleteBoxingTask')
+}
+
+export function subscribeToBoxingTasks(callback) {
+  return supabase
+    .channel('boxing-tasks-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'boxing_tasks' },
+      (payload) => callback(payload.eventType, payload.new, payload.old)
+    )
+    .subscribe()
+}
+
 // Fetch all price history (for product-level rollups)
 export async function fetchAllPriceHistory() {
   const all = [];
