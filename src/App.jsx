@@ -11992,9 +11992,45 @@ function BOMManager({ user }) {
                     {activeMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
                 </div>
-                <div>
+                <div style={{ position:"relative" }}>
                   <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#86868b",display:"block",marginBottom:4 }}>For Order / PO</label>
-                  <input style={inputStyle} type="text" placeholder="e.g. #1234 or PO-5678" value={newBuildOrder.for_order} onChange={e => setNewBuildOrder({...newBuildOrder, for_order:e.target.value})} />
+                  <input style={inputStyle} type="text" placeholder="e.g. #1234 or PO-5678" value={newBuildOrder.for_order}
+                    onChange={e => setNewBuildOrder({...newBuildOrder, for_order:e.target.value})}
+                    onFocus={e => e.target.closest('div').querySelector('.order-dropdown') && (e.target.closest('div').querySelector('.order-dropdown').style.display='block')}
+                    onBlur={() => setTimeout(() => { const dd = document.querySelector('.order-dropdown'); if (dd) dd.style.display='none'; }, 150)}
+                  />
+                  {(() => {
+                    const outstandingOrders = [
+                      ...(zohoDemand?.orders || []).filter(o => o.lineItems?.length > 0 && !dismissedOrders.has(o.id)).map(o => ({
+                        label: o.name || o.dealerPO || o.id,
+                        sub: o.customerName || o.companyName || "",
+                        value: o.dealerPO || o.name || o.id,
+                      })),
+                      ...trackedOrders.filter(o => o.status !== "delivered" && o.status !== "received").map(o => ({
+                        label: o.poNumber || o.id,
+                        sub: o.supplier || "",
+                        value: o.poNumber || o.id,
+                      })),
+                    ];
+                    if (outstandingOrders.length === 0) return null;
+                    const filtered = newBuildOrder.for_order
+                      ? outstandingOrders.filter(o => o.label.toLowerCase().includes(newBuildOrder.for_order.toLowerCase()) || o.sub.toLowerCase().includes(newBuildOrder.for_order.toLowerCase()))
+                      : outstandingOrders;
+                    if (filtered.length === 0) return null;
+                    return (
+                      <div className="order-dropdown" style={{ display:"none",position:"absolute",top:"100%",left:0,right:0,zIndex:999,background:darkMode?"#2c2c2e":"#fff",border:darkMode?"1px solid #3a3a3c":"1px solid #d2d2d7",borderRadius:10,maxHeight:180,overflowY:"auto",boxShadow:"0 4px 16px rgba(0,0,0,0.15)" }}>
+                        {filtered.map((o, i) => (
+                          <div key={i} style={{ padding:"8px 12px",cursor:"pointer",borderBottom:i<filtered.length-1?(darkMode?"1px solid #3a3a3c":"1px solid #f0f0f2"):"none",fontSize:13 }}
+                            onMouseDown={() => setNewBuildOrder({...newBuildOrder, for_order:o.value})}
+                            onMouseEnter={e => e.currentTarget.style.background=darkMode?"#3a3a3c":"#f5f5f7"}
+                            onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                            <div style={{ fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{o.label}</div>
+                            {o.sub && <div style={{ fontSize:11,color:"#86868b" }}>{o.sub}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
               <div style={{ marginBottom:12 }}>
@@ -12721,8 +12757,45 @@ function BOMManager({ user }) {
                     </button>
                   </div>
                   <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8 }}>
-                    <input style={inputStyle} placeholder="Customer PO / Order ref (optional)" value={newBoxingTask.for_order}
-                      onChange={e => setNewBoxingTask(f=>({...f,for_order:e.target.value}))} />
+                    <div style={{ position:"relative" }}>
+                      <input style={inputStyle} placeholder="Customer PO / Order ref (optional)" value={newBoxingTask.for_order}
+                        onChange={e => setNewBoxingTask(f=>({...f,for_order:e.target.value}))}
+                        onFocus={e => e.target.closest('div').querySelector('.boxing-order-dropdown') && (e.target.closest('div').querySelector('.boxing-order-dropdown').style.display='block')}
+                        onBlur={() => setTimeout(() => { const dd = document.querySelector('.boxing-order-dropdown'); if (dd) dd.style.display='none'; }, 150)}
+                      />
+                      {(() => {
+                        const outstandingOrders = [
+                          ...(zohoDemand?.orders || []).filter(o => o.lineItems?.length > 0 && !dismissedOrders.has(o.id)).map(o => ({
+                            label: o.name || o.dealerPO || o.id,
+                            sub: o.customerName || o.companyName || "",
+                            value: o.dealerPO || o.name || o.id,
+                          })),
+                          ...trackedOrders.filter(o => o.status !== "delivered" && o.status !== "received").map(o => ({
+                            label: o.poNumber || o.id,
+                            sub: o.supplier || "",
+                            value: o.poNumber || o.id,
+                          })),
+                        ];
+                        if (outstandingOrders.length === 0) return null;
+                        const filtered = newBoxingTask.for_order
+                          ? outstandingOrders.filter(o => o.label.toLowerCase().includes(newBoxingTask.for_order.toLowerCase()) || o.sub.toLowerCase().includes(newBoxingTask.for_order.toLowerCase()))
+                          : outstandingOrders;
+                        if (filtered.length === 0) return null;
+                        return (
+                          <div className="boxing-order-dropdown" style={{ display:"none",position:"absolute",top:"100%",left:0,right:0,zIndex:999,background:darkMode?"#2c2c2e":"#fff",border:darkMode?"1px solid #3a3a3c":"1px solid #d2d2d7",borderRadius:10,maxHeight:180,overflowY:"auto",boxShadow:"0 4px 16px rgba(0,0,0,0.15)" }}>
+                            {filtered.map((o, i) => (
+                              <div key={i} style={{ padding:"8px 12px",cursor:"pointer",borderBottom:i<filtered.length-1?(darkMode?"1px solid #3a3a3c":"1px solid #f0f0f2"):"none",fontSize:13 }}
+                                onMouseDown={() => setNewBoxingTask(f=>({...f, for_order:o.value}))}
+                                onMouseEnter={e => e.currentTarget.style.background=darkMode?"#3a3a3c":"#f5f5f7"}
+                                onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                                <div style={{ fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{o.label}</div>
+                                {o.sub && <div style={{ fontSize:11,color:"#86868b" }}>{o.sub}</div>}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
                     <input style={inputStyle} placeholder="Notes (optional)" value={newBoxingTask.notes}
                       onChange={e => setNewBoxingTask(f=>({...f,notes:e.target.value}))} />
                   </div>
