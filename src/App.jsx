@@ -42,6 +42,8 @@ import {
   subscribeToPlayTesters, subscribeToPlayTests,
   fetchBoxingTasks, createBoxingTask, updateBoxingTask, deleteBoxingTask,
   subscribeToBoxingTasks,
+  fetchPedalUnits, createPedalUnit, createPedalUnits, updatePedalUnit, deletePedalUnit,
+  subscribeToPedalUnits,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -97,6 +99,8 @@ const DEFAULT_KEYS = {
   shipstation_api_secret: "", // shipstation.com — API Secret
   direct_ship_goal: "1",     // days — target turnaround for direct (Shopify) orders
   dealer_ship_goal: "14",    // days — target turnaround for dealer (Zoho) orders
+  playtest_fail_email: "brad@jacksonaudio.net", // Email to alert on failed play tests
+  playtest_fail_phone: "",                     // Phone to SMS on failed play tests
   admin_emails: "brad@jacksonaudio.net",
   timezone: "America/Chicago",  // Central Time default // comma-separated list of admin email addresses
 };
@@ -1544,6 +1548,12 @@ function BOMManager({ user }) {
   const [boxingBusy, setBoxingBusy] = useState(false);
   const [boxingFilter, setBoxingFilter] = useState("active"); // "active" | "completed" | "all"
 
+  // ── Pedal Units (individual serialized unit tracking)
+  const [pedalUnits, setPedalUnits] = useState([]);
+  const [pipelineFilter, setPipelineFilter] = useState("all"); // "all" | status filter
+  const [pipelineSearch, setPipelineSearch] = useState("");
+  const [packingListOrder, setPackingListOrder] = useState(""); // for_order reference to filter packing list
+
   const [pdPasteText, setPdPasteText] = useState(""); // product detail page paste text
   const [pdDragOver, setPdDragOver] = useState(false); // product detail page drag state
   const [pdImportError, setPdImportError] = useState("");
@@ -1800,6 +1810,9 @@ function BOMManager({ user }) {
         // Load boxing tasks from DB
         fetchBoxingTasks().then(rows => setBoxingTasks(rows || [])).catch(() => {});
 
+        // Load pedal units from DB
+        fetchPedalUnits().then(rows => setPedalUnits(rows || [])).catch(() => {});
+
         // Load BOM snapshots from DB
         fetchBomSnapshots().then(snaps => setBomSnapshots(snaps || [])).catch(() => {});
 
@@ -2027,6 +2040,17 @@ function BOMManager({ user }) {
       }
     });
 
+    // Pedal units channel
+    const puChannel = subscribeToPedalUnits((eventType, newRow, oldRow) => {
+      if (eventType === "INSERT") {
+        setPedalUnits((prev) => prev.find(u => u.id === newRow.id) ? prev : [newRow, ...prev]);
+      } else if (eventType === "UPDATE") {
+        setPedalUnits((prev) => prev.map(u => u.id === newRow.id ? newRow : u));
+      } else if (eventType === "DELETE") {
+        setPedalUnits((prev) => prev.filter(u => u.id !== oldRow.id));
+      }
+    });
+
     // Boxing tasks channel
     const boxChannel = subscribeToBoxingTasks((eventType, newRow, oldRow) => {
       if (eventType === "INSERT") {
@@ -2048,8 +2072,160 @@ function BOMManager({ user }) {
       ptChannel.unsubscribe();
       ptsChannel.unsubscribe();
       boxChannel.unsubscribe();
+      puChannel.unsubscribe();
     };
   }, []); // eslint-disable-line
+
+  // ── Pipeline Automation Helpers ──────────────────────────────────────────────
+  // Generate serial numbers for a product (format: PRODUCT-YYYYMMDD-NNN)
+  const generateSerialNumber = (productName, index) => {
+    const d = new Date();
+    const date = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
+    const prefix = (productName || "PED").replace(/[^A-Z0-9]/gi,"").slice(0,6).toUpperCase();
+    return `${prefix}-${date}-${String(index).padStart(3,"0")}`;
+  };
+
+  // Auto-generate pedal units when a build order completes
+  const autoGeneratePedalUnits = async (buildOrder) => {
+    const prod = products.find(p => p.id === buildOrder.product_id);
+    const assignment = buildAssignments.find(a => a.build_order_id === buildOrder.id);
+    const existingCount = pedalUnits.filter(u => u.build_order_id === buildOrder.id).length;
+    const toCreate = (buildOrder.quantity || 1) - existingCount;
+    if (toCreate <= 0) return;
+    // Find next serial number index for this product
+    const existingSNs = pedalUnits.filter(u => u.product_id === buildOrder.product_id).length;
+    const rows = [];
+    for (let i = 0; i < toCreate; i++) {
+      rows.push({
+        serial_number: generateSerialNumber(prod?.name, existingSNs + existingCount + i + 1),
+        product_id: buildOrder.product_id,
+        build_order_id: buildOrder.id,
+        status: "awaiting_playtest",
+        built_by: assignment?.team_member_id || buildOrder.team_member_id || null,
+        built_at: new Date().toISOString(),
+      });
+    }
+    try {
+      const created = await createPedalUnits(rows, user?.id);
+      setPedalUnits(prev => [...created, ...prev]);
+      // Auto-assign to play testers
+      await autoAssignPlayTesters(created);
+    } catch (e) { console.error("Auto-generate pedal units failed:", e); }
+  };
+
+  // Auto-assign pedal units to play testers (round-robin among active testers)
+  const autoAssignPlayTesters = async (units) => {
+    const activeTesters = playTesters.filter(t => t.active !== false);
+    if (activeTesters.length === 0) return;
+    // Count current active assignments per tester to balance load
+    const activeCounts = {};
+    pedalUnits.filter(u => u.status === "in_playtest" && u.play_tester_id).forEach(u => {
+      activeCounts[u.play_tester_id] = (activeCounts[u.play_tester_id] || 0) + 1;
+    });
+    for (const unit of units) {
+      // Pick tester with fewest active assignments
+      const sorted = [...activeTesters].sort((a,b) => (activeCounts[a.id]||0) - (activeCounts[b.id]||0));
+      const tester = sorted[0];
+      try {
+        // Create a play test record
+        const pt = await createPlayTest({
+          product_id: unit.product_id,
+          build_order_id: unit.build_order_id,
+          play_tester_id: tester.id,
+          serial_number: unit.serial_number,
+          status: "assigned",
+        }, user?.id);
+        setPlayTests(prev => [pt, ...prev]);
+        // Update pedal unit
+        await updatePedalUnit(unit.id, { status: "in_playtest", play_tester_id: tester.id, play_test_id: pt.id });
+        setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, status: "in_playtest", play_tester_id: tester.id, play_test_id: pt.id } : u));
+        activeCounts[tester.id] = (activeCounts[tester.id] || 0) + 1;
+      } catch (e) { console.error("Auto-assign play tester failed:", e); }
+    }
+  };
+
+  // Handle play test result — notify on fail, auto-assign boxing on pass
+  const handlePlayTestResult = async (unit, passed, rating, feedback) => {
+    const tester = playTesters.find(t => t.id === unit.play_tester_id);
+    const prod = products.find(p => p.id === unit.product_id);
+    const now = new Date().toISOString();
+
+    // Update pedal unit
+    const unitUpdates = {
+      playtest_passed: passed,
+      playtest_rating: rating || null,
+      playtest_feedback: feedback || "",
+      playtest_completed_at: now,
+      status: passed ? "playtest_passed" : "playtest_failed",
+    };
+    await updatePedalUnit(unit.id, unitUpdates);
+    setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, ...unitUpdates } : u));
+
+    // Update play test record
+    if (unit.play_test_id) {
+      await updatePlayTest(unit.play_test_id, { status: "feedback_received", rating: rating || null, passed, feedback: feedback || "" });
+      setPlayTests(prev => prev.map(t => t.id === unit.play_test_id ? { ...t, status: "feedback_received", rating: rating || null, passed, feedback: feedback || "" } : t));
+    }
+
+    if (!passed) {
+      // FAILED — Notify Brady Smith via email + SMS
+      const notifyEmail = apiKeys.playtest_fail_email || apiKeys.notify_email || "";
+      const notifyPhone = apiKeys.playtest_fail_phone || "";
+      fetch("/api/notifications?type=playtest-failed", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serialNumber: unit.serial_number,
+          productName: prod?.name,
+          testerName: tester?.name,
+          rating, feedback,
+          notifyEmail,
+          notifyPhone,
+          accountSid: apiKeys.twilio_account_sid,
+          authToken: apiKeys.twilio_auth_token,
+          fromNumber: apiKeys.twilio_phone_number,
+        }),
+      }).catch(e => console.error("Playtest fail notification error:", e));
+    } else {
+      // PASSED — Auto-assign to boxing
+      await autoAssignBoxing(unit);
+    }
+  };
+
+  // Auto-assign a passed unit to boxing (picks first available boxer or creates task)
+  const autoAssignBoxing = async (unit) => {
+    const activeMembers = teamMembers.filter(t => t.active !== false);
+    // Find an existing pending/in-progress boxing task for the same build order
+    const existingTask = boxingTasks.find(bt =>
+      bt.build_order_id === unit.build_order_id && bt.status !== "completed"
+    );
+    if (existingTask) {
+      // Add to existing boxing task
+      await updatePedalUnit(unit.id, { status: "boxing", boxing_task_id: existingTask.id });
+      setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, status: "boxing", boxing_task_id: existingTask.id } : u));
+    } else if (activeMembers.length > 0) {
+      // Pick the team member with fewest active boxing tasks
+      const boxCounts = {};
+      boxingTasks.filter(bt => bt.status !== "completed").forEach(bt => {
+        boxCounts[bt.team_member_id] = (boxCounts[bt.team_member_id] || 0) + 1;
+      });
+      const sorted = [...activeMembers].sort((a,b) => (boxCounts[a.id]||0) - (boxCounts[b.id]||0));
+      const boxer = sorted[0];
+      try {
+        const bo = buildOrders.find(b => b.id === unit.build_order_id);
+        const task = await createBoxingTask({
+          build_order_id: unit.build_order_id,
+          product_id: unit.product_id,
+          team_member_id: boxer.id,
+          quantity: 1,
+          for_order: bo?.for_order || "",
+          priority: "normal",
+        }, user?.id);
+        setBoxingTasks(prev => [task, ...prev]);
+        await updatePedalUnit(unit.id, { status: "boxing", boxing_task_id: task.id });
+        setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, status: "boxing", boxing_task_id: task.id } : u));
+      } catch (e) { console.error("Auto-assign boxing failed:", e); }
+    }
+  };
 
   // ── Authenticate all configured APIs
   const authenticateAPIs = async (keys = apiKeys) => {
@@ -4268,6 +4444,7 @@ function BOMManager({ user }) {
           { id:"production",label:`Production${buildOrders.filter(b=>b.status!=="completed").length>0?` (${buildOrders.filter(b=>b.status!=="completed").length})`:""}`, step:null, color:null },
           { id:"playtesting",label:`Play Testing${playTests.filter(t=>t.status!=="returned").length>0?` (${playTests.filter(t=>t.status!=="returned").length})`:""}`, step:null, color:null },
           { id:"boxing",label:`Boxing${boxingTasks.filter(t=>t.status!=="completed").length>0?` (${boxingTasks.filter(t=>t.status!=="completed").length})`:""}`, step:null, color:null },
+          { id:"pipeline",label:`Pipeline${pedalUnits.filter(u=>u.status!=="shipped"&&u.status!=="boxed").length>0?` (${pedalUnits.filter(u=>u.status!=="shipped"&&u.status!=="boxed").length})`:""}`, step:null, color:null },
           { id:"scoreboard",label:"Scoreboard", step:null, color:null },
           { id:"suppliers", label:"Suppliers",   step:null, color:null },
           { id:"alerts",    label:`Alerts${lowStockParts.length>0?` (${lowStockParts.length})`:""}`, step:null, color:null },
@@ -11135,6 +11312,8 @@ function BOMManager({ user }) {
                     }),
                   }).catch(e => console.error("SMS notification failed:", e));
                 }
+                // Auto-generate pedal units and assign to play testers
+                autoGeneratePedalUnits(bo);
               } else {
                 // Auto-start if pending
                 const newStatus = (bo.status === "pending" || bo.status === "assigned") ? "in-progress" : bo.status;
@@ -12645,6 +12824,303 @@ function BOMManager({ user }) {
         })()}
 
         {/* ══════════════════════════════════════
+            PIPELINE — Unit Tracking & Packing Lists
+        ══════════════════════════════════════ */}
+        {activeView === "pipeline" && (() => {
+          const cardBg = darkMode ? "#1c1c1e" : "#fff";
+          const cardBorder = darkMode ? "1px solid #3a3a3e" : "1px solid #e5e5ea";
+          const textPrimary = darkMode ? "#f5f5f7" : "#1d1d1f";
+          const inputStyle = { fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7", outline:"none", background:darkMode?"#2c2c2e":"#fff", color:textPrimary };
+
+          const statusLabels = { built:"Built", awaiting_playtest:"Awaiting Play Test", in_playtest:"In Play Test", playtest_passed:"Play Test Passed", playtest_failed:"Play Test FAILED", boxing:"Boxing", boxed:"Boxed", shipped:"Shipped" };
+          const statusColors = { built:"#86868b", awaiting_playtest:"#ff9500", in_playtest:"#5856d6", playtest_passed:"#34c759", playtest_failed:"#ff3b30", boxing:"#0071e3", boxed:"#00c7be", shipped:"#86868b" };
+
+          // Status counts for pipeline summary
+          const statusCounts = {};
+          pedalUnits.forEach(u => { statusCounts[u.status] = (statusCounts[u.status] || 0) + 1; });
+
+          // Filtered units
+          let filtered = pipelineFilter === "all" ? pedalUnits : pedalUnits.filter(u => u.status === pipelineFilter);
+          if (pipelineSearch) {
+            const q = pipelineSearch.toLowerCase();
+            filtered = filtered.filter(u => {
+              const prod = products.find(p => p.id === u.product_id);
+              const tester = playTesters.find(t => t.id === u.play_tester_id);
+              return (u.serial_number || "").toLowerCase().includes(q) ||
+                (prod?.name || "").toLowerCase().includes(q) ||
+                (tester?.name || "").toLowerCase().includes(q) ||
+                (u.customer_name || "").toLowerCase().includes(q) ||
+                (u.dealer_name || "").toLowerCase().includes(q) ||
+                (u.customer_order || "").toLowerCase().includes(q);
+            });
+          }
+
+          // Unique order references for packing list dropdown
+          const orderRefs = [...new Set(pedalUnits.map(u => u.customer_order).filter(Boolean))].sort();
+          // Also collect from build orders for_order
+          const boOrderRefs = [...new Set(buildOrders.map(b => b.for_order).filter(Boolean))].sort();
+          const allOrderRefs = [...new Set([...orderRefs, ...boOrderRefs])].sort();
+
+          // Packing list units
+          const packingUnits = packingListOrder ? pedalUnits.filter(u =>
+            u.customer_order === packingListOrder ||
+            (u.build_order_id && buildOrders.find(b => b.id === u.build_order_id)?.for_order === packingListOrder)
+          ).filter(u => u.status === "boxed" || u.status === "shipped") : [];
+
+          return (
+          <div style={{ maxWidth:"100%" }}>
+            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Pipeline</h2>
+            <p style={{ fontSize:14,color:"#86868b",marginBottom:20 }}>Track every serialized unit from build through play test, boxing, and shipment. Auto-assigned through the pipeline.</p>
+
+            {/* ── Pipeline Summary ── */}
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(120px, 1fr))",gap:12,marginBottom:28 }}>
+              {["built","awaiting_playtest","in_playtest","playtest_passed","playtest_failed","boxing","boxed","shipped"].map(status => (
+                <div key={status} onClick={() => setPipelineFilter(pipelineFilter === status ? "all" : status)}
+                  style={{ background: pipelineFilter === status ? statusColors[status]+"18" : cardBg, borderRadius:14,padding:"16px 18px",
+                    boxShadow:"0 1px 4px rgba(0,0,0,0.06)", border: pipelineFilter === status ? `2px solid ${statusColors[status]}` : cardBorder,
+                    cursor:"pointer",transition:"all 0.15s" }}>
+                  <div style={{ fontSize:9,color:statusColors[status],fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:6 }}>{statusLabels[status]}</div>
+                  <div style={{ fontSize:24,fontWeight:800,color:statusColors[status],fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>{statusCounts[status] || 0}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Search ── */}
+            <div style={{ display:"flex",gap:10,marginBottom:16,alignItems:"center" }}>
+              <input style={{ ...inputStyle, flex:1, maxWidth:400 }} placeholder="Search by S/N, product, tester, customer, dealer…"
+                value={pipelineSearch} onChange={e => setPipelineSearch(e.target.value)} />
+              {pipelineFilter !== "all" && (
+                <button onClick={() => setPipelineFilter("all")}
+                  style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#e5e5ea",color:"#1d1d1f" }}>
+                  Clear Filter
+                </button>
+              )}
+              <span style={{ fontSize:12,color:"#86868b" }}>{filtered.length} units</span>
+            </div>
+
+            {/* ── Unit Cards ── */}
+            <div style={{ display:"grid",gap:8,marginBottom:40 }}>
+              {filtered.length === 0 && (
+                <div style={{ textAlign:"center",padding:40,color:"#86868b",fontSize:14 }}>
+                  {pedalUnits.length === 0 ? "No pedal units yet. Units are auto-created when build orders complete." : "No units match the current filter."}
+                </div>
+              )}
+              {filtered.slice(0, 100).map(unit => {
+                const prod = products.find(p => p.id === unit.product_id);
+                const tester = playTesters.find(t => t.id === unit.play_tester_id);
+                const builder = teamMembers.find(m => m.id === unit.built_by);
+                const boxer = teamMembers.find(m => m.id === unit.boxed_by);
+                const bo = unit.build_order_id ? buildOrders.find(b => b.id === unit.build_order_id) : null;
+
+                return (
+                  <div key={unit.id} style={{ background:cardBg,borderRadius:12,padding:"14px 18px",border:cardBorder,
+                    borderLeft:`4px solid ${statusColors[unit.status] || "#86868b"}` }}>
+                    <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap" }}>
+                      <div style={{ display:"flex",alignItems:"center",gap:12,flex:1,minWidth:200 }}>
+                        <div>
+                          <span style={{ fontSize:14,fontWeight:700,color:textPrimary,fontFamily:"SF Mono,monospace" }}>{unit.serial_number || "No S/N"}</span>
+                          <span style={{ marginLeft:10,fontSize:13,color:"#86868b" }}>{prod?.name || "?"}</span>
+                        </div>
+                        <span style={{ fontSize:10,fontWeight:700,padding:"2px 10px",borderRadius:980,
+                          background:statusColors[unit.status]+"18", color:statusColors[unit.status] }}>
+                          {statusLabels[unit.status] || unit.status}
+                        </span>
+                      </div>
+                      <div style={{ display:"flex",gap:12,fontSize:11,color:"#86868b",flexWrap:"wrap" }}>
+                        {builder && <span>Built: <strong style={{color:textPrimary}}>{builder.name}</strong></span>}
+                        {tester && <span>Tester: <strong style={{color:textPrimary}}>{tester.name}</strong></span>}
+                        {unit.playtest_passed !== null && <span style={{color:unit.playtest_passed?"#34c759":"#ff3b30",fontWeight:700}}>{unit.playtest_passed?"PASS":"FAIL"}</span>}
+                        {unit.playtest_rating && <span style={{color:"#ff9500"}}>{"★".repeat(unit.playtest_rating)}</span>}
+                        {boxer && <span>Boxed: <strong style={{color:textPrimary}}>{boxer.name}</strong></span>}
+                        {unit.customer_name && <span>Customer: <strong style={{color:textPrimary}}>{unit.customer_name}</strong></span>}
+                        {unit.dealer_name && <span>Dealer: <strong style={{color:textPrimary}}>{unit.dealer_name}</strong></span>}
+                        {bo?.for_order && <span>PO: {bo.for_order}</span>}
+                      </div>
+                      {/* Actions */}
+                      <div style={{ display:"flex",gap:4 }}>
+                        {unit.status === "in_playtest" && (
+                          <>
+                            <button onClick={() => handlePlayTestResult(unit, true, 5, "")}
+                              style={{ fontSize:11,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#34c759",color:"#fff" }}>
+                              Pass
+                            </button>
+                            <button onClick={() => {
+                              const fb = prompt("What's wrong with this pedal?");
+                              if (fb === null) return;
+                              handlePlayTestResult(unit, false, 1, fb);
+                            }} style={{ fontSize:11,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#ff3b30",color:"#fff" }}>
+                              Fail
+                            </button>
+                          </>
+                        )}
+                        {unit.status === "playtest_failed" && (
+                          <button onClick={async () => {
+                            await updatePedalUnit(unit.id, { status: "awaiting_playtest", playtest_passed: null, playtest_rating: null, playtest_feedback: "", play_tester_id: null, play_test_id: null });
+                            setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, status: "awaiting_playtest", playtest_passed: null, playtest_rating: null, playtest_feedback: "", play_tester_id: null, play_test_id: null } : u));
+                            // Re-assign to play testers
+                            const updated = { ...unit, status: "awaiting_playtest", play_tester_id: null, play_test_id: null };
+                            await autoAssignPlayTesters([updated]);
+                          }} style={{ fontSize:11,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#ff9500",color:"#fff" }}>
+                            Re-test
+                          </button>
+                        )}
+                        {unit.status === "boxing" && (
+                          <button onClick={async () => {
+                            await updatePedalUnit(unit.id, { status: "boxed", boxed_at: new Date().toISOString() });
+                            setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, status: "boxed", boxed_at: new Date().toISOString() } : u));
+                          }} style={{ fontSize:11,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#00c7be",color:"#fff" }}>
+                            Mark Boxed
+                          </button>
+                        )}
+                        {unit.status === "boxed" && (
+                          <button onClick={async () => {
+                            const cust = prompt("Customer/dealer name:");
+                            if (cust === null) return;
+                            const order = prompt("Order/PO reference:");
+                            await updatePedalUnit(unit.id, { status: "shipped", shipped_at: new Date().toISOString(), customer_name: cust || "", customer_order: order || "" });
+                            setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, status: "shipped", shipped_at: new Date().toISOString(), customer_name: cust || "", customer_order: order || "" } : u));
+                          }} style={{ fontSize:11,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#86868b",color:"#fff" }}>
+                            Ship
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {unit.playtest_feedback && <div style={{ marginTop:6,fontSize:11,color:"#ff3b30",fontStyle:"italic" }}>Feedback: {unit.playtest_feedback}</div>}
+                  </div>
+                );
+              })}
+              {filtered.length > 100 && <div style={{ textAlign:"center",fontSize:12,color:"#86868b",padding:10 }}>Showing first 100 of {filtered.length} units. Use search to narrow results.</div>}
+            </div>
+
+            {/* ══════════════════════════════════════
+                PACKING LIST
+            ══════════════════════════════════════ */}
+            <div style={{ borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",paddingTop:28 }}>
+              <h3 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:22,fontWeight:700,color:textPrimary,marginBottom:4 }}>Packing List</h3>
+              <p style={{ fontSize:13,color:"#86868b",marginBottom:16 }}>Generate a packing list for an order showing every serial number, who built it, who play tested it, and who boxed it.</p>
+
+              <div style={{ display:"flex",gap:10,marginBottom:20,alignItems:"center" }}>
+                <select style={{ ...inputStyle, maxWidth:300 }} value={packingListOrder} onChange={e => setPackingListOrder(e.target.value)}>
+                  <option value="">Select order / PO…</option>
+                  {allOrderRefs.map(ref => {
+                    const count = pedalUnits.filter(u =>
+                      (u.customer_order === ref || (u.build_order_id && buildOrders.find(b => b.id === u.build_order_id)?.for_order === ref)) &&
+                      (u.status === "boxed" || u.status === "shipped")
+                    ).length;
+                    return <option key={ref} value={ref}>{ref} ({count} units ready)</option>;
+                  })}
+                </select>
+                {packingListOrder && (
+                  <button onClick={() => {
+                    // Print-friendly packing list
+                    const w = window.open("", "_blank");
+                    const prod0 = packingUnits[0] ? products.find(p => p.id === packingUnits[0].product_id) : null;
+                    // Try to get customer info from Shopify/Zoho demand data
+                    const orderInfo = (() => {
+                      if (shopifyDemand?.orders) {
+                        const match = shopifyDemand.orders.find(o => o.name === packingListOrder || o.order_number === packingListOrder);
+                        if (match) return { name: match.shipping_address?.name || match.customer?.first_name + " " + match.customer?.last_name, address: [match.shipping_address?.address1, match.shipping_address?.address2, match.shipping_address?.city, match.shipping_address?.province, match.shipping_address?.zip, match.shipping_address?.country].filter(Boolean).join(", "), email: match.email || match.customer?.email, phone: match.shipping_address?.phone || match.phone, source: "Shopify" };
+                      }
+                      if (zohoDemand?.invoices) {
+                        const match = zohoDemand.invoices.find(i => i.invoice_number === packingListOrder || i.reference_number === packingListOrder);
+                        if (match) return { name: match.customer_name, address: [match.billing_address?.address, match.billing_address?.city, match.billing_address?.state, match.billing_address?.zip, match.billing_address?.country].filter(Boolean).join(", "), email: match.email, phone: match.phone, source: "Zoho" };
+                      }
+                      return null;
+                    })();
+                    const rows = packingUnits.map(u => {
+                      const prod = products.find(p => p.id === u.product_id);
+                      const builder = teamMembers.find(m => m.id === u.built_by);
+                      const tester = playTesters.find(t => t.id === u.play_tester_id);
+                      const boxer = teamMembers.find(m => m.id === u.boxed_by);
+                      return `<tr>
+                        <td style="padding:8px 12px;border-bottom:1px solid #e5e5ea;font-family:monospace;font-weight:bold">${u.serial_number}</td>
+                        <td style="padding:8px 12px;border-bottom:1px solid #e5e5ea">${prod?.name || "?"}</td>
+                        <td style="padding:8px 12px;border-bottom:1px solid #e5e5ea">${builder?.name || "—"}</td>
+                        <td style="padding:8px 12px;border-bottom:1px solid #e5e5ea">${tester?.name || "—"}${u.playtest_rating ? " ★"+u.playtest_rating : ""}</td>
+                        <td style="padding:8px 12px;border-bottom:1px solid #e5e5ea">${boxer?.name || "—"}</td>
+                        <td style="padding:8px 12px;border-bottom:1px solid #e5e5ea">${u.customer_name || u.dealer_name || "—"}</td>
+                      </tr>`;
+                    }).join("");
+                    w.document.write(`<!DOCTYPE html><html><head><title>Packing List — ${packingListOrder}</title>
+                      <style>body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;margin:40px;color:#1d1d1f}
+                      table{border-collapse:collapse;width:100%} th{text-align:left;padding:8px 12px;border-bottom:2px solid #1d1d1f;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#86868b}
+                      @media print{body{margin:20px} button{display:none}}</style></head><body>
+                      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
+                        <div><h1 style="margin:0;font-size:24px">Packing List</h1>
+                        <div style="font-size:14px;color:#86868b;margin-top:4px">Order: <strong style="color:#1d1d1f">${packingListOrder}</strong> · ${packingUnits.length} units · ${new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div></div>
+                        <div style="text-align:right"><strong>${apiKeys.company_name || "Jackson Audio"}</strong><br><span style="font-size:12px;color:#86868b">${(apiKeys.company_address || "").replace(/\n/g,"<br>")}</span></div>
+                      </div>
+                      ${orderInfo ? `<div style="margin-bottom:20px;padding:14px 18px;background:#f9f9fb;border-radius:10px;border:1px solid #e5e5ea">
+                        <div style="font-size:11px;color:#86868b;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;margin-bottom:6px">Ship To ${orderInfo.source ? `(${orderInfo.source})` : ""}</div>
+                        <div style="font-size:14px;font-weight:600">${orderInfo.name || "—"}</div>
+                        ${orderInfo.address ? `<div style="font-size:13px;color:#86868b">${orderInfo.address}</div>` : ""}
+                        ${orderInfo.email ? `<div style="font-size:12px;color:#86868b">${orderInfo.email}</div>` : ""}
+                        ${orderInfo.phone ? `<div style="font-size:12px;color:#86868b">${orderInfo.phone}</div>` : ""}
+                      </div>` : ""}
+                      <table><thead><tr><th>Serial Number</th><th>Product</th><th>Built By</th><th>Play Tested By</th><th>Boxed By</th><th>Customer</th></tr></thead><tbody>${rows}</tbody></table>
+                      <div style="margin-top:36px;padding:18px 22px;border:2px solid #1d1d1f;border-radius:10px">
+                        <div style="font-size:14px;font-weight:700;margin-bottom:12px">Order Packed By:</div>
+                        <div style="display:flex;gap:40px;align-items:flex-end">
+                          <div style="flex:1;border-bottom:1px solid #86868b;padding-bottom:4px;min-height:24px"></div>
+                          <div style="font-size:12px;color:#86868b;white-space:nowrap">Initials</div>
+                          <div style="width:100px;border-bottom:1px solid #86868b;padding-bottom:4px;min-height:24px"></div>
+                          <div style="font-size:12px;color:#86868b;white-space:nowrap">Date</div>
+                          <div style="width:120px;border-bottom:1px solid #86868b;padding-bottom:4px;min-height:24px"></div>
+                        </div>
+                      </div>
+                      <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e5e5ea;display:flex;justify-content:space-between">
+                        <div style="font-size:12px;color:#86868b">Generated by Jackson Audio BOM Manager</div>
+                        <button onclick="window.print()" style="padding:8px 20px;border-radius:980px;border:none;background:#0071e3;color:#fff;font-weight:600;cursor:pointer;font-size:13px">Print</button>
+                      </div></body></html>`);
+                    w.document.close();
+                  }} style={{ fontSize:12,padding:"8px 18px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#0071e3",color:"#fff" }}>
+                    Print Packing List
+                  </button>
+                )}
+              </div>
+
+              {/* Packing list preview */}
+              {packingListOrder && (
+                <div style={{ background:cardBg,borderRadius:14,padding:"18px 22px",border:cardBorder }}>
+                  {packingUnits.length === 0 ? (
+                    <div style={{ textAlign:"center",padding:20,color:"#86868b",fontSize:13 }}>No boxed/shipped units found for order "{packingListOrder}". Units must be boxed before they appear on the packing list.</div>
+                  ) : (
+                    <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                      <thead>
+                        <tr>
+                          {["Serial Number","Product","Built By","Play Tested By","Boxed By","Customer / Dealer"].map(h => (
+                            <th key={h} style={{ textAlign:"left",padding:"8px 12px",borderBottom:darkMode?"2px solid #3a3a3e":"2px solid #d2d2d7",fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",color:"#86868b",fontWeight:700 }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {packingUnits.map(u => {
+                          const prod = products.find(p => p.id === u.product_id);
+                          const builder = teamMembers.find(m => m.id === u.built_by);
+                          const tester = playTesters.find(t => t.id === u.play_tester_id);
+                          const boxer = teamMembers.find(m => m.id === u.boxed_by);
+                          return (
+                            <tr key={u.id}>
+                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",fontFamily:"SF Mono,monospace",fontWeight:700,color:textPrimary }}>{u.serial_number}</td>
+                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}>{prod?.name || "?"}</td>
+                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}>{builder?.name || "—"}</td>
+                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}>{tester?.name || "—"}{u.playtest_rating ? ` ${"★".repeat(u.playtest_rating)}` : ""}</td>
+                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}>{boxer?.name || "—"}</td>
+                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}>{u.customer_name || u.dealer_name || "—"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          );
+        })()}
+
+        {/* ══════════════════════════════════════
             API KEYS / SETTINGS
         ══════════════════════════════════════ */}
         {activeView === "settings" && (
@@ -13388,6 +13864,31 @@ function BOMManager({ user }) {
                   <input type="text" value={apiKeys.twilio_phone_number||""} onChange={e=>setApiKeys(k=>({...k,twilio_phone_number:e.target.value}))} placeholder="+15551234567" style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
                 {sectionSaveBtn("sms", "SMS Settings")}
+              </div>}
+            </div>
+
+            {/* ── Play Test Failure Alerts */}
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#ff3b30",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("playtest") ? s.delete("playtest") : s.add("playtest"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("playtest") ? "▶" : "▼"}</span>
+                  Play Test Failure Alerts
+                </div>
+              </div>
+              {!collapsedSettings.has("playtest") && <div style={{ padding:"16px 20px" }}>
+                <p style={{ fontSize:12,color:"#86868b",marginBottom:14 }}>
+                  When a pedal fails play testing, alert this person via email and/or SMS so they can review and fix it.
+                </p>
+                <div className="key-input-row">
+                  <div><div className="key-label">Alert Email</div><div className="key-hint">Who to email on play test failure</div></div>
+                  <input type="email" value={apiKeys.playtest_fail_email||""} onChange={e=>setApiKeys(k=>({...k,playtest_fail_email:e.target.value}))} placeholder="brad@jacksonaudio.net" style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                <div className="key-input-row">
+                  <div><div className="key-label">Alert Phone (SMS)</div><div className="key-hint">Phone number for text alerts</div></div>
+                  <input type="text" value={apiKeys.playtest_fail_phone||""} onChange={e=>setApiKeys(k=>({...k,playtest_fail_phone:e.target.value}))} placeholder="+15551234567" style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                {sectionSaveBtn("playtest", "Alert Settings")}
               </div>}
             </div>
 

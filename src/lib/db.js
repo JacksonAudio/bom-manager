@@ -757,6 +757,75 @@ export function subscribeToBoxingTasks(callback) {
     .subscribe()
 }
 
+// ─────────────────────────────────────────────
+// PEDAL UNITS (individual serialized units)
+// ─────────────────────────────────────────────
+
+export async function fetchPedalUnits() {
+  const all = [];
+  const pageSize = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('pedal_units')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, from + pageSize - 1);
+    check(error, 'fetchPedalUnits');
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
+export async function createPedalUnit(fields, userId) {
+  const { data, error } = await supabase
+    .from('pedal_units')
+    .insert({ ...fields, created_by: userId })
+    .select()
+    .single()
+  check(error, 'createPedalUnit')
+  return data
+}
+
+export async function createPedalUnits(rows, userId) {
+  if (!rows.length) return []
+  const tagged = rows.map(r => ({ ...r, created_by: userId }))
+  const { data, error } = await supabase
+    .from('pedal_units')
+    .insert(tagged)
+    .select()
+  check(error, 'createPedalUnits')
+  return data
+}
+
+export async function updatePedalUnit(id, fields) {
+  const { error } = await supabase
+    .from('pedal_units')
+    .update(fields)
+    .eq('id', id)
+  check(error, 'updatePedalUnit')
+}
+
+export async function deletePedalUnit(id) {
+  const { error } = await supabase
+    .from('pedal_units')
+    .delete()
+    .eq('id', id)
+  check(error, 'deletePedalUnit')
+}
+
+export function subscribeToPedalUnits(callback) {
+  return supabase
+    .channel('pedal-units-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedal_units' },
+      (payload) => callback(payload.eventType, payload.new, payload.old)
+    )
+    .subscribe()
+}
+
 // Fetch all price history (for product-level rollups)
 export async function fetchAllPriceHistory() {
   const all = [];

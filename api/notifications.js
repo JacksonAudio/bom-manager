@@ -17,6 +17,8 @@ export default async function handler(req, res) {
       return await handleBuildComplete(req, res);
     case "sms":
       return await handleSms(req, res);
+    case "playtest-failed":
+      return await handlePlaytestFailed(req, res);
     default:
       return res.status(400).json({ error: `Unknown type: ${type}` });
   }
@@ -124,4 +126,79 @@ async function handleSms(req, res) {
     console.error("send-sms error:", err);
     return res.status(500).json({ error: err.message });
   }
+}
+
+// ── Play Test Failed — Alert Brady (email + SMS) ──────────────────────────────
+async function handlePlaytestFailed(req, res) {
+  const {
+    serialNumber, productName, testerName, rating, feedback,
+    notifyEmail, notifyPhone,
+    accountSid, authToken, fromNumber,
+  } = req.body || {};
+
+  const body = [
+    `PLAY TEST FAILED`,
+    ``,
+    `Serial Number: ${serialNumber || "N/A"}`,
+    `Product: ${productName || "Unknown"}`,
+    `Tester: ${testerName || "Unknown"}`,
+    rating ? `Rating: ${"★".repeat(rating)}${"☆".repeat(5 - rating)}` : "",
+    feedback ? `Feedback: ${feedback}` : "",
+    ``,
+    `This pedal needs review and repair before it can ship.`,
+    ``,
+    `Reported: ${new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}`,
+    `— Jackson Audio BOM Manager`,
+  ].filter(Boolean).join("\n");
+
+  const smsBody = `FAILED PLAY TEST: ${serialNumber || "?"} (${productName || "?"}). Tester: ${testerName || "?"}. ${feedback ? feedback.slice(0, 100) : "No feedback."} — Review needed.`;
+
+  const results = { email: null, sms: null };
+
+  // Send email via Resend
+  if (notifyEmail) {
+    const resendKey = process.env.RESEND_API_KEY;
+    if (resendKey) {
+      try {
+        const emailRes = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: "BOM Manager <alerts@jackson.audio>",
+            to: [notifyEmail],
+            subject: `FAILED Play Test — ${serialNumber || "?"} ${productName || ""}`,
+            text: body,
+          }),
+        });
+        results.email = emailRes.ok ? "sent" : "failed";
+      } catch (e) {
+        console.error("playtest-failed email error:", e);
+        results.email = "error";
+      }
+    } else {
+      console.log("No RESEND_API_KEY — would email:", notifyEmail, body);
+      results.email = "no_key";
+    }
+  }
+
+  // Send SMS via Twilio
+  if (notifyPhone && accountSid && authToken && fromNumber) {
+    const cleanTo = notifyPhone.replace(/[^+\d]/g, "");
+    const fullTo = cleanTo.startsWith("+") ? cleanTo : "+1" + cleanTo;
+    try {
+      const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+      const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+      const twilioRes = await fetch(twilioUrl, {
+        method: "POST",
+        headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ To: fullTo, From: fromNumber, Body: smsBody }),
+      });
+      results.sms = twilioRes.ok ? "sent" : "failed";
+    } catch (e) {
+      console.error("playtest-failed sms error:", e);
+      results.sms = "error";
+    }
+  }
+
+  return res.status(200).json({ message: "Playtest failure notification processed", results });
 }
