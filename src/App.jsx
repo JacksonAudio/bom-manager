@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.40";
-const BUILD_TIME   = "2026-03-26T21:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.41";
+const BUILD_TIME   = "2026-03-26T21:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -6305,6 +6305,14 @@ function BOMManager({ user }) {
                                         </div>
                                       );
                                     })()}
+                                    {part.notes && part.notes.startsWith("http") && (
+                                      <div style={{ marginTop:6 }}>
+                                        <a href={part.notes} target="_blank" rel="noopener noreferrer"
+                                          style={{ display:"inline-block",fontSize:11,padding:"3px 10px",borderRadius:980,background:"#e8500a",color:"#fff",fontWeight:600,textDecoration:"none" }}>
+                                          Reorder on AliExpress ↗
+                                        </a>
+                                      </div>
+                                    )}
                                     {part.addedVia && <div>Added via: <span style={{ fontWeight:600,color:"#5856d6" }}>{{
                                       "manual":"Manual Entry", "quick-add-url":"Quick Add URL", "csv-import":"CSV/BOM Import",
                                       "invoice-import":"Invoice Scanner", "mouser-history":"Mouser Order History",
