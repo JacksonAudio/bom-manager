@@ -11504,24 +11504,48 @@ function BOMManager({ user }) {
                 // Notify the assigned builder (email + SMS)
                 const member = teamMembers.find(m => m.id === newBuildOrder.team_member_id);
                 const prod = products.find(p => p.id === newBuildOrder.product_id);
-                if (member?.email || (member?.phone && apiKeys.twilio_account_sid)) {
-                  fetch("/api/notifications?type=build-assigned", {
-                    method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      productName: prod?.name || "Product",
-                      quantity: bo.quantity,
-                      priority: newBuildOrder.priority,
-                      dueDate: newBuildOrder.due_date || null,
-                      forOrder: newBuildOrder.for_order || null,
-                      assignerName: user?.email || "",
-                      notifyEmail: member?.email || null,
-                      notifyName: member?.name || "",
-                      notifyPhone: member?.phone || null,
-                      accountSid: apiKeys.twilio_account_sid || null,
-                      authToken: apiKeys.twilio_auth_token || null,
-                      fromNumber: apiKeys.twilio_phone_number || null,
-                    }),
-                  }).then(r => r.json()).then(d => console.log("[Notify] Build assigned:", d)).catch(e => console.error("[Notify] Failed:", e));
+                const canEmail = !!member?.email;
+                const canSMS = !!(member?.phone && apiKeys.twilio_account_sid && apiKeys.twilio_auth_token && apiKeys.twilio_phone_number);
+                if (canEmail || canSMS) {
+                  try {
+                    const notifyRes = await fetch("/api/notifications?type=build-assigned", {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        productName: prod?.name || "Product",
+                        quantity: bo.quantity,
+                        priority: newBuildOrder.priority,
+                        dueDate: newBuildOrder.due_date || null,
+                        forOrder: newBuildOrder.for_order || null,
+                        assignerName: user?.email || "",
+                        notifyEmail: member?.email || null,
+                        notifyName: member?.name || "",
+                        notifyPhone: member?.phone || null,
+                        accountSid: apiKeys.twilio_account_sid || null,
+                        authToken: apiKeys.twilio_auth_token || null,
+                        fromNumber: apiKeys.twilio_phone_number || null,
+                      }),
+                    });
+                    const notifyData = await notifyRes.json();
+                    console.log("[Notify] Build assigned result:", notifyData);
+                    if (!notifyRes.ok) {
+                      console.error("[Notify] Server error:", notifyData);
+                      alert(`Build order created, but notification failed: ${notifyData.error || "Unknown error"}`);
+                    } else {
+                      const parts = [];
+                      if (notifyData.results?.email === "sent") parts.push(`email to ${member.email}`);
+                      if (notifyData.results?.email === "no_key") parts.push("email skipped (no RESEND_API_KEY on server)");
+                      if (notifyData.results?.email === "failed" || notifyData.results?.email === "error") parts.push("email FAILED");
+                      if (notifyData.results?.sms === "sent") parts.push(`SMS to ${member.phone}`);
+                      if (notifyData.results?.sms === "failed" || notifyData.results?.sms === "error") parts.push("SMS FAILED");
+                      if (parts.length > 0) console.log("[Notify] " + parts.join(", "));
+                    }
+                  } catch (e) {
+                    console.error("[Notify] Network error:", e);
+                    alert(`Build order created, but notification failed: ${e.message}`);
+                  }
+                } else {
+                  console.warn("[Notify] Skipped — member:", member?.name, "email:", member?.email || "none", "phone:", member?.phone || "none",
+                    "twilio configured:", !!(apiKeys.twilio_account_sid && apiKeys.twilio_auth_token && apiKeys.twilio_phone_number));
                 }
               }
               setNewBuildOrder({ product_id:"", quantity:"", priority:"normal", due_date:"", team_member_id:"", notes:"", for_order:"" });
