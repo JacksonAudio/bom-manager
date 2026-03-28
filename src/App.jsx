@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.14";
-const BUILD_TIME   = "2026-03-28T07:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.15";
+const BUILD_TIME   = "2026-03-28T08:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -1518,6 +1518,7 @@ function BOMManager({ user }) {
   const [expandedDealer, setExpandedDealer] = useState(null);
   const [lastCsvImport, setLastCsvImport] = useState(null); // null | { created: [id,...], updated: [{id, before}] }
   const [dealerSearch, setDealerSearch] = useState("");
+  const [dealerBrandFilter, setDealerBrandFilter] = useState("all"); // "all" | "Jackson Audio" | "Fulltone USA"
   // Dynamic locked-supplier check — hardcoded fallbacks + any manual (non-API) vendor in the DB
   // eslint-disable-next-line no-shadow
   const isLockedSupplier = useCallback((supplier) => {
@@ -15555,7 +15556,14 @@ function BOMManager({ user }) {
           };
 
           const dealerSearchLower = dealerSearch.toLowerCase().trim();
-          const matchDealer = (d) => !dealerSearchLower || [d.name,d.contact_name,d.email,d.phone,d.account_number,d.website,d.notes,d.shipping_notes,d.billing_address?.city,d.billing_address?.state,d.billing_address?.country,d.billing_address?.street,d.shipping_address?.city,d.shipping_address?.state,d.shipping_address?.zip].filter(Boolean).join(" ").toLowerCase().includes(dealerSearchLower);
+          const matchDealer = (d) => {
+            if (dealerBrandFilter !== "all") {
+              const b = d.brand || "Jackson Audio";
+              if (b === "Both") { /* Both dealers appear in both — always pass brand filter */ }
+              else if (b !== dealerBrandFilter) return false;
+            }
+            return !dealerSearchLower || [d.name,d.contact_name,d.email,d.phone,d.account_number,d.website,d.notes,d.shipping_notes,d.billing_address?.city,d.billing_address?.state,d.billing_address?.country,d.billing_address?.street,d.shipping_address?.city,d.shipping_address?.state,d.shipping_address?.zip].filter(Boolean).join(" ").toLowerCase().includes(dealerSearchLower);
+          };
           const visibleDealerCount = dealers.filter(matchDealer).length;
 
           return (
@@ -15568,7 +15576,17 @@ function BOMManager({ user }) {
                     style={{ padding:"5px 10px", paddingRight:dealerSearch?24:10, borderRadius:5, width:220, fontSize:12, boxSizing:"border-box" }} />
                   {dealerSearch && <span onClick={() => setDealerSearch("")} style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", cursor:"pointer", fontSize:14, color:"#86868b", lineHeight:1 }}>✕</span>}
                 </div>
-                <span style={{ fontSize:12, color:"#86868b", marginLeft:4 }}>{visibleDealerCount}/{dealers.length} dealers</span>
+                <div style={{ display:"flex", gap:4 }}>
+                  {[["all","All"],["Jackson Audio","JA"],["Fulltone USA","Fulltone"]].map(([val,label]) => (
+                    <button key={val} onClick={() => setDealerBrandFilter(val)}
+                      style={{ padding:"4px 10px", borderRadius:980, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"inherit", border:"none",
+                        background: dealerBrandFilter===val ? (val==="Jackson Audio"?"#c8a84e":val==="Fulltone USA"?"#b22222":"#3a3f51") : "#e5e5ea",
+                        color: dealerBrandFilter===val ? "#fff" : "#86868b" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <span style={{ fontSize:12, color:"#86868b" }}>{visibleDealerCount}/{dealers.length}</span>
                 <div style={{ marginLeft:"auto", display:"flex", gap:6, alignItems:"center" }}>
                   {lastCsvImport && (
                     <button className="btn-ghost btn-sm" onClick={undoLastImport} style={{ color:"#ff453a", borderColor:"#ff453a44" }}>↩ Undo Import</button>
@@ -15713,7 +15731,7 @@ function BOMManager({ user }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {["Jackson Audio","Fulltone USA"].flatMap(brand => {
+                        {["Jackson Audio","Fulltone USA"].filter(brand => dealerBrandFilter === "all" || dealerBrandFilter === brand).flatMap(brand => {
                           const group = (brandGroups[brand]||[]).filter(matchDealer).sort((a,b)=>a.name.localeCompare(b.name));
                           if (!group.length) return [];
                           const color = brandColor[brand];
