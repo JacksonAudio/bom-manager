@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.05";
-const BUILD_TIME   = "2026-03-28T00:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.06";
+const BUILD_TIME   = "2026-03-28T01:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -1515,6 +1515,7 @@ function BOMManager({ user }) {
   const [shopOrdersLoading, setShopOrdersLoading] = useState(false);
   const [shopOrderForm, setShopOrderForm] = useState(null); // null | { shopType, ... }
   const [zohoImportPreview, setZohoImportPreview] = useState(null); // null | { candidates, selected }
+  const [expandedDealer, setExpandedDealer] = useState(null);
   // Dynamic locked-supplier check — hardcoded fallbacks + any manual (non-API) vendor in the DB
   // eslint-disable-next-line no-shadow
   const isLockedSupplier = useCallback((supplier) => {
@@ -15648,7 +15649,6 @@ function BOMManager({ user }) {
                   <button className="btn-primary" onClick={() => setDealerForm(emptyForm())}>+ Add First Dealer</button>
                 </div>
               ) : (() => {
-                const [expandedDealer, setExpandedDealer] = React.useState(null);
                 const fmtAddrBlock = (addr) => {
                   if (!addr) return null;
                   const lines = [];
@@ -15826,8 +15826,8 @@ function BOMManager({ user }) {
             const cfg = SHOP_CFG[shopType];
             const orders = shopOrders.filter(o => o.shop_type === shopType);
             const openOrders = orders.filter(o => o.status !== "completed" && o.status !== "cancelled");
-            const [statusFilter, setStatusFilter] = React.useState("open");
-            const [expandedOrder, setExpandedOrder] = React.useState(null);
+            const [statusFilter, setStatusFilter] = useState("open");
+            const [expandedOrder, setExpandedOrder] = useState(null);
             const displayed = statusFilter === "open" ? openOrders : statusFilter === "all" ? orders : orders.filter(o => o.status === statusFilter);
 
             return (
