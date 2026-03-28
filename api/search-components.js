@@ -35,7 +35,7 @@ function makeMcMasterAgent() {
 function httpsRequest(method, url, agent, body, token) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
-    const headers = { "Content-Type": "application/json" };
+    const headers = { "Content-Type": "application/json", "Accept": "application/json" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const bodyStr = body ? JSON.stringify(body) : null;
     if (bodyStr) headers["Content-Length"] = Buffer.byteLength(bodyStr);

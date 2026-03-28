@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.25";
-const BUILD_TIME   = "2026-03-28T02:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.26";
+const BUILD_TIME   = "2026-03-28T02:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -6707,7 +6707,8 @@ function BOMManager({ user }) {
                 if (mmSearchResult.error) {
                   return (
                     <div style={{ marginTop:12,padding:"10px 14px",background:"rgba(255,59,48,0.06)",border:"1px solid rgba(255,59,48,0.2)",borderRadius:8,fontSize:12,color:"#ff3b30" }}>
-                      {mmSearchResult.error}
+                      <div>{mmSearchResult.error}</div>
+                      {mmSearchResult.raw && <div style={{ marginTop:6,fontFamily:"monospace",fontSize:11,color:"#86868b",wordBreak:"break-all" }}>{mmSearchResult.raw}</div>}
                     </div>
                   );
                 }
