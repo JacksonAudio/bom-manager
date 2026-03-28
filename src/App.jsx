@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.10";
-const BUILD_TIME   = "2026-03-28T03:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.11";
+const BUILD_TIME   = "2026-03-28T04:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -1517,6 +1517,7 @@ function BOMManager({ user }) {
   const [zohoImportPreview, setZohoImportPreview] = useState(null); // null | { candidates, selected }
   const [expandedDealer, setExpandedDealer] = useState(null);
   const [lastCsvImport, setLastCsvImport] = useState(null); // null | { created: [id,...], updated: [{id, before}] }
+  const [dealerSearch, setDealerSearch] = useState("");
   // Dynamic locked-supplier check — hardcoded fallbacks + any manual (non-API) vendor in the DB
   // eslint-disable-next-line no-shadow
   const isLockedSupplier = useCallback((supplier) => {
@@ -15560,7 +15561,20 @@ function BOMManager({ user }) {
                   <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:21, fontWeight:800, marginBottom:4, color:textPrimary }}>Dealer Directory</h2>
                   <p style={{ color:textSecondary, fontSize:13, margin:0 }}>All wholesale accounts — billing, shipping, contacts, and special instructions.</p>
                 </div>
-                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+                  {/* Search */}
+                  <div style={{ position:"relative" }}>
+                    <input
+                      placeholder="Search dealers…"
+                      value={dealerSearch}
+                      onChange={e => setDealerSearch(e.target.value)}
+                      style={{ ...inputStyle, width:200, paddingRight:dealerSearch ? 28 : 10, fontSize:13 }}
+                    />
+                    {dealerSearch && (
+                      <button onClick={() => setDealerSearch("")}
+                        style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:textSecondary, fontSize:16, lineHeight:1, padding:0 }}>×</button>
+                    )}
+                  </div>
                   {lastCsvImport && (
                     <button className="btn-ghost" onClick={undoLastImport}
                       style={{ fontSize:12, color:"#ff453a", borderColor:"#ff453a44" }}
@@ -15722,8 +15736,8 @@ function BOMManager({ user }) {
                 );
               })()}
 
-              {/* Add / Edit form */}
-              {dealerForm && (
+              {/* Add form — only for new dealers; edit form renders inline below the row */}
+              {dealerForm && !dealerForm.id && (
                 <div data-dealer-form style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:12, marginBottom:24, overflow:"hidden" }}>
                   <div style={{ padding:"14px 20px", background:darkMode?"#3a3a3e":"#f5f5f7", borderBottom:`1px solid ${borderColor}` }}>
                     <div style={{ fontWeight:700, fontSize:14, color:textPrimary }}>{dealerForm.id ? "Edit Dealer" : "New Dealer"}</div>
@@ -15810,8 +15824,17 @@ function BOMManager({ user }) {
                   if (addr.country && addr.country !== "US") lines.push(addr.country);
                   return lines.length ? lines : null;
                 };
+                const searchLower = dealerSearch.toLowerCase().trim();
+                const matchesSearch = (d) => {
+                  if (!searchLower) return true;
+                  const haystack = [d.name, d.contact_name, d.email, d.phone, d.account_number, d.website, d.notes, d.shipping_notes,
+                    d.billing_address?.city, d.billing_address?.state, d.billing_address?.country, d.billing_address?.street,
+                    d.shipping_address?.city, d.shipping_address?.state, d.shipping_address?.country, d.shipping_address?.zip,
+                  ].filter(Boolean).join(" ").toLowerCase();
+                  return haystack.includes(searchLower);
+                };
                 return ["Jackson Audio", "Fulltone USA"].map(brand => {
-                  const group = (brandGroups[brand] || []).sort((a,b) => a.name.localeCompare(b.name));
+                  const group = (brandGroups[brand] || []).filter(matchesSearch).sort((a,b) => a.name.localeCompare(b.name));
                   if (group.length === 0) return null;
                   const color = brandColor[brand];
                   return (
@@ -15851,12 +15874,45 @@ function BOMManager({ user }) {
                                   {d.shipping_notes && <div style={{ fontSize:11, color:"#ff9500", marginTop:2 }}>⚠ {d.shipping_notes}</div>}
                                 </div>
                                 <div style={{ display:"flex", gap:6, flexShrink:0 }} onClick={e=>e.stopPropagation()}>
-                                  <button onClick={() => { setDealerForm({ ...d, billing_address: d.billing_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"}, shipping_address: d.shipping_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"} }); setTimeout(() => document.querySelector("[data-dealer-form]")?.scrollIntoView({ behavior:"smooth", block:"start" }), 50); }}
+                                  <button onClick={() => setDealerForm({ ...d, billing_address: d.billing_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"}, shipping_address: d.shipping_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"} })}
                                     style={{ fontSize:11, padding:"4px 10px", borderRadius:6, border:"none", background:"#0071e315", color:"#0071e3", cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>Edit</button>
                                   {isAdmin && <button onClick={() => removeDealer(d.id)}
                                     style={{ fontSize:11, padding:"4px 10px", borderRadius:6, border:"none", background:"#ff3b3015", color:"#ff3b30", cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>Delete</button>}
                                 </div>
                               </div>
+                              {/* Inline edit form */}
+                              {dealerForm?.id === d.id && (
+                                <div style={{ borderTop:`2px solid #0071e3`, background:darkMode?"#1c2a3a":"#f0f6ff" }}>
+                                  <div style={{ padding:"14px 20px", background:darkMode?"#1a2a3a":"#e8f2ff", borderBottom:`1px solid #0071e333` }}>
+                                    <div style={{ fontWeight:700, fontSize:14, color:"#0071e3" }}>Edit — {d.name}</div>
+                                  </div>
+                                  <div style={{ padding:"20px", display:"flex", flexDirection:"column", gap:16 }}>
+                                    <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 2fr", gap:12 }}>
+                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Dealer Name *</div><input placeholder="Sweetwater" value={dealerForm.name||""} onChange={e => setDealerForm(f => ({ ...f, name:e.target.value }))} style={inputStyle} /></div>
+                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Brand</div><select value={dealerForm.brand||"Jackson Audio"} onChange={e => setDealerForm(f => ({ ...f, brand:e.target.value }))} style={{ ...inputStyle }}>{BRANDS.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
+                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Zoho Customer Name</div><input placeholder="Exact name as it appears in Zoho" value={dealerForm.zoho_customer_name||""} onChange={e => setDealerForm(f => ({ ...f, zoho_customer_name:e.target.value }))} style={inputStyle} /></div>
+                                    </div>
+                                    <div style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr", gap:12 }}>
+                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Contact Name</div><input placeholder="John Smith" value={dealerForm.contact_name||""} onChange={e => setDealerForm(f => ({ ...f, contact_name:e.target.value }))} style={inputStyle} /></div>
+                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Email</div><input type="email" placeholder="orders@dealer.com" value={dealerForm.email||""} onChange={e => setDealerForm(f => ({ ...f, email:e.target.value }))} style={inputStyle} /></div>
+                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Phone</div><input placeholder="(555) 555-5555" value={dealerForm.phone||""} onChange={e => setDealerForm(f => ({ ...f, phone:e.target.value }))} style={inputStyle} /></div>
+                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Account #</div><input placeholder="ACC-001" value={dealerForm.account_number||""} onChange={e => setDealerForm(f => ({ ...f, account_number:e.target.value }))} style={inputStyle} /></div>
+                                    </div>
+                                    <div style={{ display:"grid", gridTemplateColumns:"1fr 3fr", gap:12 }}>
+                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Preferred Carrier</div><select value={dealerForm.preferred_carrier||"UPS"} onChange={e => setDealerForm(f => ({ ...f, preferred_carrier:e.target.value }))} style={{ ...inputStyle }}>{CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Special Shipping Notes</div><input placeholder="e.g. Must use FedEx Ground · Requires appointment delivery" value={dealerForm.shipping_notes||""} onChange={e => setDealerForm(f => ({ ...f, shipping_notes:e.target.value }))} style={inputStyle} /></div>
+                                    </div>
+                                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
+                                      <AddrFields label="Shipping Address" prefix="shipping_address" />
+                                      <AddrFields label="Billing Address (if different)" prefix="billing_address" />
+                                    </div>
+                                    <div style={{ display:"flex", gap:8, paddingTop:4 }}>
+                                      <button className="btn-primary" onClick={saveDealer}>Save Dealer</button>
+                                      <button className="btn-ghost" onClick={() => setDealerForm(null)}>Cancel</button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                               {/* Expanded detail */}
                               {isExpanded && (
                                 <div style={{ padding:"16px 20px 20px 40px", background:darkMode?"#1c1c1e10":"#fafafa", borderTop:`1px solid ${borderColor}` }}>
