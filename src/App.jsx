@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.69";
-const BUILD_TIME   = "2026-03-27T18:55:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.70";
+const BUILD_TIME   = "2026-03-27T19:13:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -80,7 +80,11 @@ const DEFAULT_KEYS = {
   twilio_account_sid: "", // twilio.com — SMS notifications to builders
   twilio_auth_token: "",  // twilio.com
   twilio_phone_number: "", // twilio.com — your Twilio phone number (e.g. +1234567890)
-    twilio_messaging_service_sid: "", // twilio.com — Messaging Service SID (MG...) for 10DLC compliance
+  twilio_messaging_service_sid: "", // twilio.com — Messaging Service SID (MG...) for 10DLC compliance
+  sms_provider: "twilio", // "twilio" or "aws_sns"
+  aws_sns_access_key_id: "",     // AWS IAM access key for SNS
+  aws_sns_secret_access_key: "", // AWS IAM secret key for SNS
+  aws_sns_region: "us-east-1",   // AWS region
   labor_rate_hourly: "25", // $/hr labor rate for profit analysis
   ad_spend_pct: "35",     // % of sales price spent on ads (Facebook, Google, etc.)
   preferred_distributors: '["mouser"]', // JSON array of preferred supplier IDs — get priority in pricing
@@ -2327,6 +2331,10 @@ function BOMManager({ user }) {
           rating, feedback,
           notifyEmail,
           notifyPhone,
+          smsProvider: apiKeys.sms_provider || "twilio",
+          awsAccessKeyId: apiKeys.aws_sns_access_key_id || null,
+          awsSecretAccessKey: apiKeys.aws_sns_secret_access_key || null,
+          awsRegion: apiKeys.aws_sns_region || "us-east-1",
           accountSid: apiKeys.twilio_account_sid,
           authToken: apiKeys.twilio_auth_token,
           fromNumber: apiKeys.twilio_phone_number,
@@ -12261,7 +12269,7 @@ function BOMManager({ user }) {
                 const member = teamMembers.find(m => m.id === newBuildOrder.team_member_id);
                 const prod = products.find(p => p.id === newBuildOrder.product_id);
                 const canEmail = !!member?.email;
-                const canSMS = !!(member?.phone && apiKeys.twilio_account_sid && apiKeys.twilio_auth_token && apiKeys.twilio_phone_number);
+                const canSMS = !!(member?.phone && ((apiKeys.sms_provider === "aws_sns" && apiKeys.aws_sns_access_key_id && apiKeys.aws_sns_secret_access_key) || (apiKeys.twilio_account_sid && apiKeys.twilio_auth_token && apiKeys.twilio_phone_number)));
                 if (canEmail || canSMS) {
                   try {
                     const notifyRes = await fetch("/api/notifications?type=build-assigned", {
@@ -12276,6 +12284,10 @@ function BOMManager({ user }) {
                         notifyEmail: member?.email || null,
                         notifyName: member?.name || "",
                         notifyPhone: member?.phone || null,
+                        smsProvider: apiKeys.sms_provider || "twilio",
+                        awsAccessKeyId: apiKeys.aws_sns_access_key_id || null,
+                        awsSecretAccessKey: apiKeys.aws_sns_secret_access_key || null,
+                        awsRegion: apiKeys.aws_sns_region || "us-east-1",
                         accountSid: apiKeys.twilio_account_sid || null,
                         authToken: apiKeys.twilio_auth_token || null,
                         fromNumber: apiKeys.twilio_phone_number || null,
@@ -12372,6 +12384,10 @@ function BOMManager({ user }) {
                     body: JSON.stringify({
                       to: member.phone,
                       message: `Build complete! ${bo.quantity}x ${prod?.name || "product"} finished${durationStr ? ` in ${durationStr}` : ""}. Great work!\n— Jackson Audio`,
+                      smsProvider: apiKeys.sms_provider || "twilio",
+                      awsAccessKeyId: apiKeys.aws_sns_access_key_id || null,
+                      awsSecretAccessKey: apiKeys.aws_sns_secret_access_key || null,
+                      awsRegion: apiKeys.aws_sns_region || "us-east-1",
                       accountSid: apiKeys.twilio_account_sid,
                       authToken: apiKeys.twilio_auth_token,
                       fromNumber: apiKeys.twilio_phone_number,
@@ -15310,37 +15326,88 @@ function BOMManager({ user }) {
               </div>}
             </div>
 
-            {/* ── SMS / Twilio */}
+            {/* ── SMS — Builder Notifications */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("sms") ? s.delete("sms") : s.add("sms"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("sms") ? "▶" : "▼"}</span>
-                  SMS — Builder Notifications (Twilio)
+                  SMS — Builder Notifications
                 </div>
               </div>
               {!collapsedSettings.has("sms") && <div style={{ padding:"16px 20px" }}>
                 <p style={{ fontSize:12,color:"#86868b",marginBottom:14 }}>
-                  Text builders when they get assigned a build order. Sign up at <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}>twilio.com</a> — free trial includes $15 credit.
+                  Text builders when they get assigned a build order, when builds complete, or when play tests fail.
                 </p>
-                <div className="key-input-row">
-                  <div><div className="key-label">Account SID</div><div className="key-hint">AC…</div></div>
-                  <input type="text" value={apiKeys.twilio_account_sid||""} onChange={e=>setApiKeys(k=>({...k,twilio_account_sid:e.target.value}))} placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style={{ padding:"8px 12px",borderRadius:8 }} />
+
+                {/* Provider toggle */}
+                <div style={{ display:"flex",gap:8,marginBottom:16 }}>
+                  {[["aws_sns","AWS SNS"],["twilio","Twilio"]].map(([val,label]) => (
+                    <button key={val} onClick={() => setApiKeys(k => ({...k, sms_provider: val}))}
+                      style={{ padding:"6px 16px",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid",fontFamily:"inherit",
+                        ...(apiKeys.sms_provider === val || (!apiKeys.sms_provider && val === "twilio")
+                          ? { background:"#0071e3",color:"#fff",borderColor:"#0071e3" }
+                          : { background:"none",color:"#86868b",borderColor:"#d2d2d7" }) }}>
+                      {label}
+                    </button>
+                  ))}
                 </div>
-                <div className="key-input-row">
-                  <div><div className="key-label">Auth Token</div><div className="key-hint">Secret token</div></div>
-                  <input type="password" value={apiKeys.twilio_auth_token||""} onChange={e=>setApiKeys(k=>({...k,twilio_auth_token:e.target.value}))} placeholder="••••••••" style={{ padding:"8px 12px",borderRadius:8 }} />
-                </div>
-                <div className="key-input-row">
-                  <div><div className="key-label">Twilio Phone Number</div><div className="key-hint">+1XXXXXXXXXX</div></div>
-                  <input type="text" value={apiKeys.twilio_phone_number||""} onChange={e=>setApiKeys(k=>({...k,twilio_phone_number:e.target.value}))} placeholder="+15551234567" style={{ padding:"8px 12px",borderRadius:8 }} />
-                </div>
-                <div className="key-input-row">
-                  <div><div className="key-label">Messaging Service SID</div><div className="key-hint">MG… — Required for 10DLC compliance. Find in Twilio → Messaging → Services</div></div>
-                  <input type="text" value={apiKeys.twilio_messaging_service_sid||""} onChange={e=>setApiKeys(k=>({...k,twilio_messaging_service_sid:e.target.value}))} placeholder="MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style={{ padding:"8px 12px",borderRadius:8 }} />
-                </div>
+
+                {/* AWS SNS fields */}
+                {(apiKeys.sms_provider === "aws_sns") && (<>
+                  <p style={{ fontSize:12,color:"#86868b",marginBottom:14 }}>
+                    Simple, reliable SMS via Amazon Web Services. No 10DLC registration needed for transactional messages.
+                    Create an IAM user with <code style={{ fontSize:11,background:"#f0f0f0",padding:"1px 4px",borderRadius:3 }}>AmazonSNSFullAccess</code> permission in your{" "}
+                    <a href="https://console.aws.amazon.com/iam/" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}>AWS Console</a>.
+                  </p>
+                  <div className="key-input-row">
+                    <div><div className="key-label">Access Key ID</div><div className="key-hint">AKIA…</div></div>
+                    <input type="text" value={apiKeys.aws_sns_access_key_id||""} onChange={e=>setApiKeys(k=>({...k,aws_sns_access_key_id:e.target.value}))} placeholder="AKIAXXXXXXXXXXXXXXXX" style={{ padding:"8px 12px",borderRadius:8 }} />
+                  </div>
+                  <div className="key-input-row">
+                    <div><div className="key-label">Secret Access Key</div><div className="key-hint">Secret key from IAM</div></div>
+                    <input type="password" value={apiKeys.aws_sns_secret_access_key||""} onChange={e=>setApiKeys(k=>({...k,aws_sns_secret_access_key:e.target.value}))} placeholder="••••••••" style={{ padding:"8px 12px",borderRadius:8 }} />
+                  </div>
+                  <div className="key-input-row">
+                    <div><div className="key-label">Region</div><div className="key-hint">AWS region for SNS</div></div>
+                    <select value={apiKeys.aws_sns_region||"us-east-1"} onChange={e=>setApiKeys(k=>({...k,aws_sns_region:e.target.value}))}
+                      style={{ padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:13 }}>
+                      <option value="us-east-1">US East (N. Virginia)</option>
+                      <option value="us-west-2">US West (Oregon)</option>
+                      <option value="us-east-2">US East (Ohio)</option>
+                      <option value="eu-west-1">EU (Ireland)</option>
+                    </select>
+                  </div>
+                </>)}
+
+                {/* Twilio fields */}
+                {(apiKeys.sms_provider !== "aws_sns") && (<>
+                  <p style={{ fontSize:12,color:"#86868b",marginBottom:14 }}>
+                    Sign up at <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}>twilio.com</a>. Requires 10DLC campaign registration for US numbers.
+                  </p>
+                  <div className="key-input-row">
+                    <div><div className="key-label">Account SID</div><div className="key-hint">AC…</div></div>
+                    <input type="text" value={apiKeys.twilio_account_sid||""} onChange={e=>setApiKeys(k=>({...k,twilio_account_sid:e.target.value}))} placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style={{ padding:"8px 12px",borderRadius:8 }} />
+                  </div>
+                  <div className="key-input-row">
+                    <div><div className="key-label">Auth Token</div><div className="key-hint">Secret token</div></div>
+                    <input type="password" value={apiKeys.twilio_auth_token||""} onChange={e=>setApiKeys(k=>({...k,twilio_auth_token:e.target.value}))} placeholder="••••••••" style={{ padding:"8px 12px",borderRadius:8 }} />
+                  </div>
+                  <div className="key-input-row">
+                    <div><div className="key-label">Twilio Phone Number</div><div className="key-hint">+1XXXXXXXXXX</div></div>
+                    <input type="text" value={apiKeys.twilio_phone_number||""} onChange={e=>setApiKeys(k=>({...k,twilio_phone_number:e.target.value}))} placeholder="+15551234567" style={{ padding:"8px 12px",borderRadius:8 }} />
+                  </div>
+                  <div className="key-input-row">
+                    <div><div className="key-label">Messaging Service SID</div><div className="key-hint">MG… — Required for 10DLC compliance</div></div>
+                    <input type="text" value={apiKeys.twilio_messaging_service_sid||""} onChange={e=>setApiKeys(k=>({...k,twilio_messaging_service_sid:e.target.value}))} placeholder="MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style={{ padding:"8px 12px",borderRadius:8 }} />
+                  </div>
+                </>)}
+
                 {sectionSaveBtn("sms", "SMS Settings")}
-                {apiKeys.twilio_account_sid && apiKeys.twilio_auth_token && apiKeys.twilio_phone_number && (
+
+                {/* Test SMS button */}
+                {((apiKeys.sms_provider === "aws_sns" && apiKeys.aws_sns_access_key_id && apiKeys.aws_sns_secret_access_key)
+                  || (apiKeys.sms_provider !== "aws_sns" && apiKeys.twilio_account_sid && apiKeys.twilio_auth_token && apiKeys.twilio_phone_number)) && (
                   <div style={{ marginTop:14,paddingTop:14,borderTop:"1px solid #e5e5ea" }}>
                     <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
                       <input type="text" placeholder="Phone number to test" id="test-sms-phone"
@@ -15354,15 +15421,19 @@ function BOMManager({ user }) {
                             method: "POST", headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
                               testPhone: phone,
-                              accountSid: apiKeys.twilio_account_sid,
-                              authToken: apiKeys.twilio_auth_token,
-                              fromNumber: apiKeys.twilio_phone_number,
+                              smsProvider: apiKeys.sms_provider || "twilio",
+                              awsAccessKeyId: apiKeys.aws_sns_access_key_id || null,
+                              awsSecretAccessKey: apiKeys.aws_sns_secret_access_key || null,
+                              awsRegion: apiKeys.aws_sns_region || "us-east-1",
+                              accountSid: apiKeys.twilio_account_sid || null,
+                              authToken: apiKeys.twilio_auth_token || null,
+                              fromNumber: apiKeys.twilio_phone_number || null,
                               messagingServiceSid: apiKeys.twilio_messaging_service_sid || null,
                             }),
                           });
                           const d = await r.json();
                           if (d.results?.sms === "sent") {
-                            alert("Test SMS sent to " + phone + "!");
+                            alert("Test SMS sent to " + phone + " via " + (d.results?.details?.sms?.includes("AWS") ? "AWS SNS" : "Twilio") + "!");
                           } else {
                             alert("SMS test failed:\n" + (d.results?.details?.sms || "Unknown error"));
                           }

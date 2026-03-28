@@ -2,6 +2,8 @@
 // Combines: build-complete-notify, send-sms
 // Route via ?type=build-complete|sms
 
+import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -89,10 +91,31 @@ async function handleBuildComplete(req, res) {
   }
 }
 
-// ── Helper: Send SMS via Twilio (uses Messaging Service if available) ─────────
-async function sendTwilioSms({ to, body, accountSid, authToken, fromNumber, messagingServiceSid }) {
+// ── Helper: Send SMS (supports AWS SNS and Twilio) ───────────────────────────
+async function sendSms({ to, body, smsProvider, awsAccessKeyId, awsSecretAccessKey, awsRegion, accountSid, authToken, fromNumber, messagingServiceSid }) {
   const cleanTo = to.replace(/[^+\d]/g, "");
   const fullTo = cleanTo.startsWith("+") ? cleanTo : "+1" + cleanTo;
+
+  if (smsProvider === "aws_sns" && awsAccessKeyId && awsSecretAccessKey) {
+    // AWS SNS
+    const region = awsRegion || "us-east-1";
+    const client = new SNSClient({
+      region,
+      credentials: { accessKeyId: awsAccessKeyId, secretAccessKey: awsSecretAccessKey },
+    });
+    const command = new PublishCommand({
+      PhoneNumber: fullTo,
+      Message: body,
+      MessageAttributes: {
+        "AWS.SNS.SMS.SMSType": { DataType: "String", StringValue: "Transactional" },
+        "AWS.SNS.SMS.SenderID": { DataType: "String", StringValue: "JacksonAud" },
+      },
+    });
+    const result = await client.send(command);
+    return { ok: true, data: { sid: result.MessageId, provider: "aws_sns" } };
+  }
+
+  // Twilio (fallback)
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
   const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
   const params = { To: fullTo, Body: body };
@@ -107,24 +130,26 @@ async function sendTwilioSms({ to, body, accountSid, authToken, fromNumber, mess
     body: new URLSearchParams(params),
   });
   const data = await twilioRes.json();
-  return { ok: twilioRes.ok, data };
+  return { ok: twilioRes.ok, data: { ...data, provider: "twilio" } };
 }
 
 // ── Send SMS ────────────────────────────────────────────────────────────────────
 async function handleSms(req, res) {
-  const { to, message, accountSid, authToken, fromNumber, messagingServiceSid } = req.body || {};
+  const { to, message, smsProvider, awsAccessKeyId, awsSecretAccessKey, awsRegion, accountSid, authToken, fromNumber, messagingServiceSid } = req.body || {};
   if (!to || !message) return res.status(400).json({ error: "Missing 'to' or 'message'" });
-  if (!accountSid || !authToken || (!fromNumber && !messagingServiceSid)) {
-    return res.status(400).json({ error: "Missing Twilio credentials. Configure in Settings → SMS." });
+  const hasAws = smsProvider === "aws_sns" && awsAccessKeyId && awsSecretAccessKey;
+  const hasTwilio = accountSid && authToken && (fromNumber || messagingServiceSid);
+  if (!hasAws && !hasTwilio) {
+    return res.status(400).json({ error: "Missing SMS credentials. Configure AWS SNS or Twilio in Settings." });
   }
 
   try {
-    const result = await sendTwilioSms({ to, body: message, accountSid, authToken, fromNumber, messagingServiceSid });
+    const result = await sendSms({ to, body: message, smsProvider, awsAccessKeyId, awsSecretAccessKey, awsRegion, accountSid, authToken, fromNumber, messagingServiceSid });
     if (!result.ok) {
-      console.error("Twilio error:", result.data);
-      return res.status(502).json({ error: result.data.message || "Twilio send failed", code: result.data.code });
+      console.error("SMS error:", result.data);
+      return res.status(502).json({ error: result.data.message || "SMS send failed", code: result.data.code });
     }
-    return res.status(200).json({ success: true, sid: result.data.sid });
+    return res.status(200).json({ success: true, sid: result.data.sid, provider: result.data.provider });
   } catch (err) {
     console.error("send-sms error:", err);
     return res.status(500).json({ error: err.message });
@@ -136,6 +161,7 @@ async function handlePlaytestFailed(req, res) {
   const {
     serialNumber, productName, testerName, rating, feedback,
     notifyEmail, notifyPhone,
+    smsProvider, awsAccessKeyId, awsSecretAccessKey, awsRegion,
     accountSid, authToken, fromNumber, messagingServiceSid,
   } = req.body || {};
 
@@ -184,10 +210,11 @@ async function handlePlaytestFailed(req, res) {
     }
   }
 
-  // Send SMS via Twilio
-  if (notifyPhone && accountSid && authToken && (fromNumber || messagingServiceSid)) {
+  // Send SMS
+  const hasSmsCreds = (smsProvider === "aws_sns" && awsAccessKeyId && awsSecretAccessKey) || (accountSid && authToken && (fromNumber || messagingServiceSid));
+  if (notifyPhone && hasSmsCreds) {
     try {
-      const result = await sendTwilioSms({ to: notifyPhone, body: smsBody, accountSid, authToken, fromNumber, messagingServiceSid });
+      const result = await sendSms({ to: notifyPhone, body: smsBody, smsProvider, awsAccessKeyId, awsSecretAccessKey, awsRegion, accountSid, authToken, fromNumber, messagingServiceSid });
       results.sms = result.ok ? "sent" : "failed";
     } catch (e) {
       console.error("playtest-failed sms error:", e);
@@ -203,7 +230,8 @@ async function handleBuildAssigned(req, res) {
   const {
     productName, quantity, priority, dueDate, forOrder, assignerName,
     notifyEmail, notifyName,
-    notifyPhone, accountSid, authToken, fromNumber, messagingServiceSid,
+    notifyPhone, smsProvider, awsAccessKeyId, awsSecretAccessKey, awsRegion,
+    accountSid, authToken, fromNumber, messagingServiceSid,
   } = req.body || {};
 
   const dueStr = dueDate ? new Date(dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "No due date";
@@ -254,10 +282,11 @@ async function handleBuildAssigned(req, res) {
     }
   }
 
-  // Send SMS via Twilio
-  if (notifyPhone && accountSid && authToken && (fromNumber || messagingServiceSid)) {
+  // Send SMS
+  const hasSmsCreds = (smsProvider === "aws_sns" && awsAccessKeyId && awsSecretAccessKey) || (accountSid && authToken && (fromNumber || messagingServiceSid));
+  if (notifyPhone && hasSmsCreds) {
     try {
-      const result = await sendTwilioSms({ to: notifyPhone, body: smsBody, accountSid, authToken, fromNumber, messagingServiceSid });
+      const result = await sendSms({ to: notifyPhone, body: smsBody, smsProvider, awsAccessKeyId, awsSecretAccessKey, awsRegion, accountSid, authToken, fromNumber, messagingServiceSid });
       results.sms = result.ok ? "sent" : "failed";
     } catch (e) {
       console.error("build-assigned sms error:", e);
@@ -268,10 +297,11 @@ async function handleBuildAssigned(req, res) {
   return res.status(200).json({ message: "Build assigned notification processed", results });
 }
 
-// ── Test — Verify email (Resend) and SMS (Twilio) configuration ────────────────
+// ── Test — Verify email (Resend) and SMS (AWS SNS / Twilio) configuration ─────
 async function handleTest(req, res) {
   const {
     testEmail, testPhone,
+    smsProvider, awsAccessKeyId, awsSecretAccessKey, awsRegion,
     accountSid, authToken, fromNumber, messagingServiceSid,
   } = req.body || {};
 
@@ -310,24 +340,26 @@ async function handleTest(req, res) {
     }
   }
 
-  // Test SMS via Twilio
+  // Test SMS
   if (testPhone) {
-    if (!accountSid || !authToken || (!fromNumber && !messagingServiceSid)) {
+    const hasAws = smsProvider === "aws_sns" && awsAccessKeyId && awsSecretAccessKey;
+    const hasTwilio = accountSid && authToken && (fromNumber || messagingServiceSid);
+    if (!hasAws && !hasTwilio) {
       results.sms = "no_credentials";
-      results.details.sms = "Missing Twilio credentials. Fill in Account SID, Auth Token, and Phone Number or Messaging Service SID, then save.";
+      results.details.sms = "Missing SMS credentials. Configure AWS SNS or Twilio in Settings, then save.";
     } else {
       try {
-        const result = await sendTwilioSms({ to: testPhone, body: "Test from Jackson Audio BOM Manager — SMS notifications are working.", accountSid, authToken, fromNumber, messagingServiceSid });
+        const result = await sendSms({ to: testPhone, body: "Test from Jackson Audio BOM Manager — SMS notifications are working.", smsProvider, awsAccessKeyId, awsSecretAccessKey, awsRegion, accountSid, authToken, fromNumber, messagingServiceSid });
         if (result.ok) {
           results.sms = "sent";
-          results.details.sms = `Test SMS sent to ${testPhone} (SID: ${result.data.sid})${messagingServiceSid ? " via Messaging Service" : ""}`;
+          results.details.sms = `Test SMS sent to ${testPhone} via ${result.data.provider === "aws_sns" ? "AWS SNS" : "Twilio"} (ID: ${result.data.sid})`;
         } else {
           results.sms = "failed";
-          results.details.sms = `Twilio error ${result.data.code || ""}: ${result.data.message || "Unknown error"}`;
+          results.details.sms = `SMS error: ${result.data.message || result.data.code || "Unknown error"}`;
         }
       } catch (e) {
         results.sms = "error";
-        results.details.sms = `Network error: ${e.message}`;
+        results.details.sms = `Error: ${e.message}`;
       }
     }
   }
