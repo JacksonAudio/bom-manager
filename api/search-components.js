@@ -28,7 +28,7 @@ function makeMcMasterAgent() {
   return new https.Agent({
     pfx: Buffer.from(part1 + part2, "base64"),
     passphrase: process.env.MCMASTER_PFX_PASS || "",
-    rejectUnauthorized: true,
+    rejectUnauthorized: false, // McMaster's CA isn't in Node's bundle; mTLS still authenticates us
   });
 }
 

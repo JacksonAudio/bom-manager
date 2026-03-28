@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.23";
-const BUILD_TIME   = "2026-03-28T15:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.24";
+const BUILD_TIME   = "2026-03-28T02:20:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
