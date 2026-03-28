@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.19";
-const BUILD_TIME   = "2026-03-28T13:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.20";
+const BUILD_TIME   = "2026-03-28T14:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -870,7 +870,7 @@ async function fetchTIPricing(mpn, quantity, tiApiKey, tiApiSecret) {
 // No user key required — just call /api/mcmaster
 // ─────────────────────────────────────────────
 async function fetchMcMasterPricing(mpn, quantity) {
-  const res = await fetch(`/api/mcmaster?action=search&mpn=${encodeURIComponent(mpn)}`);
+  const res = await fetch(`/api/search-components?action=mcmaster&mpn=${encodeURIComponent(mpn)}`);
   if (!res.ok) throw new Error(`McMaster API ${res.status}`);
   const data = await res.json();
   if (data.error) return null;
@@ -1739,7 +1739,7 @@ function BOMManager({ user }) {
         if (!data) throw new Error("API responded but returned no pricing data — key may be invalid");
         setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Connected — $${data.unitPrice?.toFixed(4) || "?"}/ea, ${data.stock || 0} in stock` } }));
       } else if (sectionId === "mcmaster") {
-        const r = await fetch("/api/mcmaster?action=test");
+        const r = await fetch("/api/search-components?action=mcmaster&mpn=test");
         const data = await r.json();
         if (!r.ok || !data.ok) throw new Error(data.error || "McMaster connection failed");
         setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: data.msg || "Connected" } }));

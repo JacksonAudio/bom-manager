@@ -1,19 +1,107 @@
 // ============================================================
-// api/search-components.js — Component Search via Mouser API
+// api/search-components.js — Component Search + McMaster-Carr
 //
-// Searches Mouser for real manufacturer part numbers matching
-// a query string (MPN prefix, series name, etc.)
-// Falls back to Nexar if Mouser key not provided.
+// action=mouser/nexar (default): keyword search via Mouser or Nexar
+// action=mcmaster: product lookup via mTLS client cert
+//   Required Vercel env vars for McMaster:
+//     MCMASTER_PFX_B64  — base64-encoded Jackson-1.pfx
+//     MCMASTER_PFX_PASS — PFX passphrase
 // ============================================================
+
+import https from "https";
+
+// ── McMaster-Carr helpers ────────────────────────────────────
+
+const MCMASTER_BASE = "https://api.mcmaster.com/v1";
+
+function makeMcMasterAgent() {
+  const pfxB64 = process.env.MCMASTER_PFX_B64;
+  if (!pfxB64) throw new Error("MCMASTER_PFX_B64 env var not set — add base64 PFX to Vercel environment variables");
+  return new https.Agent({
+    pfx: Buffer.from(pfxB64, "base64"),
+    passphrase: process.env.MCMASTER_PFX_PASS || "",
+    rejectUnauthorized: true,
+  });
+}
+
+function httpsGet(url, agent) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { agent }, (res) => {
+      let body = "";
+      res.on("data", (chunk) => (body += chunk));
+      res.on("end", () => resolve({ status: res.statusCode, body }));
+    });
+    req.on("error", reject);
+    req.setTimeout(15000, () => req.destroy(new Error("McMaster request timed out")));
+  });
+}
+
+function mapMcMasterProduct(p, requestedMpn) {
+  // NOTE: Adjust field names once actual McMaster API response shape is confirmed
+  const rawBreaks = p.priceBreaks || p.pricing || p.pricingTiers || [];
+  const priceBreaks = rawBreaks.map((pb) => ({
+    qty: parseInt(pb.quantity || pb.minQuantity || pb.qty || 1),
+    price: parseFloat(pb.price || pb.unitPrice || 0),
+  })).filter((pb) => pb.price > 0);
+
+  const unitPrice = priceBreaks.length
+    ? priceBreaks[0].price
+    : parseFloat(p.price || p.unitPrice || p.listPrice || 0);
+
+  return {
+    mpn:             p.partNumber || p.PartNumber || p.itemNumber || requestedMpn,
+    description:     p.description || p.Description || p.productDescription || "",
+    stock:           parseInt(p.availability || p.quantityAvailable || p.stock || 0),
+    unitPrice,
+    priceBreaks,
+    moq:             parseInt(p.minimumQuantity || p.minOrderQty || p.packageQuantity || 1),
+    url:             p.productUrl || p.url || `https://www.mcmaster.com/${encodeURIComponent(p.partNumber || requestedMpn)}/`,
+    datasheet:       p.drawingUrl || p.datasheetUrl || p.cadUrl || null,
+    countryOfOrigin: p.countryOfOrigin || "US",
+  };
+}
+
+// ── Main handler ─────────────────────────────────────────────
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
-  const { q, mouserKey, token, limit } = req.query;
+  const { action, q, mouserKey, token, limit, mpn } = req.query;
+
+  // ── McMaster-Carr ──────────────────────────────────────────
+  if (action === "mcmaster") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    try {
+      const agent = makeMcMasterAgent();
+
+      if (mpn === "test" || !mpn) {
+        return res.status(200).json({ ok: true, msg: "McMaster-Carr cert loaded — connection ready" });
+      }
+
+      // TODO: confirm endpoint with McMaster-Carr API docs
+      const url = `${MCMASTER_BASE}/products/${encodeURIComponent(mpn)}`;
+      const { status, body } = await httpsGet(url, agent);
+
+      if (status === 404) return res.status(200).json({ error: `Part not found at McMaster-Carr: ${mpn}` });
+      if (status === 401) return res.status(401).json({ error: "McMaster-Carr auth failed — cert may be expired or revoked" });
+      if (status !== 200) return res.status(status).json({ error: `McMaster-Carr API returned ${status}`, raw: body.slice(0, 300) });
+
+      let data;
+      try { data = JSON.parse(body); }
+      catch { return res.status(500).json({ error: "McMaster-Carr returned non-JSON response", raw: body.slice(0, 200) }); }
+
+      return res.status(200).json(mapMcMasterProduct(data, mpn));
+    } catch (err) {
+      console.error("[search-components/mcmaster] Error:", err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // ── Component keyword search (Mouser / Nexar) ──────────────
+  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
   if (!q) return res.status(400).json({ error: "q (search query) is required" });
 
   const maxResults = Math.min(parseInt(limit) || 100, 200);
@@ -91,7 +179,6 @@ export default async function handler(req, res) {
     }`;
 
     try {
-      // Paginate to get all results (Nexar limits to 100 per request)
       const allResults = [];
       let start = 0;
       const pageSize = Math.min(maxResults, 100);
