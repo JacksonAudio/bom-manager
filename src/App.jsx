@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.17";
-const BUILD_TIME   = "2026-03-28T12:05:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.18";
+const BUILD_TIME   = "2026-03-28T12:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -15549,9 +15549,26 @@ function BOMManager({ user }) {
                 }
               }
             }
-            // Dedupe by name — keep first occurrence (JA file first if both loaded)
-            const seen = new Set();
-            const deduped = allCandidates.filter(c => { const k = c.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+            // Dedupe by name — if a dealer appears in both JA and FT files, mark as "Both"
+            const byName = {};
+            for (const c of allCandidates) {
+              const k = c.name.toLowerCase();
+              if (!byName[k]) { byName[k] = c; }
+              else if (byName[k].brand !== c.brand) {
+                // Appeared in both brand files — upgrade to "Both"
+                byName[k] = { ...byName[k], brand: "Both",
+                  // If existing dealer is not already "Both", flag it for a brand update
+                  updates: byName[k].existing && byName[k].existing.brand !== "Both"
+                    ? { ...(byName[k].updates || {}), brand: "Both" }
+                    : byName[k].updates,
+                  willUpdate: byName[k].existing && byName[k].existing.brand !== "Both"
+                    ? true
+                    : byName[k].willUpdate,
+                  selected: true,
+                };
+              }
+            }
+            const deduped = Object.values(byName);
             setZohoImportPreview({ candidates: deduped, mode: "csv" });
           };
 
