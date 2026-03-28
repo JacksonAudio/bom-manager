@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.03";
-const BUILD_TIME   = "2026-03-27T23:50:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.04";
+const BUILD_TIME   = "2026-03-28T00:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -15226,12 +15226,18 @@ function BOMManager({ user }) {
           const borderColor   = darkMode ? "#3a3a3e" : "#e5e5ea";
           const inputStyle    = { padding:"7px 10px", borderRadius:8, border:`1px solid ${borderColor}`, fontSize:13, fontFamily:"inherit", background:darkMode?"#1c1c1e":"#fff", color:textPrimary, width:"100%", boxSizing:"border-box" };
 
-          const brandColor = { "Jackson Audio": "#c8a84e", "Fulltone USA": "#b22222", "Both": "#5856d6" };
-          const brandGroups = { "Jackson Audio": [], "Fulltone USA": [], "Both": [] };
+          const brandColor = { "Jackson Audio": "#c8a84e", "Fulltone USA": "#b22222" };
+          // "Both" dealers appear in BOTH sections
+          const brandGroups = { "Jackson Audio": [], "Fulltone USA": [] };
           for (const d of dealers) {
             const b = d.brand || "Jackson Audio";
-            if (!brandGroups[b]) brandGroups[b] = [];
-            brandGroups[b].push(d);
+            if (b === "Both") {
+              brandGroups["Jackson Audio"].push(d);
+              brandGroups["Fulltone USA"].push(d);
+            } else {
+              if (!brandGroups[b]) brandGroups[b] = [];
+              brandGroups[b].push(d);
+            }
           }
 
           const emptyForm = () => ({ name:"", brand:"Jackson Audio", zoho_customer_name:"", account_number:"", contact_name:"", email:"", phone:"", preferred_carrier:"UPS", shipping_notes:"", billing_address:{ attention:"", street:"", city:"", state:"", zip:"", country:"US" }, shipping_address:{ attention:"", street:"", city:"", state:"", zip:"", country:"US" } });
@@ -15523,9 +15529,20 @@ function BOMManager({ user }) {
                   <p style={{ color:textSecondary, fontSize:13, maxWidth:420, margin:"0 auto 16px" }}>Add your wholesale dealers here to keep track of contacts, addresses, shipping preferences, and special requirements.</p>
                   <button className="btn-primary" onClick={() => setDealerForm(emptyForm())}>+ Add First Dealer</button>
                 </div>
-              ) : (
-                ["Jackson Audio", "Fulltone USA", "Both"].map(brand => {
-                  const group = brandGroups[brand] || [];
+              ) : (() => {
+                const [expandedDealer, setExpandedDealer] = React.useState(null);
+                const fmtAddrBlock = (addr) => {
+                  if (!addr) return null;
+                  const lines = [];
+                  if (addr.attention) lines.push(addr.attention);
+                  if (addr.street) lines.push(addr.street);
+                  const city = [addr.city, addr.state].filter(Boolean).join(", ");
+                  if (city || addr.zip) lines.push([city, addr.zip].filter(Boolean).join(" "));
+                  if (addr.country && addr.country !== "US") lines.push(addr.country);
+                  return lines.length ? lines : null;
+                };
+                return ["Jackson Audio", "Fulltone USA"].map(brand => {
+                  const group = (brandGroups[brand] || []).sort((a,b) => a.name.localeCompare(b.name));
                   if (group.length === 0) return null;
                   const color = brandColor[brand];
                   return (
@@ -15536,45 +15553,92 @@ function BOMManager({ user }) {
                         <span style={{ fontSize:12, color:textSecondary }}>({group.length} dealer{group.length!==1?"s":""})</span>
                       </div>
                       <div style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:12, overflow:"hidden" }}>
-                        <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                          <thead>
-                            <tr style={{ background:darkMode?"#3a3a3e":"#f5f5f7" }}>
-                              {["Dealer","Contact","Email","Phone","Carrier","Ship To","Notes",""].map(h => (
-                                <th key={h} style={{ padding:"8px 12px", fontSize:11, fontWeight:700, color:textSecondary, textTransform:"uppercase", letterSpacing:"0.06em", textAlign:"left", borderBottom:`2px solid ${borderColor}`, whiteSpace:"nowrap" }}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {group.map((d, i) => (
-                              <tr key={d.id} style={{ background: i%2===0 ? "transparent" : darkMode?"#1c1c1e08":"#f5f5f708" }}>
-                                <td style={{ padding:"10px 12px", borderBottom:`1px solid ${borderColor}` }}>
-                                  <div style={{ fontWeight:700, fontSize:13, color:textPrimary }}>{d.name}</div>
-                                  {d.account_number && <div style={{ fontSize:11, color:textSecondary }}>#{d.account_number}</div>}
-                                  {d.zoho_customer_name && d.zoho_customer_name !== d.name && <div style={{ fontSize:10, color:textSecondary }}>Zoho: {d.zoho_customer_name}</div>}
-                                </td>
-                                <td style={{ padding:"10px 12px", fontSize:12, color:textPrimary, borderBottom:`1px solid ${borderColor}` }}>{d.contact_name || "—"}</td>
-                                <td style={{ padding:"10px 12px", fontSize:12, borderBottom:`1px solid ${borderColor}` }}>
-                                  {d.email ? <a href={`mailto:${d.email}`} style={{ color:"#0071e3", textDecoration:"none" }}>{d.email}</a> : <span style={{ color:textSecondary }}>—</span>}
-                                </td>
-                                <td style={{ padding:"10px 12px", fontSize:12, color:textPrimary, borderBottom:`1px solid ${borderColor}`, whiteSpace:"nowrap" }}>{d.phone || "—"}</td>
-                                <td style={{ padding:"10px 12px", fontSize:12, color:textPrimary, borderBottom:`1px solid ${borderColor}`, whiteSpace:"nowrap" }}>{d.preferred_carrier || "—"}</td>
-                                <td style={{ padding:"10px 12px", fontSize:11, color:textSecondary, borderBottom:`1px solid ${borderColor}`, maxWidth:180 }}>{fmtAddr(d.shipping_address)}</td>
-                                <td style={{ padding:"10px 12px", fontSize:11, color:d.shipping_notes?textPrimary:textSecondary, borderBottom:`1px solid ${borderColor}`, maxWidth:200 }}>{d.shipping_notes || "—"}</td>
-                                <td style={{ padding:"10px 12px", borderBottom:`1px solid ${borderColor}`, whiteSpace:"nowrap" }}>
+                        {group.map((d, i) => {
+                          const isExpanded = expandedDealer === d.id + brand;
+                          const shipLines = fmtAddrBlock(d.shipping_address);
+                          const billLines = fmtAddrBlock(d.billing_address);
+                          const shipStr = shipLines ? shipLines.slice(-2).join(", ") : "—"; // city/state only in collapsed
+                          return (
+                            <div key={d.id + brand} style={{ borderBottom: i < group.length-1 ? `1px solid ${borderColor}` : "none" }}>
+                              {/* Collapsed row */}
+                              <div onClick={() => setExpandedDealer(isExpanded ? null : d.id + brand)}
+                                style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", cursor:"pointer",
+                                  background: isExpanded ? darkMode?"#3a3a3e":"#f5f5f7" : "transparent",
+                                  transition:"background 0.15s" }}>
+                                <span style={{ fontSize:11, color:textSecondary, transform:isExpanded?"rotate(90deg)":"rotate(0deg)", transition:"transform 0.15s", flexShrink:0 }}>▶</span>
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                                    <span style={{ fontWeight:700, fontSize:14, color:textPrimary }}>{d.name}</span>
+                                    {d.account_number && <span style={{ fontSize:11, color:textSecondary }}>#{d.account_number}</span>}
+                                    {d.brand === "Both" && <span style={{ fontSize:10, fontWeight:700, padding:"1px 7px", borderRadius:10, background:"#5856d615", color:"#5856d6" }}>Both Brands</span>}
+                                    {d.preferred_carrier && <span style={{ fontSize:11, color:textSecondary }}>{d.preferred_carrier}</span>}
+                                  </div>
+                                  <div style={{ display:"flex", gap:16, marginTop:3, flexWrap:"wrap" }}>
+                                    {d.contact_name && <span style={{ fontSize:12, color:textSecondary }}>{d.contact_name}</span>}
+                                    {d.email && <a href={`mailto:${d.email}`} onClick={e=>e.stopPropagation()} style={{ fontSize:12, color:"#0071e3", textDecoration:"none" }}>{d.email}</a>}
+                                    {d.phone && <span style={{ fontSize:12, color:textSecondary }}>{d.phone}</span>}
+                                    <span style={{ fontSize:12, color:textSecondary }}>{shipStr}</span>
+                                  </div>
+                                  {d.shipping_notes && <div style={{ fontSize:11, color:"#ff9500", marginTop:2 }}>⚠ {d.shipping_notes}</div>}
+                                </div>
+                                <div style={{ display:"flex", gap:6, flexShrink:0 }} onClick={e=>e.stopPropagation()}>
                                   <button onClick={() => setDealerForm({ ...d, billing_address: d.billing_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"}, shipping_address: d.shipping_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"} })}
-                                    style={{ fontSize:11, padding:"4px 10px", borderRadius:6, border:"none", background:"#0071e315", color:"#0071e3", cursor:"pointer", fontFamily:"inherit", fontWeight:600, marginRight:6 }}>Edit</button>
+                                    style={{ fontSize:11, padding:"4px 10px", borderRadius:6, border:"none", background:"#0071e315", color:"#0071e3", cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>Edit</button>
                                   {isAdmin && <button onClick={() => removeDealer(d.id)}
                                     style={{ fontSize:11, padding:"4px 10px", borderRadius:6, border:"none", background:"#ff3b3015", color:"#ff3b30", cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>Delete</button>}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                                </div>
+                              </div>
+                              {/* Expanded detail */}
+                              {isExpanded && (
+                                <div style={{ padding:"16px 20px 20px 40px", background:darkMode?"#1c1c1e10":"#fafafa", borderTop:`1px solid ${borderColor}` }}>
+                                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:16 }}>
+                                    {/* Contact */}
+                                    <div style={{ background:cardBg, borderRadius:10, padding:"14px 16px", border:`1px solid ${borderColor}` }}>
+                                      <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:8 }}>Contact</div>
+                                      {d.contact_name && <div style={{ fontWeight:700, fontSize:14, color:textPrimary, marginBottom:4 }}>{d.contact_name}</div>}
+                                      {d.email && <div style={{ fontSize:13 }}><a href={`mailto:${d.email}`} style={{ color:"#0071e3", textDecoration:"none" }}>{d.email}</a></div>}
+                                      {d.phone && <div style={{ fontSize:13, color:textPrimary, marginTop:2 }}>{d.phone}</div>}
+                                      {d.account_number && <div style={{ fontSize:12, color:textSecondary, marginTop:6 }}>Account: {d.account_number}</div>}
+                                      {!d.contact_name && !d.email && !d.phone && <div style={{ fontSize:12, color:textSecondary }}>No contact info</div>}
+                                    </div>
+                                    {/* Shipping Address */}
+                                    <div style={{ background:cardBg, borderRadius:10, padding:"14px 16px", border:`1px solid ${borderColor}` }}>
+                                      <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:8 }}>Ship To</div>
+                                      {shipLines ? shipLines.map((line,j) => <div key={j} style={{ fontSize:13, color:textPrimary, lineHeight:"20px" }}>{line}</div>)
+                                        : <div style={{ fontSize:12, color:textSecondary }}>No address on file</div>}
+                                      {d.preferred_carrier && <div style={{ fontSize:12, color:textSecondary, marginTop:8 }}>Carrier: <strong style={{ color:textPrimary }}>{d.preferred_carrier}</strong></div>}
+                                    </div>
+                                    {/* Billing Address */}
+                                    <div style={{ background:cardBg, borderRadius:10, padding:"14px 16px", border:`1px solid ${borderColor}` }}>
+                                      <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:8 }}>Bill To</div>
+                                      {billLines ? billLines.map((line,j) => <div key={j} style={{ fontSize:13, color:textPrimary, lineHeight:"20px" }}>{line}</div>)
+                                        : <div style={{ fontSize:12, color:textSecondary }}>Same as ship-to</div>}
+                                    </div>
+                                    {/* Shipping Notes */}
+                                    {d.shipping_notes && (
+                                      <div style={{ background:"#ff950010", borderRadius:10, padding:"14px 16px", border:"1px solid #ff950033" }}>
+                                        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:"#ff9500", marginBottom:8 }}>Special Shipping Instructions</div>
+                                        <div style={{ fontSize:13, color:textPrimary }}>{d.shipping_notes}</div>
+                                      </div>
+                                    )}
+                                    {/* Zoho match */}
+                                    {d.zoho_customer_name && (
+                                      <div style={{ background:cardBg, borderRadius:10, padding:"14px 16px", border:`1px solid ${borderColor}` }}>
+                                        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:8 }}>Zoho</div>
+                                        <div style={{ fontSize:12, color:textSecondary }}>Matches as: <strong style={{ color:textPrimary }}>{d.zoho_customer_name}</strong></div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
-                })
-              )}
+                });
+              })()}
             </div>
           );
         })()}
