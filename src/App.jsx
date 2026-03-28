@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.80";
-const BUILD_TIME   = "2026-03-27T20:32:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.90";
+const BUILD_TIME   = "2026-03-27T20:47:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -4459,6 +4459,57 @@ function BOMManager({ user }) {
       const bDeficit = b.needed - (parseInt(b.part.stockQty) || 0);
       return bDeficit - aDeficit; // most urgent first
     });
+  };
+
+  // ── Product-level demand: how many units of each product are needed vs available ──
+  const computeProductDemand = () => {
+    const hasShopify = shopifyDemand?.products?.length > 0;
+    const hasZoho = zohoDemand?.products?.length > 0;
+    if (!hasShopify && !hasZoho) return [];
+    const demand = {};
+    if (hasShopify) {
+      for (const sp of shopifyDemand.products) {
+        const bomProduct = products.find(p => p.shopifyProductId === sp.shopifyProductId || productMatchesTitle(p, sp.title));
+        if (!bomProduct || sp.totalUnfulfilled <= 0) continue;
+        if (!demand[bomProduct.id]) demand[bomProduct.id] = { product: bomProduct, ordered: 0, orders: [] };
+        demand[bomProduct.id].ordered += sp.totalUnfulfilled;
+        demand[bomProduct.id].orders.push({ source: "Shopify", store: sp.storeName, qty: sp.totalUnfulfilled });
+      }
+    }
+    if (hasZoho) {
+      for (const zp of zohoDemand.products) {
+        const bomProduct = products.find(p => p.zohoProductId === zp.zohoProductId || productMatchesTitle(p, zp.title));
+        if (!bomProduct || zp.totalUnfulfilled <= 0) continue;
+        if (!demand[bomProduct.id]) demand[bomProduct.id] = { product: bomProduct, ordered: 0, orders: [] };
+        demand[bomProduct.id].ordered += zp.totalUnfulfilled;
+        demand[bomProduct.id].orders.push({ source: "Zoho", company: zp.companyName, qty: zp.totalUnfulfilled });
+      }
+    }
+    for (const d of Object.values(demand)) {
+      const units = pedalUnits.filter(u => u.product_id === d.product.id);
+      d.readyToShip = units.filter(u => u.status === "boxed").length;
+      d.inProgress = units.filter(u => ["built","awaiting_playtest","in_playtest","playtest_passed","boxing"].includes(u.status)).length;
+      d.shipped = units.filter(u => u.status === "shipped").length;
+      const activeBOs = buildOrders.filter(bo => bo.product_id === d.product.id && bo.status !== "completed");
+      d.building = activeBOs.reduce((sum, bo) => sum + Math.max(0, (bo.quantity || 0) - (bo.completed_count || 0)), 0);
+      d.available = d.readyToShip + d.inProgress + d.building;
+      d.deficit = Math.max(0, d.ordered - d.available);
+    }
+    return Object.values(demand).sort((a, b) => b.deficit - a.deficit);
+  };
+
+  // ── Build readiness: does a build order have all parts in stock? ──
+  const getBuildReadiness = (bo) => {
+    const remaining = Math.max(0, (bo.quantity || 1) - (bo.completed_count || 0));
+    if (remaining === 0) return { ready: true, missing: [], totalParts: 0 };
+    const bomParts = parts.filter(p => p.projectId === bo.product_id);
+    const missing = [];
+    for (const part of bomParts) {
+      const needed = (parseInt(part.quantity) || 1) * remaining;
+      const stock = parseInt(part.stockQty) || 0;
+      if (stock < needed) missing.push({ part, needed, stock, short: needed - stock });
+    }
+    return { ready: missing.length === 0, missing, totalParts: bomParts.length };
   };
 
   const lowStockParts = parts.filter((p) => { const s=parseInt(p.stockQty)||0, r=parseInt(p.reorderQty); return !isNaN(r) && r > 0 && s <= r; });
@@ -10910,6 +10961,70 @@ function BOMManager({ user }) {
                   ))}
                 </div>
 
+                {/* ══════ SUGGESTED BUILD ORDERS ══════ */}
+                {(() => {
+                  const productDemand = computeProductDemand();
+                  const withDeficit = productDemand.filter(d => d.deficit > 0);
+                  if (withDeficit.length === 0) return null;
+                  return (
+                    <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"18px 22px",marginBottom:20,
+                      border:darkMode?"1px solid #3a3a3e":"2px solid #ff9500",boxShadow:"0 1px 6px rgba(255,149,0,0.15)" }}>
+                      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+                        <div>
+                          <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                            Suggested Build Orders
+                          </div>
+                          <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>
+                            {withDeficit.length} product{withDeficit.length !== 1 ? "s" : ""} need{withDeficit.length === 1 ? "s" : ""} more units to fulfill open orders
+                          </div>
+                        </div>
+                      </div>
+                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                        <thead>
+                          <tr style={{ borderBottom:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea" }}>
+                            {["Product","On Order","Ready to Ship","In Progress","Building","Deficit",""].map(h => (
+                              <th key={h} style={{ textAlign:h==="Product"?"left":"center",padding:"8px 10px",fontSize:10,fontWeight:700,
+                                textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {withDeficit.map(d => (
+                            <tr key={d.product.id} style={{ borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2" }}>
+                              <td style={{ padding:"10px 10px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                                <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                                  <div style={{ width:8,height:8,borderRadius:"50%",background:d.product.color||"#0071e3",flexShrink:0 }} />
+                                  {d.product.name}
+                                </div>
+                                <div style={{ fontSize:10,color:"#86868b",fontWeight:400,marginTop:2 }}>
+                                  {d.orders.map((o,i) => <span key={i}>{i>0?" · ":""}{o.source}{o.store?` (${o.store})`:""}{o.company?` (${o.company})`:""}: {o.qty}</span>)}
+                                </div>
+                              </td>
+                              <td style={{ textAlign:"center",padding:"10px 8px",fontWeight:700,color:"#5856d6" }}>{d.ordered}</td>
+                              <td style={{ textAlign:"center",padding:"10px 8px",fontWeight:700,color:d.readyToShip>0?"#34c759":"#86868b" }}>{d.readyToShip}</td>
+                              <td style={{ textAlign:"center",padding:"10px 8px",color:d.inProgress>0?"#0071e3":"#86868b" }}>{d.inProgress}</td>
+                              <td style={{ textAlign:"center",padding:"10px 8px",color:d.building>0?"#ff9500":"#86868b" }}>{d.building}</td>
+                              <td style={{ textAlign:"center",padding:"10px 8px",fontWeight:800,color:"#ff3b30",fontSize:15 }}>{d.deficit}</td>
+                              <td style={{ textAlign:"center",padding:"10px 8px" }}>
+                                <button onClick={async () => {
+                                  try {
+                                    const bo = await createBuildOrder({ product_id: d.product.id, quantity: d.deficit, priority: "normal", status: "pending", notes: `Auto-suggested from demand (${d.orders.map(o => `${o.source}: ${o.qty}`).join(", ")})`, for_order: d.orders[0]?.company || d.orders[0]?.store || "" });
+                                    setBuildOrders(prev => [...prev, bo]);
+                                    setActiveView("production");
+                                  } catch (err) { console.error("Create build order failed:", err); alert("Failed: " + err.message); }
+                                }} style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",
+                                  border:"none",background:"#0071e3",color:"#fff",whiteSpace:"nowrap" }}>
+                                  Build {d.deficit}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+
                 {/* ── Unified Order Tracker (Dealer + Direct) — TOP PRIORITY */}
                 {(zohoDemand?.orders?.length > 0 || shopifyDemand?.orders?.length > 0) && (() => {
                   const __skipWords = ["shipping","gift card","tip","gratuity","donation","insurance","handling","gift wrap","express shipping"];
@@ -13257,6 +13372,16 @@ function BOMManager({ user }) {
                               <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,
                                 background:priorityColors[bo.priority]+"18",color:priorityColors[bo.priority] }}>{bo.priority}</span>
                               {isOverdue && <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,background:"#ff3b3018",color:"#ff3b30" }}>Overdue</span>}
+                              {(() => {
+                                const readiness = getBuildReadiness(bo);
+                                if (bo.status === "completed") return null;
+                                return readiness.ready
+                                  ? <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,background:"#34c75918",color:"#34c759" }}>Parts Ready</span>
+                                  : <span title={readiness.missing.map(m => `${m.part.mpn || m.part.description || "?"}: need ${m.needed}, have ${m.stock}`).join("\n")}
+                                      style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,background:"#ff3b3018",color:"#ff3b30",cursor:"help" }}>
+                                      {readiness.missing.length} part{readiness.missing.length!==1?"s":""} short
+                                    </span>;
+                              })()}
                             </div>
                           </div>
 
@@ -14446,9 +14571,11 @@ function BOMManager({ user }) {
                           <button onClick={async () => {
                             const cust = prompt("Customer/dealer name:");
                             if (cust === null) return;
-                            const order = prompt("Order/PO reference:");
-                            await updatePedalUnit(unit.id, { status: "shipped", shipped_at: new Date().toISOString(), customer_name: cust || "", customer_order: order || "" });
-                            setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, status: "shipped", shipped_at: new Date().toISOString(), customer_name: cust || "", customer_order: order || "" } : u));
+                            const order = prompt("Order/PO reference (e.g. PO-1234):");
+                            const tracking = prompt("Tracking number (optional):");
+                            const carrier = tracking ? prompt("Carrier (FedEx, UPS, USPS):") : "";
+                            await updatePedalUnit(unit.id, { status: "shipped", shipped_at: new Date().toISOString(), customer_name: cust || "", customer_order: order || "", tracking_number: tracking || "", carrier: carrier || "" });
+                            setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, status: "shipped", shipped_at: new Date().toISOString(), customer_name: cust || "", customer_order: order || "", tracking_number: tracking || "", carrier: carrier || "" } : u));
                           }} style={{ fontSize:11,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#86868b",color:"#fff" }}>
                             Ship
                           </button>
@@ -14585,6 +14712,141 @@ function BOMManager({ user }) {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* ══════════════════════════════════════
+                ORDER FULFILLMENT TRACKER
+            ══════════════════════════════════════ */}
+            <div style={{ borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",paddingTop:28,marginTop:32 }}>
+              <h3 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:22,fontWeight:700,color:textPrimary,marginBottom:4 }}>Order → Shipment Tracker</h3>
+              <p style={{ fontSize:13,color:"#86868b",marginBottom:16 }}>
+                End-to-end thread from customer order through build, test, boxing, and shipping. See exactly where every order stands.
+              </p>
+
+              {(() => {
+                // Build the order-to-fulfillment map from all known order references
+                const orderMap = {};
+                // Collect from build orders
+                for (const bo of buildOrders) {
+                  if (!bo.for_order) continue;
+                  const ref = bo.for_order.trim();
+                  if (!orderMap[ref]) orderMap[ref] = { ref, buildOrders: [], units: [], source: null };
+                  orderMap[ref].buildOrders.push(bo);
+                }
+                // Collect from pedal units
+                for (const u of pedalUnits) {
+                  const ref = u.customer_order?.trim() || (u.build_order_id && buildOrders.find(b => b.id === u.build_order_id)?.for_order?.trim());
+                  if (!ref) continue;
+                  if (!orderMap[ref]) orderMap[ref] = { ref, buildOrders: [], units: [] };
+                  if (!orderMap[ref].units.find(x => x.id === u.id)) orderMap[ref].units.push(u);
+                }
+                // Enrich with source info
+                for (const [ref, om] of Object.entries(orderMap)) {
+                  if (shopifyDemand?.orders) {
+                    const match = shopifyDemand.orders.find(o => o.name === ref || String(o.orderNumber) === ref);
+                    if (match) { om.source = "Shopify"; om.customerName = match.shipping_address?.name || [match.customer?.first_name, match.customer?.last_name].filter(Boolean).join(" "); om.totalOrdered = match.lineItems?.reduce((s,li) => s + (li.quantity||0), 0) || 0; }
+                  }
+                  if (!om.source && zohoDemand?.orders) {
+                    const match = zohoDemand.orders.find(o => o.name === ref || o.dealerPO === ref);
+                    if (match) { om.source = "Zoho"; om.customerName = match.customerName || match.companyName; om.totalOrdered = match.lineItems?.reduce((s,li) => s + (li.quantity||0), 0) || 0; }
+                  }
+                  // Compute status counts
+                  const units = om.units;
+                  om.statusCounts = {};
+                  for (const u of units) om.statusCounts[u.status] = (om.statusCounts[u.status] || 0) + 1;
+                  om.totalUnits = units.length;
+                  om.shipped = om.statusCounts.shipped || 0;
+                  om.boxed = om.statusCounts.boxed || 0;
+                  om.readyToShip = om.boxed + om.shipped;
+                  om.building = om.buildOrders.filter(b => b.status !== "completed").reduce((s,b) => s + Math.max(0, (b.quantity||0) - (b.completed_count||0)), 0);
+                  om.allShipped = units.length > 0 && units.every(u => u.status === "shipped");
+                  om.allBoxed = units.length > 0 && units.every(u => u.status === "boxed" || u.status === "shipped");
+                }
+
+                const orders = Object.values(orderMap).filter(o => o.totalUnits > 0 || o.buildOrders.length > 0);
+                orders.sort((a, b) => {
+                  if (a.allShipped && !b.allShipped) return 1;
+                  if (!a.allShipped && b.allShipped) return -1;
+                  return b.totalUnits - a.totalUnits;
+                });
+
+                if (orders.length === 0) return (
+                  <div style={{ background:cardBg,borderRadius:14,padding:"40px 22px",textAlign:"center",border:cardBorder,marginBottom:20 }}>
+                    <div style={{ fontSize:32,marginBottom:8 }}>📦</div>
+                    <div style={{ fontSize:14,color:"#86868b" }}>No orders being tracked yet. Assign a "For Order" reference when creating build orders to start tracking.</div>
+                  </div>
+                );
+
+                return (
+                  <div style={{ display:"flex",flexDirection:"column",gap:12,marginBottom:20 }}>
+                    {orders.map(om => {
+                      const pct = om.totalOrdered > 0 ? Math.round(om.shipped / om.totalOrdered * 100) : (om.totalUnits > 0 ? Math.round(om.shipped / om.totalUnits * 100) : 0);
+                      const stages = [
+                        { label: "Building", count: om.building, color: "#ff9500" },
+                        { label: "Testing", count: (om.statusCounts.awaiting_playtest||0) + (om.statusCounts.in_playtest||0), color: "#5856d6" },
+                        { label: "Passed", count: om.statusCounts.playtest_passed||0, color: "#34c759" },
+                        { label: "Failed", count: om.statusCounts.playtest_failed||0, color: "#ff3b30" },
+                        { label: "Boxing", count: (om.statusCounts.boxing||0), color: "#0071e3" },
+                        { label: "Boxed", count: om.boxed, color: "#00c7be" },
+                        { label: "Shipped", count: om.shipped, color: "#86868b" },
+                      ].filter(s => s.count > 0);
+
+                      return (
+                        <div key={om.ref} style={{ background:cardBg,borderRadius:14,border:om.allShipped?`2px solid #34c759`:cardBorder,
+                          overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                          {/* Progress bar */}
+                          <div style={{ height:4,background:darkMode?"#2c2c2e":"#e5e5ea" }}>
+                            <div style={{ height:"100%",width:`${Math.min(pct,100)}%`,background:pct>=100?"#34c759":"#0071e3",borderRadius:"0 2px 2px 0",transition:"width 0.3s" }} />
+                          </div>
+                          <div style={{ padding:"16px 20px" }}>
+                            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8 }}>
+                              <div>
+                                <div style={{ fontSize:15,fontWeight:700,color:textPrimary }}>{om.ref}</div>
+                                <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>
+                                  {om.customerName && <>{om.customerName} · </>}
+                                  {om.source && <span style={{ fontSize:10,padding:"1px 6px",borderRadius:4,background:om.source==="Shopify"?"#0071e318":"#4bc07618",color:om.source==="Shopify"?"#0071e3":"#4bc076",fontWeight:600 }}>{om.source}</span>}
+                                  {!om.source && <span style={{ fontSize:10,color:"#aeaeb2" }}>Manual</span>}
+                                </div>
+                              </div>
+                              <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                                {om.allShipped && <span style={{ fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:20,background:"#34c75918",color:"#34c759" }}>Shipped</span>}
+                                {om.allBoxed && !om.allShipped && (
+                                  <button onClick={async () => {
+                                    const boxedUnits = om.units.filter(u => u.status === "boxed");
+                                    if (boxedUnits.length === 0) return;
+                                    const tracking = prompt(`Tracking number for ${boxedUnits.length} units (${om.ref}):`);
+                                    if (tracking === null) return;
+                                    const carrier = tracking ? prompt("Carrier (FedEx, UPS, USPS):") || "" : "";
+                                    for (const u of boxedUnits) {
+                                      await updatePedalUnit(u.id, { status: "shipped", shipped_at: new Date().toISOString(), customer_name: om.customerName || "", customer_order: om.ref, tracking_number: tracking || "", carrier });
+                                    }
+                                    setPedalUnits(prev => prev.map(u => {
+                                      if (boxedUnits.find(bu => bu.id === u.id)) return { ...u, status: "shipped", shipped_at: new Date().toISOString(), customer_name: om.customerName || "", customer_order: om.ref, tracking_number: tracking || "", carrier };
+                                      return u;
+                                    }));
+                                  }} style={{ padding:"6px 16px",borderRadius:980,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:"#0071e3",color:"#fff" }}>
+                                    Ship All {om.boxed} Units
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            {/* Stage pipeline */}
+                            <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                              {stages.map(s => (
+                                <div key={s.label} style={{ display:"flex",alignItems:"center",gap:4,fontSize:11,color:s.color,fontWeight:600 }}>
+                                  <div style={{ width:6,height:6,borderRadius:"50%",background:s.color }} />
+                                  {s.count} {s.label}
+                                </div>
+                              ))}
+                              {om.totalUnits > 0 && <span style={{ fontSize:11,color:"#86868b",marginLeft:"auto" }}>{om.totalUnits} total units</span>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* ══════════════════════════════════════
