@@ -10,7 +10,7 @@
 
 // ── Build stamp — update BOTH values on every push ──────────
 const APP_VERSION  = "v8.30";
-const BUILD_TIME   = "2026-03-28T04:15:00";   // local time of last push (Central)
+const BUILD_TIME   = "2026-03-28T04:05:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -14977,9 +14977,16 @@ function BOMManager({ user }) {
 
               const handleShelfAdj = async () => {
                 if (!shelfAddModal?.productId || !shelfAdjQty) return;
+                const adjQty = parseInt(shelfAdjQty);
+                if (!adjQty || adjQty < 1) return;
+                if (shelfAddModal.action === 'remove') {
+                  const fg = finishedGoods.find(r => r.product_id === shelfAddModal.productId);
+                  const currentQty = fg?.quantity_on_hand ?? 0;
+                  if (adjQty > currentQty) { alert(`Only ${currentQty} units on shelf — cannot remove ${adjQty}.`); return; }
+                }
                 setFinishedGoodsBusy(true);
                 try {
-                  const delta = shelfAddModal.action === 'add' ? parseInt(shelfAdjQty) : -parseInt(shelfAdjQty);
+                  const delta = shelfAddModal.action === 'add' ? adjQty : -adjQty;
                   const updated = await upsertFinishedGoods(shelfAddModal.productId, delta, user.id);
                   setFinishedGoods(prev => {
                     const existing = prev.find(r => r.product_id === shelfAddModal.productId);
