@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.96";
-const BUILD_TIME   = "2026-03-28T10:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.97";
+const BUILD_TIME   = "2026-03-28T10:22:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -10973,70 +10973,6 @@ function BOMManager({ user }) {
                   ))}
                 </div>
 
-                {/* ══════ SUGGESTED BUILD ORDERS ══════ */}
-                {(() => {
-                  const productDemand = computeProductDemand();
-                  const withDeficit = productDemand.filter(d => d.deficit > 0);
-                  if (withDeficit.length === 0) return null;
-                  return (
-                    <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"18px 22px",marginBottom:20,
-                      border:darkMode?"1px solid #3a3a3e":"2px solid #ff9500",boxShadow:"0 1px 6px rgba(255,149,0,0.15)" }}>
-                      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
-                        <div>
-                          <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>
-                            Suggested Build Orders
-                          </div>
-                          <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>
-                            {withDeficit.length} product{withDeficit.length !== 1 ? "s" : ""} need{withDeficit.length === 1 ? "s" : ""} more units to fulfill open orders
-                          </div>
-                        </div>
-                      </div>
-                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
-                        <thead>
-                          <tr style={{ borderBottom:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea" }}>
-                            {["Product","On Order","Ready to Ship","In Progress","Building","Deficit",""].map(h => (
-                              <th key={h} style={{ textAlign:h==="Product"?"left":"center",padding:"8px 10px",fontSize:10,fontWeight:700,
-                                textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b" }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {withDeficit.map(d => (
-                            <tr key={d.product.id} style={{ borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2" }}>
-                              <td style={{ padding:"10px 10px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>
-                                <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                                  <div style={{ width:8,height:8,borderRadius:"50%",background:d.product.color||"#0071e3",flexShrink:0 }} />
-                                  {d.product.name}
-                                </div>
-                                <div style={{ fontSize:10,color:"#86868b",fontWeight:400,marginTop:2 }}>
-                                  {d.orders.map((o,i) => <span key={i}>{i>0?" · ":""}{o.source}{o.store?` (${o.store})`:""}{o.company?` (${o.company})`:""}: {o.qty}</span>)}
-                                </div>
-                              </td>
-                              <td style={{ textAlign:"center",padding:"10px 8px",fontWeight:700,color:"#5856d6" }}>{d.ordered}</td>
-                              <td style={{ textAlign:"center",padding:"10px 8px",fontWeight:700,color:d.readyToShip>0?"#34c759":"#86868b" }}>{d.readyToShip}</td>
-                              <td style={{ textAlign:"center",padding:"10px 8px",color:d.inProgress>0?"#0071e3":"#86868b" }}>{d.inProgress}</td>
-                              <td style={{ textAlign:"center",padding:"10px 8px",color:d.building>0?"#ff9500":"#86868b" }}>{d.building}</td>
-                              <td style={{ textAlign:"center",padding:"10px 8px",fontWeight:800,color:"#ff3b30",fontSize:15 }}>{d.deficit}</td>
-                              <td style={{ textAlign:"center",padding:"10px 8px" }}>
-                                <button onClick={async () => {
-                                  try {
-                                    const bo = await createBuildOrder({ product_id: d.product.id, quantity: d.deficit, priority: "normal", status: "pending", notes: `Auto-suggested from demand (${d.orders.map(o => `${o.source}: ${o.qty}`).join(", ")})`, for_order: d.orders[0]?.company || d.orders[0]?.store || "" });
-                                    setBuildOrders(prev => [...prev, bo]);
-                                    setActiveView("production");
-                                  } catch (err) { console.error("Create build order failed:", err); alert("Failed: " + err.message); }
-                                }} style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",
-                                  border:"none",background:"#0071e3",color:"#fff",whiteSpace:"nowrap" }}>
-                                  Build {d.deficit}
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })()}
-
                 {/* ── Unified Order Tracker (Dealer + Direct) — TOP PRIORITY */}
                 {(zohoDemand?.orders?.length > 0 || shopifyDemand?.orders?.length > 0) && (() => {
                   const __skipWords = ["shipping","gift card","tip","gratuity","donation","insurance","handling","gift wrap","express shipping"];
@@ -13325,52 +13261,6 @@ function BOMManager({ user }) {
               );
             })()}
 
-            {/* ══════ SUGGESTED BUILDS FROM SHOPIFY ══════ */}
-            {shopifyDemand && shopifyDemand.products && shopifyDemand.products.length > 0 && (() => {
-              // Find products with unfulfilled orders that don't already have active build orders
-              const activeBOProductIds = new Set(buildOrders.filter(b => b.status !== "completed").map(b => b.product_id));
-              const suggestions = shopifyDemand.products.filter(sp => {
-                const unfulfilled = (sp.ordered || 0) - (sp.fulfilled || 0);
-                if (unfulfilled <= 0) return false;
-                // Match shopify product to local product by name or import_name
-                const localProd = products.find(p => p.shopifyProductId === sp.shopifyProductId || productMatchesTitle(p, sp.title));
-                if (!localProd) return false;
-                if (activeBOProductIds.has(localProd.id)) return false;
-                return true;
-              }).map(sp => {
-                const localProd = products.find(p => p.shopifyProductId === sp.shopifyProductId || productMatchesTitle(p, sp.title));
-                return { ...sp, localProduct: localProd, unfulfilled: (sp.ordered || 0) - (sp.fulfilled || 0) };
-              });
-              if (suggestions.length === 0) return null;
-              return (
-                <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
-                  <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>Suggested Builds</div>
-                  <div style={{ fontSize:12,color:"#86868b",marginBottom:12 }}>Products with unfulfilled Shopify orders that have no active build order.</div>
-                  <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
-                    {suggestions.map((sg, i) => (
-                      <div key={i} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,
-                        background:darkMode?"#2c2c2e":"#f5f5f7",border:`1px solid ${darkMode?"#3a3a3e":"#e5e5ea"}` }}>
-                        <div style={{ width:10,height:10,borderRadius:"50%",background:sg.localProduct?.color||"#0071e3",flexShrink:0 }} />
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{sg.title}</div>
-                          <div style={{ fontSize:11,color:"#86868b" }}>{sg.unfulfilled} unfulfilled orders</div>
-                        </div>
-                        <button onClick={() => {
-                          setNewBuildOrder(prev => ({ ...prev, product_id: sg.localProduct.id, quantity: String(sg.unfulfilled), priority: sg.unfulfilled > 20 ? "high" : "normal" }));
-                          // Scroll to create form
-                          const el = document.getElementById("create-build-order-section");
-                          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-                        }}
-                          style={{ padding:"6px 14px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",
-                            background:"#0071e3",color:"#fff",whiteSpace:"nowrap" }}>
-                          Schedule Build
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
 
             {/* ── Team Performance Leaderboard ── */}
             {memberStats.length > 0 && (() => {

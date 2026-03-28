@@ -15,6 +15,10 @@
 
 **No exceptions. No forgetting. Every push. Always.**
 
+## MANDATORY: Always push to master
+
+**Always push to `master`. Never push to any other branch unless explicitly told otherwise.**
+
 ## Project details
 
 - React 18 SPA with Vite, deployed on Vercel
