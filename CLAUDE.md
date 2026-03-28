@@ -19,6 +19,37 @@
 
 **Always push to `master`. Never push to any other branch unless explicitly told otherwise.**
 
+## React 18: Reading state inside async functions
+
+Never use side-effect variables inside setState updaters — React 18 batching defers execution:
+
+```js
+// BROKEN
+let value;
+setParts(prev => { value = prev.find(...); return prev; });
+// value is undefined here!
+```
+
+Use the Promise pattern instead:
+
+```js
+const value = await new Promise(resolve => {
+  setParts(prev => { resolve(prev.find(...)); return prev; });
+});
+```
+
+## Update tab descriptions when adding features
+
+Two places in App.jsx per tab:
+1. Dashboard process flow — search `step:X, title:`
+2. Tab header — search `fontSize:13,color:"#6e6e73",lineHeight:"20px"`
+
+Update both when a push affects that tab.
+
+## Supabase updates: only send known columns
+
+Never spread unknown/derived objects into Supabase update calls — it will 400 if unknown columns are included. Explicitly pick only the fields being saved.
+
 ## Project details
 
 - React 18 SPA with Vite, deployed on Vercel
