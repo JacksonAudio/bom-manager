@@ -1306,7 +1306,7 @@ export async function updateFinishedGoodsTargets(productId, fields, userId) {
   const { data, error } = await supabase
     .from('finished_goods')
     .upsert(
-      { product_id: productId, ...fields, updated_at: new Date().toISOString(), updated_by: userId },
+      { product_id: productId, target_stock: 0, min_stock: 0, quantity_on_hand: 0, ...fields, updated_at: new Date().toISOString(), updated_by: userId },
       { onConflict: 'product_id' }
     )
     .select()
