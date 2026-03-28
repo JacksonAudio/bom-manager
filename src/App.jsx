@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.07";
-const BUILD_TIME   = "2026-03-28T01:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.08";
+const BUILD_TIME   = "2026-03-28T02:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -1516,6 +1516,7 @@ function BOMManager({ user }) {
   const [shopOrderForm, setShopOrderForm] = useState(null); // null | { shopType, ... }
   const [zohoImportPreview, setZohoImportPreview] = useState(null); // null | { candidates, selected }
   const [expandedDealer, setExpandedDealer] = useState(null);
+  const [lastCsvImport, setLastCsvImport] = useState(null); // null | { created: [id,...], updated: [{id, before}] }
   // Dynamic locked-supplier check — hardcoded fallbacks + any manual (non-API) vendor in the DB
   // eslint-disable-next-line no-shadow
   const isLockedSupplier = useCallback((supplier) => {
@@ -15379,13 +15380,19 @@ function BOMManager({ user }) {
             let imported = 0, updated = 0;
             const newDealers = [];
             const updatedDealers = [];
+            const undoCreated = [];
+            const undoUpdated = [];
             for (const c of selected) {
               try {
-                if (mode === "contacts" && c.existing) {
+                if ((mode === "contacts" || mode === "csv") && c.existing) {
                   // Merge — only fill blank fields
                   if (c.willUpdate && Object.keys(c.updates).length > 0) {
+                    // Snapshot old values for undo
+                    const before = {};
+                    for (const k of Object.keys(c.updates)) before[k] = c.existing[k] ?? null;
                     const result = await updateDealer(c.existing.id, c.updates);
                     updatedDealers.push(result);
+                    undoUpdated.push({ id: c.existing.id, before });
                     updated++;
                   }
                 } else if (!c.alreadyExists && !c.existing) {
@@ -15393,11 +15400,13 @@ function BOMManager({ user }) {
                   const row = {
                     name: c.name, brand: c.brand, zoho_customer_name: c.zoho_customer_name,
                     contact_name: c.contact_name, email: c.email, phone: c.phone,
+                    website: c.website || "", notes: c.notes || "",
                     shipping_address: c.shipping_address, billing_address: c.billing_address,
                     preferred_carrier: c.preferred_carrier || "", shipping_notes: c.shipping_notes || "",
                   };
                   const created = await createDealer(row);
                   newDealers.push(created);
+                  undoCreated.push(created.id);
                   imported++;
                 }
               } catch (e) { console.warn("Import/update failed for", c.name, e.message); }
@@ -15408,11 +15417,138 @@ function BOMManager({ user }) {
               next = [...next, ...newDealers];
               return next.sort((a,b) => a.name.localeCompare(b.name));
             });
+            if (undoCreated.length || undoUpdated.length) {
+              setLastCsvImport({ created: undoCreated, updated: undoUpdated });
+            }
             setZohoImportPreview(null);
             const parts = [];
             if (imported) parts.push(`${imported} new dealer${imported!==1?"s":""} imported`);
             if (updated)  parts.push(`${updated} existing dealer${updated!==1?"s":""} updated`);
             alert(parts.join(", ") + ".");
+          };
+
+          const undoLastImport = async () => {
+            if (!lastCsvImport) return;
+            if (!window.confirm(`Undo last import? This will delete ${lastCsvImport.created.length} new dealers and restore ${lastCsvImport.updated.length} updated dealers.`)) return;
+            for (const id of lastCsvImport.created) {
+              try { await deleteDealer(id); } catch(e) { console.warn("Undo delete failed", id, e.message); }
+            }
+            const restored = [];
+            for (const { id, before } of lastCsvImport.updated) {
+              try { const r = await updateDealer(id, before); restored.push(r); } catch(e) { console.warn("Undo restore failed", id, e.message); }
+            }
+            setDealers(prev => {
+              let next = prev.filter(d => !lastCsvImport.created.includes(d.id));
+              for (const r of restored) next = next.map(d => d.id === r.id ? r : d);
+              return next.sort((a,b) => a.name.localeCompare(b.name));
+            });
+            setLastCsvImport(null);
+            alert("Import undone.");
+          };
+
+          const parseCSVText = (text) => {
+            const lines = text.split(/\r?\n/);
+            if (!lines.length) return [];
+            const parseRow = (line) => {
+              const fields = []; let i = 0;
+              while (i <= line.length) {
+                if (i === line.length) { fields.push(""); break; }
+                if (line[i] === '"') {
+                  let j = i + 1, val = "";
+                  while (j < line.length) {
+                    if (line[j] === '"' && line[j+1] === '"') { val += '"'; j += 2; }
+                    else if (line[j] === '"') { j++; break; }
+                    else val += line[j++];
+                  }
+                  fields.push(val);
+                  if (line[j] === ',') j++;
+                  i = j;
+                } else {
+                  const j = line.indexOf(',', i);
+                  if (j === -1) { fields.push(line.slice(i)); break; }
+                  fields.push(line.slice(i, j));
+                  i = j + 1;
+                }
+              }
+              return fields;
+            };
+            const headers = parseRow(lines[0]);
+            return lines.slice(1).filter(l => l.trim()).map(l => {
+              const vals = parseRow(l);
+              const obj = {};
+              headers.forEach((h, i) => { obj[h] = vals[i] ?? ""; });
+              return obj;
+            });
+          };
+
+          const handleCSVImport = async (files) => {
+            const existingByName = {}, existingByZoho = {};
+            for (const d of dealers) {
+              existingByName[d.name.toLowerCase()] = d;
+              if (d.zoho_customer_name) existingByZoho[d.zoho_customer_name.toLowerCase()] = d;
+            }
+            const SKIP = ["jackson audio","fulltone usa","fulltone","jackson audio, inc.","fulltone web sales","dealer sales","guitar gear","brush creek guitars","riviera music"];
+            const allCandidates = [];
+            for (const file of files) {
+              const text = await file.text();
+              const rows = parseCSVText(text);
+              if (!rows.length) continue;
+              const hasJAField = "CF.Jackson Audio Dealer " in rows[0];
+              const brand = hasJAField ? "Jackson Audio" : "Fulltone USA";
+              const filtered = hasJAField
+                ? rows.filter(r => (r["CF.Jackson Audio Dealer "] || "").trim().toLowerCase() === "true")
+                : rows.filter(r => (r["Company Name"] || "").trim() && (r["Status"] || "").trim() === "Active");
+              for (const r of filtered) {
+                const name = (r["Company Name"] || r["Display Name"] || "").trim();
+                if (!name || SKIP.includes(name.toLowerCase())) continue;
+                const zohoData = {
+                  name, brand, zoho_customer_name: name,
+                  contact_name: [r["First Name"], r["Last Name"]].filter(Boolean).join(" ").trim(),
+                  email: (r["EmailID"] || "").trim(),
+                  phone: (r["Phone"] || "").trim(),
+                  website: (r["Website"] || "").trim(),
+                  notes: (r["Notes"] || "").trim(),
+                  billing_address: {
+                    attention: (r["Billing Attention"] || "").trim(),
+                    street: (r["Billing Address"] || "").trim(),
+                    city: (r["Billing City"] || "").trim(),
+                    state: (r["Billing State"] || "").trim(),
+                    zip: (r["Billing Code"] || "").trim(),
+                    country: (r["Billing Country"] || "").trim(),
+                    phone: (r["Billing Phone"] || "").trim(),
+                  },
+                  shipping_address: {
+                    attention: (r["Shipping Attention"] || "").trim(),
+                    street: (r["Shipping Address"] || "").trim(),
+                    city: (r["Shipping City"] || "").trim(),
+                    state: (r["Shipping State"] || "").trim(),
+                    zip: (r["Shipping Code"] || "").trim(),
+                    country: (r["Shipping Country"] || "").trim(),
+                    phone: (r["Shipping Phone"] || "").trim(),
+                  },
+                };
+                const key = name.toLowerCase();
+                const existing = existingByName[key] || existingByZoho[key] || null;
+                if (existing) {
+                  const updates = {};
+                  if (!existing.contact_name && zohoData.contact_name) updates.contact_name = zohoData.contact_name;
+                  if (!existing.email && zohoData.email) updates.email = zohoData.email;
+                  if (!existing.phone && zohoData.phone) updates.phone = zohoData.phone;
+                  if (!existing.website && zohoData.website) updates.website = zohoData.website;
+                  if (!existing.notes && zohoData.notes) updates.notes = zohoData.notes;
+                  if (!existing.zoho_customer_name) updates.zoho_customer_name = name;
+                  if (!(existing.shipping_address || {}).street && zohoData.shipping_address?.street) updates.shipping_address = zohoData.shipping_address;
+                  if (!(existing.billing_address || {}).street && zohoData.billing_address?.street) updates.billing_address = zohoData.billing_address;
+                  allCandidates.push({ ...zohoData, existing, updates, willUpdate: Object.keys(updates).length > 0, selected: Object.keys(updates).length > 0 });
+                } else {
+                  allCandidates.push({ ...zohoData, existing: null, updates: null, willUpdate: false, selected: true, alreadyExists: false });
+                }
+              }
+            }
+            // Dedupe by name — keep first occurrence (JA file first if both loaded)
+            const seen = new Set();
+            const deduped = allCandidates.filter(c => { const k = c.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+            setZohoImportPreview({ candidates: deduped, mode: "csv" });
           };
 
           return (
@@ -15422,7 +15558,19 @@ function BOMManager({ user }) {
                   <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:21, fontWeight:800, marginBottom:4, color:textPrimary }}>Dealer Directory</h2>
                   <p style={{ color:textSecondary, fontSize:13, margin:0 }}>All wholesale accounts — billing, shipping, contacts, and special instructions.</p>
                 </div>
-                <div style={{ display:"flex", gap:8 }}>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {lastCsvImport && (
+                    <button className="btn-ghost" onClick={undoLastImport}
+                      style={{ fontSize:12, color:"#ff453a", borderColor:"#ff453a44" }}
+                      title="Undo the last CSV import">
+                      ↩ Undo Import
+                    </button>
+                  )}
+                  <label style={{ cursor:"pointer" }} title="Import dealers from Zoho CSV export (JA + Fulltone)">
+                    <input type="file" accept=".csv" multiple style={{ display:"none" }}
+                      onChange={e => { if (e.target.files?.length) handleCSVImport(Array.from(e.target.files)); e.target.value=""; }} />
+                    <span className="btn-ghost" style={{ fontSize:12, display:"inline-block" }}>Import from CSV</span>
+                  </label>
                   <button className="btn-ghost" onClick={buildZohoImportCandidates}
                     style={{ fontSize:12 }} title="Pull dealers from synced Zoho sales orders (already cached)">
                     Import from Orders
@@ -15493,29 +15641,30 @@ function BOMManager({ user }) {
 
               {/* ── Zoho Import / Contacts Sync Preview ── */}
               {zohoImportPreview && (() => {
-                const isContacts = zohoImportPreview.mode === "contacts";
+                const mode = zohoImportPreview.mode || "orders";
+                const isCsv      = mode === "csv";
+                const isContacts = mode === "contacts";
                 const newCount     = zohoImportPreview.candidates.filter(c => c.selected && !c.existing && !c.alreadyExists).length;
                 const updateCount  = zohoImportPreview.candidates.filter(c => c.selected && c.existing && c.willUpdate).length;
                 const skipCount    = zohoImportPreview.candidates.filter(c => c.alreadyExists || (c.existing && !c.willUpdate)).length;
+                const title = isCsv ? "Import from CSV" : isContacts ? "Sync from Zoho Contacts" : "Import from Zoho Orders";
                 return (
                   <div style={{ background:cardBg, border:`2px solid #4bc076`, borderRadius:12, marginBottom:24, overflow:"hidden" }}>
                     <div style={{ padding:"14px 20px", background:"#4bc07610", borderBottom:`1px solid #4bc07633`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                       <div>
-                        <div style={{ fontWeight:700, fontSize:14, color:textPrimary }}>
-                          {isContacts ? "Sync from Zoho Contacts" : "Import from Zoho Orders"}
-                        </div>
+                        <div style={{ fontWeight:700, fontSize:14, color:textPrimary }}>{title}</div>
                         <div style={{ fontSize:12, color:textSecondary, marginTop:2 }}>
                           {newCount > 0 && <span style={{ color:"#0071e3", fontWeight:600 }}>{newCount} new</span>}
                           {newCount > 0 && updateCount > 0 && " · "}
                           {updateCount > 0 && <span style={{ color:"#ff9500", fontWeight:600 }}>{updateCount} to update</span>}
-                          {skipCount > 0 && <span style={{ color:textSecondary }}> · {skipCount} no changes</span>}
+                          {skipCount > 0 && <span style={{ color:textSecondary }}> · {skipCount} no changes / already exist</span>}
                         </div>
                       </div>
                       <div style={{ display:"flex", gap:8 }}>
                         <button className="btn-ghost" onClick={() => setZohoImportPreview(null)}>Cancel</button>
                         <button className="btn-primary" style={{ background:"#4bc076" }} onClick={runZohoImport}
                           disabled={newCount + updateCount === 0}>
-                          {isContacts ? `Apply (${newCount + updateCount})` : `Import (${newCount})`}
+                          {(isCsv || isContacts) ? `Apply (${newCount + updateCount})` : `Import (${newCount})`}
                         </button>
                       </div>
                     </div>
