@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.92";
-const BUILD_TIME   = "2026-03-27T21:31:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.93";
+const BUILD_TIME   = "2026-03-27T21:34:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -1589,6 +1589,7 @@ function BOMManager({ user }) {
   const [shippingBoxesConfig, setShippingBoxesConfig] = useState([]);
   const [productPackaging, setProductPackaging] = useState([]);
   const [editingShipBox, setEditingShipBox] = useState(null); // shipping box being edited/added in settings
+  const [expandedPO, setExpandedPO] = useState(null); // expanded dealer PO id in demand view
 
   const [pdPasteText, setPdPasteText] = useState(""); // product detail page paste text
   const [pdDragOver, setPdDragOver] = useState(false); // product detail page drag state
@@ -11089,10 +11090,22 @@ function BOMManager({ user }) {
                     const base = {
                       id: order.id, channel: "Dealer", accentColor: "#4bc076",
                       customer: order.customerName || order.companyName || "—",
+                      companyName: order.companyName || order.customerName || "",
+                      contactName: order.contactName || "",
+                      email: order.email || "",
+                      phone: order.phone || "",
+                      shippingAddress: order.shippingAddress || null,
+                      billingAddress: order.billingAddress || null,
+                      shippingMethod: order.shippingMethod || "",
+                      orderNotes: order.notes || "",
+                      orderTerms: order.terms || "",
+                      subTotal: order.subTotal || 0,
+                      shippingCharge: order.shippingCharge || 0,
+                      discount: order.discount || 0,
                       orderName: order.name, dealerPO: order.dealerPO || "",
                       dueDate: order.dueDate || "",
                       date: order.date || order.createdAt, createdAt: order.createdAt,
-                      lineItems: order.lineItems.map(li => ({ title: li.title, quantity: li.quantity || 0, fulfilled: li.quantityShipped || 0 })),
+                      lineItems: order.lineItems.map(li => ({ title: li.title, quantity: li.quantity || 0, fulfilled: li.quantityShipped || 0, rate: li.rate || 0, amount: li.amount || 0 })),
                       totalQty, totalFulfilled, pctComplete, blockers,
                       storeName: order.companyName || "",
                       shipstation: ssMatch,
@@ -11369,11 +11382,213 @@ function BOMManager({ user }) {
                     return new Date(b.createdAt) - new Date(a.createdAt);
                   });
 
+                  // ── Dealer PO Renderer (expandable cards with full detail) ──
+                  const renderDealerPOs = () => {
+                    if (dealerOrders.length === 0) return null;
+                    const sorted = sortOrders(dealerOrders);
+                    const openCount = sorted.filter(o => o.pctComplete < 100).length;
+                    const overdueCount = sorted.filter(o => o.due.urgent && o.pctComplete < 100).length;
+                    const isSectionCollapsed = !expandedDemandSections.has("dealer-pos");
+                    const fmtAddr = (addr) => {
+                      if (!addr) return null;
+                      return [addr.attention, addr.street, [addr.city, addr.state, addr.zip].filter(Boolean).join(", "), addr.country].filter(Boolean).join(", ");
+                    };
+                    return (
+                      <div className="card" style={{ marginBottom:16, overflow:"hidden" }}>
+                        <div onClick={() => setExpandedDemandSections(prev => { const s = new Set(prev); s.has("dealer-pos") ? s.delete("dealer-pos") : s.add("dealer-pos"); return s; })}
+                          style={{ padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
+                            background: overdueCount > 0 ? "#ff3b3008" : "#4bc07608",
+                            borderBottom: isSectionCollapsed ? "none" : `2px solid ${overdueCount > 0 ? "#ff3b3033" : "#4bc07633"}`,
+                            borderRadius: isSectionCollapsed ? 12 : "12px 12px 0 0" }}>
+                          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                            <div style={{ width:8,height:8,borderRadius:"50%",background:"#4bc076" }} />
+                            <span style={{ fontSize:13,fontWeight:700 }}>Dealer PO Tracker</span>
+                            <span style={{ fontSize:11,color:"#86868b" }}>({sorted.length} PO{sorted.length!==1?"s":""} · {openCount} open)</span>
+                            {overdueCount > 0 && <span style={{ fontSize:10,fontWeight:700,color:"#ff3b30",background:"#ff3b3015",padding:"2px 8px",borderRadius:10 }}>{overdueCount} overdue</span>}
+                          </div>
+                          <span style={{ fontSize:11,color:"#86868b",transform:isSectionCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
+                        </div>
+                        {!isSectionCollapsed && (
+                          <div style={{ padding:"8px 0" }}>
+                            {sorted.map(po => {
+                              const isExpanded = expandedPO === po.id;
+                              return (
+                                <div key={po.id} style={{ borderBottom:"1px solid #f0f0f2",opacity:po.pctComplete===100?0.5:1 }}>
+                                  {/* Collapsed PO row — click to expand */}
+                                  <div onClick={() => setExpandedPO(isExpanded ? null : po.id)}
+                                    style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 16px",cursor:"pointer",
+                                      background: po.due.urgent && po.pctComplete<100 ? "#ff3b3005" : isExpanded ? "#f5f5f7" : "transparent",
+                                      transition:"background 0.15s" }}>
+                                    <span style={{ fontSize:11,color:"#86868b",transform:isExpanded?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s",flexShrink:0 }}>▶</span>
+                                    <div style={{ flex:1,minWidth:0 }}>
+                                      <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+                                        <span style={{ fontSize:14,fontWeight:800,color:"#1d1d1f" }}>{po.dealerPO || po.orderName}</span>
+                                        {po.dealerPO && po.orderName !== po.dealerPO && <span style={{ fontSize:11,color:"#86868b" }}>{po.orderName}</span>}
+                                        <span style={{ fontSize:12,fontWeight:600,color:"#4bc076" }}>{po.companyName || po.customer}</span>
+                                        <span style={{ fontSize:11,fontWeight:700,color:po.due.color }}>{po.due.label}</span>
+                                      </div>
+                                      <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginTop:4 }}>
+                                        {po.lineItems.map((li,i) => (
+                                          <span key={i} style={{ fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:4,
+                                            background:li.fulfilled>=li.quantity?"#34c75915":"#ff950015",
+                                            color:li.fulfilled>=li.quantity?"#34c759":"#ff9500" }}>
+                                            {li.title} ×{li.quantity}{li.fulfilled>0?` (${li.fulfilled} shipped)`:""}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <div style={{ display:"flex",alignItems:"center",gap:8,flexShrink:0 }}>
+                                      <div style={{ width:60,height:6,borderRadius:3,background:"#e5e5ea",overflow:"hidden" }}>
+                                        <div style={{ width:`${po.pctComplete}%`,height:"100%",borderRadius:3,
+                                          background:po.pctComplete===100?"#34c759":po.pctComplete>=50?"#ff9500":"#ff3b30" }} />
+                                      </div>
+                                      <span style={{ fontSize:12,fontWeight:700,color:po.pctComplete===100?"#34c759":"#1d1d1f",minWidth:40,textAlign:"right" }}>
+                                        {po.totalFulfilled}/{po.totalQty}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Expanded PO detail */}
+                                  {isExpanded && (
+                                    <div style={{ padding:"0 16px 16px 36px",background:"#fafafa" }}>
+                                      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16 }}>
+                                        {/* Left: Dealer info */}
+                                        <div style={{ background:"#fff",borderRadius:10,padding:"14px 18px",border:"1px solid #e5e5ea" }}>
+                                          <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:8 }}>Dealer Info</div>
+                                          <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f",marginBottom:4 }}>{po.companyName || po.customer}</div>
+                                          {po.contactName && <div style={{ fontSize:12,color:"#3a3f51" }}>{po.contactName}</div>}
+                                          {po.email && <div style={{ fontSize:12 }}><a href={"mailto:"+po.email} style={{ color:"#0071e3",textDecoration:"none" }}>{po.email}</a></div>}
+                                          {po.phone && <div style={{ fontSize:12,color:"#3a3f51" }}>{po.phone}</div>}
+                                          {po.shippingAddress && fmtAddr(po.shippingAddress) && (
+                                            <div style={{ marginTop:8,paddingTop:8,borderTop:"1px solid #f0f0f2" }}>
+                                              <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:4 }}>Ship To</div>
+                                              <div style={{ fontSize:12,color:"#3a3f51",lineHeight:"18px" }}>{fmtAddr(po.shippingAddress)}</div>
+                                              {po.shippingAddress.phone && <div style={{ fontSize:11,color:"#86868b" }}>{po.shippingAddress.phone}</div>}
+                                            </div>
+                                          )}
+                                        </div>
+                                        {/* Right: Order info */}
+                                        <div style={{ background:"#fff",borderRadius:10,padding:"14px 18px",border:"1px solid #e5e5ea" }}>
+                                          <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:8 }}>Order Details</div>
+                                          <div style={{ display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",fontSize:12 }}>
+                                            <span style={{ color:"#86868b" }}>PO Number:</span>
+                                            <span style={{ fontWeight:700,color:"#1d1d1f" }}>{po.dealerPO || "—"}</span>
+                                            <span style={{ color:"#86868b" }}>Order #:</span>
+                                            <span style={{ fontWeight:600,color:"#4bc076" }}>{po.orderName}</span>
+                                            <span style={{ color:"#86868b" }}>Date:</span>
+                                            <span>{po.date ? new Date(po.date).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}) : "—"}</span>
+                                            <span style={{ color:"#86868b" }}>Due:</span>
+                                            <span style={{ fontWeight:600,color:po.due.color }}>{po.dueDate ? new Date(po.dueDate).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}) : po.due.label}</span>
+                                            {po.shippingMethod && <><span style={{ color:"#86868b" }}>Shipping:</span><span>{po.shippingMethod}</span></>}
+                                            <span style={{ color:"#86868b" }}>Total:</span>
+                                            <span style={{ fontWeight:700,color:"#1d1d1f" }}>${parseFloat(po.total||0).toLocaleString("en-US",{minimumFractionDigits:2})}</span>
+                                            {po.discount > 0 && <><span style={{ color:"#86868b" }}>Discount:</span><span style={{ color:"#ff3b30" }}>-${parseFloat(po.discount).toFixed(2)}</span></>}
+                                            {po.shippingCharge > 0 && <><span style={{ color:"#86868b" }}>Shipping $:</span><span>${parseFloat(po.shippingCharge).toFixed(2)}</span></>}
+                                          </div>
+                                          {po.orderNotes && (
+                                            <div style={{ marginTop:8,paddingTop:8,borderTop:"1px solid #f0f0f2" }}>
+                                              <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:4 }}>Notes</div>
+                                              <div style={{ fontSize:12,color:"#3a3f51",whiteSpace:"pre-wrap" }}>{po.orderNotes}</div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Line items table */}
+                                      <div style={{ background:"#fff",borderRadius:10,padding:"14px 18px",border:"1px solid #e5e5ea",marginBottom:12 }}>
+                                        <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:10 }}>Products Ordered</div>
+                                        <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                                          <thead>
+                                            <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
+                                              <th style={{ textAlign:"left",padding:"6px 8px",fontSize:10,color:"#86868b",fontWeight:700 }}>PRODUCT</th>
+                                              <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#86868b",fontWeight:700 }}>QTY</th>
+                                              <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#86868b",fontWeight:700 }}>SHIPPED</th>
+                                              <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#86868b",fontWeight:700 }}>REMAINING</th>
+                                              <th style={{ textAlign:"right",padding:"6px 8px",fontSize:10,color:"#86868b",fontWeight:700 }}>UNIT PRICE</th>
+                                              <th style={{ textAlign:"right",padding:"6px 8px",fontSize:10,color:"#86868b",fontWeight:700 }}>LINE TOTAL</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {po.lineItems.map((li,i) => {
+                                              const remaining = li.quantity - li.fulfilled;
+                                              return (
+                                                <tr key={i} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                                                  <td style={{ padding:"8px 8px",fontWeight:600,color:"#1d1d1f" }}>{li.title}</td>
+                                                  <td style={{ textAlign:"center",padding:"8px 8px",fontWeight:700 }}>{li.quantity}</td>
+                                                  <td style={{ textAlign:"center",padding:"8px 8px",color:li.fulfilled>0?"#34c759":"#d2d2d7",fontWeight:600 }}>{li.fulfilled}</td>
+                                                  <td style={{ textAlign:"center",padding:"8px 8px",color:remaining>0?"#ff9500":"#34c759",fontWeight:700 }}>{remaining}</td>
+                                                  <td style={{ textAlign:"right",padding:"8px 8px",color:"#86868b",fontFamily:"monospace" }}>{li.rate > 0 ? `$${li.rate.toFixed(2)}` : "—"}</td>
+                                                  <td style={{ textAlign:"right",padding:"8px 8px",fontWeight:600,fontFamily:"monospace" }}>{li.amount > 0 ? `$${li.amount.toFixed(2)}` : "—"}</td>
+                                                </tr>
+                                              );
+                                            })}
+                                          </tbody>
+                                        </table>
+                                      </div>
+
+                                      {/* Actions */}
+                                      <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                                        {po.pctComplete < 100 && (
+                                          <button className="btn-primary" style={{ fontSize:11,padding:"6px 16px" }}
+                                            onClick={async () => {
+                                              const orderRef = po.dealerPO || po.orderName || "";
+                                              let created = 0;
+                                              for (const li of po.lineItems) {
+                                                const remaining = li.quantity - li.fulfilled;
+                                                if (remaining <= 0) continue;
+                                                const bomProduct = products.find(p => p.zohoProductId === li.productId || productMatchesTitle(p, li.title));
+                                                if (!bomProduct) continue;
+                                                const existing = buildOrders.find(b => b.product_id === bomProduct.id && b.for_order === orderRef && b.status !== "completed");
+                                                if (existing) continue;
+                                                try {
+                                                  const bo = await createBuildOrder({ product_id: bomProduct.id, quantity: remaining, priority: po.due?.urgent ? "high" : "normal", status: "pending", for_order: orderRef, notes: po.customer ? `${po.customer}` : "" });
+                                                  setBuildOrders(prev => [...prev, bo]);
+                                                  created++;
+                                                } catch (err) { console.error(err); }
+                                              }
+                                              if (created > 0) alert(`Created ${created} build order${created>1?"s":""}. Go to Production to start building.`);
+                                              else alert("No new build orders needed — products aren't mapped or build orders already exist.");
+                                            }}>
+                                            Create Build Orders
+                                          </button>
+                                        )}
+                                        {po.pctComplete < 100 && (
+                                          <button className="btn-ghost" style={{ fontSize:11 }}
+                                            onClick={() => {
+                                              const newQueue = [];
+                                              for (const li of po.lineItems) {
+                                                const remaining = li.quantity - li.fulfilled;
+                                                if (remaining <= 0) continue;
+                                                const bomProduct = products.find(p => productMatchesTitle(p, li.title));
+                                                if (bomProduct && !buildQueue.find(q => q.productId === bomProduct.id)) newQueue.push({ productId: bomProduct.id, name: bomProduct.name, qty: remaining, color: bomProduct.color, forOrder: po.orderName });
+                                              }
+                                              if (newQueue.length > 0) { setBuildQueue(prev => [...prev, ...newQueue]); setActiveView("purchasing"); }
+                                              else alert("No matching BOM products found.");
+                                            }}>
+                                            Order Parts
+                                          </button>
+                                        )}
+                                        {po.shipped && <span style={{ fontSize:12,fontWeight:700,color:"#34c759" }}>Shipped</span>}
+                                        {!po.shipped && (
+                                          <button className="btn-ghost" style={{ fontSize:11,color:"#86868b",marginLeft:"auto" }}
+                                            onClick={() => dismissOrder(po.id)}>
+                                            Dismiss
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  };
+
                   return (<>
-                    {renderOrderSection(sortOrders(dealerOrders), "dealer-pos", "Dealer PO Tracker", "#4bc076",
-                      dealerOrders.length, dealerOrders.filter(o => o.pctComplete < 100).length,
-                      dealerOrders.filter(o => o.due.urgent && o.pctComplete < 100).length
-                    )}
+                    {renderDealerPOs()}
                     {renderOrderSection(sortOrders(directOrders), "direct-orders", "Direct Order Tracker", "#0071e3",
                       directOrders.length, directOrders.filter(o => o.pctComplete < 100).length,
                       directOrders.filter(o => o.due.urgent && o.pctComplete < 100).length

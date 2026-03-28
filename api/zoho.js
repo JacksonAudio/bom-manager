@@ -123,6 +123,11 @@ async function handleOrders(req, res, org_id, access_token) {
       }));
     }
 
+    // Extract full contact/shipping info from detail
+    const contact = orderDetail.contact_persons?.[0] || {};
+    const billing = orderDetail.billing_address || {};
+    const shipping = orderDetail.shipping_address || {};
+
     orderSummaries.push({
       id: String(order.salesorder_id),
       name: order.salesorder_number || order.reference_number || `SO-${order.salesorder_id}`,
@@ -133,7 +138,34 @@ async function handleOrders(req, res, org_id, access_token) {
       createdAt: order.created_time || order.date,
       status: order.status,
       customerName: order.customer_name || "",
+      companyName: orderDetail.company_name || order.customer_name || "",
+      contactName: contact.first_name ? `${contact.first_name} ${contact.last_name || ""}`.trim() : "",
+      email: contact.email || orderDetail.email || "",
+      phone: contact.phone || contact.mobile || orderDetail.phone || "",
+      shippingAddress: {
+        attention: shipping.attention || "",
+        street: shipping.address || shipping.street2 || "",
+        city: shipping.city || "",
+        state: shipping.state || "",
+        zip: shipping.zip || "",
+        country: shipping.country || "",
+        phone: shipping.phone || "",
+      },
+      billingAddress: {
+        attention: billing.attention || "",
+        street: billing.address || billing.street2 || "",
+        city: billing.city || "",
+        state: billing.state || "",
+        zip: billing.zip || "",
+        country: billing.country || "",
+      },
+      shippingMethod: orderDetail.shipping_charge_name || orderDetail.delivery_method || "",
+      notes: orderDetail.notes || "",
+      terms: orderDetail.terms || "",
       total: order.total || 0,
+      subTotal: orderDetail.sub_total || order.total || 0,
+      shippingCharge: orderDetail.shipping_charge || 0,
+      discount: orderDetail.discount_total || orderDetail.discount || 0,
       lineItems,
     });
 
