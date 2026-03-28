@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.97";
-const BUILD_TIME   = "2026-03-28T10:22:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.98";
+const BUILD_TIME   = "2026-03-28T10:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -11036,8 +11036,10 @@ function BOMManager({ user }) {
                     const ssMatch = matchShipStation(order.name) || matchShipStation(order.dealerPO);
                     const base = {
                       id: order.id, channel: "Dealer", accentColor: "#4bc076",
-                      customer: order.customerName || order.companyName || "—",
+                      // companyName from Zoho = brand ("Fulltone USA" or "Jackson Audio"), NOT the dealer
+                      // The actual dealer is the ship-to attention, contact name, or billing attention
                       companyName: order.companyName || order.customerName || "",
+                      dealerName: order.shippingAddress?.attention || order.contactName || order.billingAddress?.attention || "",
                       contactName: order.contactName || "",
                       email: order.email || "",
                       phone: order.phone || "",
@@ -11065,16 +11067,9 @@ function BOMManager({ user }) {
                       base.carrier = ssMatch.shipments[0]?.carrier || "";
                       base.shipDate = ssMatch.shipments[0]?.shipDate || "";
                     }
-                    // Determine brand from line items
-                    const brandCounts = {};
-                    for (const li of order.lineItems) {
-                      const bomProduct = products.find(p => p.zohoProductId === li.productId || productMatchesTitle(p, li.title));
-                      if (bomProduct?.brand) {
-                        brandCounts[bomProduct.brand] = (brandCounts[bomProduct.brand] || 0) + 1;
-                      }
-                    }
-                    const topBrand = Object.entries(brandCounts).sort((a, b) => b[1] - a[1])[0];
-                    base.brand = topBrand ? topBrand[0] : "Other";
+                    // Determine brand from Zoho customer_name/company_name (in Zoho, this IS the brand)
+                    const cn = (order.companyName || order.customerName || "").toLowerCase();
+                    base.brand = cn.includes("fulltone") ? "Fulltone USA" : "Jackson Audio";
 
                     base.due = computeDueStatus(base);
                     return base;
@@ -11412,7 +11407,7 @@ function BOMManager({ user }) {
                                       <div style={{ flex:1,minWidth:0 }}>
                                         <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
                                           <span style={{ fontSize:14,fontWeight:800,color:"#1d1d1f" }}>{po.dealerPO || po.orderName}</span>
-                                          <span style={{ fontSize:13,fontWeight:700,color:meta.color }}>— {po.companyName || po.customer}</span>
+                                          <span style={{ fontSize:13,fontWeight:700,color:meta.color }}>— {po.dealerName || po.contactName || po.companyName || po.customer}</span>
                                           {po.dealerPO && po.orderName !== po.dealerPO && <span style={{ fontSize:11,color:"#86868b" }}>{po.orderName}</span>}
                                           <span style={{ fontSize:11,fontWeight:700,color:po.due.color }}>{po.due.label}</span>
                                         </div>
@@ -11444,7 +11439,7 @@ function BOMManager({ user }) {
                                           {/* Left: Dealer info */}
                                           <div style={{ background:"#fff",borderRadius:10,padding:"14px 18px",border:"1px solid #e5e5ea" }}>
                                             <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:8 }}>Dealer Info</div>
-                                            <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f",marginBottom:4 }}>{po.companyName || po.customer}</div>
+                                            <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f",marginBottom:4 }}>{po.dealerName || po.contactName || "—"}</div>
                                             {po.contactName && <div style={{ fontSize:12,color:"#3a3f51" }}>{po.contactName}</div>}
                                             {po.email && <div style={{ fontSize:12 }}><a href={"mailto:"+po.email} style={{ color:"#0071e3",textDecoration:"none" }}>{po.email}</a></div>}
                                             {po.phone && <div style={{ fontSize:12,color:"#3a3f51" }}>{po.phone}</div>}
