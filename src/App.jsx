@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.91";
-const BUILD_TIME   = "2026-03-27T21:13:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.92";
+const BUILD_TIME   = "2026-03-27T21:31:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -11306,7 +11306,7 @@ function BOMManager({ user }) {
                                                   const bo = await createBuildOrder({
                                                     product_id: bomProduct.id, quantity: remaining, priority: po.due?.urgent ? "high" : "normal",
                                                     status: "pending", for_order: orderRef,
-                                                    notes: `${po.channel} order: ${po.customer || ""} — ${li.title} x${remaining}`,
+                                                    notes: po.customer ? `${po.customer}` : "",
                                                   });
                                                   setBuildOrders(prev => [...prev, bo]);
                                                   created++;
@@ -13395,7 +13395,14 @@ function BOMManager({ user }) {
                           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
                             <div style={{ display:"flex",alignItems:"center",gap:8 }}>
                               {prod && <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#0071e3",flexShrink:0 }} />}
-                              <div style={{ fontSize:17,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{prod?.name || "Unknown"}</div>
+                              <div>
+                                <div style={{ fontSize:17,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{prod?.name || "Unknown"}</div>
+                                {bo.for_order && (
+                                  <div style={{ fontSize:13,fontWeight:600,color:"#5856d6",marginTop:2 }}>
+                                    PO: {bo.for_order}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                             <div style={{ display:"flex",alignItems:"center",gap:8 }}>
                               <span style={{ fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,
@@ -13451,7 +13458,7 @@ function BOMManager({ user }) {
                             {dueDate && <span>Due: {dueDate.toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>}
                             {startedAt && <span>Elapsed: <strong style={{ color:"#ff9500" }}>{fmtHours(elapsed)}</strong></span>}
                             {startedAt && done > 0 && <span>Pace: <strong style={{ color:"#0071e3" }}>{(elapsed/done*60).toFixed(1)} min/unit</strong></span>}
-                            {bo.notes && <span style={{ fontStyle:"italic" }}>{bo.notes}</span>}
+                            {bo.notes && bo.notes !== bo.for_order && <span style={{ fontStyle:"italic" }}>{bo.notes}</span>}
                           </div>
 
                           {/* Scrap Form (inline) */}
