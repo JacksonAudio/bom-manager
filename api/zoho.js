@@ -49,6 +49,8 @@ export default async function handler(req, res) {
         return await handleOrders(req, res, org_id, access_token);
       case "history":
         return await handleHistory(req, res, org_id, access_token);
+      case "contacts":
+        return await handleContacts(req, res, org_id, access_token);
       default:
         return res.status(400).json({ error: `Unknown action: ${action}` });
     }
@@ -308,6 +310,100 @@ async function handleHistory(req, res, org_id, access_token) {
     history,
     totalOrders: uniqueOrders.length,
     monthsCovered: history.length,
+    syncedAt: new Date().toISOString(),
+  });
+}
+
+// ── Contacts ─────────────────────────────────────────────────────────────────
+// Fetches ALL customer contacts from Zoho Books with full detail.
+// Used to populate/update the Dealer Directory.
+async function handleContacts(req, res, org_id, access_token) {
+  const allContacts = [];
+  let page = 1;
+  let hasMore = true;
+
+  // Fetch full contact list (customers only)
+  while (hasMore) {
+    const r = await fetch(
+      `https://www.zohoapis.com/books/v3/contacts?organization_id=${encodeURIComponent(org_id)}&contact_type=customer&page=${page}&per_page=200`,
+      { headers: { "Authorization": `Zoho-oauthtoken ${access_token}` } }
+    );
+    if (!r.ok) {
+      const err = await r.text().catch(() => "");
+      return res.status(r.status).json({ error: `Zoho contacts list failed: ${r.status}`, detail: err.slice(0, 500) });
+    }
+    const data = await r.json();
+    allContacts.push(...(data.contacts || []));
+    hasMore = data.page_context?.has_more_page || false;
+    page++;
+    if (page > 50) break;
+  }
+
+  // Fetch full detail for each contact to get addresses + contact persons
+  const results = [];
+  for (const c of allContacts) {
+    let detail = c;
+    const dr = await fetch(
+      `https://www.zohoapis.com/books/v3/contacts/${c.contact_id}?organization_id=${encodeURIComponent(org_id)}`,
+      { headers: { "Authorization": `Zoho-oauthtoken ${access_token}` } }
+    );
+    if (dr.ok) {
+      const dd = await dr.json();
+      detail = dd.contact || c;
+    }
+
+    const billing  = detail.billing_address  || {};
+    const shipping = detail.shipping_address || {};
+
+    // Collect all contact persons
+    const persons = (detail.contact_persons || []).map(p => ({
+      name:   [p.first_name, p.last_name].filter(Boolean).join(" ").trim(),
+      email:  p.email  || "",
+      phone:  p.phone  || p.mobile || "",
+      isPrimary: !!p.is_primary_contact,
+    })).filter(p => p.name || p.email || p.phone);
+
+    const primaryPerson = persons.find(p => p.isPrimary) || persons[0] || null;
+
+    results.push({
+      zoho_contact_id:   String(c.contact_id),
+      name:              detail.contact_name  || c.contact_name  || "",
+      company_name:      detail.company_name  || c.company_name  || "",
+      email:             detail.email         || c.email         || primaryPerson?.email || "",
+      phone:             detail.phone         || c.phone         || c.mobile || primaryPerson?.phone || "",
+      website:           detail.website       || c.website       || "",
+      notes:             detail.notes         || "",
+      payment_terms:     detail.payment_terms_label || detail.payment_terms || "",
+      currency_code:     detail.currency_code || "",
+      outstanding:       detail.outstanding_receivable_amount || 0,
+      contact_persons:   persons,
+      primary_contact:   primaryPerson,
+      billing_address: {
+        attention: billing.attention || billing.address2 || "",
+        street:    billing.address   || billing.street   || "",
+        city:      billing.city      || "",
+        state:     billing.state     || billing.state_code || "",
+        zip:       billing.zip       || billing.zip_code  || "",
+        country:   billing.country   || billing.country_code || "",
+        phone:     billing.phone     || "",
+        fax:       billing.fax       || "",
+      },
+      shipping_address: {
+        attention: shipping.attention || shipping.address2 || "",
+        street:    shipping.address   || shipping.street   || "",
+        city:      shipping.city      || "",
+        state:     shipping.state     || shipping.state_code || "",
+        zip:       shipping.zip       || shipping.zip_code  || "",
+        country:   shipping.country   || shipping.country_code || "",
+        phone:     shipping.phone     || "",
+        fax:       shipping.fax       || "",
+      },
+    });
+  }
+
+  return res.status(200).json({
+    contacts: results,
+    total: results.length,
     syncedAt: new Date().toISOString(),
   });
 }

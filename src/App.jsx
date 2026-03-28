@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.04";
-const BUILD_TIME   = "2026-03-28T00:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.05";
+const BUILD_TIME   = "2026-03-28T00:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -3915,6 +3915,34 @@ function BOMManager({ user }) {
       console.error("[Zoho] sync failed:", e);
       setZohoDemand(prev => ({ ...prev, loading: false, error: e.message }));
     }
+  };
+
+  // ── ZOHO CONTACTS SYNC ───────────────────────────────────────────────────
+  const syncZohoContacts = async () => {
+    let zohoOrgs = [];
+    try { zohoOrgs = JSON.parse(apiKeys.zoho_books_json || "[]"); } catch {}
+    if (apiKeys.zoho_org_id && apiKeys.zoho_refresh_token) {
+      const legacyOrg = { name: "Jackson Audio", org_id: apiKeys.zoho_org_id, client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, refresh_token: apiKeys.zoho_refresh_token };
+      if (zohoOrgs.length === 0 || !zohoOrgs.some(o => o.refresh_token?.length > 50)) zohoOrgs = [legacyOrg];
+    }
+    if (!zohoOrgs.some(o => o.org_id && o.refresh_token)) {
+      alert("Zoho Books credentials not configured. Add them in Settings.");
+      return null;
+    }
+    const allContacts = [];
+    for (const org of zohoOrgs) {
+      if (!org.org_id || !org.client_id || !org.client_secret || !org.refresh_token) continue;
+      const res = await fetch(`/api/zoho?action=contacts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ org_id: org.org_id, client_id: org.client_id, client_secret: org.client_secret, refresh_token: org.refresh_token }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); console.warn(`[Zoho Contacts] ${org.name} failed:`, e.error); continue; }
+      const data = await res.json();
+      // Tag each contact with the org name for brand detection
+      (data.contacts || []).forEach(c => { c.orgName = org.name; allContacts.push(c); });
+    }
+    return allContacts;
   };
 
   // ── SHIPSTATION INTEGRATION (units shipped) ──
@@ -15344,32 +15372,46 @@ function BOMManager({ user }) {
           };
 
           const runZohoImport = async () => {
-            const toImport = zohoImportPreview.candidates.filter(c => c.selected && !c.alreadyExists);
-            if (!toImport.length) { setZohoImportPreview(null); return; }
-            let imported = 0;
+            const mode = zohoImportPreview.mode || "orders";
+            const selected = zohoImportPreview.candidates.filter(c => c.selected);
+            if (!selected.length) { setZohoImportPreview(null); return; }
+            let imported = 0, updated = 0;
             const newDealers = [];
-            for (const c of toImport) {
+            const updatedDealers = [];
+            for (const c of selected) {
               try {
-                const row = {
-                  name: c.name,
-                  brand: c.brand,
-                  zoho_customer_name: c.zoho_customer_name,
-                  contact_name: c.contact_name,
-                  email: c.email,
-                  phone: c.phone,
-                  shipping_address: c.shipping_address,
-                  billing_address: c.billing_address,
-                  preferred_carrier: c.preferred_carrier,
-                  shipping_notes: c.shipping_notes,
-                };
-                const created = await createDealer(row);
-                newDealers.push(created);
-                imported++;
-              } catch (e) { console.warn("Import failed for", c.name, e.message); }
+                if (mode === "contacts" && c.existing) {
+                  // Merge — only fill blank fields
+                  if (c.willUpdate && Object.keys(c.updates).length > 0) {
+                    const result = await updateDealer(c.existing.id, c.updates);
+                    updatedDealers.push(result);
+                    updated++;
+                  }
+                } else if (!c.alreadyExists && !c.existing) {
+                  // New dealer
+                  const row = {
+                    name: c.name, brand: c.brand, zoho_customer_name: c.zoho_customer_name,
+                    contact_name: c.contact_name, email: c.email, phone: c.phone,
+                    shipping_address: c.shipping_address, billing_address: c.billing_address,
+                    preferred_carrier: c.preferred_carrier || "", shipping_notes: c.shipping_notes || "",
+                  };
+                  const created = await createDealer(row);
+                  newDealers.push(created);
+                  imported++;
+                }
+              } catch (e) { console.warn("Import/update failed for", c.name, e.message); }
             }
-            setDealers(prev => [...prev, ...newDealers].sort((a,b) => a.name.localeCompare(b.name)));
+            setDealers(prev => {
+              let next = [...prev];
+              for (const u of updatedDealers) next = next.map(d => d.id === u.id ? u : d);
+              next = [...next, ...newDealers];
+              return next.sort((a,b) => a.name.localeCompare(b.name));
+            });
             setZohoImportPreview(null);
-            alert(`Imported ${imported} dealer${imported!==1?"s":""} from Zoho.`);
+            const parts = [];
+            if (imported) parts.push(`${imported} new dealer${imported!==1?"s":""} imported`);
+            if (updated)  parts.push(`${updated} existing dealer${updated!==1?"s":""} updated`);
+            alert(parts.join(", ") + ".");
           };
 
           return (
@@ -15381,76 +15423,152 @@ function BOMManager({ user }) {
                 </div>
                 <div style={{ display:"flex", gap:8 }}>
                   <button className="btn-ghost" onClick={buildZohoImportCandidates}
-                    style={{ fontSize:12 }} title="Pull all dealers from synced Zoho orders">
-                    Import from Zoho
+                    style={{ fontSize:12 }} title="Pull dealers from synced Zoho sales orders (already cached)">
+                    Import from Orders
+                  </button>
+                  <button className="btn-ghost" style={{ fontSize:12, background:"#4bc07615", color:"#4bc076", border:"1px solid #4bc07633" }}
+                    title="Pull ALL contacts directly from Zoho — most complete data source"
+                    onClick={async () => {
+                      const btn = document.activeElement;
+                      if (btn) btn.textContent = "Syncing…";
+                      const contacts = await syncZohoContacts();
+                      if (btn) btn.textContent = "Sync from Zoho Contacts";
+                      if (!contacts) return;
+                      if (!contacts.length) { alert("No contacts returned from Zoho."); return; }
+
+                      const BRAND_NAMES = ["jackson audio","fulltone usa","fulltone"];
+                      const existingByName  = {};
+                      const existingByZoho  = {};
+                      for (const d of dealers) {
+                        existingByName[d.name.toLowerCase()] = d;
+                        if (d.zoho_customer_name) existingByZoho[d.zoho_customer_name.toLowerCase()] = d;
+                      }
+
+                      const candidates = contacts
+                        .filter(c => c.name && !BRAND_NAMES.includes(c.name.toLowerCase()))
+                        .map(c => {
+                          const key = c.name.toLowerCase();
+                          const existing = existingByName[key] || existingByZoho[key] || null;
+                          // Determine brand from org
+                          const bn = (c.orgName || "").toLowerCase();
+                          const brand = bn.includes("fulltone") ? "Fulltone USA" : "Jackson Audio";
+                          // Build the full record from Zoho contact data
+                          const zohoData = {
+                            name:              c.name,
+                            brand,
+                            zoho_customer_name: c.name,
+                            contact_name:      c.primary_contact?.name || (c.contact_persons?.[0]?.name) || "",
+                            email:             c.email || c.primary_contact?.email || "",
+                            phone:             c.phone || c.primary_contact?.phone || "",
+                            shipping_address:  c.shipping_address || {},
+                            billing_address:   c.billing_address  || {},
+                            website:           c.website || "",
+                            notes:             c.notes   || "",
+                            payment_terms:     c.payment_terms || "",
+                          };
+                          if (existing) {
+                            // Compute what fields would be updated (only blank fields)
+                            const updates = {};
+                            if (!existing.contact_name  && zohoData.contact_name)  updates.contact_name  = zohoData.contact_name;
+                            if (!existing.email         && zohoData.email)         updates.email         = zohoData.email;
+                            if (!existing.phone         && zohoData.phone)         updates.phone         = zohoData.phone;
+                            if (!existing.zoho_customer_name)                      updates.zoho_customer_name = c.name;
+                            const sa = existing.shipping_address || {};
+                            if (!sa.street && zohoData.shipping_address?.street)   updates.shipping_address = zohoData.shipping_address;
+                            const ba = existing.billing_address || {};
+                            if (!ba.street && zohoData.billing_address?.street)    updates.billing_address = zohoData.billing_address;
+                            return { ...zohoData, existing, updates, willUpdate: Object.keys(updates).length > 0, selected: Object.keys(updates).length > 0 };
+                          }
+                          return { ...zohoData, existing: null, updates: null, willUpdate: false, selected: true };
+                        });
+
+                      setZohoImportPreview({ candidates, mode: "contacts" });
+                    }}>
+                    Sync from Zoho Contacts
                   </button>
                   <button className="btn-primary" onClick={() => setDealerForm(emptyForm())}>+ Add Dealer</button>
                 </div>
               </div>
 
-              {/* ── Zoho Import Preview ── */}
-              {zohoImportPreview && (
-                <div style={{ background:cardBg, border:`2px solid #4bc076`, borderRadius:12, marginBottom:24, overflow:"hidden" }}>
-                  <div style={{ padding:"14px 20px", background:"#4bc07610", borderBottom:`1px solid #4bc07633`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                    <div>
-                      <div style={{ fontWeight:700, fontSize:14, color:textPrimary }}>Import Dealers from Zoho</div>
-                      <div style={{ fontSize:12, color:textSecondary, marginTop:2 }}>
-                        {zohoImportPreview.candidates.filter(c=>c.selected&&!c.alreadyExists).length} new dealers to import ·{" "}
-                        {zohoImportPreview.candidates.filter(c=>c.alreadyExists).length} already in directory
+              {/* ── Zoho Import / Contacts Sync Preview ── */}
+              {zohoImportPreview && (() => {
+                const isContacts = zohoImportPreview.mode === "contacts";
+                const newCount     = zohoImportPreview.candidates.filter(c => c.selected && !c.existing && !c.alreadyExists).length;
+                const updateCount  = zohoImportPreview.candidates.filter(c => c.selected && c.existing && c.willUpdate).length;
+                const skipCount    = zohoImportPreview.candidates.filter(c => c.alreadyExists || (c.existing && !c.willUpdate)).length;
+                return (
+                  <div style={{ background:cardBg, border:`2px solid #4bc076`, borderRadius:12, marginBottom:24, overflow:"hidden" }}>
+                    <div style={{ padding:"14px 20px", background:"#4bc07610", borderBottom:`1px solid #4bc07633`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <div>
+                        <div style={{ fontWeight:700, fontSize:14, color:textPrimary }}>
+                          {isContacts ? "Sync from Zoho Contacts" : "Import from Zoho Orders"}
+                        </div>
+                        <div style={{ fontSize:12, color:textSecondary, marginTop:2 }}>
+                          {newCount > 0 && <span style={{ color:"#0071e3", fontWeight:600 }}>{newCount} new</span>}
+                          {newCount > 0 && updateCount > 0 && " · "}
+                          {updateCount > 0 && <span style={{ color:"#ff9500", fontWeight:600 }}>{updateCount} to update</span>}
+                          {skipCount > 0 && <span style={{ color:textSecondary }}> · {skipCount} no changes</span>}
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", gap:8 }}>
+                        <button className="btn-ghost" onClick={() => setZohoImportPreview(null)}>Cancel</button>
+                        <button className="btn-primary" style={{ background:"#4bc076" }} onClick={runZohoImport}
+                          disabled={newCount + updateCount === 0}>
+                          {isContacts ? `Apply (${newCount + updateCount})` : `Import (${newCount})`}
+                        </button>
                       </div>
                     </div>
-                    <div style={{ display:"flex", gap:8 }}>
-                      <button className="btn-ghost" onClick={() => setZohoImportPreview(null)}>Cancel</button>
-                      <button className="btn-primary" style={{ background:"#4bc076" }} onClick={runZohoImport}
-                        disabled={!zohoImportPreview.candidates.filter(c=>c.selected&&!c.alreadyExists).length}>
-                        Import Selected
-                      </button>
+                    <div style={{ maxHeight:460, overflowY:"auto" }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                        <thead style={{ position:"sticky", top:0, background:darkMode?"#2c2c2e":"#f5f5f7", zIndex:1 }}>
+                          <tr>
+                            <th style={{ padding:"8px 12px", fontSize:11, fontWeight:700, color:textSecondary, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${borderColor}` }}>
+                              <input type="checkbox"
+                                checked={zohoImportPreview.candidates.filter(c=>!c.alreadyExists&&!(c.existing&&!c.willUpdate)).every(c=>c.selected)}
+                                onChange={e => setZohoImportPreview(p => ({ ...p, candidates: p.candidates.map(c => (c.alreadyExists||(c.existing&&!c.willUpdate)) ? c : { ...c, selected: e.target.checked }) }))} />
+                            </th>
+                            {["Dealer","Brand","Contact","Email","Ship To","Status","Fields to Fill"].map(h => (
+                              <th key={h} style={{ padding:"8px 12px", fontSize:11, fontWeight:700, color:textSecondary, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${borderColor}`, whiteSpace:"nowrap" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {zohoImportPreview.candidates.map((c, i) => {
+                            const isSkip = c.alreadyExists || (c.existing && !c.willUpdate);
+                            const shipLine = [c.shipping_address?.city, c.shipping_address?.state].filter(Boolean).join(", ");
+                            const updateFields = c.updates ? Object.keys(c.updates).map(k => k.replace(/_/g," ")).join(", ") : "";
+                            return (
+                              <tr key={i} style={{ opacity: isSkip ? 0.45 : 1, background: i%2===0?"transparent":darkMode?"#1c1c1e08":"#f5f5f708" }}>
+                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}` }}>
+                                  <input type="checkbox" checked={c.selected && !isSkip} disabled={isSkip}
+                                    onChange={e => setZohoImportPreview(p => ({ ...p, candidates: p.candidates.map((x,j) => j===i ? { ...x, selected:e.target.checked } : x) }))} />
+                                </td>
+                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontWeight:700, fontSize:13, color:textPrimary }}>{c.name}</td>
+                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}` }}>
+                                  <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:10, background:(brandColor[c.brand]||"#8e8e93")+"20", color:brandColor[c.brand]||textSecondary }}>{c.brand}</span>
+                                </td>
+                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:textPrimary }}>{c.contact_name||"—"}</td>
+                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:"#0071e3" }}>
+                                  {c.email ? <a href={`mailto:${c.email}`} onClick={e=>e.stopPropagation()} style={{ color:"#0071e3", textDecoration:"none" }}>{c.email}</a> : "—"}
+                                </td>
+                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:textSecondary }}>{shipLine||"—"}</td>
+                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}` }}>
+                                  {isSkip
+                                    ? <span style={{ fontSize:11, color:"#34c759", fontWeight:600 }}>No changes</span>
+                                    : c.existing
+                                      ? <span style={{ fontSize:11, color:"#ff9500", fontWeight:600 }}>Update</span>
+                                      : <span style={{ fontSize:11, color:"#0071e3", fontWeight:600 }}>New</span>}
+                                </td>
+                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:11, color:textSecondary }}>{updateFields || (c.existing ? "—" : "all fields")}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
-                  <div style={{ maxHeight:400, overflowY:"auto" }}>
-                    <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                      <thead style={{ position:"sticky", top:0, background:darkMode?"#2c2c2e":"#f5f5f7", zIndex:1 }}>
-                        <tr>
-                          <th style={{ padding:"8px 12px", fontSize:11, fontWeight:700, color:textSecondary, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${borderColor}` }}>
-                            <input type="checkbox"
-                              checked={zohoImportPreview.candidates.filter(c=>!c.alreadyExists).every(c=>c.selected)}
-                              onChange={e => setZohoImportPreview(p => ({ ...p, candidates: p.candidates.map(c => c.alreadyExists ? c : { ...c, selected: e.target.checked }) }))} />
-                          </th>
-                          {["Dealer","Brand","Contact","Email","Ship To","Orders","Status"].map(h => (
-                            <th key={h} style={{ padding:"8px 12px", fontSize:11, fontWeight:700, color:textSecondary, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${borderColor}`, whiteSpace:"nowrap" }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {zohoImportPreview.candidates.map((c, i) => {
-                          const shipLine = [c.shipping_address?.city, c.shipping_address?.state].filter(Boolean).join(", ");
-                          return (
-                            <tr key={i} style={{ opacity: c.alreadyExists ? 0.5 : 1, background: i%2===0?"transparent":darkMode?"#1c1c1e08":"#f5f5f708" }}>
-                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}` }}>
-                                <input type="checkbox" checked={c.selected && !c.alreadyExists} disabled={c.alreadyExists}
-                                  onChange={e => setZohoImportPreview(p => ({ ...p, candidates: p.candidates.map((x,j) => j===i ? { ...x, selected:e.target.checked } : x) }))} />
-                              </td>
-                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontWeight:700, fontSize:13, color:textPrimary }}>{c.name}</td>
-                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}` }}>
-                                <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:10, background:brandColor[c.brand]+"20", color:brandColor[c.brand]||textSecondary }}>{c.brand}</span>
-                              </td>
-                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:textPrimary }}>{c.contact_name||"—"}</td>
-                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:textPrimary }}>{c.email||"—"}</td>
-                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:textSecondary }}>{shipLine||"—"}</td>
-                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:textSecondary, textAlign:"center" }}>{c.orderCount}</td>
-                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}` }}>
-                                {c.alreadyExists
-                                  ? <span style={{ fontSize:11, color:"#34c759", fontWeight:600 }}>Already imported</span>
-                                  : <span style={{ fontSize:11, color:"#0071e3", fontWeight:600 }}>New</span>}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Add / Edit form */}
               {dealerForm && (
