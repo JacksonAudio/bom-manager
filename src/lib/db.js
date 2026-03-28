@@ -1172,6 +1172,183 @@ export async function deleteShopOrder(id) {
   check(error, 'deleteShopOrder')
 }
 
+// ─────────────────────────────────────────────
+// INVENTORY TRANSACTIONS
+// ─────────────────────────────────────────────
+
+// Fetch transaction history for a single part, newest first, limit 50
+export async function fetchInventoryTransactions(partId) {
+  const { data, error } = await supabase
+    .from('inventory_transactions')
+    .select('*')
+    .eq('part_id', partId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+  check(error, 'fetchInventoryTransactions')
+  return data
+}
+
+// Insert a new transaction record
+export async function createInventoryTransaction(tx) {
+  const { data, error } = await supabase
+    .from('inventory_transactions')
+    .insert(tx)
+    .select()
+    .single()
+  check(error, 'createInventoryTransaction')
+  return data
+}
+
+// ─────────────────────────────────────────────
+// COMPONENT RESERVATIONS
+// ─────────────────────────────────────────────
+
+// Get all reservations for a build order
+export async function fetchComponentReservations(buildOrderId) {
+  const { data, error } = await supabase
+    .from('component_reservations')
+    .select('*')
+    .eq('build_order_id', buildOrderId)
+  check(error, 'fetchComponentReservations')
+  return data
+}
+
+// Get all active reservations (across all build orders)
+export async function fetchAllComponentReservations() {
+  const { data, error } = await supabase
+    .from('component_reservations')
+    .select('*')
+    .eq('status', 'active')
+  check(error, 'fetchAllComponentReservations')
+  return data
+}
+
+// Bulk insert reservations for a build order
+export async function createComponentReservations(buildOrderId, reservations, userId) {
+  if (!reservations.length) return []
+  const rows = reservations.map(r => ({
+    build_order_id: buildOrderId,
+    part_id: r.part_id,
+    reserved_qty: r.reserved_qty,
+    consumed_qty: 0,
+    status: 'active',
+    created_by: userId,
+  }))
+  const { data, error } = await supabase
+    .from('component_reservations')
+    .insert(rows)
+    .select()
+  check(error, 'createComponentReservations')
+  return data
+}
+
+// Release all active reservations for a build order
+export async function releaseComponentReservations(buildOrderId, userId) {
+  const { error } = await supabase
+    .from('component_reservations')
+    .update({ status: 'released', released_at: new Date().toISOString(), released_by: userId })
+    .eq('build_order_id', buildOrderId)
+    .eq('status', 'active')
+  check(error, 'releaseComponentReservations')
+}
+
+// Mark all active reservations as consumed when build completes
+export async function consumeComponentReservations(buildOrderId) {
+  const { error } = await supabase
+    .from('component_reservations')
+    .update({ status: 'consumed' })
+    .eq('build_order_id', buildOrderId)
+    .eq('status', 'active')
+  check(error, 'consumeComponentReservations')
+}
+
+// ─────────────────────────────────────────────
+// FINISHED GOODS
+// ─────────────────────────────────────────────
+
+// Get all finished goods shelf rows
+export async function fetchFinishedGoods() {
+  const { data, error } = await supabase
+    .from('finished_goods')
+    .select('*')
+    .order('updated_at', { ascending: false })
+  check(error, 'fetchFinishedGoods')
+  return data
+}
+
+// Increment or decrement shelf count for a product
+// quantityDelta: positive = add, negative = remove
+export async function upsertFinishedGoods(productId, quantityDelta, userId) {
+  // First try to get current row
+  const { data: existing } = await supabase
+    .from('finished_goods')
+    .select('quantity_on_hand')
+    .eq('product_id', productId)
+    .single()
+
+  const currentQty = existing?.quantity_on_hand ?? 0
+  const newQty = Math.max(0, currentQty + quantityDelta)
+
+  const { data, error } = await supabase
+    .from('finished_goods')
+    .upsert(
+      { product_id: productId, quantity_on_hand: newQty, updated_at: new Date().toISOString(), updated_by: userId },
+      { onConflict: 'product_id' }
+    )
+    .select()
+    .single()
+  check(error, 'upsertFinishedGoods')
+  return data
+}
+
+// Update target/min stock for a product
+export async function updateFinishedGoodsTargets(productId, fields, userId) {
+  const { data, error } = await supabase
+    .from('finished_goods')
+    .upsert(
+      { product_id: productId, ...fields, updated_at: new Date().toISOString(), updated_by: userId },
+      { onConflict: 'product_id' }
+    )
+    .select()
+    .single()
+  check(error, 'updateFinishedGoodsTargets')
+  return data
+}
+
+// ─────────────────────────────────────────────
+// UNIT REPAIRS
+// ─────────────────────────────────────────────
+
+// Get all repair records, newest first
+export async function fetchUnitRepairs() {
+  const { data, error } = await supabase
+    .from('unit_repairs')
+    .select('*')
+    .order('created_at', { ascending: false })
+  check(error, 'fetchUnitRepairs')
+  return data
+}
+
+// Create a new repair record
+export async function createUnitRepair(repair) {
+  const { data, error } = await supabase
+    .from('unit_repairs')
+    .insert(repair)
+    .select()
+    .single()
+  check(error, 'createUnitRepair')
+  return data
+}
+
+// Update repair status/notes
+export async function updateUnitRepair(id, fields) {
+  const { error } = await supabase
+    .from('unit_repairs')
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  check(error, 'updateUnitRepair')
+}
+
 // Fetch all price history (for product-level rollups)
 export async function fetchAllPriceHistory() {
   const all = [];
