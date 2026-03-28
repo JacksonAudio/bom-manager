@@ -322,22 +322,25 @@ async function handleContacts(req, res, org_id, access_token) {
   let page = 1;
   let hasMore = true;
 
-  // Fetch full contact list (customers only)
+  // Fetch all contacts (no contact_type filter — filter vendor-only on client side)
   while (hasMore) {
-    const r = await fetch(
-      `https://www.zohoapis.com/books/v3/contacts?organization_id=${encodeURIComponent(org_id)}&contact_type=customer&page=${page}&per_page=200`,
-      { headers: { "Authorization": `Zoho-oauthtoken ${access_token}` } }
-    );
+    const url = `https://www.zohoapis.com/books/v3/contacts?organization_id=${encodeURIComponent(org_id)}&page=${page}&per_page=200`;
+    const r = await fetch(url, { headers: { "Authorization": `Zoho-oauthtoken ${access_token}` } });
     if (!r.ok) {
       const err = await r.text().catch(() => "");
+      console.error("[zoho contacts] list failed:", r.status, err.slice(0, 300));
       return res.status(r.status).json({ error: `Zoho contacts list failed: ${r.status}`, detail: err.slice(0, 500) });
     }
     const data = await r.json();
-    allContacts.push(...(data.contacts || []));
+    console.log(`[zoho contacts] page ${page}: ${(data.contacts||[]).length} contacts, has_more=${data.page_context?.has_more_page}`);
+    // Keep customers and contacts without a type (exclude vendor-only)
+    const batch = (data.contacts || []).filter(c => !c.contact_type || c.contact_type !== "vendor");
+    allContacts.push(...batch);
     hasMore = data.page_context?.has_more_page || false;
     page++;
     if (page > 50) break;
   }
+  console.log(`[zoho contacts] total after filter: ${allContacts.length}`);
 
   // Fetch full detail for each contact to get addresses + contact persons
   const results = [];

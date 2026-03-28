@@ -9,7 +9,7 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.06";
+const APP_VERSION  = "v8.07";
 const BUILD_TIME   = "2026-03-28T01:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
