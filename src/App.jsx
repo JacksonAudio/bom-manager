@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.02";
-const BUILD_TIME   = "2026-03-27T23:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.03";
+const BUILD_TIME   = "2026-03-27T23:50:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -1514,6 +1514,7 @@ function BOMManager({ user }) {
   const [shopOrders, setShopOrders] = useState([]);
   const [shopOrdersLoading, setShopOrdersLoading] = useState(false);
   const [shopOrderForm, setShopOrderForm] = useState(null); // null | { shopType, ... }
+  const [zohoImportPreview, setZohoImportPreview] = useState(null); // null | { candidates, selected }
   // Dynamic locked-supplier check — hardcoded fallbacks + any manual (non-API) vendor in the DB
   // eslint-disable-next-line no-shadow
   const isLockedSupplier = useCallback((supplier) => {
@@ -15283,6 +15284,88 @@ function BOMManager({ user }) {
             </div>
           );
 
+          // ── Build import candidates from synced Zoho orders ──────────────────
+          const buildZohoImportCandidates = () => {
+            const orders = zohoDemand?.orders || [];
+            if (!orders.length) { alert("No Zoho orders synced. Go to Demand and click Sync Zoho first."); return; }
+            const map = {};
+            for (const o of orders) {
+              const name = (o.dealerName || "").trim();
+              if (!name || ["jackson audio","fulltone usa","fulltone"].includes(name.toLowerCase())) continue;
+              if (!map[name]) {
+                map[name] = {
+                  name,
+                  brand: o.brand || "Jackson Audio",
+                  zoho_customer_name: name,
+                  contact_name: o.contactName || "",
+                  email: o.email || "",
+                  phone: o.phone || "",
+                  shipping_address: o.shippingAddress || {},
+                  billing_address: o.billingAddress || {},
+                  preferred_carrier: "",
+                  shipping_notes: "",
+                  orderCount: 0,
+                  brands: new Set(),
+                };
+              }
+              map[name].orderCount++;
+              if (o.brand) map[name].brands.add(o.brand);
+              // Use most recent non-empty contact info
+              if (!map[name].contact_name && o.contactName) map[name].contact_name = o.contactName;
+              if (!map[name].email && o.email) map[name].email = o.email;
+              if (!map[name].phone && o.phone) map[name].phone = o.phone;
+              if (o.shippingAddress?.street && !map[name].shipping_address?.street) map[name].shipping_address = o.shippingAddress;
+              if (o.billingAddress?.street && !map[name].billing_address?.street) map[name].billing_address = o.billingAddress;
+            }
+            // Determine brand — if dealer ordered both brands, mark "Both"
+            const candidates = Object.values(map).map(c => {
+              const brandSet = c.brands;
+              const brand = brandSet.size > 1 ? "Both" : [...brandSet][0] || c.brand;
+              return { ...c, brand, brands: undefined, selected: true };
+            }).sort((a, b) => a.name.localeCompare(b.name));
+
+            if (!candidates.length) { alert("No new dealers found in synced Zoho orders."); return; }
+
+            // Mark already-imported dealers
+            const existingNames = new Set(dealers.map(d => d.name.toLowerCase()));
+            const existingZoho = new Set(dealers.map(d => (d.zoho_customer_name||"").toLowerCase()));
+            const withStatus = candidates.map(c => ({
+              ...c,
+              alreadyExists: existingNames.has(c.name.toLowerCase()) || existingZoho.has(c.name.toLowerCase()),
+              selected: !existingNames.has(c.name.toLowerCase()) && !existingZoho.has(c.name.toLowerCase()),
+            }));
+            setZohoImportPreview({ candidates: withStatus });
+          };
+
+          const runZohoImport = async () => {
+            const toImport = zohoImportPreview.candidates.filter(c => c.selected && !c.alreadyExists);
+            if (!toImport.length) { setZohoImportPreview(null); return; }
+            let imported = 0;
+            const newDealers = [];
+            for (const c of toImport) {
+              try {
+                const row = {
+                  name: c.name,
+                  brand: c.brand,
+                  zoho_customer_name: c.zoho_customer_name,
+                  contact_name: c.contact_name,
+                  email: c.email,
+                  phone: c.phone,
+                  shipping_address: c.shipping_address,
+                  billing_address: c.billing_address,
+                  preferred_carrier: c.preferred_carrier,
+                  shipping_notes: c.shipping_notes,
+                };
+                const created = await createDealer(row);
+                newDealers.push(created);
+                imported++;
+              } catch (e) { console.warn("Import failed for", c.name, e.message); }
+            }
+            setDealers(prev => [...prev, ...newDealers].sort((a,b) => a.name.localeCompare(b.name)));
+            setZohoImportPreview(null);
+            alert(`Imported ${imported} dealer${imported!==1?"s":""} from Zoho.`);
+          };
+
           return (
             <div style={{ maxWidth:"100%" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20 }}>
@@ -15290,8 +15373,78 @@ function BOMManager({ user }) {
                   <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:21, fontWeight:800, marginBottom:4, color:textPrimary }}>Dealer Directory</h2>
                   <p style={{ color:textSecondary, fontSize:13, margin:0 }}>All wholesale accounts — billing, shipping, contacts, and special instructions.</p>
                 </div>
-                <button className="btn-primary" onClick={() => setDealerForm(emptyForm())}>+ Add Dealer</button>
+                <div style={{ display:"flex", gap:8 }}>
+                  <button className="btn-ghost" onClick={buildZohoImportCandidates}
+                    style={{ fontSize:12 }} title="Pull all dealers from synced Zoho orders">
+                    Import from Zoho
+                  </button>
+                  <button className="btn-primary" onClick={() => setDealerForm(emptyForm())}>+ Add Dealer</button>
+                </div>
               </div>
+
+              {/* ── Zoho Import Preview ── */}
+              {zohoImportPreview && (
+                <div style={{ background:cardBg, border:`2px solid #4bc076`, borderRadius:12, marginBottom:24, overflow:"hidden" }}>
+                  <div style={{ padding:"14px 20px", background:"#4bc07610", borderBottom:`1px solid #4bc07633`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:14, color:textPrimary }}>Import Dealers from Zoho</div>
+                      <div style={{ fontSize:12, color:textSecondary, marginTop:2 }}>
+                        {zohoImportPreview.candidates.filter(c=>c.selected&&!c.alreadyExists).length} new dealers to import ·{" "}
+                        {zohoImportPreview.candidates.filter(c=>c.alreadyExists).length} already in directory
+                      </div>
+                    </div>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button className="btn-ghost" onClick={() => setZohoImportPreview(null)}>Cancel</button>
+                      <button className="btn-primary" style={{ background:"#4bc076" }} onClick={runZohoImport}
+                        disabled={!zohoImportPreview.candidates.filter(c=>c.selected&&!c.alreadyExists).length}>
+                        Import Selected
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ maxHeight:400, overflowY:"auto" }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                      <thead style={{ position:"sticky", top:0, background:darkMode?"#2c2c2e":"#f5f5f7", zIndex:1 }}>
+                        <tr>
+                          <th style={{ padding:"8px 12px", fontSize:11, fontWeight:700, color:textSecondary, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${borderColor}` }}>
+                            <input type="checkbox"
+                              checked={zohoImportPreview.candidates.filter(c=>!c.alreadyExists).every(c=>c.selected)}
+                              onChange={e => setZohoImportPreview(p => ({ ...p, candidates: p.candidates.map(c => c.alreadyExists ? c : { ...c, selected: e.target.checked }) }))} />
+                          </th>
+                          {["Dealer","Brand","Contact","Email","Ship To","Orders","Status"].map(h => (
+                            <th key={h} style={{ padding:"8px 12px", fontSize:11, fontWeight:700, color:textSecondary, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${borderColor}`, whiteSpace:"nowrap" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {zohoImportPreview.candidates.map((c, i) => {
+                          const shipLine = [c.shipping_address?.city, c.shipping_address?.state].filter(Boolean).join(", ");
+                          return (
+                            <tr key={i} style={{ opacity: c.alreadyExists ? 0.5 : 1, background: i%2===0?"transparent":darkMode?"#1c1c1e08":"#f5f5f708" }}>
+                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}` }}>
+                                <input type="checkbox" checked={c.selected && !c.alreadyExists} disabled={c.alreadyExists}
+                                  onChange={e => setZohoImportPreview(p => ({ ...p, candidates: p.candidates.map((x,j) => j===i ? { ...x, selected:e.target.checked } : x) }))} />
+                              </td>
+                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontWeight:700, fontSize:13, color:textPrimary }}>{c.name}</td>
+                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}` }}>
+                                <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:10, background:brandColor[c.brand]+"20", color:brandColor[c.brand]||textSecondary }}>{c.brand}</span>
+                              </td>
+                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:textPrimary }}>{c.contact_name||"—"}</td>
+                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:textPrimary }}>{c.email||"—"}</td>
+                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:textSecondary }}>{shipLine||"—"}</td>
+                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:textSecondary, textAlign:"center" }}>{c.orderCount}</td>
+                              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}` }}>
+                                {c.alreadyExists
+                                  ? <span style={{ fontSize:11, color:"#34c759", fontWeight:600 }}>Already imported</span>
+                                  : <span style={{ fontSize:11, color:"#0071e3", fontWeight:600 }}>New</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Add / Edit form */}
               {dealerForm && (
