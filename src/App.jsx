@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.08";
-const BUILD_TIME   = "2026-03-28T02:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.09";
+const BUILD_TIME   = "2026-03-28T03:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -15274,12 +15274,14 @@ function BOMManager({ user }) {
 
           const saveDealer = async () => {
             if (!dealerForm?.name?.trim()) { alert("Dealer name is required."); return; }
+            const fields = ["name","brand","zoho_customer_name","account_number","contact_name","email","phone","website","notes","preferred_carrier","shipping_notes","billing_address","shipping_address"];
+            const payload = Object.fromEntries(fields.map(k => [k, dealerForm[k] ?? null]));
             try {
               if (dealerForm.id) {
-                const updated = await updateDealer(dealerForm.id, dealerForm);
+                const updated = await updateDealer(dealerForm.id, payload);
                 setDealers(prev => prev.map(d => d.id === dealerForm.id ? updated : d));
               } else {
-                const created = await createDealer(dealerForm);
+                const created = await createDealer(payload);
                 setDealers(prev => [...prev, created].sort((a,b) => a.name.localeCompare(b.name)));
               }
               setDealerForm(null);
