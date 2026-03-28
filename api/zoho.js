@@ -137,8 +137,12 @@ async function handleOrders(req, res, org_id, access_token) {
       date: order.date || order.created_time,
       createdAt: order.created_time || order.date,
       status: order.status,
+      // dealerName = actual customer/buyer (e.g. "Sound Sharing Co.")
+      // brandName  = Zoho org/seller (e.g. "Fulltone USA Inc.")
+      dealerName: order.customer_name || "",
       customerName: order.customer_name || "",
-      companyName: orderDetail.company_name || order.customer_name || "",
+      companyName: order.customer_name || "",
+      brandName: orderDetail.company_name || "",
       contactName: contact.first_name ? `${contact.first_name} ${contact.last_name || ""}`.trim() : "",
       email: contact.email || orderDetail.email || "",
       phone: contact.phone || contact.mobile || orderDetail.phone || "",

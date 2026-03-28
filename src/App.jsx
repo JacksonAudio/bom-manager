@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.99";
-const BUILD_TIME   = "2026-03-27T22:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.01";
+const BUILD_TIME   = "2026-03-28T10:50:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -11081,9 +11081,20 @@ function BOMManager({ user }) {
                       base.carrier = ssMatch.shipments[0]?.carrier || "";
                       base.shipDate = ssMatch.shipments[0]?.shipDate || "";
                     }
-                    // Determine brand from Zoho customer_name/company_name (in Zoho, this IS the brand)
-                    const cn = (order.companyName || order.customerName || "").toLowerCase();
-                    base.brand = cn.includes("fulltone") ? "Fulltone USA" : "Jackson Audio";
+                    // Brand = from Zoho org name (brandName field from company_name), fallback to line-item product brand detection
+                    const bn = (order.brandName || "").toLowerCase();
+                    if (bn.includes("fulltone")) base.brand = "Fulltone USA";
+                    else if (bn.includes("jackson")) base.brand = "Jackson Audio";
+                    else {
+                      // Fallback: detect from BOM product brands on line items
+                      const brandCounts = {};
+                      for (const li of order.lineItems) {
+                        const bp = products.find(p => p.zohoProductId === li.productId || productMatchesTitle(p, li.title));
+                        if (bp?.brand) brandCounts[bp.brand] = (brandCounts[bp.brand] || 0) + 1;
+                      }
+                      const top = Object.entries(brandCounts).sort((a,b)=>b[1]-a[1])[0];
+                      base.brand = top ? top[0] : "Jackson Audio";
+                    }
 
                     base.due = computeDueStatus(base);
                     return base;
