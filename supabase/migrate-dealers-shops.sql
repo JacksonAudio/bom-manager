@@ -38,16 +38,10 @@ CREATE POLICY "authenticated insert dealers"
 CREATE POLICY "authenticated update dealers"
   ON dealers FOR UPDATE TO authenticated USING (true);
 
--- Admin-only delete (matches pattern from migrate-admin-delete-only.sql)
+-- Admin-only delete (uses is_admin_user() function, matches existing pattern)
 CREATE POLICY "admin delete dealers"
   ON dealers FOR DELETE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM team_members
-      WHERE team_members.user_id = auth.uid()
-        AND team_members.role = 'admin'
-    )
-  );
+  USING (is_admin_user());
 
 -- ─────────────────────────────────────────────
 -- SHOP ORDERS
@@ -90,13 +84,7 @@ CREATE POLICY "authenticated update shop_orders"
 
 CREATE POLICY "admin delete shop_orders"
   ON shop_orders FOR DELETE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM team_members
-      WHERE team_members.user_id = auth.uid()
-        AND team_members.role = 'admin'
-    )
-  );
+  USING (is_admin_user());
 
 -- Auto-generate order numbers via sequence
 CREATE SEQUENCE IF NOT EXISTS pcb_order_seq START 1;
