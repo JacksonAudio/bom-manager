@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.24";
-const BUILD_TIME   = "2026-03-28T02:20:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.25";
+const BUILD_TIME   = "2026-03-28T02:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -1470,6 +1470,9 @@ function BOMManager({ user }) {
   const [compSearchDescPrefix, setCompSearchDescPrefix] = useState("");
   const [compSearchLimit, setCompSearchLimit] = useState("10");
   const [compSearchSource, setCompSearchSource] = useState("auto"); // "auto" | "mouser" | "nexar"
+  const [mmSearchMpn,   setMmSearchMpn]   = useState("");
+  const [mmSearchResult, setMmSearchResult] = useState(null);  // null | { ...result } | { error: string }
+  const [mmSearchLoading, setMmSearchLoading] = useState(false);
   const [compSort, setCompSort] = useState({ field: "value", asc: true }); // sortable columns in component library
   const [compTariffFreeOnly, setCompTariffFreeOnly] = useState(false); // filter component library to tariff-free parts
   const [nexarUsed, setNexarUsed] = useState(() => { try { return parseInt(localStorage.getItem("nexar_used")||"6557"); } catch { return 6557; } });
@@ -6651,11 +6654,119 @@ function BOMManager({ user }) {
                   );})()}
 
                   {compSearchLoading && (
-                    <div style={{ textAlign:"center",padding:"20px",color:"#86868b",fontSize:13 }}>Searching Mouser...</div>
+                    <div style={{ textAlign:"center",padding:"20px",color:"#86868b",fontSize:13 }}>Searching {compSearchSource === "mouser" || (compSearchSource === "auto" && apiKeys.mouser_api_key) ? "Mouser" : "Nexar"}...</div>
                   )}
                 </div>
               );
             })()}
+
+            {/* ── McMaster-Carr MPN Lookup */}
+            <div style={{ marginBottom:12,padding:"16px 20px",background:"#fff",borderRadius:10,border:"1px solid #f5d0d0",boxShadow:"0 1px 4px rgba(200,24,30,0.07)" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:4 }}>
+                <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,background:"#c8181e",color:"#fff",fontWeight:800,fontSize:11,letterSpacing:"-0.5px",flexShrink:0 }}>MC</span>
+                <div style={{ fontSize:14,fontWeight:700,color:"#c8181e" }}>McMaster-Carr Lookup</div>
+              </div>
+              <p style={{ color:"#86868b",fontSize:12,marginBottom:12 }}>Look up a McMaster-Carr part number directly — returns price breaks, description, and a product link. Cert auth is handled server-side.</p>
+              <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
+                <div style={{ flex:1,position:"relative",minWidth:160 }}>
+                  <input type="text" value={mmSearchMpn} onChange={e => setMmSearchMpn(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && mmSearchMpn.trim()) {
+                        setMmSearchResult(null);
+                        setMmSearchLoading(true);
+                        fetch(`/api/search-components?action=mcmaster&mpn=${encodeURIComponent(mmSearchMpn.trim())}`)
+                          .then(r => r.json())
+                          .then(d => setMmSearchResult(d))
+                          .catch(err => setMmSearchResult({ error: err.message }))
+                          .finally(() => setMmSearchLoading(false));
+                      }
+                    }}
+                    placeholder="McMaster part number (e.g. 91251A542)"
+                    style={{ width:"100%",padding:"9px 12px",paddingRight:mmSearchMpn?28:12,borderRadius:8,fontSize:13,border:"1px solid #f5d0d0",boxSizing:"border-box",fontFamily:"inherit" }} />
+                  {mmSearchMpn && <span onClick={() => { setMmSearchMpn(""); setMmSearchResult(null); }}
+                    style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#86868b",lineHeight:1 }}>✕</span>}
+                </div>
+                <button onClick={() => {
+                  if (!mmSearchMpn.trim()) return;
+                  setMmSearchResult(null);
+                  setMmSearchLoading(true);
+                  fetch(`/api/search-components?action=mcmaster&mpn=${encodeURIComponent(mmSearchMpn.trim())}`)
+                    .then(r => r.json())
+                    .then(d => setMmSearchResult(d))
+                    .catch(err => setMmSearchResult({ error: err.message }))
+                    .finally(() => setMmSearchLoading(false));
+                }} disabled={mmSearchLoading || !mmSearchMpn.trim()}
+                  style={{ padding:"9px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                    border:"none",background:"#c8181e",color:"#fff",opacity:mmSearchLoading||!mmSearchMpn.trim()?"0.5":"1",whiteSpace:"nowrap" }}>
+                  {mmSearchLoading ? "Looking up…" : "Look Up"}
+                </button>
+              </div>
+
+              {/* Result */}
+              {mmSearchResult && (() => {
+                if (mmSearchResult.error) {
+                  return (
+                    <div style={{ marginTop:12,padding:"10px 14px",background:"rgba(255,59,48,0.06)",border:"1px solid rgba(255,59,48,0.2)",borderRadius:8,fontSize:12,color:"#ff3b30" }}>
+                      {mmSearchResult.error}
+                    </div>
+                  );
+                }
+                const r = mmSearchResult;
+                return (
+                  <div style={{ marginTop:12,padding:"14px 16px",background:"rgba(200,24,30,0.04)",border:"1px solid rgba(200,24,30,0.15)",borderRadius:8 }}>
+                    <div style={{ display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-start" }}>
+                      <div style={{ flex:"0 0 auto" }}>
+                        <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Part Number</div>
+                        <div style={{ fontFamily:"'SF Mono',monospace",fontWeight:700,fontSize:14,color:"#c8181e" }}>{r.mpn}</div>
+                      </div>
+                      <div style={{ flex:"1 1 200px" }}>
+                        <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Description</div>
+                        <div style={{ fontSize:12,color:"#1d1d1f",lineHeight:"18px" }}>{r.description || "—"}</div>
+                      </div>
+                      <div style={{ flex:"0 0 auto" }}>
+                        <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Unit Price</div>
+                        <div style={{ fontWeight:700,fontSize:14,color:"#1d1d1f" }}>{r.unitPrice > 0 ? `$${r.unitPrice.toFixed(4)}` : "—"}</div>
+                      </div>
+                      <div style={{ flex:"0 0 auto" }}>
+                        <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>MOQ</div>
+                        <div style={{ fontSize:12,color:"#1d1d1f" }}>{r.moq ?? "—"}</div>
+                      </div>
+                      <div style={{ flex:"0 0 auto" }}>
+                        <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Origin</div>
+                        <span style={{ fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(52,199,89,0.12)",color:"#34c759" }}>US</span>
+                      </div>
+                    </div>
+
+                    {/* Price breaks */}
+                    {r.priceBreaks && r.priceBreaks.length > 1 && (
+                      <div style={{ marginTop:10 }}>
+                        <div style={{ fontSize:10,color:"#86868b",marginBottom:4 }}>Price Breaks</div>
+                        <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+                          {r.priceBreaks.map((pb, i) => (
+                            <span key={i} style={{ fontSize:11,padding:"3px 8px",borderRadius:4,background:"rgba(200,24,30,0.06)",color:"#c8181e",fontWeight:600 }}>
+                              {pb.qty}+ @ ${pb.price.toFixed(4)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ marginTop:10,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
+                      <a href={r.url} target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize:12,color:"#c8181e",textDecoration:"none",fontWeight:600,display:"inline-flex",alignItems:"center",gap:3 }}>
+                        View on McMaster-Carr ↗
+                      </a>
+                      {r.datasheet && (
+                        <a href={r.datasheet} target="_blank" rel="noopener noreferrer"
+                          style={{ fontSize:12,color:"#0071e3",textDecoration:"none",fontWeight:600 }}>
+                          Datasheet ↗
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
 
             {/* ── Bulk-action bar — only visible when parts are selected */}
             {selectedParts.size > 0 && (
@@ -16562,8 +16673,8 @@ function BOMManager({ user }) {
                   <br /><br />
                   <strong>Setup:</strong> In Vercel → Project Settings → Environment Variables, add:
                   <ul style={{ margin:"8px 0 0 16px",padding:0,lineHeight:"1.8" }}>
-                    <li><code>MCMASTER_PFX_B64_1</code> — first 3999 chars of base64-encoded Jackson-1.pfx</li>
-                    <li><code>MCMASTER_PFX_B64_2</code> — remaining chars of base64-encoded Jackson-1.pfx</li>
+                    <li><code>MCMASTER_PFX_B64_1</code> — first 2388 chars of base64-encoded Jackson-1.pfx</li>
+                    <li><code>MCMASTER_PFX_B64_2</code> — chars 2389 to end of base64-encoded Jackson-1.pfx</li>
                     <li><code>MCMASTER_PFX_PASS</code> — PFX passphrase</li>
                     <li><code>MCMASTER_USERNAME</code> — McMaster API username</li>
                     <li><code>MCMASTER_PASSWORD</code> — McMaster API password</li>
