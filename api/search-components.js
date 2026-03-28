@@ -2,10 +2,12 @@
 // api/search-components.js — Component Search + McMaster-Carr
 //
 // action=mouser/nexar (default): keyword search via Mouser or Nexar
-// action=mcmaster: product lookup via mTLS client cert
+// action=mcmaster: product lookup via mTLS cert + bearer token auth
 //   Required Vercel env vars for McMaster:
 //     MCMASTER_PFX_B64  — base64-encoded Jackson-1.pfx
 //     MCMASTER_PFX_PASS — PFX passphrase
+//     MCMASTER_USERNAME — McMaster API username
+//     MCMASTER_PASSWORD — McMaster API password
 // ============================================================
 
 import https from "https";
@@ -14,9 +16,13 @@ import https from "https";
 
 const MCMASTER_BASE = "https://api.mcmaster.com/v1";
 
+// Module-level token cache — reused across warm invocations
+let _mmToken = null;
+let _mmTokenExpires = 0;
+
 function makeMcMasterAgent() {
   const pfxB64 = process.env.MCMASTER_PFX_B64;
-  if (!pfxB64) throw new Error("MCMASTER_PFX_B64 env var not set — add base64 PFX to Vercel environment variables");
+  if (!pfxB64) throw new Error("MCMASTER_PFX_B64 env var not set");
   return new https.Agent({
     pfx: Buffer.from(pfxB64, "base64"),
     passphrase: process.env.MCMASTER_PFX_PASS || "",
@@ -24,40 +30,76 @@ function makeMcMasterAgent() {
   });
 }
 
-function httpsGet(url, agent) {
+function httpsRequest(method, url, agent, body, token) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { agent }, (res) => {
-      let body = "";
-      res.on("data", (chunk) => (body += chunk));
-      res.on("end", () => resolve({ status: res.statusCode, body }));
-    });
+    const parsed = new URL(url);
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const bodyStr = body ? JSON.stringify(body) : null;
+    if (bodyStr) headers["Content-Length"] = Buffer.byteLength(bodyStr);
+
+    const req = https.request(
+      { hostname: parsed.hostname, path: parsed.pathname + parsed.search, method, headers, agent },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => resolve({ status: res.statusCode, body: data }));
+      }
+    );
     req.on("error", reject);
     req.setTimeout(15000, () => req.destroy(new Error("McMaster request timed out")));
+    if (bodyStr) req.write(bodyStr);
+    req.end();
   });
 }
 
-function mapMcMasterProduct(p, requestedMpn) {
-  // NOTE: Adjust field names once actual McMaster API response shape is confirmed
-  const rawBreaks = p.priceBreaks || p.pricing || p.pricingTiers || [];
-  const priceBreaks = rawBreaks.map((pb) => ({
-    qty: parseInt(pb.quantity || pb.minQuantity || pb.qty || 1),
-    price: parseFloat(pb.price || pb.unitPrice || 0),
-  })).filter((pb) => pb.price > 0);
+async function getMcMasterToken(agent) {
+  // Return cached token if still valid (with 5-min buffer)
+  if (_mmToken && Date.now() < _mmTokenExpires - 300_000) return _mmToken;
 
-  const unitPrice = priceBreaks.length
-    ? priceBreaks[0].price
-    : parseFloat(p.price || p.unitPrice || p.listPrice || 0);
+  const username = process.env.MCMASTER_USERNAME;
+  const password = process.env.MCMASTER_PASSWORD;
+  if (!username || !password) throw new Error("MCMASTER_USERNAME / MCMASTER_PASSWORD env vars not set");
+
+  const { status, body } = await httpsRequest(
+    "POST", `${MCMASTER_BASE}/login`, agent,
+    { UserName: username, Password: password }
+  );
+
+  if (status !== 200) throw new Error(`McMaster login failed (${status}): ${body.slice(0, 200)}`);
+  const data = JSON.parse(body);
+  if (!data.AuthToken) throw new Error("McMaster login returned no AuthToken");
+
+  _mmToken = data.AuthToken;
+  // ExpirationTS is ISO string; fall back to 23h from now
+  _mmTokenExpires = data.ExpirationTS ? new Date(data.ExpirationTS).getTime() : Date.now() + 23 * 3600_000;
+  return _mmToken;
+}
+
+function mapMcMasterProduct(info, price, requestedMpn) {
+  // price endpoint returns array of { Amount, MinimumQuantity, UnitOfMeasure }
+  const rawBreaks = Array.isArray(price) ? price : [];
+  const priceBreaks = rawBreaks.map((pb) => ({
+    qty:   parseInt(pb.MinimumQuantity || 1),
+    price: parseFloat(pb.Amount || 0),
+  })).filter((pb) => pb.price > 0).sort((a, b) => a.qty - b.qty);
+
+  const unitPrice = priceBreaks.length ? priceBreaks[0].price : 0;
+
+  // Pull datasheet/CAD links from Links array
+  const links = info.Links || [];
+  const datasheet = links.find(l => /datasheet/i.test(l.Key))?.Value || null;
 
   return {
-    mpn:             p.partNumber || p.PartNumber || p.itemNumber || requestedMpn,
-    description:     p.description || p.Description || p.productDescription || "",
-    stock:           parseInt(p.availability || p.quantityAvailable || p.stock || 0),
+    mpn:         info.PartNumber || requestedMpn,
+    description: info.DetailDescription || info.FamilyDescription || "",
+    stock:       null, // McMaster doesn't expose stock count via API
     unitPrice,
     priceBreaks,
-    moq:             parseInt(p.minimumQuantity || p.minOrderQty || p.packageQuantity || 1),
-    url:             p.productUrl || p.url || `https://www.mcmaster.com/${encodeURIComponent(p.partNumber || requestedMpn)}/`,
-    datasheet:       p.drawingUrl || p.datasheetUrl || p.cadUrl || null,
-    countryOfOrigin: p.countryOfOrigin || "US",
+    moq:         priceBreaks[0]?.qty || 1,
+    url:         `https://www.mcmaster.com/${encodeURIComponent(info.PartNumber || requestedMpn)}/`,
+    datasheet,
+    countryOfOrigin: "US",
   };
 }
 
@@ -76,24 +118,29 @@ export default async function handler(req, res) {
     if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
     try {
       const agent = makeMcMasterAgent();
+      const token = await getMcMasterToken(agent);
 
       if (mpn === "test" || !mpn) {
-        return res.status(200).json({ ok: true, msg: "McMaster-Carr cert loaded — connection ready" });
+        return res.status(200).json({ ok: true, msg: "McMaster-Carr authenticated — connection ready" });
       }
 
-      // TODO: confirm endpoint with McMaster-Carr API docs
-      const url = `${MCMASTER_BASE}/products/${encodeURIComponent(mpn)}`;
-      const { status, body } = await httpsGet(url, agent);
+      // Fetch product info and pricing in parallel
+      const [infoRes, priceRes] = await Promise.all([
+        httpsRequest("GET", `${MCMASTER_BASE}/products/${encodeURIComponent(mpn)}`, agent, null, token),
+        httpsRequest("GET", `${MCMASTER_BASE}/products/${encodeURIComponent(mpn)}/price`, agent, null, token),
+      ]);
 
-      if (status === 404) return res.status(200).json({ error: `Part not found at McMaster-Carr: ${mpn}` });
-      if (status === 401) return res.status(401).json({ error: "McMaster-Carr auth failed — cert may be expired or revoked" });
-      if (status !== 200) return res.status(status).json({ error: `McMaster-Carr API returned ${status}`, raw: body.slice(0, 300) });
+      if (infoRes.status === 404) return res.status(200).json({ error: `Part not found at McMaster-Carr: ${mpn}` });
+      if (infoRes.status === 401) {
+        _mmToken = null; // invalidate cached token
+        return res.status(401).json({ error: "McMaster-Carr auth failed — token may have expired" });
+      }
+      if (infoRes.status !== 200) return res.status(infoRes.status).json({ error: `McMaster-Carr API returned ${infoRes.status}`, raw: infoRes.body.slice(0, 300) });
 
-      let data;
-      try { data = JSON.parse(body); }
-      catch { return res.status(500).json({ error: "McMaster-Carr returned non-JSON response", raw: body.slice(0, 200) }); }
+      const info  = JSON.parse(infoRes.body);
+      const price = priceRes.status === 200 ? JSON.parse(priceRes.body) : [];
 
-      return res.status(200).json(mapMcMasterProduct(data, mpn));
+      return res.status(200).json(mapMcMasterProduct(info, price, mpn));
     } catch (err) {
       console.error("[search-components/mcmaster] Error:", err.message);
       return res.status(500).json({ error: err.message });
