@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.18";
-const BUILD_TIME   = "2026-03-28T12:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.19";
+const BUILD_TIME   = "2026-03-28T13:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -190,6 +190,7 @@ const SUPPLIERS = [
   { id: "digikey",  name: "Digi-Key Electronics", color: "#cc0000", bg: "rgba(204,0,0,0.06)", logo: "DK", shipping: 6.99,  address: "701 Brooks Avenue South\nThief River Falls, MN 56701\nUSA", searchUrl: (pn) => `https://www.digikey.com/en/products/result?keywords=${encodeURIComponent(pn)}` },
   { id: "arrow",    name: "Arrow Electronics",    color: "#005eb8", bg: "rgba(0,94,184,0.06)", logo: "A",  shipping: 0,     address: "9201 E. Dry Creek Road\nCentennial, CO 80112\nUSA", searchUrl: (pn) => `https://www.arrow.com/en/products/search?q=${encodeURIComponent(pn)}` },
   { id: "lcsc",     name: "LCSC Electronics",     color: "#0a8f4c", bg: "rgba(10,143,76,0.06)", logo: "LC", shipping: 20.00, address: "Shenzhen, Guangdong\nChina", searchUrl: (pn) => `https://www.lcsc.com/search?q=${encodeURIComponent(pn)}` },
+  { id: "mcmaster", name: "McMaster-Carr",         color: "#c8181e", bg: "rgba(200,24,30,0.06)", logo: "MC", shipping: 0,     address: "200 New Canton Way\nRobinsville, NJ 08691\nUSA",  searchUrl: (pn) => `https://www.mcmaster.com/search/?query=${encodeURIComponent(pn)}` },
   { id: "allied",   name: "Allied Electronics",   color: "#7c3aed", bg: "rgba(124,58,237,0.06)", logo: "AL", shipping: 9.99,  address: "7151 Jack Newell Blvd S\nFort Worth, TX 76118\nUSA", searchUrl: (pn) => `https://www.alliedelec.com/search/?q=${encodeURIComponent(pn)}` },
   { id: "ti",       name: "Texas Instruments", color: "#c12b2b", bg: "#fef2f2", logo: "TI", shipping: 0,     address: "12500 TI Blvd\nDallas, TX 75243\nUSA", searchUrl: (pn) => `https://www.ti.com/search?q=${encodeURIComponent(pn)}` },
   { id: "amazon",   name: "Amazon",   color: "#f90",    bg: "rgba(255,153,0,0.06)", logo: "Az", shipping: 0,     address: "", searchUrl: (pn) => `https://www.amazon.com/s?k=${encodeURIComponent(pn)}` },
@@ -205,7 +206,7 @@ const API_DISTRIBUTORS = new Set([
 ]);
 // Only suppliers explicitly added as non-API sources get locked (blocks API price lookups)
 const LOCKED_SUPPLIERS = new Set([
-  "ce dist","cedist","ce-dist","mcmaster","mcmaster-carr","bolt depot","boltdepot",
+  "ce dist","cedist","ce-dist","bolt depot","boltdepot",
 ]);
 const isLockedSupplier = (supplier) => supplier && LOCKED_SUPPLIERS.has(supplier.toLowerCase().trim());
 
@@ -243,6 +244,7 @@ const DIST_COUNTRY = {
   "Mouser Electronics":"US","Digi-Key":"US","Digi-Key Electronics":"US","Arrow Electronics":"US","Allied Electronics":"US","Newark":"US",
   "Farnell":"UK","element14":"AU","Schukat":"DE","TTI Europe":"DE","Maritex":"IT",
   "Bravo Electro":"US","JRH Electronics":"US","TRC Electronics":"US",
+  "mcmaster":"US","McMaster-Carr":"US",
   "LCSC":"CN","TME":"PL","Verical":"US","Avnet":"US","Avnet Americas":"US","Avnet Asia":"HK","Future Electronics":"CA",
   "RS Components":"UK","Chip1Stop":"JP","CoreStaff":"JP","Heilind":"US","Heilind Electronics":"US","Master Electronics":"US",
   "Rutronik":"DE","Sager Electronics":"US","Symmetry Electronics":"US","Bisco Industries":"US",
@@ -863,6 +865,39 @@ async function fetchTIPricing(mpn, quantity, tiApiKey, tiApiSecret) {
 }
 
 // ─────────────────────────────────────────────
+// McMASter-CARR DIRECT API
+// mTLS client cert — cert stored server-side in Vercel env vars
+// No user key required — just call /api/mcmaster
+// ─────────────────────────────────────────────
+async function fetchMcMasterPricing(mpn, quantity) {
+  const res = await fetch(`/api/mcmaster?action=search&mpn=${encodeURIComponent(mpn)}`);
+  if (!res.ok) throw new Error(`McMaster API ${res.status}`);
+  const data = await res.json();
+  if (data.error) return null;
+
+  const priceBreaks = (data.priceBreaks || []).filter(pb => pb.price > 0);
+  let unitPrice = parseFloat(data.unitPrice || 0);
+  if (priceBreaks.length) {
+    unitPrice = priceBreaks[0].price;
+    for (const pb of priceBreaks) { if (quantity >= pb.qty) unitPrice = pb.price; }
+  }
+  if (unitPrice <= 0) return null;
+
+  return {
+    supplierId:      "mcmaster",
+    displayName:     "McMaster-Carr",
+    country:         "US",
+    unitPrice,
+    stock:           parseInt(data.stock || 0),
+    moq:             parseInt(data.moq || 1),
+    url:             data.url || `https://www.mcmaster.com/search/?query=${encodeURIComponent(mpn)}`,
+    priceBreaks,
+    datasheet:       data.datasheet || null,
+    countryOfOrigin: "US",
+  };
+}
+
+// ─────────────────────────────────────────────
 // MAIN PRICING ORCHESTRATOR
 // Tries Nexar first (best coverage), then
 // supplements with direct APIs if configured
@@ -925,6 +960,12 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
       if (ld && ld.unitPrice && !ld.error) pricing.lcsc = ld;
     } catch (e) { console.warn("LCSC direct failed:", e.message); }
   }
+
+  // 7. McMaster-Carr direct (mTLS cert — server-side only)
+  try {
+    const mm = await fetchMcMasterPricing(mpn, quantity);
+    if (mm) pricing.mcmaster = mm;
+  } catch (e) { console.warn("McMaster direct failed:", e.message); }
 
   // Propagate countryOfOrigin across all entries for this part
   // Sources: Nexar _countryOfOrigin, Mouser countryOfOrigin, DigiKey, or tariff-rate inference
@@ -1697,6 +1738,11 @@ function BOMManager({ user }) {
         const data = await fetchTIPricing(testMpn, 1, apiKeys.ti_api_key, apiKeys.ti_api_secret);
         if (!data) throw new Error("API responded but returned no pricing data — key may be invalid");
         setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Connected — $${data.unitPrice?.toFixed(4) || "?"}/ea, ${data.stock || 0} in stock` } }));
+      } else if (sectionId === "mcmaster") {
+        const r = await fetch("/api/mcmaster?action=test");
+        const data = await r.json();
+        if (!r.ok || !data.ok) throw new Error(data.error || "McMaster connection failed");
+        setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: data.msg || "Connected" } }));
       } else if (sectionId === "lcsc") {
         if (!apiKeys.lcsc_api_key || !apiKeys.lcsc_api_secret) throw new Error("Enter both API Key and Secret first");
         const r = await fetch("/api/lcsc-search?mpn=C14663&action=search", {
@@ -15576,8 +15622,11 @@ function BOMManager({ user }) {
           const matchDealer = (d) => {
             if (dealerBrandFilter !== "all") {
               const b = d.brand || "Jackson Audio";
-              if (b === "Both") { /* Both dealers appear in both — always pass brand filter */ }
-              else if (b !== dealerBrandFilter) return false;
+              if (dealerBrandFilter === "Both") {
+                if (b !== "Both") return false;
+              } else {
+                if (b !== "Both" && b !== dealerBrandFilter) return false;
+              }
             }
             return !dealerSearchLower || [d.name,d.contact_name,d.email,d.phone,d.account_number,d.website,d.notes,d.shipping_notes,d.billing_address?.city,d.billing_address?.state,d.billing_address?.country,d.billing_address?.street,d.shipping_address?.city,d.shipping_address?.state,d.shipping_address?.zip].filter(Boolean).join(" ").toLowerCase().includes(dealerSearchLower);
           };
@@ -15594,10 +15643,10 @@ function BOMManager({ user }) {
                   {dealerSearch && <span onClick={() => setDealerSearch("")} style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", cursor:"pointer", fontSize:14, color:"#86868b", lineHeight:1 }}>✕</span>}
                 </div>
                 <div style={{ display:"flex", gap:4 }}>
-                  {[["all","All"],["Jackson Audio","JA"],["Fulltone USA","Fulltone"]].map(([val,label]) => (
+                  {[["all","All"],["Jackson Audio","JA"],["Fulltone USA","Fulltone"],["Both","Both"]].map(([val,label]) => (
                     <button key={val} onClick={() => setDealerBrandFilter(val)}
                       style={{ padding:"4px 10px", borderRadius:980, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"inherit", border:"none",
-                        background: dealerBrandFilter===val ? (val==="Jackson Audio"?"#c8a84e":val==="Fulltone USA"?"#b22222":"#3a3f51") : "#e5e5ea",
+                        background: dealerBrandFilter===val ? (val==="Jackson Audio"?"#c8a84e":val==="Fulltone USA"?"#b22222":val==="Both"?"#6a5acd":"#3a3f51") : "#e5e5ea",
                         color: dealerBrandFilter===val ? "#fff" : "#86868b" }}>
                       {label}
                     </button>
@@ -16495,6 +16544,29 @@ function BOMManager({ user }) {
                 </div>
                 {sectionSaveBtn("lcsc", "LCSC Key")}
                 {testBtn("lcsc")}
+              </div>}
+            </div>
+
+            {/* ── McMaster-Carr Direct API */}
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#c8181e",padding:"14px 20px",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("mcmaster") ? s.delete("mcmaster") : s.add("mcmaster"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("mcmaster") ? "▶" : "▼"}</span>
+                  McMaster-Carr Direct API
+                </div>
+              </div>
+              {!collapsedSettings.has("mcmaster") && <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  Direct pricing and availability from McMaster-Carr via mTLS client certificate. The cert is stored server-side in Vercel — no key to enter here.
+                  <br /><br />
+                  <strong>Setup:</strong> In Vercel → Project Settings → Environment Variables, add:
+                  <ul style={{ margin:"8px 0 0 16px",padding:0,lineHeight:"1.8" }}>
+                    <li><code>MCMASTER_PFX_B64</code> — base64-encoded Jackson-1.pfx (copy from the BOM Manager admin panel or ask Brad)</li>
+                    <li><code>MCMASTER_PFX_PASS</code> — PFX passphrase</li>
+                  </ul>
+                </div>
+                {testBtn("mcmaster")}
               </div>}
             </div>
 
