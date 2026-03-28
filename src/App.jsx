@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.94";
-const BUILD_TIME   = "2026-03-27T21:36:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.95";
+const BUILD_TIME   = "2026-03-27T21:37:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -3955,7 +3955,18 @@ function BOMManager({ user }) {
       if (!cRes.ok) throw new Error("Failed to load carriers");
       const cData = await cRes.json();
       const carriers = (cData.carriers || []).filter(c => c.primary || c.name);
-      const defaultCarrier = carriers.find(c => c.code === "stamps_com" || c.code === "usps") || carriers[0];
+      // Auto-select carrier from PO's preferred shipping method if available
+      const prefMethod = (order.shippingMethod || "").toLowerCase();
+      const matchCarrier = prefMethod ? carriers.find(c => {
+        const cn = (c.name || "").toLowerCase();
+        const cc = (c.code || "").toLowerCase();
+        if (prefMethod.includes("fedex") && (cn.includes("fedex") || cc.includes("fedex"))) return true;
+        if (prefMethod.includes("ups") && (cn.includes("ups") || cc.includes("ups"))) return true;
+        if ((prefMethod.includes("usps") || prefMethod.includes("postal")) && (cn.includes("usps") || cn.includes("stamps") || cc.includes("stamps") || cc.includes("usps"))) return true;
+        if (prefMethod.includes("dhl") && (cn.includes("dhl") || cc.includes("dhl"))) return true;
+        return false;
+      }) : null;
+      const defaultCarrier = matchCarrier || carriers.find(c => c.code === "stamps_com" || c.code === "usps") || carriers[0];
 
       // Fetch services for default carrier
       let services = [];
@@ -4043,7 +4054,7 @@ function BOMManager({ user }) {
               name: m.order.customer || "",
               street1: "", city: "", state: "", postalCode: "", country: "US",
             },
-            items: (m.order.lineItems || []).map(li => ({ name: li.title, quantity: li.quantity, unitPrice: 0 })),
+            items: (m.order.lineItems || []).map(li => ({ name: li.title, quantity: li.quantity - (li.fulfilled || 0), unitPrice: li.rate || 0 })).filter(li => li.quantity > 0),
             weight: { value: parseInt(m.form.weightOz) || 16, units: "ounces" },
           }),
         });
@@ -11572,6 +11583,29 @@ function BOMManager({ user }) {
                                               else alert("No matching BOM products found.");
                                             }}>
                                             Order Parts
+                                          </button>
+                                        )}
+                                        {!po.shipped && apiKeys.shipstation_api_key && (
+                                          <button style={{ padding:"6px 16px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",border:"none",background:"#00c7be",color:"#fff" }}
+                                            onClick={() => {
+                                              // Build ShipStation-compatible order object from PO data
+                                              const sa = po.shippingAddress || {};
+                                              const ssOrder = {
+                                                ...po,
+                                                shipTo: {
+                                                  name: sa.attention || po.companyName || po.customer || "",
+                                                  company: po.companyName || "",
+                                                  street1: sa.street || "",
+                                                  city: sa.city || "",
+                                                  state: sa.state || "",
+                                                  postalCode: sa.zip || "",
+                                                  country: sa.country || "US",
+                                                  phone: sa.phone || po.phone || "",
+                                                },
+                                              };
+                                              openShipModal(ssOrder);
+                                            }}>
+                                            Ship via ShipStation
                                           </button>
                                         )}
                                         {po.shipped && <span style={{ fontSize:12,fontWeight:700,color:"#34c759" }}>Shipped</span>}
