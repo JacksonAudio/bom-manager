@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.29";
-const BUILD_TIME   = "2026-03-28T04:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.30";
+const BUILD_TIME   = "2026-03-28T04:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -14999,8 +14999,8 @@ function BOMManager({ user }) {
                 if (!vals) return;
                 try {
                   const updated = await updateFinishedGoodsTargets(productId, {
-                    target_stock: vals.target !== "" ? parseInt(vals.target) : null,
-                    min_stock: vals.min !== "" ? parseInt(vals.min) : null,
+                    target_stock: vals.target !== "" ? parseInt(vals.target) || 0 : 0,
+                    min_stock: vals.min !== "" ? parseInt(vals.min) || 0 : 0,
                   }, user.id);
                   setFinishedGoods(prev => {
                     const existing = prev.find(r => r.product_id === productId);
