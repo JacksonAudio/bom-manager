@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.01";
-const BUILD_TIME   = "2026-03-28T10:50:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.02";
+const BUILD_TIME   = "2026-03-27T23:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -11050,10 +11050,9 @@ function BOMManager({ user }) {
                     const ssMatch = matchShipStation(order.name) || matchShipStation(order.dealerPO);
                     const base = {
                       id: order.id, channel: "Dealer", accentColor: "#4bc076",
-                      // companyName from Zoho = brand ("Fulltone USA" or "Jackson Audio"), NOT the dealer
-                      // The actual dealer is the ship-to attention, contact name, or billing attention
-                      companyName: order.companyName || order.customerName || "",
-                      dealerName: order.shippingAddress?.attention || order.contactName || order.billingAddress?.attention || "",
+                      companyName: order.companyName || "",
+                      // dealerName from zoho.js = customer_name (actual dealer company, e.g. Sweetwater)
+                      dealerName: order.dealerName || order.contactName || "",
                       contactName: order.contactName || "",
                       email: order.email || "",
                       phone: order.phone || "",
