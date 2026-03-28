@@ -1088,6 +1088,90 @@ export function subscribeToBoxItems(callback) {
     .subscribe()
 }
 
+// ─────────────────────────────────────────────
+// DEALERS
+// ─────────────────────────────────────────────
+
+export async function fetchDealers() {
+  const { data, error } = await supabase
+    .from('dealers')
+    .select('*')
+    .order('name')
+  check(error, 'fetchDealers')
+  return data
+}
+
+export async function createDealer(row) {
+  const { data, error } = await supabase
+    .from('dealers')
+    .insert(row)
+    .select()
+    .single()
+  check(error, 'createDealer')
+  return data
+}
+
+export async function updateDealer(id, updates) {
+  const { data, error } = await supabase
+    .from('dealers')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  check(error, 'updateDealer')
+  return data
+}
+
+export async function deleteDealer(id) {
+  const { error } = await supabase
+    .from('dealers')
+    .delete()
+    .eq('id', id)
+  check(error, 'deleteDealer')
+}
+
+// ─────────────────────────────────────────────
+// SHOP ORDERS (PCB + Sheet Metal)
+// ─────────────────────────────────────────────
+
+export async function fetchShopOrders() {
+  const { data, error } = await supabase
+    .from('shop_orders')
+    .select('*')
+    .order('created_at', { ascending: false })
+  check(error, 'fetchShopOrders')
+  return data
+}
+
+export async function createShopOrder(row) {
+  const { data, error } = await supabase
+    .from('shop_orders')
+    .insert(row)
+    .select()
+    .single()
+  check(error, 'createShopOrder')
+  return data
+}
+
+export async function updateShopOrder(id, updates) {
+  const { data, error } = await supabase
+    .from('shop_orders')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  check(error, 'updateShopOrder')
+  return data
+}
+
+export async function deleteShopOrder(id) {
+  const { error } = await supabase
+    .from('shop_orders')
+    .delete()
+    .eq('id', id)
+  check(error, 'deleteShopOrder')
+}
+
 // Fetch all price history (for product-level rollups)
 export async function fetchAllPriceHistory() {
   const all = [];

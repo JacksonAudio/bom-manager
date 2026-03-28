@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.98";
-const BUILD_TIME   = "2026-03-28T10:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.99";
+const BUILD_TIME   = "2026-03-27T22:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -53,6 +53,8 @@ import {
   fetchFulfillments, createFulfillment, updateFulfillment, deleteFulfillment,
   fetchShipmentBoxes, createShipmentBox, updateShipmentBox, deleteShipmentBox,
   fetchBoxItems, createBoxItems, updateBoxItem,
+  fetchDealers, createDealer, updateDealer, deleteDealer,
+  fetchShopOrders, createShopOrder, updateShopOrder, deleteShopOrder,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -1390,7 +1392,7 @@ function BOMManager({ user }) {
   const [activeView,  setActiveViewRaw]  = useState(() => {
     const hash = window.location.hash.replace("#","");
     if (hash === "products") return "projects";
-    const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","scoreboard","projects","suppliers","alerts","settings","admin"];
+    const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin"];
     return validTabs.includes(hash) ? hash : "dashboard";
   });
   const setActiveView = (view) => {
@@ -1506,6 +1508,12 @@ function BOMManager({ user }) {
   const [supplierSubTab, setSupplierSubTab] = useState("scorecards"); // scorecards | directory
   const [vendors, setVendors] = useState([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
+  const [dealers, setDealers] = useState([]);
+  const [dealersLoading, setDealersLoading] = useState(false);
+  const [dealerForm, setDealerForm] = useState(null);   // null | {} | { id, ...fields }
+  const [shopOrders, setShopOrders] = useState([]);
+  const [shopOrdersLoading, setShopOrdersLoading] = useState(false);
+  const [shopOrderForm, setShopOrderForm] = useState(null); // null | { shopType, ... }
   // Dynamic locked-supplier check — hardcoded fallbacks + any manual (non-API) vendor in the DB
   // eslint-disable-next-line no-shadow
   const isLockedSupplier = useCallback((supplier) => {
@@ -1890,6 +1898,10 @@ function BOMManager({ user }) {
         fetchShippingBoxesConfig().then(rows => setShippingBoxesConfig(rows || [])).catch(() => {});
         fetchProductPackaging().then(rows => setProductPackaging(rows || [])).catch(() => {});
 
+        // Load dealers and shop orders
+        fetchDealers().then(rows => setDealers(rows || [])).catch(() => {});
+        fetchShopOrders().then(rows => setShopOrders(rows || [])).catch(() => {});
+
         // Load BOM snapshots from DB
         fetchBomSnapshots().then(snaps => setBomSnapshots(snaps || [])).catch(() => {});
 
@@ -1979,7 +1991,7 @@ function BOMManager({ user }) {
     const onPopState = () => {
       const hash = window.location.hash.replace("#","");
       if (hash === "products") { setActiveViewRaw("projects"); return; }
-      const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","scoreboard","projects","suppliers","alerts","settings","admin"];
+      const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin"];
       if (validTabs.includes(hash)) setActiveViewRaw(hash);
     };
     window.addEventListener("popstate", onPopState);
@@ -4683,6 +4695,8 @@ function BOMManager({ user }) {
           { id:"pipeline",label:`Pipeline${pedalUnits.filter(u=>u.status!=="shipped"&&u.status!=="boxed").length>0?` (${pedalUnits.filter(u=>u.status!=="shipped"&&u.status!=="boxed").length})`:""}`, step:null, color:null },
           { id:"scoreboard",label:"Scoreboard", step:null, color:null },
           { id:"suppliers", label:"Suppliers",   step:null, color:null },
+          { id:"dealers",   label:`Dealers${dealers.length>0?` (${dealers.length})`:""}`, step:null, color:null },
+          { id:"shops",     label:`Shops${shopOrders.filter(o=>o.status!=="completed"&&o.status!=="cancelled").length>0?` (${shopOrders.filter(o=>o.status!=="completed"&&o.status!=="cancelled").length})`:""}`, step:null, color:null },
           { id:"settings",  label:"Settings",   step:null, color:null },
           { id:"admin",     label:"Admin",       step:null, color:null },
         ].filter(tab => tab.id !== "admin" || isAdmin).map((tab) => (
@@ -15186,6 +15200,484 @@ function BOMManager({ user }) {
               )}
             </div>
           </div>
+          );
+        })()}
+
+        {/* ══════════════════════════════════════
+            DEALERS — Dealer Directory
+        ══════════════════════════════════════ */}
+        {activeView === "dealers" && (() => {
+          const BRANDS = ["Jackson Audio", "Fulltone USA", "Both"];
+          const CARRIERS = ["UPS", "FedEx", "USPS", "DHL", "Freight", "Will Call", "Other"];
+          const textPrimary   = darkMode ? "#f5f5f7" : "#1d1d1f";
+          const textSecondary = darkMode ? "#98989d" : "#86868b";
+          const cardBg        = darkMode ? "#2c2c2e" : "#fff";
+          const borderColor   = darkMode ? "#3a3a3e" : "#e5e5ea";
+          const inputStyle    = { padding:"7px 10px", borderRadius:8, border:`1px solid ${borderColor}`, fontSize:13, fontFamily:"inherit", background:darkMode?"#1c1c1e":"#fff", color:textPrimary, width:"100%", boxSizing:"border-box" };
+
+          const brandColor = { "Jackson Audio": "#c8a84e", "Fulltone USA": "#b22222", "Both": "#5856d6" };
+          const brandGroups = { "Jackson Audio": [], "Fulltone USA": [], "Both": [] };
+          for (const d of dealers) {
+            const b = d.brand || "Jackson Audio";
+            if (!brandGroups[b]) brandGroups[b] = [];
+            brandGroups[b].push(d);
+          }
+
+          const emptyForm = () => ({ name:"", brand:"Jackson Audio", zoho_customer_name:"", account_number:"", contact_name:"", email:"", phone:"", preferred_carrier:"UPS", shipping_notes:"", billing_address:{ attention:"", street:"", city:"", state:"", zip:"", country:"US" }, shipping_address:{ attention:"", street:"", city:"", state:"", zip:"", country:"US" } });
+
+          const saveDealer = async () => {
+            if (!dealerForm?.name?.trim()) { alert("Dealer name is required."); return; }
+            try {
+              if (dealerForm.id) {
+                const updated = await updateDealer(dealerForm.id, dealerForm);
+                setDealers(prev => prev.map(d => d.id === dealerForm.id ? updated : d));
+              } else {
+                const created = await createDealer(dealerForm);
+                setDealers(prev => [...prev, created].sort((a,b) => a.name.localeCompare(b.name)));
+              }
+              setDealerForm(null);
+            } catch (e) { alert("Save failed: " + e.message); }
+          };
+
+          const removeDealer = async (id) => {
+            if (!confirm("Delete this dealer?")) return;
+            try {
+              await deleteDealer(id);
+              setDealers(prev => prev.filter(d => d.id !== id));
+            } catch (e) { alert("Delete failed: " + e.message); }
+          };
+
+          const addrFilled = (addr) => addr && (addr.street || addr.city);
+          const fmtAddr = (addr) => {
+            if (!addr) return "—";
+            const lines = [];
+            if (addr.attention) lines.push(addr.attention);
+            if (addr.street) lines.push(addr.street);
+            const city = [addr.city, addr.state].filter(Boolean).join(", ");
+            if (city || addr.zip) lines.push([city, addr.zip].filter(Boolean).join(" "));
+            if (addr.country && addr.country !== "US") lines.push(addr.country);
+            return lines.join(", ") || "—";
+          };
+
+          const AddrFields = ({ label, prefix }) => (
+            <div>
+              <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:6 }}>{label}</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <div style={{ gridColumn:"1/-1" }}><input placeholder="Attention / Company" value={dealerForm?.[prefix]?.attention||""} onChange={e => setDealerForm(f => ({ ...f, [prefix]:{ ...f[prefix], attention:e.target.value } }))} style={inputStyle} /></div>
+                <div style={{ gridColumn:"1/-1" }}><input placeholder="Street address" value={dealerForm?.[prefix]?.street||""} onChange={e => setDealerForm(f => ({ ...f, [prefix]:{ ...f[prefix], street:e.target.value } }))} style={inputStyle} /></div>
+                <input placeholder="City" value={dealerForm?.[prefix]?.city||""} onChange={e => setDealerForm(f => ({ ...f, [prefix]:{ ...f[prefix], city:e.target.value } }))} style={inputStyle} />
+                <input placeholder="State" value={dealerForm?.[prefix]?.state||""} onChange={e => setDealerForm(f => ({ ...f, [prefix]:{ ...f[prefix], state:e.target.value } }))} style={inputStyle} />
+                <input placeholder="ZIP" value={dealerForm?.[prefix]?.zip||""} onChange={e => setDealerForm(f => ({ ...f, [prefix]:{ ...f[prefix], zip:e.target.value } }))} style={inputStyle} />
+                <input placeholder="Country (US)" value={dealerForm?.[prefix]?.country||""} onChange={e => setDealerForm(f => ({ ...f, [prefix]:{ ...f[prefix], country:e.target.value } }))} style={inputStyle} />
+              </div>
+            </div>
+          );
+
+          return (
+            <div style={{ maxWidth:"100%" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20 }}>
+                <div>
+                  <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:21, fontWeight:800, marginBottom:4, color:textPrimary }}>Dealer Directory</h2>
+                  <p style={{ color:textSecondary, fontSize:13, margin:0 }}>All wholesale accounts — billing, shipping, contacts, and special instructions.</p>
+                </div>
+                <button className="btn-primary" onClick={() => setDealerForm(emptyForm())}>+ Add Dealer</button>
+              </div>
+
+              {/* Add / Edit form */}
+              {dealerForm && (
+                <div style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:12, marginBottom:24, overflow:"hidden" }}>
+                  <div style={{ padding:"14px 20px", background:darkMode?"#3a3a3e":"#f5f5f7", borderBottom:`1px solid ${borderColor}` }}>
+                    <div style={{ fontWeight:700, fontSize:14, color:textPrimary }}>{dealerForm.id ? "Edit Dealer" : "New Dealer"}</div>
+                  </div>
+                  <div style={{ padding:"20px", display:"flex", flexDirection:"column", gap:16 }}>
+                    {/* Row 1: Name + Brand + Zoho match */}
+                    <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 2fr", gap:12 }}>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Dealer Name *</div>
+                        <input placeholder="Sweetwater" value={dealerForm.name||""} onChange={e => setDealerForm(f => ({ ...f, name:e.target.value }))} style={inputStyle} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Brand</div>
+                        <select value={dealerForm.brand||"Jackson Audio"} onChange={e => setDealerForm(f => ({ ...f, brand:e.target.value }))} style={{ ...inputStyle }}>
+                          {BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Zoho Customer Name (for auto-match)</div>
+                        <input placeholder="Exact name as it appears in Zoho" value={dealerForm.zoho_customer_name||""} onChange={e => setDealerForm(f => ({ ...f, zoho_customer_name:e.target.value }))} style={inputStyle} />
+                      </div>
+                    </div>
+                    {/* Row 2: Contact */}
+                    <div style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr", gap:12 }}>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Contact Name</div>
+                        <input placeholder="John Smith" value={dealerForm.contact_name||""} onChange={e => setDealerForm(f => ({ ...f, contact_name:e.target.value }))} style={inputStyle} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Email</div>
+                        <input type="email" placeholder="orders@dealer.com" value={dealerForm.email||""} onChange={e => setDealerForm(f => ({ ...f, email:e.target.value }))} style={inputStyle} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Phone</div>
+                        <input placeholder="(555) 555-5555" value={dealerForm.phone||""} onChange={e => setDealerForm(f => ({ ...f, phone:e.target.value }))} style={inputStyle} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Account #</div>
+                        <input placeholder="ACC-001" value={dealerForm.account_number||""} onChange={e => setDealerForm(f => ({ ...f, account_number:e.target.value }))} style={inputStyle} />
+                      </div>
+                    </div>
+                    {/* Row 3: Shipping prefs */}
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 3fr", gap:12 }}>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Preferred Carrier</div>
+                        <select value={dealerForm.preferred_carrier||"UPS"} onChange={e => setDealerForm(f => ({ ...f, preferred_carrier:e.target.value }))} style={{ ...inputStyle }}>
+                          {CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Special Shipping Notes</div>
+                        <input placeholder="e.g. Sweetwater requires appointment delivery · Must use FedEx Ground · Consolidate all orders into one box" value={dealerForm.shipping_notes||""} onChange={e => setDealerForm(f => ({ ...f, shipping_notes:e.target.value }))} style={inputStyle} />
+                      </div>
+                    </div>
+                    {/* Row 4: Addresses */}
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
+                      <AddrFields label="Shipping Address" prefix="shipping_address" />
+                      <AddrFields label="Billing Address (if different)" prefix="billing_address" />
+                    </div>
+                    <div style={{ display:"flex", gap:8, paddingTop:4 }}>
+                      <button className="btn-primary" onClick={saveDealer}>Save Dealer</button>
+                      <button className="btn-ghost" onClick={() => setDealerForm(null)}>Cancel</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Dealer list grouped by brand */}
+              {dealers.length === 0 && !dealerForm ? (
+                <div className="card" style={{ textAlign:"center", padding:"60px 30px" }}>
+                  <div style={{ fontSize:40, marginBottom:12 }}>🏪</div>
+                  <div style={{ fontWeight:700, fontSize:15, marginBottom:8, color:textPrimary }}>No Dealers Yet</div>
+                  <p style={{ color:textSecondary, fontSize:13, maxWidth:420, margin:"0 auto 16px" }}>Add your wholesale dealers here to keep track of contacts, addresses, shipping preferences, and special requirements.</p>
+                  <button className="btn-primary" onClick={() => setDealerForm(emptyForm())}>+ Add First Dealer</button>
+                </div>
+              ) : (
+                ["Jackson Audio", "Fulltone USA", "Both"].map(brand => {
+                  const group = brandGroups[brand] || [];
+                  if (group.length === 0) return null;
+                  const color = brandColor[brand];
+                  return (
+                    <div key={brand} style={{ marginBottom:28 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                        <div style={{ width:10, height:10, borderRadius:"50%", background:color }} />
+                        <h3 style={{ margin:0, fontSize:16, fontWeight:700, color:textPrimary }}>{brand}</h3>
+                        <span style={{ fontSize:12, color:textSecondary }}>({group.length} dealer{group.length!==1?"s":""})</span>
+                      </div>
+                      <div style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:12, overflow:"hidden" }}>
+                        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                          <thead>
+                            <tr style={{ background:darkMode?"#3a3a3e":"#f5f5f7" }}>
+                              {["Dealer","Contact","Email","Phone","Carrier","Ship To","Notes",""].map(h => (
+                                <th key={h} style={{ padding:"8px 12px", fontSize:11, fontWeight:700, color:textSecondary, textTransform:"uppercase", letterSpacing:"0.06em", textAlign:"left", borderBottom:`2px solid ${borderColor}`, whiteSpace:"nowrap" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.map((d, i) => (
+                              <tr key={d.id} style={{ background: i%2===0 ? "transparent" : darkMode?"#1c1c1e08":"#f5f5f708" }}>
+                                <td style={{ padding:"10px 12px", borderBottom:`1px solid ${borderColor}` }}>
+                                  <div style={{ fontWeight:700, fontSize:13, color:textPrimary }}>{d.name}</div>
+                                  {d.account_number && <div style={{ fontSize:11, color:textSecondary }}>#{d.account_number}</div>}
+                                  {d.zoho_customer_name && d.zoho_customer_name !== d.name && <div style={{ fontSize:10, color:textSecondary }}>Zoho: {d.zoho_customer_name}</div>}
+                                </td>
+                                <td style={{ padding:"10px 12px", fontSize:12, color:textPrimary, borderBottom:`1px solid ${borderColor}` }}>{d.contact_name || "—"}</td>
+                                <td style={{ padding:"10px 12px", fontSize:12, borderBottom:`1px solid ${borderColor}` }}>
+                                  {d.email ? <a href={`mailto:${d.email}`} style={{ color:"#0071e3", textDecoration:"none" }}>{d.email}</a> : <span style={{ color:textSecondary }}>—</span>}
+                                </td>
+                                <td style={{ padding:"10px 12px", fontSize:12, color:textPrimary, borderBottom:`1px solid ${borderColor}`, whiteSpace:"nowrap" }}>{d.phone || "—"}</td>
+                                <td style={{ padding:"10px 12px", fontSize:12, color:textPrimary, borderBottom:`1px solid ${borderColor}`, whiteSpace:"nowrap" }}>{d.preferred_carrier || "—"}</td>
+                                <td style={{ padding:"10px 12px", fontSize:11, color:textSecondary, borderBottom:`1px solid ${borderColor}`, maxWidth:180 }}>{fmtAddr(d.shipping_address)}</td>
+                                <td style={{ padding:"10px 12px", fontSize:11, color:d.shipping_notes?textPrimary:textSecondary, borderBottom:`1px solid ${borderColor}`, maxWidth:200 }}>{d.shipping_notes || "—"}</td>
+                                <td style={{ padding:"10px 12px", borderBottom:`1px solid ${borderColor}`, whiteSpace:"nowrap" }}>
+                                  <button onClick={() => setDealerForm({ ...d, billing_address: d.billing_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"}, shipping_address: d.shipping_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"} })}
+                                    style={{ fontSize:11, padding:"4px 10px", borderRadius:6, border:"none", background:"#0071e315", color:"#0071e3", cursor:"pointer", fontFamily:"inherit", fontWeight:600, marginRight:6 }}>Edit</button>
+                                  {isAdmin && <button onClick={() => removeDealer(d.id)}
+                                    style={{ fontSize:11, padding:"4px 10px", borderRadius:6, border:"none", background:"#ff3b3015", color:"#ff3b30", cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>Delete</button>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ══════════════════════════════════════
+            SHOPS — PCB Shop + Sheet Metal Shop
+        ══════════════════════════════════════ */}
+        {activeView === "shops" && (() => {
+          const textPrimary   = darkMode ? "#f5f5f7" : "#1d1d1f";
+          const textSecondary = darkMode ? "#98989d" : "#86868b";
+          const cardBg        = darkMode ? "#2c2c2e" : "#fff";
+          const borderColor   = darkMode ? "#3a3a3e" : "#e5e5ea";
+          const inputStyle    = { padding:"7px 10px", borderRadius:8, border:`1px solid ${borderColor}`, fontSize:13, fontFamily:"inherit", background:darkMode?"#1c1c1e":"#fff", color:textPrimary, width:"100%", boxSizing:"border-box" };
+
+          const STATUS_COLORS = { pending:"#ff9500", in_progress:"#0071e3", completed:"#34c759", cancelled:"#aeaeb2" };
+          const STATUS_LABELS = { pending:"Pending", in_progress:"In Progress", completed:"Completed", cancelled:"Cancelled" };
+          const PRIORITY_COLORS = { low:"#aeaeb2", normal:"#0071e3", high:"#ff9500", urgent:"#ff3b30" };
+          const SHOP_CFG = {
+            pcb:        { label:"PCB Shop",        color:"#5856d6", desc:"Printed circuit board orders — track fab runs, quantities, and which build they feed." },
+            sheet_metal:{ label:"Sheet Metal Shop", color:"#ff6b35", desc:"Enclosures and metalwork — track cutting, bending, and finishing before final assembly." },
+          };
+
+          const emptyShopForm = (shopType) => ({
+            shop_type: shopType,
+            order_number: "",
+            product_name: "",
+            product_id: null,
+            quantity: 1,
+            status: "pending",
+            priority: "normal",
+            due_date: "",
+            for_order: "",
+            notes: "",
+            assigned_to: "",
+          });
+
+          const saveShopOrder = async () => {
+            if (!shopOrderForm?.product_name?.trim()) { alert("Product name is required."); return; }
+            try {
+              if (shopOrderForm.id) {
+                const updated = await updateShopOrder(shopOrderForm.id, shopOrderForm);
+                setShopOrders(prev => prev.map(o => o.id === shopOrderForm.id ? updated : o));
+              } else {
+                const row = { ...shopOrderForm, created_by: user.id };
+                // Auto-generate order number if blank
+                if (!row.order_number) {
+                  const prefix = row.shop_type === "pcb" ? "PCB" : "SM";
+                  const existing = shopOrders.filter(o => o.shop_type === row.shop_type).length + 1;
+                  row.order_number = `${prefix}-${new Date().getFullYear()}-${String(existing).padStart(3,"0")}`;
+                }
+                const created = await createShopOrder(row);
+                setShopOrders(prev => [created, ...prev]);
+              }
+              setShopOrderForm(null);
+            } catch (e) { alert("Save failed: " + e.message); }
+          };
+
+          const removeShopOrder = async (id) => {
+            if (!confirm("Delete this work order?")) return;
+            try {
+              await deleteShopOrder(id);
+              setShopOrders(prev => prev.filter(o => o.id !== id));
+            } catch (e) { alert("Delete failed: " + e.message); }
+          };
+
+          const ShopSection = ({ shopType }) => {
+            const cfg = SHOP_CFG[shopType];
+            const orders = shopOrders.filter(o => o.shop_type === shopType);
+            const openOrders = orders.filter(o => o.status !== "completed" && o.status !== "cancelled");
+            const [statusFilter, setStatusFilter] = React.useState("open");
+            const [expandedOrder, setExpandedOrder] = React.useState(null);
+            const displayed = statusFilter === "open" ? openOrders : statusFilter === "all" ? orders : orders.filter(o => o.status === statusFilter);
+
+            return (
+              <div style={{ marginBottom:32 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <div style={{ width:10, height:10, borderRadius:"50%", background:cfg.color }} />
+                    <h3 style={{ margin:0, fontSize:17, fontWeight:700, color:textPrimary }}>{cfg.label}</h3>
+                    <span style={{ fontSize:12, color:textSecondary }}>({openOrders.length} open · {orders.length} total)</span>
+                    {orders.filter(o=>o.priority==="urgent"&&o.status!=="completed"&&o.status!=="cancelled").length > 0 && (
+                      <span style={{ fontSize:10, fontWeight:700, color:"#ff3b30", background:"#ff3b3015", padding:"2px 8px", borderRadius:10 }}>
+                        {orders.filter(o=>o.priority==="urgent"&&o.status!=="completed"&&o.status!=="cancelled").length} urgent
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    <div style={{ display:"flex", gap:4 }}>
+                      {[["open","Open"],["all","All"],["completed","Done"],["cancelled","Cancelled"]].map(([v,l]) => (
+                        <button key={v} onClick={() => setStatusFilter(v)}
+                          style={{ padding:"4px 10px", borderRadius:980, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"inherit", border:"none",
+                            background: statusFilter===v ? cfg.color : darkMode?"#3a3a3e":"#e5e5ea",
+                            color: statusFilter===v ? "#fff" : textSecondary }}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                    <button className="btn-primary" style={{ background:cfg.color, fontSize:12 }}
+                      onClick={() => setShopOrderForm(emptyShopForm(shopType))}>
+                      + New Work Order
+                    </button>
+                  </div>
+                </div>
+
+                <p style={{ fontSize:12, color:textSecondary, marginBottom:14, marginTop:0 }}>{cfg.desc}</p>
+
+                {/* New / Edit form — inline when this shop is selected */}
+                {shopOrderForm?.shop_type === shopType && (
+                  <div style={{ background:cardBg, border:`2px solid ${cfg.color}40`, borderRadius:12, marginBottom:16, overflow:"hidden" }}>
+                    <div style={{ padding:"12px 16px", background:darkMode?"#3a3a3e":"#f5f5f7", borderBottom:`1px solid ${borderColor}` }}>
+                      <div style={{ fontWeight:700, fontSize:13, color:textPrimary }}>{shopOrderForm.id ? "Edit Work Order" : `New ${cfg.label} Work Order`}</div>
+                    </div>
+                    <div style={{ padding:"16px", display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr", gap:12 }}>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Product / Description *</div>
+                        <input placeholder="e.g. Bloom v2 PCB rev3" value={shopOrderForm.product_name||""} onChange={e => setShopOrderForm(f => ({ ...f, product_name:e.target.value }))} style={inputStyle} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Quantity</div>
+                        <input type="number" min={1} value={shopOrderForm.quantity||1} onChange={e => setShopOrderForm(f => ({ ...f, quantity:parseInt(e.target.value)||1 }))} style={inputStyle} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Priority</div>
+                        <select value={shopOrderForm.priority||"normal"} onChange={e => setShopOrderForm(f => ({ ...f, priority:e.target.value }))} style={{ ...inputStyle }}>
+                          {[["low","Low"],["normal","Normal"],["high","High"],["urgent","Urgent"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Due Date</div>
+                        <input type="date" value={shopOrderForm.due_date||""} onChange={e => setShopOrderForm(f => ({ ...f, due_date:e.target.value }))} style={inputStyle} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Order Number (auto if blank)</div>
+                        <input placeholder="PCB-2026-001" value={shopOrderForm.order_number||""} onChange={e => setShopOrderForm(f => ({ ...f, order_number:e.target.value }))} style={inputStyle} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>For Dealer PO</div>
+                        <input placeholder="e.g. PO-12345" value={shopOrderForm.for_order||""} onChange={e => setShopOrderForm(f => ({ ...f, for_order:e.target.value }))} style={inputStyle} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Assigned To</div>
+                        <input placeholder="Team member" value={shopOrderForm.assigned_to||""} onChange={e => setShopOrderForm(f => ({ ...f, assigned_to:e.target.value }))} style={inputStyle} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Status</div>
+                        <select value={shopOrderForm.status||"pending"} onChange={e => setShopOrderForm(f => ({ ...f, status:e.target.value }))} style={{ ...inputStyle }}>
+                          {Object.entries(STATUS_LABELS).map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ gridColumn:"1/-1" }}>
+                        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Notes</div>
+                        <input placeholder="Special instructions, fab house, revision notes…" value={shopOrderForm.notes||""} onChange={e => setShopOrderForm(f => ({ ...f, notes:e.target.value }))} style={inputStyle} />
+                      </div>
+                      <div style={{ gridColumn:"1/-1", display:"flex", gap:8 }}>
+                        <button className="btn-primary" style={{ background:cfg.color }} onClick={saveShopOrder}>Save Work Order</button>
+                        <button className="btn-ghost" onClick={() => setShopOrderForm(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {displayed.length === 0 ? (
+                  <div className="card" style={{ textAlign:"center", padding:"36px 20px" }}>
+                    <div style={{ fontSize:32, marginBottom:8 }}>📋</div>
+                    <div style={{ fontWeight:600, fontSize:13, color:textSecondary }}>No {statusFilter === "open" ? "open" : statusFilter} work orders</div>
+                  </div>
+                ) : (
+                  <div style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:12, overflow:"hidden" }}>
+                    {displayed.map((order, i) => {
+                      const isExpanded = expandedOrder === order.id;
+                      const isOverdue = order.due_date && new Date(order.due_date) < new Date() && order.status !== "completed" && order.status !== "cancelled";
+                      return (
+                        <div key={order.id} style={{ borderBottom: i < displayed.length-1 ? `1px solid ${borderColor}` : "none" }}>
+                          {/* Collapsed row */}
+                          <div onClick={() => setExpandedOrder(isExpanded ? null : order.id)}
+                            style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", cursor:"pointer",
+                              background: isOverdue ? "#ff3b3005" : isExpanded ? darkMode?"#3a3a3e":"#f5f5f7" : "transparent",
+                              transition:"background 0.15s" }}>
+                            <span style={{ fontSize:11, color:textSecondary, transform:isExpanded?"rotate(90deg)":"rotate(0deg)", transition:"transform 0.15s", flexShrink:0 }}>▶</span>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                                <span style={{ fontWeight:800, fontSize:13, color:textPrimary }}>{order.order_number || "—"}</span>
+                                <span style={{ fontSize:13, fontWeight:600, color:textPrimary }}>{order.product_name}</span>
+                                <span style={{ fontSize:11, fontWeight:700, color:"#fff", background:STATUS_COLORS[order.status]||"#aeaeb2", padding:"2px 8px", borderRadius:10 }}>{STATUS_LABELS[order.status]||order.status}</span>
+                                <span style={{ fontSize:11, fontWeight:600, color:PRIORITY_COLORS[order.priority]||"#aeaeb2" }}>{order.priority === "normal" ? "" : `● ${order.priority.toUpperCase()}`}</span>
+                                {order.for_order && <span style={{ fontSize:11, color:textSecondary }}>→ PO: {order.for_order}</span>}
+                                {isOverdue && <span style={{ fontSize:10, fontWeight:700, color:"#ff3b30", background:"#ff3b3015", padding:"2px 8px", borderRadius:10 }}>OVERDUE</span>}
+                              </div>
+                            </div>
+                            <div style={{ display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
+                              <span style={{ fontSize:13, fontWeight:700, color:textPrimary }}>×{order.quantity}</span>
+                              {order.due_date && <span style={{ fontSize:11, color:isOverdue?"#ff3b30":textSecondary }}>Due {new Date(order.due_date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>}
+                            </div>
+                          </div>
+                          {/* Expanded detail */}
+                          {isExpanded && (
+                            <div style={{ padding:"0 16px 16px 36px", background:darkMode?"#1c1c1e08":"#fafafa" }}>
+                              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12, marginBottom:12 }}>
+                                {[
+                                  ["Order #",    order.order_number||"—"],
+                                  ["Product",    order.product_name],
+                                  ["Quantity",   order.quantity],
+                                  ["Priority",   order.priority],
+                                  ["Status",     STATUS_LABELS[order.status]||order.status],
+                                  ["Assigned To",order.assigned_to||"—"],
+                                  ["For PO",     order.for_order||"—"],
+                                  ["Due Date",   order.due_date ? new Date(order.due_date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"],
+                                  ["Created",    new Date(order.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})],
+                                ].map(([l,v]) => (
+                                  <div key={l} style={{ background:cardBg, borderRadius:8, padding:"10px 14px", border:`1px solid ${borderColor}` }}>
+                                    <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>{l}</div>
+                                    <div style={{ fontSize:13, fontWeight:600, color:textPrimary }}>{String(v)}</div>
+                                  </div>
+                                ))}
+                              </div>
+                              {order.notes && (
+                                <div style={{ background:cardBg, borderRadius:8, padding:"10px 14px", border:`1px solid ${borderColor}`, marginBottom:12 }}>
+                                  <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Notes</div>
+                                  <div style={{ fontSize:13, color:textPrimary }}>{order.notes}</div>
+                                </div>
+                              )}
+                              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                                {/* Quick status buttons */}
+                                {order.status !== "in_progress" && order.status !== "completed" && order.status !== "cancelled" && (
+                                  <button onClick={async () => { const u = await updateShopOrder(order.id, { status:"in_progress" }); setShopOrders(prev => prev.map(o => o.id===order.id ? u : o)); }}
+                                    style={{ padding:"5px 12px", borderRadius:8, border:"none", background:"#0071e315", color:"#0071e3", cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:600 }}>
+                                    Mark In Progress
+                                  </button>
+                                )}
+                                {order.status !== "completed" && order.status !== "cancelled" && (
+                                  <button onClick={async () => { const u = await updateShopOrder(order.id, { status:"completed", completed_at:new Date().toISOString() }); setShopOrders(prev => prev.map(o => o.id===order.id ? u : o)); }}
+                                    style={{ padding:"5px 12px", borderRadius:8, border:"none", background:"#34c75915", color:"#34c759", cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:600 }}>
+                                    Mark Complete
+                                  </button>
+                                )}
+                                <button onClick={() => setShopOrderForm({ ...order })}
+                                  style={{ padding:"5px 12px", borderRadius:8, border:"none", background:"#0071e315", color:"#0071e3", cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:600 }}>
+                                  Edit
+                                </button>
+                                {isAdmin && (
+                                  <button onClick={() => removeShopOrder(order.id)}
+                                    style={{ padding:"5px 12px", borderRadius:8, border:"none", background:"#ff3b3015", color:"#ff3b30", cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:600 }}>
+                                    Delete
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          };
+
+          return (
+            <div style={{ maxWidth:"100%" }}>
+              <div style={{ marginBottom:20 }}>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:21, fontWeight:800, marginBottom:4, color:textPrimary }}>Internal Shops</h2>
+                <p style={{ color:textSecondary, fontSize:13, margin:0 }}>Work order queues for sub-assembly production before final build. Each shop picks up orders here the same way the build team picks up build orders.</p>
+              </div>
+              <ShopSection shopType="pcb" />
+              <ShopSection shopType="sheet_metal" />
+            </div>
           );
         })()}
 
