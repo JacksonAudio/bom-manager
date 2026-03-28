@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.31";
-const BUILD_TIME   = "2026-03-28T04:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.32";
+const BUILD_TIME   = "2026-03-28T04:25:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -11622,6 +11622,18 @@ function BOMManager({ user }) {
                                                     notes: po.customer ? `${po.customer}` : "",
                                                   });
                                                   setBuildOrders(prev => [...prev, bo]);
+                                                  // Auto-reserve components from BOM (same as manual build order creation)
+                                                  try {
+                                                    const productParts = parts.filter(p => p.projectId === bomProduct.id);
+                                                    if (productParts.length > 0) {
+                                                      const reservations = productParts.map(p => ({
+                                                        part_id: p.id,
+                                                        reserved_qty: (p.quantity || 1) * bo.quantity,
+                                                      }));
+                                                      const createdRes = await createComponentReservations(bo.id, reservations, user?.id);
+                                                      setComponentReservations(prev => [...prev, ...createdRes]);
+                                                    }
+                                                  } catch (resErr) { console.warn('[po build order] reservations failed:', resErr.message); }
                                                   created++;
                                                 } catch (err) { console.error("Create build order failed:", err); }
                                               }
@@ -11889,6 +11901,15 @@ function BOMManager({ user }) {
                                                 try {
                                                   const bo = await createBuildOrder({ product_id: bomProduct.id, quantity: remaining, priority: po.due?.urgent ? "high" : "normal", status: "pending", for_order: orderRef, notes: po.customer ? `${po.customer}` : "" });
                                                   setBuildOrders(prev => [...prev, bo]);
+                                                  // Auto-reserve components from BOM
+                                                  try {
+                                                    const productParts = parts.filter(p => p.projectId === bomProduct.id);
+                                                    if (productParts.length > 0) {
+                                                      const reservations = productParts.map(p => ({ part_id: p.id, reserved_qty: (p.quantity || 1) * bo.quantity }));
+                                                      const createdRes = await createComponentReservations(bo.id, reservations, user?.id);
+                                                      setComponentReservations(prev => [...prev, ...createdRes]);
+                                                    }
+                                                  } catch (resErr) { console.warn('[zoho build order] reservations failed:', resErr.message); }
                                                   created++;
                                                 } catch (err) { console.error(err); }
                                               }
