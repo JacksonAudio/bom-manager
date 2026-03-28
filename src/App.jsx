@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.11";
-const BUILD_TIME   = "2026-03-28T04:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.12";
+const BUILD_TIME   = "2026-03-28T05:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -15554,178 +15554,98 @@ function BOMManager({ user }) {
             setZohoImportPreview({ candidates: deduped, mode: "csv" });
           };
 
+          const dealerSearchLower = dealerSearch.toLowerCase().trim();
+          const matchDealer = (d) => !dealerSearchLower || [d.name,d.contact_name,d.email,d.phone,d.account_number,d.website,d.notes,d.shipping_notes,d.billing_address?.city,d.billing_address?.state,d.billing_address?.country,d.billing_address?.street,d.shipping_address?.city,d.shipping_address?.state,d.shipping_address?.zip].filter(Boolean).join(" ").toLowerCase().includes(dealerSearchLower);
+          const visibleDealerCount = dealers.filter(matchDealer).length;
+
           return (
             <div style={{ maxWidth:"100%" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20 }}>
-                <div>
-                  <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:21, fontWeight:800, marginBottom:4, color:textPrimary }}>Dealer Directory</h2>
-                  <p style={{ color:textSecondary, fontSize:13, margin:0 }}>All wholesale accounts — billing, shipping, contacts, and special instructions.</p>
+              {/* ── Toolbar */}
+              <div style={{ display:"flex", gap:8, marginBottom:8, flexWrap:"wrap", alignItems:"center" }}>
+                <div style={{ position:"relative" }}>
+                  <input type="text" placeholder="Search dealers…"
+                    value={dealerSearch} onChange={e => setDealerSearch(e.target.value)}
+                    style={{ padding:"5px 10px", paddingRight:dealerSearch?24:10, borderRadius:5, width:220, fontSize:12, boxSizing:"border-box" }} />
+                  {dealerSearch && <span onClick={() => setDealerSearch("")} style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", cursor:"pointer", fontSize:14, color:"#86868b", lineHeight:1 }}>✕</span>}
                 </div>
-                <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-                  {/* Search */}
-                  <div style={{ position:"relative" }}>
-                    <input
-                      placeholder="Search dealers…"
-                      value={dealerSearch}
-                      onChange={e => setDealerSearch(e.target.value)}
-                      style={{ ...inputStyle, width:200, paddingRight:dealerSearch ? 28 : 10, fontSize:13 }}
-                    />
-                    {dealerSearch && (
-                      <button onClick={() => setDealerSearch("")}
-                        style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:textSecondary, fontSize:16, lineHeight:1, padding:0 }}>×</button>
-                    )}
-                  </div>
+                <span style={{ fontSize:12, color:"#86868b", marginLeft:4 }}>{visibleDealerCount}/{dealers.length} dealers</span>
+                <div style={{ marginLeft:"auto", display:"flex", gap:6, alignItems:"center" }}>
                   {lastCsvImport && (
-                    <button className="btn-ghost" onClick={undoLastImport}
-                      style={{ fontSize:12, color:"#ff453a", borderColor:"#ff453a44" }}
-                      title="Undo the last CSV import">
-                      ↩ Undo Import
-                    </button>
+                    <button className="btn-ghost btn-sm" onClick={undoLastImport} style={{ color:"#ff453a", borderColor:"#ff453a44" }}>↩ Undo Import</button>
                   )}
-                  <label style={{ cursor:"pointer" }} title="Import dealers from Zoho CSV export (JA + Fulltone)">
+                  <label style={{ cursor:"pointer" }} title="Import from Zoho CSV export">
                     <input type="file" accept=".csv" multiple style={{ display:"none" }}
                       onChange={e => { if (e.target.files?.length) handleCSVImport(Array.from(e.target.files)); e.target.value=""; }} />
-                    <span className="btn-ghost" style={{ fontSize:12, display:"inline-block" }}>Import from CSV</span>
+                    <span className="btn-ghost btn-sm" style={{ display:"inline-block" }}>Import from CSV</span>
                   </label>
-                  <button className="btn-ghost" onClick={buildZohoImportCandidates}
-                    style={{ fontSize:12 }} title="Pull dealers from synced Zoho sales orders (already cached)">
-                    Import from Orders
-                  </button>
-                  <button className="btn-ghost" style={{ fontSize:12, background:"#4bc07615", color:"#4bc076", border:"1px solid #4bc07633" }}
-                    title="Pull ALL contacts directly from Zoho — most complete data source"
-                    onClick={async () => {
-                      const btn = document.activeElement;
-                      if (btn) btn.textContent = "Syncing…";
-                      const contacts = await syncZohoContacts();
-                      if (btn) btn.textContent = "Sync from Zoho Contacts";
-                      if (!contacts) return;
-                      if (!contacts.length) { alert("No contacts returned from Zoho."); return; }
-
-                      const BRAND_NAMES = ["jackson audio","fulltone usa","fulltone"];
-                      const existingByName  = {};
-                      const existingByZoho  = {};
-                      for (const d of dealers) {
-                        existingByName[d.name.toLowerCase()] = d;
-                        if (d.zoho_customer_name) existingByZoho[d.zoho_customer_name.toLowerCase()] = d;
-                      }
-
-                      const candidates = contacts
-                        .filter(c => c.name && !BRAND_NAMES.includes(c.name.toLowerCase()))
-                        .map(c => {
-                          const key = c.name.toLowerCase();
-                          const existing = existingByName[key] || existingByZoho[key] || null;
-                          // Determine brand from org
-                          const bn = (c.orgName || "").toLowerCase();
-                          const brand = bn.includes("fulltone") ? "Fulltone USA" : "Jackson Audio";
-                          // Build the full record from Zoho contact data
-                          const zohoData = {
-                            name:              c.name,
-                            brand,
-                            zoho_customer_name: c.name,
-                            contact_name:      c.primary_contact?.name || (c.contact_persons?.[0]?.name) || "",
-                            email:             c.email || c.primary_contact?.email || "",
-                            phone:             c.phone || c.primary_contact?.phone || "",
-                            shipping_address:  c.shipping_address || {},
-                            billing_address:   c.billing_address  || {},
-                            website:           c.website || "",
-                            notes:             c.notes   || "",
-                            payment_terms:     c.payment_terms || "",
-                          };
-                          if (existing) {
-                            // Compute what fields would be updated (only blank fields)
-                            const updates = {};
-                            if (!existing.contact_name  && zohoData.contact_name)  updates.contact_name  = zohoData.contact_name;
-                            if (!existing.email         && zohoData.email)         updates.email         = zohoData.email;
-                            if (!existing.phone         && zohoData.phone)         updates.phone         = zohoData.phone;
-                            if (!existing.zoho_customer_name)                      updates.zoho_customer_name = c.name;
-                            const sa = existing.shipping_address || {};
-                            if (!sa.street && zohoData.shipping_address?.street)   updates.shipping_address = zohoData.shipping_address;
-                            const ba = existing.billing_address || {};
-                            if (!ba.street && zohoData.billing_address?.street)    updates.billing_address = zohoData.billing_address;
-                            return { ...zohoData, existing, updates, willUpdate: Object.keys(updates).length > 0, selected: Object.keys(updates).length > 0 };
-                          }
-                          return { ...zohoData, existing: null, updates: null, willUpdate: false, selected: true };
-                        });
-
-                      setZohoImportPreview({ candidates, mode: "contacts" });
-                    }}>
-                    Sync from Zoho Contacts
-                  </button>
-                  <button className="btn-primary" onClick={() => { setDealerForm(emptyForm()); setTimeout(() => document.querySelector("[data-dealer-form]")?.scrollIntoView({ behavior:"smooth", block:"start" }), 50); }}>+ Add Dealer</button>
+                  <button className="btn-ghost btn-sm" onClick={buildZohoImportCandidates}>Import from Orders</button>
+                  <button className="btn-primary btn-sm" onClick={() => { setDealerForm(emptyForm()); }}>+ Add Dealer</button>
                 </div>
               </div>
 
-              {/* ── Zoho Import / Contacts Sync Preview ── */}
+              {/* ── Import preview */}
               {zohoImportPreview && (() => {
                 const mode = zohoImportPreview.mode || "orders";
                 const isCsv      = mode === "csv";
                 const isContacts = mode === "contacts";
-                const newCount     = zohoImportPreview.candidates.filter(c => c.selected && !c.existing && !c.alreadyExists).length;
-                const updateCount  = zohoImportPreview.candidates.filter(c => c.selected && c.existing && c.willUpdate).length;
-                const skipCount    = zohoImportPreview.candidates.filter(c => c.alreadyExists || (c.existing && !c.willUpdate)).length;
+                const newCount    = zohoImportPreview.candidates.filter(c => c.selected && !c.existing && !c.alreadyExists).length;
+                const updateCount = zohoImportPreview.candidates.filter(c => c.selected && c.existing && c.willUpdate).length;
+                const skipCount   = zohoImportPreview.candidates.filter(c => c.alreadyExists || (c.existing && !c.willUpdate)).length;
                 const title = isCsv ? "Import from CSV" : isContacts ? "Sync from Zoho Contacts" : "Import from Zoho Orders";
                 return (
-                  <div style={{ background:cardBg, border:`2px solid #4bc076`, borderRadius:12, marginBottom:24, overflow:"hidden" }}>
-                    <div style={{ padding:"14px 20px", background:"#4bc07610", borderBottom:`1px solid #4bc07633`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <div style={{ background:cardBg, border:`2px solid #4bc076`, borderRadius:10, marginBottom:12, overflow:"hidden" }}>
+                    <div style={{ padding:"10px 16px", background:"#4bc07610", borderBottom:`1px solid #4bc07633`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                       <div>
-                        <div style={{ fontWeight:700, fontSize:14, color:textPrimary }}>{title}</div>
-                        <div style={{ fontSize:12, color:textSecondary, marginTop:2 }}>
+                        <span style={{ fontWeight:700, fontSize:13, color:textPrimary }}>{title}</span>
+                        <span style={{ fontSize:12, color:textSecondary, marginLeft:10 }}>
                           {newCount > 0 && <span style={{ color:"#0071e3", fontWeight:600 }}>{newCount} new</span>}
                           {newCount > 0 && updateCount > 0 && " · "}
                           {updateCount > 0 && <span style={{ color:"#ff9500", fontWeight:600 }}>{updateCount} to update</span>}
-                          {skipCount > 0 && <span style={{ color:textSecondary }}> · {skipCount} no changes / already exist</span>}
-                        </div>
+                          {skipCount > 0 && <span style={{ color:textSecondary }}> · {skipCount} no changes</span>}
+                        </span>
                       </div>
-                      <div style={{ display:"flex", gap:8 }}>
-                        <button className="btn-ghost" onClick={() => setZohoImportPreview(null)}>Cancel</button>
-                        <button className="btn-primary" style={{ background:"#4bc076" }} onClick={runZohoImport}
-                          disabled={newCount + updateCount === 0}>
-                          {(isCsv || isContacts) ? `Apply (${newCount + updateCount})` : `Import (${newCount})`}
+                      <div style={{ display:"flex", gap:6 }}>
+                        <button className="btn-ghost btn-sm" onClick={() => setZohoImportPreview(null)}>Cancel</button>
+                        <button className="btn-primary btn-sm" style={{ background:"#4bc076" }} onClick={runZohoImport} disabled={newCount + updateCount === 0}>
+                          Apply ({newCount + updateCount})
                         </button>
                       </div>
                     </div>
-                    <div style={{ maxHeight:460, overflowY:"auto" }}>
-                      <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                        <thead style={{ position:"sticky", top:0, background:darkMode?"#2c2c2e":"#f5f5f7", zIndex:1 }}>
+                    <div style={{ maxHeight:320, overflowY:"auto" }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                        <thead style={{ position:"sticky", top:0, background:darkMode?"#2c2c2e":"#f5f5f7" }}>
                           <tr>
-                            <th style={{ padding:"8px 12px", fontSize:11, fontWeight:700, color:textSecondary, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${borderColor}` }}>
+                            <th style={{ padding:"6px 10px", textAlign:"left", borderBottom:`1px solid ${borderColor}` }}>
                               <input type="checkbox"
                                 checked={zohoImportPreview.candidates.filter(c=>!c.alreadyExists&&!(c.existing&&!c.willUpdate)).every(c=>c.selected)}
                                 onChange={e => setZohoImportPreview(p => ({ ...p, candidates: p.candidates.map(c => (c.alreadyExists||(c.existing&&!c.willUpdate)) ? c : { ...c, selected: e.target.checked }) }))} />
                             </th>
-                            {["Dealer","Brand","Contact","Email","Ship To","Status","Fields to Fill"].map(h => (
-                              <th key={h} style={{ padding:"8px 12px", fontSize:11, fontWeight:700, color:textSecondary, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${borderColor}`, whiteSpace:"nowrap" }}>{h}</th>
-                            ))}
+                            <th style={{ padding:"6px 10px", textAlign:"left", fontWeight:700, color:textSecondary, textTransform:"uppercase", fontSize:10, letterSpacing:"0.06em", borderBottom:`1px solid ${borderColor}` }}>Name</th>
+                            <th style={{ padding:"6px 10px", textAlign:"left", fontWeight:700, color:textSecondary, textTransform:"uppercase", fontSize:10, letterSpacing:"0.06em", borderBottom:`1px solid ${borderColor}` }}>Brand</th>
+                            <th style={{ padding:"6px 10px", textAlign:"left", fontWeight:700, color:textSecondary, textTransform:"uppercase", fontSize:10, letterSpacing:"0.06em", borderBottom:`1px solid ${borderColor}` }}>Email</th>
+                            <th style={{ padding:"6px 10px", textAlign:"left", fontWeight:700, color:textSecondary, textTransform:"uppercase", fontSize:10, letterSpacing:"0.06em", borderBottom:`1px solid ${borderColor}` }}>Location</th>
+                            <th style={{ padding:"6px 10px", textAlign:"left", fontWeight:700, color:textSecondary, textTransform:"uppercase", fontSize:10, letterSpacing:"0.06em", borderBottom:`1px solid ${borderColor}` }}>Status</th>
                           </tr>
                         </thead>
                         <tbody>
                           {zohoImportPreview.candidates.map((c, i) => {
                             const isSkip = c.alreadyExists || (c.existing && !c.willUpdate);
-                            const shipLine = [c.shipping_address?.city, c.shipping_address?.state].filter(Boolean).join(", ");
-                            const updateFields = c.updates ? Object.keys(c.updates).map(k => k.replace(/_/g," ")).join(", ") : "";
                             return (
-                              <tr key={i} style={{ opacity: isSkip ? 0.45 : 1, background: i%2===0?"transparent":darkMode?"#1c1c1e08":"#f5f5f708" }}>
-                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}` }}>
-                                  <input type="checkbox" checked={c.selected && !isSkip} disabled={isSkip}
-                                    onChange={e => setZohoImportPreview(p => ({ ...p, candidates: p.candidates.map((x,j) => j===i ? { ...x, selected:e.target.checked } : x) }))} />
+                              <tr key={i} style={{ borderBottom:`1px solid ${borderColor}`, opacity: isSkip ? 0.4 : 1 }}>
+                                <td style={{ padding:"5px 10px" }}>
+                                  <input type="checkbox" disabled={isSkip} checked={c.selected}
+                                    onChange={() => setZohoImportPreview(p => ({ ...p, candidates: p.candidates.map((x,j) => j===i ? { ...x, selected:!x.selected } : x) }))} />
                                 </td>
-                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontWeight:700, fontSize:13, color:textPrimary }}>{c.name}</td>
-                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}` }}>
-                                  <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:10, background:(brandColor[c.brand]||"#8e8e93")+"20", color:brandColor[c.brand]||textSecondary }}>{c.brand}</span>
+                                <td style={{ padding:"5px 10px", fontWeight:600, color:textPrimary }}>{c.name}</td>
+                                <td style={{ padding:"5px 10px", color:textSecondary }}>{c.brand}</td>
+                                <td style={{ padding:"5px 10px", color:"#0071e3" }}>{c.email}</td>
+                                <td style={{ padding:"5px 10px", color:textSecondary }}>{[c.billing_address?.city, c.billing_address?.state].filter(Boolean).join(", ")}</td>
+                                <td style={{ padding:"5px 10px" }}>
+                                  {c.alreadyExists ? <span style={{ color:textSecondary }}>Already exists</span>
+                                    : c.existing && !c.willUpdate ? <span style={{ color:textSecondary }}>No changes</span>
+                                    : c.existing ? <span style={{ color:"#ff9500", fontWeight:600 }}>Update: {Object.keys(c.updates||{}).join(", ")}</span>
+                                    : <span style={{ color:"#0071e3", fontWeight:600 }}>New</span>}
                                 </td>
-                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:textPrimary }}>{c.contact_name||"—"}</td>
-                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:"#0071e3" }}>
-                                  {c.email ? <a href={`mailto:${c.email}`} onClick={e=>e.stopPropagation()} style={{ color:"#0071e3", textDecoration:"none" }}>{c.email}</a> : "—"}
-                                </td>
-                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:12, color:textSecondary }}>{shipLine||"—"}</td>
-                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}` }}>
-                                  {isSkip
-                                    ? <span style={{ fontSize:11, color:"#34c759", fontWeight:600 }}>No changes</span>
-                                    : c.existing
-                                      ? <span style={{ fontSize:11, color:"#ff9500", fontWeight:600 }}>Update</span>
-                                      : <span style={{ fontSize:11, color:"#0071e3", fontWeight:600 }}>New</span>}
-                                </td>
-                                <td style={{ padding:"8px 12px", borderBottom:`1px solid ${borderColor}`, fontSize:11, color:textSecondary }}>{updateFields || (c.existing ? "—" : "all fields")}</td>
                               </tr>
                             );
                           })}
@@ -15736,240 +15656,187 @@ function BOMManager({ user }) {
                 );
               })()}
 
-              {/* Add form — only for new dealers; edit form renders inline below the row */}
+              {/* ── New Dealer form */}
               {dealerForm && !dealerForm.id && (
-                <div data-dealer-form style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:12, marginBottom:24, overflow:"hidden" }}>
-                  <div style={{ padding:"14px 20px", background:darkMode?"#3a3a3e":"#f5f5f7", borderBottom:`1px solid ${borderColor}` }}>
-                    <div style={{ fontWeight:700, fontSize:14, color:textPrimary }}>{dealerForm.id ? "Edit Dealer" : "New Dealer"}</div>
+                <div style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:10, marginBottom:12, overflow:"hidden" }}>
+                  <div style={{ padding:"10px 16px", background:darkMode?"#3a3a3e":"#f5f5f7", borderBottom:`1px solid ${borderColor}` }}>
+                    <span style={{ fontWeight:700, fontSize:13, color:textPrimary }}>New Dealer</span>
                   </div>
-                  <div style={{ padding:"20px", display:"flex", flexDirection:"column", gap:16 }}>
-                    {/* Row 1: Name + Brand + Zoho match */}
-                    <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 2fr", gap:12 }}>
-                      <div>
-                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Dealer Name *</div>
-                        <input placeholder="Sweetwater" value={dealerForm.name||""} onChange={e => setDealerForm(f => ({ ...f, name:e.target.value }))} style={inputStyle} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Brand</div>
-                        <select value={dealerForm.brand||"Jackson Audio"} onChange={e => setDealerForm(f => ({ ...f, brand:e.target.value }))} style={{ ...inputStyle }}>
-                          {BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Zoho Customer Name (for auto-match)</div>
-                        <input placeholder="Exact name as it appears in Zoho" value={dealerForm.zoho_customer_name||""} onChange={e => setDealerForm(f => ({ ...f, zoho_customer_name:e.target.value }))} style={inputStyle} />
-                      </div>
+                  <div style={{ padding:"16px", display:"flex", flexDirection:"column", gap:12 }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 2fr", gap:10 }}>
+                      <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Dealer Name *</div><input placeholder="Sweetwater" value={dealerForm.name||""} onChange={e => setDealerForm(f => ({ ...f, name:e.target.value }))} style={inputStyle} /></div>
+                      <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Brand</div><select value={dealerForm.brand||"Jackson Audio"} onChange={e => setDealerForm(f => ({ ...f, brand:e.target.value }))} style={{ ...inputStyle }}>{BRANDS.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
+                      <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Zoho Match Name</div><input placeholder="Exact name in Zoho" value={dealerForm.zoho_customer_name||""} onChange={e => setDealerForm(f => ({ ...f, zoho_customer_name:e.target.value }))} style={inputStyle} /></div>
                     </div>
-                    {/* Row 2: Contact */}
-                    <div style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr", gap:12 }}>
-                      <div>
-                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Contact Name</div>
-                        <input placeholder="John Smith" value={dealerForm.contact_name||""} onChange={e => setDealerForm(f => ({ ...f, contact_name:e.target.value }))} style={inputStyle} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Email</div>
-                        <input type="email" placeholder="orders@dealer.com" value={dealerForm.email||""} onChange={e => setDealerForm(f => ({ ...f, email:e.target.value }))} style={inputStyle} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Phone</div>
-                        <input placeholder="(555) 555-5555" value={dealerForm.phone||""} onChange={e => setDealerForm(f => ({ ...f, phone:e.target.value }))} style={inputStyle} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Account #</div>
-                        <input placeholder="ACC-001" value={dealerForm.account_number||""} onChange={e => setDealerForm(f => ({ ...f, account_number:e.target.value }))} style={inputStyle} />
-                      </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr", gap:10 }}>
+                      <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Contact Name</div><input placeholder="John Smith" value={dealerForm.contact_name||""} onChange={e => setDealerForm(f => ({ ...f, contact_name:e.target.value }))} style={inputStyle} /></div>
+                      <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Email</div><input type="email" placeholder="orders@dealer.com" value={dealerForm.email||""} onChange={e => setDealerForm(f => ({ ...f, email:e.target.value }))} style={inputStyle} /></div>
+                      <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Phone</div><input placeholder="(555) 555-5555" value={dealerForm.phone||""} onChange={e => setDealerForm(f => ({ ...f, phone:e.target.value }))} style={inputStyle} /></div>
+                      <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Account #</div><input placeholder="ACC-001" value={dealerForm.account_number||""} onChange={e => setDealerForm(f => ({ ...f, account_number:e.target.value }))} style={inputStyle} /></div>
                     </div>
-                    {/* Row 3: Shipping prefs */}
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 3fr", gap:12 }}>
-                      <div>
-                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Preferred Carrier</div>
-                        <select value={dealerForm.preferred_carrier||"UPS"} onChange={e => setDealerForm(f => ({ ...f, preferred_carrier:e.target.value }))} style={{ ...inputStyle }}>
-                          {CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Special Shipping Notes</div>
-                        <input placeholder="e.g. Sweetwater requires appointment delivery · Must use FedEx Ground · Consolidate all orders into one box" value={dealerForm.shipping_notes||""} onChange={e => setDealerForm(f => ({ ...f, shipping_notes:e.target.value }))} style={inputStyle} />
-                      </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 3fr", gap:10 }}>
+                      <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Carrier</div><select value={dealerForm.preferred_carrier||"UPS"} onChange={e => setDealerForm(f => ({ ...f, preferred_carrier:e.target.value }))} style={{ ...inputStyle }}>{CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                      <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Special Shipping Notes</div><input placeholder="e.g. Must use FedEx Ground · Requires appointment" value={dealerForm.shipping_notes||""} onChange={e => setDealerForm(f => ({ ...f, shipping_notes:e.target.value }))} style={inputStyle} /></div>
                     </div>
-                    {/* Row 4: Addresses */}
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
                       <AddrFields label="Shipping Address" prefix="shipping_address" />
                       <AddrFields label="Billing Address (if different)" prefix="billing_address" />
                     </div>
-                    <div style={{ display:"flex", gap:8, paddingTop:4 }}>
-                      <button className="btn-primary" onClick={saveDealer}>Save Dealer</button>
-                      <button className="btn-ghost" onClick={() => setDealerForm(null)}>Cancel</button>
+                    <div style={{ display:"flex", gap:6 }}>
+                      <button className="btn-primary btn-sm" onClick={saveDealer}>Save Dealer</button>
+                      <button className="btn-ghost btn-sm" onClick={() => setDealerForm(null)}>Cancel</button>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Dealer list grouped by brand */}
-              {dealers.length === 0 && !dealerForm ? (
-                <div className="card" style={{ textAlign:"center", padding:"60px 30px" }}>
-                  <div style={{ fontSize:40, marginBottom:12 }}>🏪</div>
-                  <div style={{ fontWeight:700, fontSize:15, marginBottom:8, color:textPrimary }}>No Dealers Yet</div>
-                  <p style={{ color:textSecondary, fontSize:13, maxWidth:420, margin:"0 auto 16px" }}>Add your wholesale dealers here to keep track of contacts, addresses, shipping preferences, and special requirements.</p>
-                  <button className="btn-primary" onClick={() => setDealerForm(emptyForm())}>+ Add First Dealer</button>
+              {/* ── Dealer table */}
+              {dealers.length === 0 ? (
+                <div style={{ textAlign:"center", padding:"60px 30px", color:textSecondary, fontSize:13 }}>
+                  No dealers yet. Use Import from CSV to get started.
                 </div>
               ) : (() => {
-                const fmtAddrBlock = (addr) => {
-                  if (!addr) return null;
-                  const lines = [];
-                  if (addr.attention) lines.push(addr.attention);
-                  if (addr.street) lines.push(addr.street);
-                  const city = [addr.city, addr.state].filter(Boolean).join(", ");
-                  if (city || addr.zip) lines.push([city, addr.zip].filter(Boolean).join(" "));
-                  if (addr.country && addr.country !== "US") lines.push(addr.country);
-                  return lines.length ? lines : null;
-                };
-                const searchLower = dealerSearch.toLowerCase().trim();
-                const matchesSearch = (d) => {
-                  if (!searchLower) return true;
-                  const haystack = [d.name, d.contact_name, d.email, d.phone, d.account_number, d.website, d.notes, d.shipping_notes,
-                    d.billing_address?.city, d.billing_address?.state, d.billing_address?.country, d.billing_address?.street,
-                    d.shipping_address?.city, d.shipping_address?.state, d.shipping_address?.country, d.shipping_address?.zip,
-                  ].filter(Boolean).join(" ").toLowerCase();
-                  return haystack.includes(searchLower);
-                };
-                return ["Jackson Audio", "Fulltone USA"].map(brand => {
-                  const group = (brandGroups[brand] || []).filter(matchesSearch).sort((a,b) => a.name.localeCompare(b.name));
-                  if (group.length === 0) return null;
-                  const color = brandColor[brand];
-                  return (
-                    <div key={brand} style={{ marginBottom:28 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-                        <div style={{ width:10, height:10, borderRadius:"50%", background:color }} />
-                        <h3 style={{ margin:0, fontSize:16, fontWeight:700, color:textPrimary }}>{brand}</h3>
-                        <span style={{ fontSize:12, color:textSecondary }}>({group.length} dealer{group.length!==1?"s":""})</span>
-                      </div>
-                      <div style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:12, overflow:"hidden" }}>
-                        {group.map((d, i) => {
-                          const isExpanded = expandedDealer === d.id + brand;
-                          const shipLines = fmtAddrBlock(d.shipping_address);
-                          const billLines = fmtAddrBlock(d.billing_address);
-                          const shipStr = shipLines ? shipLines.slice(-2).join(", ") : "—"; // city/state only in collapsed
-                          return (
-                            <div key={d.id + brand} style={{ borderBottom: i < group.length-1 ? `1px solid ${borderColor}` : "none" }}>
-                              {/* Collapsed row */}
-                              <div onClick={() => setExpandedDealer(isExpanded ? null : d.id + brand)}
-                                style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", cursor:"pointer",
-                                  background: isExpanded ? darkMode?"#3a3a3e":"#f5f5f7" : "transparent",
-                                  transition:"background 0.15s" }}>
-                                <span style={{ fontSize:11, color:textSecondary, transform:isExpanded?"rotate(90deg)":"rotate(0deg)", transition:"transform 0.15s", flexShrink:0 }}>▶</span>
-                                <div style={{ flex:1, minWidth:0 }}>
-                                  <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-                                    <span style={{ fontWeight:700, fontSize:14, color:textPrimary }}>{d.name}</span>
-                                    {d.account_number && <span style={{ fontSize:11, color:textSecondary }}>#{d.account_number}</span>}
-                                    {d.brand === "Both" && <span style={{ fontSize:10, fontWeight:700, padding:"1px 7px", borderRadius:10, background:"#5856d615", color:"#5856d6" }}>Both Brands</span>}
-                                    {d.preferred_carrier && <span style={{ fontSize:11, color:textSecondary }}>{d.preferred_carrier}</span>}
-                                  </div>
-                                  <div style={{ display:"flex", gap:16, marginTop:3, flexWrap:"wrap" }}>
-                                    {d.contact_name && <span style={{ fontSize:12, color:textSecondary }}>{d.contact_name}</span>}
-                                    {d.email && <a href={`mailto:${d.email}`} onClick={e=>e.stopPropagation()} style={{ fontSize:12, color:"#0071e3", textDecoration:"none" }}>{d.email}</a>}
-                                    {d.phone && <span style={{ fontSize:12, color:textSecondary }}>{d.phone}</span>}
-                                    <span style={{ fontSize:12, color:textSecondary }}>{shipStr}</span>
-                                  </div>
-                                  {d.shipping_notes && <div style={{ fontSize:11, color:"#ff9500", marginTop:2 }}>⚠ {d.shipping_notes}</div>}
-                                </div>
-                                <div style={{ display:"flex", gap:6, flexShrink:0 }} onClick={e=>e.stopPropagation()}>
-                                  <button onClick={() => setDealerForm({ ...d, billing_address: d.billing_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"}, shipping_address: d.shipping_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"} })}
-                                    style={{ fontSize:11, padding:"4px 10px", borderRadius:6, border:"none", background:"#0071e315", color:"#0071e3", cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>Edit</button>
-                                  {isAdmin && <button onClick={() => removeDealer(d.id)}
-                                    style={{ fontSize:11, padding:"4px 10px", borderRadius:6, border:"none", background:"#ff3b3015", color:"#ff3b30", cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>Delete</button>}
-                                </div>
-                              </div>
-                              {/* Inline edit form */}
-                              {dealerForm?.id === d.id && (
-                                <div style={{ borderTop:`2px solid #0071e3`, background:darkMode?"#1c2a3a":"#f0f6ff" }}>
-                                  <div style={{ padding:"14px 20px", background:darkMode?"#1a2a3a":"#e8f2ff", borderBottom:`1px solid #0071e333` }}>
-                                    <div style={{ fontWeight:700, fontSize:14, color:"#0071e3" }}>Edit — {d.name}</div>
-                                  </div>
-                                  <div style={{ padding:"20px", display:"flex", flexDirection:"column", gap:16 }}>
-                                    <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 2fr", gap:12 }}>
-                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Dealer Name *</div><input placeholder="Sweetwater" value={dealerForm.name||""} onChange={e => setDealerForm(f => ({ ...f, name:e.target.value }))} style={inputStyle} /></div>
-                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Brand</div><select value={dealerForm.brand||"Jackson Audio"} onChange={e => setDealerForm(f => ({ ...f, brand:e.target.value }))} style={{ ...inputStyle }}>{BRANDS.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
-                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Zoho Customer Name</div><input placeholder="Exact name as it appears in Zoho" value={dealerForm.zoho_customer_name||""} onChange={e => setDealerForm(f => ({ ...f, zoho_customer_name:e.target.value }))} style={inputStyle} /></div>
-                                    </div>
-                                    <div style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr", gap:12 }}>
-                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Contact Name</div><input placeholder="John Smith" value={dealerForm.contact_name||""} onChange={e => setDealerForm(f => ({ ...f, contact_name:e.target.value }))} style={inputStyle} /></div>
-                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Email</div><input type="email" placeholder="orders@dealer.com" value={dealerForm.email||""} onChange={e => setDealerForm(f => ({ ...f, email:e.target.value }))} style={inputStyle} /></div>
-                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Phone</div><input placeholder="(555) 555-5555" value={dealerForm.phone||""} onChange={e => setDealerForm(f => ({ ...f, phone:e.target.value }))} style={inputStyle} /></div>
-                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Account #</div><input placeholder="ACC-001" value={dealerForm.account_number||""} onChange={e => setDealerForm(f => ({ ...f, account_number:e.target.value }))} style={inputStyle} /></div>
-                                    </div>
-                                    <div style={{ display:"grid", gridTemplateColumns:"1fr 3fr", gap:12 }}>
-                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Preferred Carrier</div><select value={dealerForm.preferred_carrier||"UPS"} onChange={e => setDealerForm(f => ({ ...f, preferred_carrier:e.target.value }))} style={{ ...inputStyle }}>{CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                                      <div><div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Special Shipping Notes</div><input placeholder="e.g. Must use FedEx Ground · Requires appointment delivery" value={dealerForm.shipping_notes||""} onChange={e => setDealerForm(f => ({ ...f, shipping_notes:e.target.value }))} style={inputStyle} /></div>
-                                    </div>
-                                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
-                                      <AddrFields label="Shipping Address" prefix="shipping_address" />
-                                      <AddrFields label="Billing Address (if different)" prefix="billing_address" />
-                                    </div>
-                                    <div style={{ display:"flex", gap:8, paddingTop:4 }}>
-                                      <button className="btn-primary" onClick={saveDealer}>Save Dealer</button>
-                                      <button className="btn-ghost" onClick={() => setDealerForm(null)}>Cancel</button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                              {/* Expanded detail */}
-                              {isExpanded && (
-                                <div style={{ padding:"16px 20px 20px 40px", background:darkMode?"#1c1c1e10":"#fafafa", borderTop:`1px solid ${borderColor}` }}>
-                                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:16 }}>
-                                    {/* Contact */}
-                                    <div style={{ background:cardBg, borderRadius:10, padding:"14px 16px", border:`1px solid ${borderColor}` }}>
-                                      <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:8 }}>Contact</div>
-                                      {d.contact_name && <div style={{ fontWeight:700, fontSize:14, color:textPrimary, marginBottom:4 }}>{d.contact_name}</div>}
-                                      {d.email && <div style={{ fontSize:13 }}><a href={`mailto:${d.email}`} style={{ color:"#0071e3", textDecoration:"none" }}>{d.email}</a></div>}
-                                      {d.phone && <div style={{ fontSize:13, color:textPrimary, marginTop:2 }}>{d.phone}</div>}
-                                      {d.account_number && <div style={{ fontSize:12, color:textSecondary, marginTop:6 }}>Account: {d.account_number}</div>}
-                                      {!d.contact_name && !d.email && !d.phone && <div style={{ fontSize:12, color:textSecondary }}>No contact info</div>}
-                                    </div>
-                                    {/* Shipping Address */}
-                                    <div style={{ background:cardBg, borderRadius:10, padding:"14px 16px", border:`1px solid ${borderColor}` }}>
-                                      <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:8 }}>Ship To</div>
-                                      {shipLines ? shipLines.map((line,j) => <div key={j} style={{ fontSize:13, color:textPrimary, lineHeight:"20px" }}>{line}</div>)
-                                        : <div style={{ fontSize:12, color:textSecondary }}>No address on file</div>}
-                                      {d.preferred_carrier && <div style={{ fontSize:12, color:textSecondary, marginTop:8 }}>Carrier: <strong style={{ color:textPrimary }}>{d.preferred_carrier}</strong></div>}
-                                    </div>
-                                    {/* Billing Address */}
-                                    <div style={{ background:cardBg, borderRadius:10, padding:"14px 16px", border:`1px solid ${borderColor}` }}>
-                                      <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:8 }}>Bill To</div>
-                                      {billLines ? billLines.map((line,j) => <div key={j} style={{ fontSize:13, color:textPrimary, lineHeight:"20px" }}>{line}</div>)
-                                        : <div style={{ fontSize:12, color:textSecondary }}>Same as ship-to</div>}
-                                    </div>
-                                    {/* Shipping Notes */}
-                                    {d.shipping_notes && (
-                                      <div style={{ background:"#ff950010", borderRadius:10, padding:"14px 16px", border:"1px solid #ff950033" }}>
-                                        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:"#ff9500", marginBottom:8 }}>Special Shipping Instructions</div>
-                                        <div style={{ fontSize:13, color:textPrimary }}>{d.shipping_notes}</div>
-                                      </div>
-                                    )}
-                                    {/* Zoho match */}
-                                    {d.zoho_customer_name && (
-                                      <div style={{ background:cardBg, borderRadius:10, padding:"14px 16px", border:`1px solid ${borderColor}` }}>
-                                        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:8 }}>Zoho</div>
-                                        <div style={{ fontSize:12, color:textSecondary }}>Matches as: <strong style={{ color:textPrimary }}>{d.zoho_customer_name}</strong></div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                const thStyle = { padding:"7px 10px", fontSize:10, fontWeight:700, color:"#86868b", textTransform:"uppercase", letterSpacing:"0.06em", textAlign:"left", borderBottom:`1px solid ${borderColor}`, whiteSpace:"nowrap" };
+                const fmtAddr = (addr) => { if (!addr) return "—"; const c = [addr.city, addr.state].filter(Boolean).join(", "); return c || addr.country || "—"; };
+                return (
+                  <div style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:10, overflow:"hidden" }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                      <thead style={{ background:darkMode?"#2c2c2e":"#f5f5f7", position:"sticky", top:0, zIndex:1 }}>
+                        <tr>
+                          <th style={thStyle}>Name</th>
+                          <th style={thStyle}>Contact</th>
+                          <th style={thStyle}>Email</th>
+                          <th style={thStyle}>Phone</th>
+                          <th style={thStyle}>Location</th>
+                          <th style={thStyle}>Brand</th>
+                          <th style={{ ...thStyle, width:56 }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {["Jackson Audio","Fulltone USA"].flatMap(brand => {
+                          const group = (brandGroups[brand]||[]).filter(matchDealer).sort((a,b)=>a.name.localeCompare(b.name));
+                          if (!group.length) return [];
+                          const color = brandColor[brand];
+                          const sectionRow = (
+                            <tr key={"section-"+brand} style={{ background:darkMode?"#2a2a2e":"#fafafa" }}>
+                              <td colSpan={7} style={{ padding:"5px 12px", borderBottom:`1px solid ${borderColor}`, borderTop: brand==="Fulltone USA"?`1px solid ${borderColor}`:"none" }}>
+                                <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:11, fontWeight:700, color:textPrimary }}>
+                                  <span style={{ width:7, height:7, borderRadius:"50%", background:color, display:"inline-block" }} />
+                                  {brand} <span style={{ fontWeight:400, color:textSecondary }}>({group.length})</span>
+                                </span>
+                              </td>
+                            </tr>
                           );
+                          const rows = group.flatMap((d) => {
+                            const isExpanded = expandedDealer === d.id + brand;
+                            const isEditing  = dealerForm?.id === d.id;
+                            const tdStyle    = { padding:"7px 10px", fontSize:12, borderBottom:`1px solid ${borderColor}`, verticalAlign:"middle" };
+                            const mainRow = (
+                              <tr key={d.id+brand} className="table-row" onClick={() => setExpandedDealer(isExpanded ? null : d.id + brand)}
+                                style={{ cursor:"pointer", background: isEditing ? (darkMode?"#1a2a3a":"#f0f6ff") : isExpanded ? (darkMode?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.02)") : "transparent" }}>
+                                <td style={{ ...tdStyle, fontWeight:600, color:"#0071e3" }}>{d.name}</td>
+                                <td style={{ ...tdStyle, color:textSecondary }}>{d.contact_name || "—"}</td>
+                                <td style={{ ...tdStyle }}>{d.email ? <a href={"mailto:"+d.email} onClick={e=>e.stopPropagation()} style={{ color:"#0071e3", textDecoration:"none" }}>{d.email}</a> : <span style={{ color:textSecondary }}>—</span>}</td>
+                                <td style={{ ...tdStyle, color:textSecondary }}>{d.phone || "—"}</td>
+                                <td style={{ ...tdStyle, color:textSecondary }}>{fmtAddr(d.shipping_address || d.billing_address)}</td>
+                                <td style={{ ...tdStyle }}><span style={{ fontSize:10, fontWeight:700, padding:"1px 7px", borderRadius:10, background:(brandColor[d.brand]||"#8e8e93")+"22", color:brandColor[d.brand]||textSecondary }}>{d.brand==="Both"?"Both":d.brand==="Fulltone USA"?"FT":"JA"}</span></td>
+                                <td style={{ ...tdStyle, textAlign:"right", whiteSpace:"nowrap" }} onClick={e=>e.stopPropagation()}>
+                                  <button onClick={() => setDealerForm(isEditing ? null : { ...d, billing_address:d.billing_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"}, shipping_address:d.shipping_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"} })}
+                                    title="Edit" style={{ background:"none", border:"none", cursor:"pointer", color: isEditing?"#0071e3":"#c7c7cc", fontSize:13, padding:"2px 4px", borderRadius:4 }}
+                                    onMouseOver={e=>e.target.style.color="#0071e3"} onMouseOut={e=>e.target.style.color=isEditing?"#0071e3":"#c7c7cc"}>✎</button>
+                                  {isAdmin && <button onClick={() => removeDealer(d.id)} title="Delete"
+                                    style={{ background:"none", border:"none", cursor:"pointer", color:"#c7c7cc", fontSize:14, padding:"2px 4px", borderRadius:4 }}
+                                    onMouseOver={e=>e.target.style.color="#ff3b30"} onMouseOut={e=>e.target.style.color="#c7c7cc"}>✕</button>}
+                                </td>
+                              </tr>
+                            );
+                            const expandedRow = (isExpanded || isEditing) ? (
+                              <tr key={d.id+brand+"-exp"}>
+                                <td colSpan={7} style={{ padding:"14px 20px", background:darkMode?"#1c1c1e":"#f9f9fb", borderBottom: isEditing?"2px solid #0071e3":`1px solid ${borderColor}` }}>
+                                  {isEditing ? (
+                                    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                                      <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 2fr", gap:10 }}>
+                                        <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Dealer Name *</div><input placeholder="Sweetwater" value={dealerForm.name||""} onChange={e => setDealerForm(f => ({ ...f, name:e.target.value }))} style={inputStyle} /></div>
+                                        <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Brand</div><select value={dealerForm.brand||"Jackson Audio"} onChange={e => setDealerForm(f => ({ ...f, brand:e.target.value }))} style={{ ...inputStyle }}>{BRANDS.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
+                                        <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Zoho Match Name</div><input placeholder="Exact name in Zoho" value={dealerForm.zoho_customer_name||""} onChange={e => setDealerForm(f => ({ ...f, zoho_customer_name:e.target.value }))} style={inputStyle} /></div>
+                                      </div>
+                                      <div style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr", gap:10 }}>
+                                        <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Contact Name</div><input placeholder="John Smith" value={dealerForm.contact_name||""} onChange={e => setDealerForm(f => ({ ...f, contact_name:e.target.value }))} style={inputStyle} /></div>
+                                        <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Email</div><input type="email" placeholder="orders@dealer.com" value={dealerForm.email||""} onChange={e => setDealerForm(f => ({ ...f, email:e.target.value }))} style={inputStyle} /></div>
+                                        <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Phone</div><input placeholder="(555) 555-5555" value={dealerForm.phone||""} onChange={e => setDealerForm(f => ({ ...f, phone:e.target.value }))} style={inputStyle} /></div>
+                                        <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Account #</div><input placeholder="ACC-001" value={dealerForm.account_number||""} onChange={e => setDealerForm(f => ({ ...f, account_number:e.target.value }))} style={inputStyle} /></div>
+                                      </div>
+                                      <div style={{ display:"grid", gridTemplateColumns:"1fr 3fr", gap:10 }}>
+                                        <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Carrier</div><select value={dealerForm.preferred_carrier||"UPS"} onChange={e => setDealerForm(f => ({ ...f, preferred_carrier:e.target.value }))} style={{ ...inputStyle }}>{CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                        <div><div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:3 }}>Shipping Notes</div><input placeholder="e.g. Must use FedEx Ground" value={dealerForm.shipping_notes||""} onChange={e => setDealerForm(f => ({ ...f, shipping_notes:e.target.value }))} style={inputStyle} /></div>
+                                      </div>
+                                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+                                        <AddrFields label="Shipping Address" prefix="shipping_address" />
+                                        <AddrFields label="Billing Address (if different)" prefix="billing_address" />
+                                      </div>
+                                      <div style={{ display:"flex", gap:6 }}>
+                                        <button className="btn-primary btn-sm" onClick={saveDealer}>Save</button>
+                                        <button className="btn-ghost btn-sm" onClick={() => setDealerForm(null)}>Cancel</button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16, fontSize:12 }}>
+                                      <div>
+                                        <div style={{ fontSize:10, color:"#86868b", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Contact</div>
+                                        <div style={{ color:textPrimary, lineHeight:"18px" }}>
+                                          {d.contact_name && <div style={{ fontWeight:600 }}>{d.contact_name}</div>}
+                                          {d.email && <div><a href={"mailto:"+d.email} style={{ color:"#0071e3", textDecoration:"none" }}>{d.email}</a></div>}
+                                          {d.phone && <div>{d.phone}</div>}
+                                          {d.account_number && <div style={{ color:textSecondary }}>Acct: {d.account_number}</div>}
+                                          {d.website && <div><a href={d.website} target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3", textDecoration:"none" }}>{d.website}</a></div>}
+                                          {d.preferred_carrier && <div style={{ color:textSecondary }}>Carrier: {d.preferred_carrier}</div>}
+                                          {d.shipping_notes && <div style={{ color:"#ff9500", marginTop:4 }}>⚠ {d.shipping_notes}</div>}
+                                          {!d.contact_name && !d.email && !d.phone && <div style={{ color:textSecondary }}>No contact info</div>}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <div style={{ fontSize:10, color:"#86868b", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Ship To</div>
+                                        {d.shipping_address?.street ? (
+                                          <div style={{ color:textPrimary, lineHeight:"18px" }}>
+                                            {d.shipping_address.attention && <div>{d.shipping_address.attention}</div>}
+                                            <div>{d.shipping_address.street}</div>
+                                            <div>{[d.shipping_address.city, d.shipping_address.state, d.shipping_address.zip].filter(Boolean).join(", ")}</div>
+                                            {d.shipping_address.country && d.shipping_address.country !== "US" && <div>{d.shipping_address.country}</div>}
+                                          </div>
+                                        ) : <div style={{ color:textSecondary }}>No address on file</div>}
+                                      </div>
+                                      <div>
+                                        <div style={{ fontSize:10, color:"#86868b", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Bill To</div>
+                                        {d.billing_address?.street ? (
+                                          <div style={{ color:textPrimary, lineHeight:"18px" }}>
+                                            {d.billing_address.attention && <div>{d.billing_address.attention}</div>}
+                                            <div>{d.billing_address.street}</div>
+                                            <div>{[d.billing_address.city, d.billing_address.state, d.billing_address.zip].filter(Boolean).join(", ")}</div>
+                                            {d.billing_address.country && d.billing_address.country !== "US" && <div>{d.billing_address.country}</div>}
+                                          </div>
+                                        ) : <div style={{ color:textSecondary }}>Same as ship-to</div>}
+                                        {d.zoho_customer_name && <div style={{ marginTop:8, color:textSecondary }}>Zoho: <strong style={{ color:textPrimary }}>{d.zoho_customer_name}</strong></div>}
+                                      </div>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ) : null;
+                            return [mainRow, expandedRow].filter(Boolean);
+                          });
+                          return [sectionRow, ...rows];
                         })}
-                      </div>
-                    </div>
-                  );
-                });
+                      </tbody>
+                    </table>
+                  </div>
+                );
               })()}
             </div>
           );
         })()}
 
         {/* ══════════════════════════════════════
-            SHOPS — PCB Shop + Sheet Metal Shop
+            SHOPS — Internal Shop Work Orders
         ══════════════════════════════════════ */}
         {activeView === "shops" && (() => {
           const textPrimary   = darkMode ? "#f5f5f7" : "#1d1d1f";
@@ -15977,13 +15844,13 @@ function BOMManager({ user }) {
           const cardBg        = darkMode ? "#2c2c2e" : "#fff";
           const borderColor   = darkMode ? "#3a3a3e" : "#e5e5ea";
           const inputStyle    = { padding:"7px 10px", borderRadius:8, border:`1px solid ${borderColor}`, fontSize:13, fontFamily:"inherit", background:darkMode?"#1c1c1e":"#fff", color:textPrimary, width:"100%", boxSizing:"border-box" };
-
           const STATUS_COLORS = { pending:"#ff9500", in_progress:"#0071e3", completed:"#34c759", cancelled:"#aeaeb2" };
           const STATUS_LABELS = { pending:"Pending", in_progress:"In Progress", completed:"Completed", cancelled:"Cancelled" };
           const PRIORITY_COLORS = { low:"#aeaeb2", normal:"#0071e3", high:"#ff9500", urgent:"#ff3b30" };
           const SHOP_CFG = {
-            pcb:        { label:"PCB Shop",        color:"#5856d6", desc:"Printed circuit board orders — track fab runs, quantities, and which build they feed." },
-            sheet_metal:{ label:"Sheet Metal Shop", color:"#ff6b35", desc:"Enclosures and metalwork — track cutting, bending, and finishing before final assembly." },
+            pcb:           { label:"PCB Shop",           color:"#5856d6", desc:"Printed circuit board orders — track fab runs, quantities, and which build they feed." },
+            sheet_metal:   { label:"Sheet Metal Shop",   color:"#ff6b35", desc:"Enclosures and metalwork — track cutting, bending, and finishing before final assembly." },
+            powder_coating:{ label:"Powder Coating Shop",color:"#30b050", desc:"Powder coating runs — track color, finish, and which enclosures are in queue." },
           };
 
           const emptyShopForm = (shopType) => ({
@@ -16008,9 +15875,8 @@ function BOMManager({ user }) {
                 setShopOrders(prev => prev.map(o => o.id === shopOrderForm.id ? updated : o));
               } else {
                 const row = { ...shopOrderForm, created_by: user.id };
-                // Auto-generate order number if blank
                 if (!row.order_number) {
-                  const prefix = row.shop_type === "pcb" ? "PCB" : "SM";
+                  const prefix = row.shop_type === "pcb" ? "PCB" : row.shop_type === "sheet_metal" ? "SM" : "PC";
                   const existing = shopOrders.filter(o => o.shop_type === row.shop_type).length + 1;
                   row.order_number = `${prefix}-${new Date().getFullYear()}-${String(existing).padStart(3,"0")}`;
                 }
@@ -16070,7 +15936,6 @@ function BOMManager({ user }) {
 
                 <p style={{ fontSize:12, color:textSecondary, marginBottom:14, marginTop:0 }}>{cfg.desc}</p>
 
-                {/* New / Edit form — inline when this shop is selected */}
                 {shopOrderForm?.shop_type === shopType && (
                   <div style={{ background:cardBg, border:`2px solid ${cfg.color}40`, borderRadius:12, marginBottom:16, overflow:"hidden" }}>
                     <div style={{ padding:"12px 16px", background:darkMode?"#3a3a3e":"#f5f5f7", borderBottom:`1px solid ${borderColor}` }}>
@@ -16097,7 +15962,7 @@ function BOMManager({ user }) {
                       </div>
                       <div>
                         <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Order Number (auto if blank)</div>
-                        <input placeholder="PCB-2026-001" value={shopOrderForm.order_number||""} onChange={e => setShopOrderForm(f => ({ ...f, order_number:e.target.value }))} style={inputStyle} />
+                        <input placeholder="PC-2026-001" value={shopOrderForm.order_number||""} onChange={e => setShopOrderForm(f => ({ ...f, order_number:e.target.value }))} style={inputStyle} />
                       </div>
                       <div>
                         <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>For Dealer PO</div>
@@ -16115,7 +15980,7 @@ function BOMManager({ user }) {
                       </div>
                       <div style={{ gridColumn:"1/-1" }}>
                         <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:textSecondary, marginBottom:4 }}>Notes</div>
-                        <input placeholder="Special instructions, fab house, revision notes…" value={shopOrderForm.notes||""} onChange={e => setShopOrderForm(f => ({ ...f, notes:e.target.value }))} style={inputStyle} />
+                        <input placeholder="Special instructions, finish color, revision notes…" value={shopOrderForm.notes||""} onChange={e => setShopOrderForm(f => ({ ...f, notes:e.target.value }))} style={inputStyle} />
                       </div>
                       <div style={{ gridColumn:"1/-1", display:"flex", gap:8 }}>
                         <button className="btn-primary" style={{ background:cfg.color }} onClick={saveShopOrder}>Save Work Order</button>
@@ -16137,7 +16002,6 @@ function BOMManager({ user }) {
                       const isOverdue = order.due_date && new Date(order.due_date) < new Date() && order.status !== "completed" && order.status !== "cancelled";
                       return (
                         <div key={order.id} style={{ borderBottom: i < displayed.length-1 ? `1px solid ${borderColor}` : "none" }}>
-                          {/* Collapsed row */}
                           <div onClick={() => setExpandedOrder(isExpanded ? null : order.id)}
                             style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", cursor:"pointer",
                               background: isOverdue ? "#ff3b3005" : isExpanded ? darkMode?"#3a3a3e":"#f5f5f7" : "transparent",
@@ -16158,7 +16022,6 @@ function BOMManager({ user }) {
                               {order.due_date && <span style={{ fontSize:11, color:isOverdue?"#ff3b30":textSecondary }}>Due {new Date(order.due_date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>}
                             </div>
                           </div>
-                          {/* Expanded detail */}
                           {isExpanded && (
                             <div style={{ padding:"0 16px 16px 36px", background:darkMode?"#1c1c1e08":"#fafafa" }}>
                               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12, marginBottom:12 }}>
@@ -16186,7 +16049,6 @@ function BOMManager({ user }) {
                                 </div>
                               )}
                               <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                                {/* Quick status buttons */}
                                 {order.status !== "in_progress" && order.status !== "completed" && order.status !== "cancelled" && (
                                   <button onClick={async () => { const u = await updateShopOrder(order.id, { status:"in_progress" }); setShopOrders(prev => prev.map(o => o.id===order.id ? u : o)); }}
                                     style={{ padding:"5px 12px", borderRadius:8, border:"none", background:"#0071e315", color:"#0071e3", cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:600 }}>
@@ -16229,6 +16091,7 @@ function BOMManager({ user }) {
               </div>
               <ShopSection shopType="pcb" />
               <ShopSection shopType="sheet_metal" />
+              <ShopSection shopType="powder_coating" />
             </div>
           );
         })()}

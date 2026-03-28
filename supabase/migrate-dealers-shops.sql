@@ -51,7 +51,7 @@ CREATE POLICY "admin delete dealers"
 
 CREATE TABLE IF NOT EXISTS shop_orders (
   id            uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  shop_type     text NOT NULL CHECK (shop_type IN ('pcb', 'sheet_metal')),
+  shop_type     text NOT NULL CHECK (shop_type IN ('pcb', 'sheet_metal', 'powder_coating')),
   order_number  text,                         -- auto-gen or manual, e.g. "PCB-2026-001"
   product_id    uuid REFERENCES products(id) ON DELETE SET NULL,
   product_name  text NOT NULL,
