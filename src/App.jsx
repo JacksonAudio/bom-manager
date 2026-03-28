@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.09";
-const BUILD_TIME   = "2026-03-28T03:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.10";
+const BUILD_TIME   = "2026-03-28T03:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -15637,7 +15637,7 @@ function BOMManager({ user }) {
                     }}>
                     Sync from Zoho Contacts
                   </button>
-                  <button className="btn-primary" onClick={() => setDealerForm(emptyForm())}>+ Add Dealer</button>
+                  <button className="btn-primary" onClick={() => { setDealerForm(emptyForm()); setTimeout(() => document.querySelector("[data-dealer-form]")?.scrollIntoView({ behavior:"smooth", block:"start" }), 50); }}>+ Add Dealer</button>
                 </div>
               </div>
 
@@ -15724,7 +15724,7 @@ function BOMManager({ user }) {
 
               {/* Add / Edit form */}
               {dealerForm && (
-                <div style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:12, marginBottom:24, overflow:"hidden" }}>
+                <div data-dealer-form style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:12, marginBottom:24, overflow:"hidden" }}>
                   <div style={{ padding:"14px 20px", background:darkMode?"#3a3a3e":"#f5f5f7", borderBottom:`1px solid ${borderColor}` }}>
                     <div style={{ fontWeight:700, fontSize:14, color:textPrimary }}>{dealerForm.id ? "Edit Dealer" : "New Dealer"}</div>
                   </div>
@@ -15851,7 +15851,7 @@ function BOMManager({ user }) {
                                   {d.shipping_notes && <div style={{ fontSize:11, color:"#ff9500", marginTop:2 }}>⚠ {d.shipping_notes}</div>}
                                 </div>
                                 <div style={{ display:"flex", gap:6, flexShrink:0 }} onClick={e=>e.stopPropagation()}>
-                                  <button onClick={() => setDealerForm({ ...d, billing_address: d.billing_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"}, shipping_address: d.shipping_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"} })}
+                                  <button onClick={() => { setDealerForm({ ...d, billing_address: d.billing_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"}, shipping_address: d.shipping_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"} }); setTimeout(() => document.querySelector("[data-dealer-form]")?.scrollIntoView({ behavior:"smooth", block:"start" }), 50); }}
                                     style={{ fontSize:11, padding:"4px 10px", borderRadius:6, border:"none", background:"#0071e315", color:"#0071e3", cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>Edit</button>
                                   {isAdmin && <button onClick={() => removeDealer(d.id)}
                                     style={{ fontSize:11, padding:"4px 10px", borderRadius:6, border:"none", background:"#ff3b3015", color:"#ff3b30", cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>Delete</button>}
