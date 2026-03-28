@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.21";
-const BUILD_TIME   = "2026-03-28T14:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.23";
+const BUILD_TIME   = "2026-03-28T15:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -16562,8 +16562,11 @@ function BOMManager({ user }) {
                   <br /><br />
                   <strong>Setup:</strong> In Vercel → Project Settings → Environment Variables, add:
                   <ul style={{ margin:"8px 0 0 16px",padding:0,lineHeight:"1.8" }}>
-                    <li><code>MCMASTER_PFX_B64</code> — base64-encoded Jackson-1.pfx (copy from the BOM Manager admin panel or ask Brad)</li>
+                    <li><code>MCMASTER_PFX_B64_1</code> — first 3999 chars of base64-encoded Jackson-1.pfx</li>
+                    <li><code>MCMASTER_PFX_B64_2</code> — remaining chars of base64-encoded Jackson-1.pfx</li>
                     <li><code>MCMASTER_PFX_PASS</code> — PFX passphrase</li>
+                    <li><code>MCMASTER_USERNAME</code> — McMaster API username</li>
+                    <li><code>MCMASTER_PASSWORD</code> — McMaster API password</li>
                   </ul>
                 </div>
                 {testBtn("mcmaster")}

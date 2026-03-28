@@ -21,10 +21,12 @@ let _mmToken = null;
 let _mmTokenExpires = 0;
 
 function makeMcMasterAgent() {
-  const pfxB64 = process.env.MCMASTER_PFX_B64;
-  if (!pfxB64) throw new Error("MCMASTER_PFX_B64 env var not set");
+  // PFX is split across two env vars to stay under Vercel's 4KB limit
+  const part1 = process.env.MCMASTER_PFX_B64_1;
+  const part2 = process.env.MCMASTER_PFX_B64_2 || "";
+  if (!part1) throw new Error("MCMASTER_PFX_B64_1 env var not set");
   return new https.Agent({
-    pfx: Buffer.from(pfxB64, "base64"),
+    pfx: Buffer.from(part1 + part2, "base64"),
     passphrase: process.env.MCMASTER_PFX_PASS || "",
     rejectUnauthorized: true,
   });
