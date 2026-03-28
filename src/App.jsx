@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.30";
-const BUILD_TIME   = "2026-03-28T04:05:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.31";
+const BUILD_TIME   = "2026-03-28T04:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -2470,7 +2470,10 @@ function BOMManager({ user }) {
       bt.build_order_id === unit.build_order_id && bt.status !== "completed"
     );
     if (existingTask) {
-      // Add to existing boxing task
+      // Add unit to existing boxing task — increment its expected quantity by 1
+      const newQty = (existingTask.quantity || 1) + 1;
+      await updateBoxingTask(existingTask.id, { quantity: newQty });
+      setBoxingTasks(prev => prev.map(t => t.id === existingTask.id ? { ...t, quantity: newQty } : t));
       await updatePedalUnit(unit.id, { status: "boxing", boxing_task_id: existingTask.id });
       setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, status: "boxing", boxing_task_id: existingTask.id } : u));
     } else if (activeMembers.length > 0) {
