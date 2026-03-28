@@ -108,11 +108,14 @@ async function sendSms({ to, body, smsProvider, awsAccessKeyId, awsSecretAccessK
       Message: body,
       MessageAttributes: {
         "AWS.SNS.SMS.SMSType": { DataType: "String", StringValue: "Transactional" },
-        "AWS.SNS.SMS.SenderID": { DataType: "String", StringValue: "JacksonAud" },
       },
     });
-    const result = await client.send(command);
-    return { ok: true, data: { sid: result.MessageId, provider: "aws_sns" } };
+    try {
+      const result = await client.send(command);
+      return { ok: true, data: { sid: result.MessageId, provider: "aws_sns" } };
+    } catch (e) {
+      return { ok: false, data: { message: e.message, code: e.name, provider: "aws_sns" } };
+    }
   }
 
   // Twilio (fallback)
