@@ -15,6 +15,10 @@
 
 **No exceptions. No forgetting. Every push. Always.**
 
+## MANDATORY: No permission prompts — just execute
+
+Never ask "want me to?", "shall I?", or "should I?" before pushing, committing, editing files, or any other standard operation. Just do it. The user trusts the workflow.
+
 ## MANDATORY: Always push to master
 
 **Always push to `master`. Never push to any other branch unless explicitly told otherwise.**
