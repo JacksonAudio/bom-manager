@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.95";
-const BUILD_TIME   = "2026-03-27T21:37:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.96";
+const BUILD_TIME   = "2026-03-28T10:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -11129,6 +11129,17 @@ function BOMManager({ user }) {
                       base.carrier = ssMatch.shipments[0]?.carrier || "";
                       base.shipDate = ssMatch.shipments[0]?.shipDate || "";
                     }
+                    // Determine brand from line items
+                    const brandCounts = {};
+                    for (const li of order.lineItems) {
+                      const bomProduct = products.find(p => p.zohoProductId === li.productId || productMatchesTitle(p, li.title));
+                      if (bomProduct?.brand) {
+                        brandCounts[bomProduct.brand] = (brandCounts[bomProduct.brand] || 0) + 1;
+                      }
+                    }
+                    const topBrand = Object.entries(brandCounts).sort((a, b) => b[1] - a[1])[0];
+                    base.brand = topBrand ? topBrand[0] : "Other";
+
                     base.due = computeDueStatus(base);
                     return base;
                   });
@@ -11393,97 +11404,137 @@ function BOMManager({ user }) {
                     return new Date(b.createdAt) - new Date(a.createdAt);
                   });
 
-                  // ── Dealer PO Renderer (expandable cards with full detail) ──
+                  // ── Dealer PO Renderer (expandable cards with full detail, segregated by brand) ──
                   const renderDealerPOs = () => {
                     if (dealerOrders.length === 0) return null;
-                    const sorted = sortOrders(dealerOrders);
-                    const openCount = sorted.filter(o => o.pctComplete < 100).length;
-                    const overdueCount = sorted.filter(o => o.due.urgent && o.pctComplete < 100).length;
-                    const isSectionCollapsed = !expandedDemandSections.has("dealer-pos");
-                    const fmtAddr = (addr) => {
-                      if (!addr) return null;
-                      return [addr.attention, addr.street, [addr.city, addr.state, addr.zip].filter(Boolean).join(", "), addr.country].filter(Boolean).join(", ");
-                    };
-                    return (
-                      <div className="card" style={{ marginBottom:16, overflow:"hidden" }}>
-                        <div onClick={() => setExpandedDemandSections(prev => { const s = new Set(prev); s.has("dealer-pos") ? s.delete("dealer-pos") : s.add("dealer-pos"); return s; })}
-                          style={{ padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
-                            background: overdueCount > 0 ? "#ff3b3008" : "#4bc07608",
-                            borderBottom: isSectionCollapsed ? "none" : `2px solid ${overdueCount > 0 ? "#ff3b3033" : "#4bc07633"}`,
-                            borderRadius: isSectionCollapsed ? 12 : "12px 12px 0 0" }}>
-                          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                            <div style={{ width:8,height:8,borderRadius:"50%",background:"#4bc076" }} />
-                            <span style={{ fontSize:13,fontWeight:700 }}>Dealer PO Tracker</span>
-                            <span style={{ fontSize:11,color:"#86868b" }}>({sorted.length} PO{sorted.length!==1?"s":""} · {openCount} open)</span>
-                            {overdueCount > 0 && <span style={{ fontSize:10,fontWeight:700,color:"#ff3b30",background:"#ff3b3015",padding:"2px 8px",borderRadius:10 }}>{overdueCount} overdue</span>}
-                          </div>
-                          <span style={{ fontSize:11,color:"#86868b",transform:isSectionCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
-                        </div>
-                        {!isSectionCollapsed && (
-                          <div style={{ padding:"8px 0" }}>
-                            {sorted.map(po => {
-                              const isExpanded = expandedPO === po.id;
-                              return (
-                                <div key={po.id} style={{ borderBottom:"1px solid #f0f0f2",opacity:po.pctComplete===100?0.5:1 }}>
-                                  {/* Collapsed PO row — click to expand */}
-                                  <div onClick={() => setExpandedPO(isExpanded ? null : po.id)}
-                                    style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 16px",cursor:"pointer",
-                                      background: po.due.urgent && po.pctComplete<100 ? "#ff3b3005" : isExpanded ? "#f5f5f7" : "transparent",
-                                      transition:"background 0.15s" }}>
-                                    <span style={{ fontSize:11,color:"#86868b",transform:isExpanded?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s",flexShrink:0 }}>▶</span>
-                                    <div style={{ flex:1,minWidth:0 }}>
-                                      <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
-                                        <span style={{ fontSize:14,fontWeight:800,color:"#1d1d1f" }}>{po.dealerPO || po.orderName}</span>
-                                        {po.dealerPO && po.orderName !== po.dealerPO && <span style={{ fontSize:11,color:"#86868b" }}>{po.orderName}</span>}
-                                        <span style={{ fontSize:12,fontWeight:600,color:"#4bc076" }}>{po.companyName || po.customer}</span>
-                                        <span style={{ fontSize:11,fontWeight:700,color:po.due.color }}>{po.due.label}</span>
-                                      </div>
-                                      <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginTop:4 }}>
-                                        {po.lineItems.map((li,i) => (
-                                          <span key={i} style={{ fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:4,
-                                            background:li.fulfilled>=li.quantity?"#34c75915":"#ff950015",
-                                            color:li.fulfilled>=li.quantity?"#34c759":"#ff9500" }}>
-                                            {li.title} ×{li.quantity}{li.fulfilled>0?` (${li.fulfilled} shipped)`:""}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                    <div style={{ display:"flex",alignItems:"center",gap:8,flexShrink:0 }}>
-                                      <div style={{ width:60,height:6,borderRadius:3,background:"#e5e5ea",overflow:"hidden" }}>
-                                        <div style={{ width:`${po.pctComplete}%`,height:"100%",borderRadius:3,
-                                          background:po.pctComplete===100?"#34c759":po.pctComplete>=50?"#ff9500":"#ff3b30" }} />
-                                      </div>
-                                      <span style={{ fontSize:12,fontWeight:700,color:po.pctComplete===100?"#34c759":"#1d1d1f",minWidth:40,textAlign:"right" }}>
-                                        {po.totalFulfilled}/{po.totalQty}
-                                      </span>
-                                    </div>
-                                  </div>
 
-                                  {/* Expanded PO detail */}
-                                  {isExpanded && (
-                                    <div style={{ padding:"0 16px 16px 36px",background:"#fafafa" }}>
-                                      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16 }}>
-                                        {/* Left: Dealer info */}
-                                        <div style={{ background:"#fff",borderRadius:10,padding:"14px 18px",border:"1px solid #e5e5ea" }}>
-                                          <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:8 }}>Dealer Info</div>
-                                          <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f",marginBottom:4 }}>{po.companyName || po.customer}</div>
-                                          {po.contactName && <div style={{ fontSize:12,color:"#3a3f51" }}>{po.contactName}</div>}
-                                          {po.email && <div style={{ fontSize:12 }}><a href={"mailto:"+po.email} style={{ color:"#0071e3",textDecoration:"none" }}>{po.email}</a></div>}
-                                          {po.phone && <div style={{ fontSize:12,color:"#3a3f51" }}>{po.phone}</div>}
-                                          {po.shippingAddress && fmtAddr(po.shippingAddress) && (
-                                            <div style={{ marginTop:8,paddingTop:8,borderTop:"1px solid #f0f0f2" }}>
-                                              <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:4 }}>Ship To</div>
-                                              <div style={{ fontSize:12,color:"#3a3f51",lineHeight:"18px" }}>{fmtAddr(po.shippingAddress)}</div>
-                                              {po.shippingAddress.phone && <div style={{ fontSize:11,color:"#86868b" }}>{po.shippingAddress.phone}</div>}
-                                            </div>
-                                          )}
-                                          {po.billingAddress && fmtAddr(po.billingAddress) && fmtAddr(po.billingAddress) !== fmtAddr(po.shippingAddress) && (
-                                            <div style={{ marginTop:8,paddingTop:8,borderTop:"1px solid #f0f0f2" }}>
-                                              <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:4 }}>Bill To</div>
-                                              <div style={{ fontSize:12,color:"#3a3f51",lineHeight:"18px" }}>{fmtAddr(po.billingAddress)}</div>
-                                            </div>
-                                          )}
+                    // Format address in proper multi-line format
+                    const fmtAddrBlock = (addr) => {
+                      if (!addr) return null;
+                      const lines = [];
+                      if (addr.attention) lines.push(addr.attention);
+                      if (addr.street) lines.push(addr.street);
+                      const cityLine = [addr.city, addr.state].filter(Boolean).join(", ");
+                      if (cityLine || addr.zip) lines.push([cityLine, addr.zip].filter(Boolean).join(" "));
+                      if (addr.country && addr.country !== "US" && addr.country !== "U.S.A" && addr.country !== "United States") lines.push(addr.country);
+                      return lines.length > 0 ? lines : null;
+                    };
+                    const addrKey = (addr) => (fmtAddrBlock(addr) || []).join("|");
+
+                    // Group orders by brand
+                    const brandGroups = {};
+                    const brandMeta = {
+                      "Jackson Audio": { color: "#c8a84e", dotColor: "#c8a84e", sectionKey: "dealer-pos-ja" },
+                      "Fulltone USA": { color: "#b22222", dotColor: "#b22222", sectionKey: "dealer-pos-ft" },
+                      "Other": { color: "#4bc076", dotColor: "#4bc076", sectionKey: "dealer-pos-other" },
+                    };
+                    for (const po of dealerOrders) {
+                      const brand = po.brand || "Other";
+                      if (!brandGroups[brand]) brandGroups[brand] = [];
+                      brandGroups[brand].push(po);
+                    }
+
+                    // Render order within brand — brand order: Jackson Audio first, then Fulltone, then Other
+                    const brandOrder = ["Jackson Audio", "Fulltone USA", "Other"];
+                    const activeBrands = brandOrder.filter(b => brandGroups[b]?.length > 0);
+
+                    return activeBrands.map(brandName => {
+                      const orders = brandGroups[brandName];
+                      const sorted = sortOrders(orders);
+                      const openCount = sorted.filter(o => o.pctComplete < 100).length;
+                      const overdueCount = sorted.filter(o => o.due.urgent && o.pctComplete < 100).length;
+                      const meta = brandMeta[brandName] || brandMeta["Other"];
+                      const isSectionCollapsed = !expandedDemandSections.has(meta.sectionKey);
+
+                      return (
+                        <div key={brandName} className="card" style={{ marginBottom:16, overflow:"hidden" }}>
+                          <div onClick={() => setExpandedDemandSections(prev => { const s = new Set(prev); s.has(meta.sectionKey) ? s.delete(meta.sectionKey) : s.add(meta.sectionKey); return s; })}
+                            style={{ padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
+                              background: overdueCount > 0 ? "#ff3b3008" : `${meta.color}08`,
+                              borderBottom: isSectionCollapsed ? "none" : `2px solid ${overdueCount > 0 ? "#ff3b3033" : meta.color + "33"}`,
+                              borderRadius: isSectionCollapsed ? 12 : "12px 12px 0 0" }}>
+                            <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                              <div style={{ width:8,height:8,borderRadius:"50%",background:meta.dotColor }} />
+                              <span style={{ fontSize:13,fontWeight:700 }}>{brandName} — Dealer POs</span>
+                              <span style={{ fontSize:11,color:"#86868b" }}>({sorted.length} PO{sorted.length!==1?"s":""} · {openCount} open)</span>
+                              {overdueCount > 0 && <span style={{ fontSize:10,fontWeight:700,color:"#ff3b30",background:"#ff3b3015",padding:"2px 8px",borderRadius:10 }}>{overdueCount} overdue</span>}
+                            </div>
+                            <span style={{ fontSize:11,color:"#86868b",transform:isSectionCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
+                          </div>
+                          {!isSectionCollapsed && (
+                            <div style={{ padding:"8px 0" }}>
+                              {sorted.map(po => {
+                                const isExpanded = expandedPO === po.id;
+                                return (
+                                  <div key={po.id} style={{ borderBottom:"1px solid #f0f0f2",opacity:po.pctComplete===100?0.5:1 }}>
+                                    {/* Collapsed PO row — click to expand */}
+                                    <div onClick={() => setExpandedPO(isExpanded ? null : po.id)}
+                                      style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 16px",cursor:"pointer",
+                                        background: po.due.urgent && po.pctComplete<100 ? "#ff3b3005" : isExpanded ? "#f5f5f7" : "transparent",
+                                        transition:"background 0.15s" }}>
+                                      <span style={{ fontSize:11,color:"#86868b",transform:isExpanded?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s",flexShrink:0 }}>▶</span>
+                                      <div style={{ flex:1,minWidth:0 }}>
+                                        <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+                                          <span style={{ fontSize:14,fontWeight:800,color:"#1d1d1f" }}>{po.dealerPO || po.orderName}</span>
+                                          <span style={{ fontSize:13,fontWeight:700,color:meta.color }}>— {po.companyName || po.customer}</span>
+                                          {po.dealerPO && po.orderName !== po.dealerPO && <span style={{ fontSize:11,color:"#86868b" }}>{po.orderName}</span>}
+                                          <span style={{ fontSize:11,fontWeight:700,color:po.due.color }}>{po.due.label}</span>
                                         </div>
+                                        <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginTop:4 }}>
+                                          {po.lineItems.map((li,i) => (
+                                            <span key={i} style={{ fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:4,
+                                              background:li.fulfilled>=li.quantity?"#34c75915":"#ff950015",
+                                              color:li.fulfilled>=li.quantity?"#34c759":"#ff9500" }}>
+                                              {li.title} ×{li.quantity}{li.fulfilled>0?` (${li.fulfilled} shipped)`:""}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                      <div style={{ display:"flex",alignItems:"center",gap:8,flexShrink:0 }}>
+                                        <div style={{ width:60,height:6,borderRadius:3,background:"#e5e5ea",overflow:"hidden" }}>
+                                          <div style={{ width:`${po.pctComplete}%`,height:"100%",borderRadius:3,
+                                            background:po.pctComplete===100?"#34c759":po.pctComplete>=50?"#ff9500":"#ff3b30" }} />
+                                        </div>
+                                        <span style={{ fontSize:12,fontWeight:700,color:po.pctComplete===100?"#34c759":"#1d1d1f",minWidth:40,textAlign:"right" }}>
+                                          {po.totalFulfilled}/{po.totalQty}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Expanded PO detail */}
+                                    {isExpanded && (
+                                      <div style={{ padding:"0 16px 16px 36px",background:"#fafafa" }}>
+                                        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16 }}>
+                                          {/* Left: Dealer info */}
+                                          <div style={{ background:"#fff",borderRadius:10,padding:"14px 18px",border:"1px solid #e5e5ea" }}>
+                                            <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:8 }}>Dealer Info</div>
+                                            <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f",marginBottom:4 }}>{po.companyName || po.customer}</div>
+                                            {po.contactName && <div style={{ fontSize:12,color:"#3a3f51" }}>{po.contactName}</div>}
+                                            {po.email && <div style={{ fontSize:12 }}><a href={"mailto:"+po.email} style={{ color:"#0071e3",textDecoration:"none" }}>{po.email}</a></div>}
+                                            {po.phone && <div style={{ fontSize:12,color:"#3a3f51" }}>{po.phone}</div>}
+                                            {(() => {
+                                              const shipLines = fmtAddrBlock(po.shippingAddress);
+                                              if (!shipLines) return null;
+                                              return (
+                                                <div style={{ marginTop:8,paddingTop:8,borderTop:"1px solid #f0f0f2" }}>
+                                                  <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:4 }}>Ship To</div>
+                                                  {shipLines.map((line, i) => <div key={i} style={{ fontSize:12,color:"#3a3f51",lineHeight:"20px" }}>{line}</div>)}
+                                                  {po.shippingAddress?.phone && <div style={{ fontSize:11,color:"#86868b",marginTop:2 }}>{po.shippingAddress.phone}</div>}
+                                                </div>
+                                              );
+                                            })()}
+                                            {(() => {
+                                              const billLines = fmtAddrBlock(po.billingAddress);
+                                              if (!billLines) return null;
+                                              if (addrKey(po.billingAddress) === addrKey(po.shippingAddress)) return null;
+                                              return (
+                                                <div style={{ marginTop:8,paddingTop:8,borderTop:"1px solid #f0f0f2" }}>
+                                                  <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:4 }}>Bill To</div>
+                                                  {billLines.map((line, i) => <div key={i} style={{ fontSize:12,color:"#3a3f51",lineHeight:"20px" }}>{line}</div>)}
+                                                </div>
+                                              );
+                                            })()}
+                                          </div>
                                         {/* Right: Order info */}
                                         <div style={{ background:"#fff",borderRadius:10,padding:"14px 18px",border:"1px solid #e5e5ea" }}>
                                           <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:8 }}>Order Details</div>
@@ -11624,7 +11675,8 @@ function BOMManager({ user }) {
                           </div>
                         )}
                       </div>
-                    );
+                      );
+                    });
                   };
 
                   return (<>
