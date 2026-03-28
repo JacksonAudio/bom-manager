@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.12";
-const BUILD_TIME   = "2026-03-28T05:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.14";
+const BUILD_TIME   = "2026-03-28T07:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -15696,13 +15696,13 @@ function BOMManager({ user }) {
                   No dealers yet. Use Import from CSV to get started.
                 </div>
               ) : (() => {
-                const thStyle = { padding:"7px 10px", fontSize:10, fontWeight:700, color:"#86868b", textTransform:"uppercase", letterSpacing:"0.06em", textAlign:"left", borderBottom:`1px solid ${borderColor}`, whiteSpace:"nowrap" };
+                const thStyle = { padding:"12px 14px", fontSize:11, fontWeight:700, color:darkMode?"#e5e5ea":"#3a3f51", textTransform:"uppercase", letterSpacing:"0.04em", textAlign:"left", whiteSpace:"nowrap", fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" };
                 const fmtAddr = (addr) => { if (!addr) return "—"; const c = [addr.city, addr.state].filter(Boolean).join(", "); return c || addr.country || "—"; };
                 return (
-                  <div style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:10, overflow:"hidden" }}>
-                    <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                      <thead style={{ background:darkMode?"#2c2c2e":"#f5f5f7", position:"sticky", top:0, zIndex:1 }}>
-                        <tr>
+                  <div style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:10, overflowX:"auto", overflowY:"auto", maxHeight:"75vh" }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                      <thead style={{ position:"sticky", top:0, zIndex:1 }}>
+                        <tr style={{ background:darkMode?"#3a3a3e":"#b8bdd1", color:darkMode?"#e5e5ea":"#3a3f51" }}>
                           <th style={thStyle}>Name</th>
                           <th style={thStyle}>Contact</th>
                           <th style={thStyle}>Email</th>
@@ -15717,16 +15717,20 @@ function BOMManager({ user }) {
                           const group = (brandGroups[brand]||[]).filter(matchDealer).sort((a,b)=>a.name.localeCompare(b.name));
                           if (!group.length) return [];
                           const color = brandColor[brand];
+                          const isCollapsed = collapsedBrands.has(brand);
+                          const toggleBrand = () => setCollapsedBrands(prev => { const s = new Set(prev); s.has(brand) ? s.delete(brand) : s.add(brand); return s; });
                           const sectionRow = (
-                            <tr key={"section-"+brand} style={{ background:darkMode?"#2a2a2e":"#fafafa" }}>
-                              <td colSpan={7} style={{ padding:"5px 12px", borderBottom:`1px solid ${borderColor}`, borderTop: brand==="Fulltone USA"?`1px solid ${borderColor}`:"none" }}>
-                                <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:11, fontWeight:700, color:textPrimary }}>
+                            <tr key={"section-"+brand} style={{ background:darkMode?"#2a2a2e":"#dde0e8", cursor:"pointer", userSelect:"none" }} onClick={toggleBrand}>
+                              <td colSpan={7} style={{ padding:"6px 14px", borderBottom:`1px solid ${darkMode?"#3a3a3e":"#c8ccd6"}`, borderTop: brand==="Fulltone USA"?`1px solid ${darkMode?"#3a3a3e":"#c8ccd6"}`:"none" }}>
+                                <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:11, fontWeight:700, color:darkMode?textPrimary:"#3a3f51", fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", letterSpacing:"0.02em" }}>
+                                  <span style={{ fontSize:9, color:darkMode?textSecondary:"#5a6070", transform:isCollapsed?"rotate(-90deg)":"rotate(0deg)", transition:"transform 0.15s", display:"inline-block" }}>▼</span>
                                   <span style={{ width:7, height:7, borderRadius:"50%", background:color, display:"inline-block" }} />
-                                  {brand} <span style={{ fontWeight:400, color:textSecondary }}>({group.length})</span>
+                                  {brand} <span style={{ fontWeight:400, color:darkMode?textSecondary:"#5a6070" }}>({group.length})</span>
                                 </span>
                               </td>
                             </tr>
                           );
+                          if (isCollapsed) return [sectionRow];
                           const rows = group.flatMap((d) => {
                             const isExpanded = expandedDealer === d.id + brand;
                             const isEditing  = dealerForm?.id === d.id;
