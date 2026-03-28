@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.72";
-const BUILD_TIME   = "2026-03-27T20:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.80";
+const BUILD_TIME   = "2026-03-27T20:32:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -48,6 +48,11 @@ import {
   fetchPedalUnits, createPedalUnit, createPedalUnits, updatePedalUnit, deletePedalUnit,
   subscribeToPedalUnits,
   fetchProductRegistrations, subscribeToProductRegistrations,
+  fetchShippingBoxesConfig, createShippingBoxConfig, updateShippingBoxConfig, deleteShippingBoxConfig,
+  fetchProductPackaging, upsertProductPackaging,
+  fetchFulfillments, createFulfillment, updateFulfillment, deleteFulfillment,
+  fetchShipmentBoxes, createShipmentBox, updateShipmentBox, deleteShipmentBox,
+  fetchBoxItems, createBoxItems, updateBoxItem,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -1581,6 +1586,9 @@ function BOMManager({ user }) {
   const [simMode, setSimMode] = useState(false); // pipeline simulation mode
   const [simLog, setSimLog] = useState([]); // simulation event log
   const [productRegistrations, setProductRegistrations] = useState([]);
+  const [shippingBoxesConfig, setShippingBoxesConfig] = useState([]);
+  const [productPackaging, setProductPackaging] = useState([]);
+  const [editingShipBox, setEditingShipBox] = useState(null); // shipping box being edited/added in settings
 
   const [pdPasteText, setPdPasteText] = useState(""); // product detail page paste text
   const [pdDragOver, setPdDragOver] = useState(false); // product detail page drag state
@@ -1878,6 +1886,8 @@ function BOMManager({ user }) {
         // Load pedal units and registrations from DB
         fetchPedalUnits().then(rows => setPedalUnits(rows || [])).catch(() => {});
         fetchProductRegistrations().then(rows => setProductRegistrations(rows || [])).catch(() => {});
+        fetchShippingBoxesConfig().then(rows => setShippingBoxesConfig(rows || [])).catch(() => {});
+        fetchProductPackaging().then(rows => setProductPackaging(rows || [])).catch(() => {});
 
         // Load BOM snapshots from DB
         fetchBomSnapshots().then(snaps => setBomSnapshots(snaps || [])).catch(() => {});
@@ -10253,6 +10263,45 @@ function BOMManager({ user }) {
                     {prod.zohoProductId && <span style={{ fontSize:10,color:"#34c759" }}>Linked</span>}
                   </div>
                 )}
+                {/* ── Product Box Dimensions ── */}
+                {(() => {
+                  const pkg = productPackaging.find(pp => pp.product_id === prod.id) || {};
+                  const savePkg = async (field, val) => {
+                    const numVal = parseFloat(val) || 0;
+                    const updated = { ...pkg, product_id: prod.id, [field]: numVal };
+                    try {
+                      const saved = await upsertProductPackaging({ product_id: prod.id, length_in: updated.length_in || 0, width_in: updated.width_in || 0, height_in: updated.height_in || 0, weight_lbs: updated.weight_lbs || 0, can_stack: updated.can_stack !== false });
+                      setProductPackaging(prev => { const exists = prev.find(p => p.product_id === prod.id); return exists ? prev.map(p => p.product_id === prod.id ? saved : p) : [...prev, saved]; });
+                    } catch (err) { console.error("Package dimension save failed:", err); }
+                  };
+                  const dimInput = (label, field, unit) => (
+                    <div style={{ display:"flex",alignItems:"center",gap:3 }}>
+                      <span style={{ fontSize:10,color:"#86868b",minWidth:18 }}>{label}</span>
+                      <input type="number" step="0.25" min="0" placeholder="0"
+                        value={pkg[field] || ""}
+                        onChange={(e) => { setProductPackaging(prev => prev.map(p => p.product_id === prod.id ? { ...p, [field]: e.target.value } : p)); }}
+                        onBlur={(e) => savePkg(field, e.target.value)}
+                        style={{ width:52,padding:"3px 5px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #d2d2d7",fontFamily:"monospace",outline:"none",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                      <span style={{ fontSize:9,color:"#aeaeb2" }}>{unit}</span>
+                    </div>
+                  );
+                  return (
+                    <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",padding:"6px 0",borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                      <span style={{ fontSize:10,color:"#86868b",fontWeight:600 }}>Box Dims:</span>
+                      {dimInput("L", "length_in", "in")}
+                      <span style={{ color:"#d2d2d7",fontSize:10 }}>×</span>
+                      {dimInput("W", "width_in", "in")}
+                      <span style={{ color:"#d2d2d7",fontSize:10 }}>×</span>
+                      {dimInput("H", "height_in", "in")}
+                      {dimInput("Wt", "weight_lbs", "lbs")}
+                      {(pkg.length_in > 0 && pkg.width_in > 0 && pkg.height_in > 0) && (
+                        <span style={{ fontSize:9,color:"#34c759",fontWeight:600 }}>
+                          {(pkg.length_in * pkg.width_in * pkg.height_in).toFixed(1)} cu.in
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
                 <button style={{ padding:"5px 14px",borderRadius:980,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}
                   disabled={!prodParts.some(p => p.mpn) || prodParts.some(p => p.pricingStatus === "loading")}
                   onClick={async () => {
@@ -15532,6 +15581,97 @@ function BOMManager({ user }) {
                   <input type="text" value={apiKeys.fb_ft_ad_account_id||""} onChange={e=>setApiKeys(k=>({...k,fb_ft_ad_account_id:e.target.value}))} placeholder="act_123456789" style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
                 {sectionSaveBtn("facebook", "Facebook Settings")}
+              </div>}
+            </div>
+
+            {/* ── Shipping Boxes Config ── */}
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ background:darkMode?"#2c2c2e":"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shipping_boxes") ? s.delete("shipping_boxes") : s.add("shipping_boxes"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:darkMode?"#f5f5f7":"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:darkMode?"#f5f5f7":"#3a3f51" }}>{collapsedSettings.has("shipping_boxes") ? "▶" : "▼"}</span>
+                  Shipping Boxes — Sizes & Dimensions
+                </div>
+                <span style={{ fontSize:11,color:"#86868b" }}>{shippingBoxesConfig.length} box{shippingBoxesConfig.length !== 1 ? "es" : ""}</span>
+              </div>
+              {!collapsedSettings.has("shipping_boxes") && <div style={{ padding:"16px 20px" }}>
+                <p style={{ fontSize:12,color:"#86868b",marginBottom:14 }}>Define the shipping boxes you stock. These are used by the packing optimizer to efficiently load orders.</p>
+                {shippingBoxesConfig.filter(b => b.active !== false).map(box => (
+                  <div key={box.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2"),flexWrap:"wrap" }}>
+                    {editingShipBox?.id === box.id ? (<>
+                      <input value={editingShipBox.name} onChange={e => setEditingShipBox(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Name" style={{ width:100,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                      {["length_in","width_in","height_in"].map((f,i) => (
+                        <span key={f} style={{ display:"flex",alignItems:"center",gap:2 }}>
+                          {i > 0 && <span style={{ color:"#d2d2d7",fontSize:10 }}>×</span>}
+                          <input type="number" step="0.25" value={editingShipBox[f] || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, [f]: e.target.value }))}
+                            placeholder={["L","W","H"][i]} style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #d2d2d7",fontFamily:"monospace",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                        </span>
+                      ))}
+                      <span style={{ fontSize:9,color:"#86868b" }}>in</span>
+                      <input type="number" step="0.5" value={editingShipBox.max_weight_lbs || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, max_weight_lbs: e.target.value }))}
+                        placeholder="Max lbs" style={{ width:56,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #d2d2d7",fontFamily:"monospace",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                      <span style={{ fontSize:9,color:"#86868b" }}>lbs max</span>
+                      <input type="number" step="0.01" value={editingShipBox.cost || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, cost: e.target.value }))}
+                        placeholder="$" style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #d2d2d7",fontFamily:"monospace",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                      <span style={{ fontSize:9,color:"#86868b" }}>$/box</span>
+                      <button onClick={async () => {
+                        try {
+                          const upd = { name: editingShipBox.name, length_in: parseFloat(editingShipBox.length_in)||0, width_in: parseFloat(editingShipBox.width_in)||0, height_in: parseFloat(editingShipBox.height_in)||0, max_weight_lbs: parseFloat(editingShipBox.max_weight_lbs)||0, cost: parseFloat(editingShipBox.cost)||0 };
+                          const saved = await updateShippingBoxConfig(box.id, upd);
+                          setShippingBoxesConfig(prev => prev.map(b => b.id === box.id ? saved : b));
+                          setEditingShipBox(null);
+                        } catch (err) { console.error("Box save failed:", err); }
+                      }} style={{ padding:"4px 10px",borderRadius:980,fontSize:10,fontWeight:600,cursor:"pointer",border:"none",background:"#34c759",color:"#fff" }}>Save</button>
+                      <button onClick={() => setEditingShipBox(null)} style={{ padding:"4px 10px",borderRadius:980,fontSize:10,fontWeight:600,cursor:"pointer",border:"none",background:"#e5e5ea",color:"#1d1d1f" }}>Cancel</button>
+                    </>) : (<>
+                      <span style={{ fontSize:13,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",minWidth:80 }}>{box.name || "Unnamed"}</span>
+                      <span style={{ fontSize:11,color:"#86868b",fontFamily:"monospace" }}>{box.length_in}×{box.width_in}×{box.height_in} in</span>
+                      <span style={{ fontSize:10,color:"#aeaeb2" }}>({(box.length_in * box.width_in * box.height_in).toFixed(0)} cu.in)</span>
+                      {box.max_weight_lbs > 0 && <span style={{ fontSize:10,color:"#86868b" }}>max {box.max_weight_lbs} lbs</span>}
+                      {box.cost > 0 && <span style={{ fontSize:10,color:"#86868b" }}>${parseFloat(box.cost).toFixed(2)}/ea</span>}
+                      <button onClick={() => setEditingShipBox({ ...box })} style={{ padding:"3px 10px",borderRadius:980,fontSize:10,fontWeight:600,cursor:"pointer",border:"1px solid #d2d2d7",background:"transparent",color:"#0071e3",marginLeft:"auto" }}>Edit</button>
+                      <button onClick={async () => {
+                        if (!confirm(`Delete "${box.name}"?`)) return;
+                        try { await deleteShippingBoxConfig(box.id); setShippingBoxesConfig(prev => prev.filter(b => b.id !== box.id)); } catch (err) { console.error(err); }
+                      }} style={{ padding:"3px 10px",borderRadius:980,fontSize:10,fontWeight:600,cursor:"pointer",border:"1px solid #ff3b30",background:"transparent",color:"#ff3b30" }}>Delete</button>
+                    </>)}
+                  </div>
+                ))}
+                {editingShipBox?.id === "new" ? (
+                  <div style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 0",flexWrap:"wrap" }}>
+                    <input value={editingShipBox.name} onChange={e => setEditingShipBox(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Box name (e.g. Small, Medium)" style={{ width:160,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                    {["length_in","width_in","height_in"].map((f,i) => (
+                      <span key={f} style={{ display:"flex",alignItems:"center",gap:2 }}>
+                        {i > 0 && <span style={{ color:"#d2d2d7",fontSize:10 }}>×</span>}
+                        <input type="number" step="0.25" value={editingShipBox[f] || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, [f]: e.target.value }))}
+                          placeholder={["L","W","H"][i]} style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #d2d2d7",fontFamily:"monospace",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                      </span>
+                    ))}
+                    <span style={{ fontSize:9,color:"#86868b" }}>in</span>
+                    <input type="number" step="0.5" value={editingShipBox.max_weight_lbs || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, max_weight_lbs: e.target.value }))}
+                      placeholder="Max lbs" style={{ width:56,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #d2d2d7",fontFamily:"monospace",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                    <span style={{ fontSize:9,color:"#86868b" }}>lbs max</span>
+                    <input type="number" step="0.01" value={editingShipBox.cost || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, cost: e.target.value }))}
+                      placeholder="$" style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #d2d2d7",fontFamily:"monospace",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                    <span style={{ fontSize:9,color:"#86868b" }}>$/box</span>
+                    <button onClick={async () => {
+                      try {
+                        const row = { name: editingShipBox.name || "Unnamed", length_in: parseFloat(editingShipBox.length_in)||0, width_in: parseFloat(editingShipBox.width_in)||0, height_in: parseFloat(editingShipBox.height_in)||0, max_weight_lbs: parseFloat(editingShipBox.max_weight_lbs)||0, cost: parseFloat(editingShipBox.cost)||0 };
+                        const saved = await createShippingBoxConfig(row);
+                        setShippingBoxesConfig(prev => [...prev, saved]);
+                        setEditingShipBox(null);
+                      } catch (err) { console.error("Box create failed:", err); }
+                    }} style={{ padding:"4px 12px",borderRadius:980,fontSize:10,fontWeight:600,cursor:"pointer",border:"none",background:"#34c759",color:"#fff" }}>Add</button>
+                    <button onClick={() => setEditingShipBox(null)} style={{ padding:"4px 10px",borderRadius:980,fontSize:10,fontWeight:600,cursor:"pointer",border:"none",background:"#e5e5ea",color:"#1d1d1f" }}>Cancel</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setEditingShipBox({ id:"new", name:"", length_in:"", width_in:"", height_in:"", max_weight_lbs:"", cost:"" })}
+                    style={{ marginTop:10,padding:"6px 16px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px dashed #d2d2d7",background:"transparent",color:"#0071e3" }}>
+                    + Add Shipping Box Size
+                  </button>
+                )}
               </div>}
             </div>
 

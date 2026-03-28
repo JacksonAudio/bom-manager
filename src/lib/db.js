@@ -848,6 +848,246 @@ export function subscribeToProductRegistrations(callback) {
     .subscribe()
 }
 
+// ─────────────────────────────────────────────
+// SHIPPING BOXES CONFIG
+// ─────────────────────────────────────────────
+
+export async function fetchShippingBoxesConfig() {
+  const { data, error } = await supabase
+    .from('shipping_boxes_config')
+    .select('*')
+    .order('name')
+  check(error, 'fetchShippingBoxesConfig')
+  return data
+}
+
+export async function createShippingBoxConfig(row) {
+  const { data, error } = await supabase
+    .from('shipping_boxes_config')
+    .insert(row)
+    .select()
+    .single()
+  check(error, 'createShippingBoxConfig')
+  return data
+}
+
+export async function updateShippingBoxConfig(id, updates) {
+  const { data, error } = await supabase
+    .from('shipping_boxes_config')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  check(error, 'updateShippingBoxConfig')
+  return data
+}
+
+export async function deleteShippingBoxConfig(id) {
+  const { error } = await supabase
+    .from('shipping_boxes_config')
+    .delete()
+    .eq('id', id)
+  check(error, 'deleteShippingBoxConfig')
+}
+
+// ─────────────────────────────────────────────
+// PRODUCT PACKAGING
+// ─────────────────────────────────────────────
+
+export async function fetchProductPackaging() {
+  const { data, error } = await supabase
+    .from('product_packaging')
+    .select('*')
+  check(error, 'fetchProductPackaging')
+  return data
+}
+
+export async function upsertProductPackaging(row) {
+  const { data, error } = await supabase
+    .from('product_packaging')
+    .upsert(row, { onConflict: 'product_id' })
+    .select()
+    .single()
+  check(error, 'upsertProductPackaging')
+  return data
+}
+
+export async function deleteProductPackaging(id) {
+  const { error } = await supabase
+    .from('product_packaging')
+    .delete()
+    .eq('id', id)
+  check(error, 'deleteProductPackaging')
+}
+
+// ─────────────────────────────────────────────
+// FULFILLMENTS
+// ─────────────────────────────────────────────
+
+export async function fetchFulfillments() {
+  const { data, error } = await supabase
+    .from('fulfillments')
+    .select('*')
+    .order('created_at', { ascending: false })
+  check(error, 'fetchFulfillments')
+  return data
+}
+
+export async function createFulfillment(row) {
+  const { data, error } = await supabase
+    .from('fulfillments')
+    .insert(row)
+    .select()
+    .single()
+  check(error, 'createFulfillment')
+  return data
+}
+
+export async function updateFulfillment(id, updates) {
+  const { data, error } = await supabase
+    .from('fulfillments')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  check(error, 'updateFulfillment')
+  return data
+}
+
+export async function deleteFulfillment(id) {
+  const { error } = await supabase
+    .from('fulfillments')
+    .delete()
+    .eq('id', id)
+  check(error, 'deleteFulfillment')
+}
+
+// ─────────────────────────────────────────────
+// SHIPMENT BOXES
+// ─────────────────────────────────────────────
+
+export async function fetchShipmentBoxes(fulfillmentId) {
+  const q = supabase
+    .from('shipment_boxes')
+    .select('*, box_items(*)')
+    .order('box_number')
+  if (fulfillmentId) q.eq('fulfillment_id', fulfillmentId)
+  const { data, error } = await q
+  check(error, 'fetchShipmentBoxes')
+  return data
+}
+
+export async function fetchShipmentBoxByQrToken(token) {
+  const { data, error } = await supabase
+    .from('shipment_boxes')
+    .select('*, fulfillments(*), box_items(*, pedal_units(*, products(*)))')
+    .eq('qr_token', token)
+    .single()
+  check(error, 'fetchShipmentBoxByQrToken')
+  return data
+}
+
+export async function createShipmentBox(row) {
+  const { data, error } = await supabase
+    .from('shipment_boxes')
+    .insert(row)
+    .select()
+    .single()
+  check(error, 'createShipmentBox')
+  return data
+}
+
+export async function updateShipmentBox(id, updates) {
+  const { data, error } = await supabase
+    .from('shipment_boxes')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  check(error, 'updateShipmentBox')
+  return data
+}
+
+export async function deleteShipmentBox(id) {
+  const { error } = await supabase
+    .from('shipment_boxes')
+    .delete()
+    .eq('id', id)
+  check(error, 'deleteShipmentBox')
+}
+
+// ─────────────────────────────────────────────
+// BOX ITEMS
+// ─────────────────────────────────────────────
+
+export async function fetchBoxItems(boxId) {
+  const { data, error } = await supabase
+    .from('box_items')
+    .select('*, pedal_units(*, products(*))')
+    .eq('box_id', boxId)
+  check(error, 'fetchBoxItems')
+  return data
+}
+
+export async function createBoxItems(rows) {
+  const { data, error } = await supabase
+    .from('box_items')
+    .insert(rows)
+    .select()
+  check(error, 'createBoxItems')
+  return data
+}
+
+export async function updateBoxItem(id, updates) {
+  const { data, error } = await supabase
+    .from('box_items')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  check(error, 'updateBoxItem')
+  return data
+}
+
+export async function deleteBoxItem(id) {
+  const { error } = await supabase
+    .from('box_items')
+    .delete()
+    .eq('id', id)
+  check(error, 'deleteBoxItem')
+}
+
+// ─────────────────────────────────────────────
+// SUBSCRIPTIONS — Fulfillment tables
+// ─────────────────────────────────────────────
+
+export function subscribeToFulfillments(callback) {
+  return supabase
+    .channel('fulfillments-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'fulfillments' },
+      (payload) => callback(payload.eventType, payload.new, payload.old)
+    )
+    .subscribe()
+}
+
+export function subscribeToShipmentBoxes(callback) {
+  return supabase
+    .channel('shipment-boxes-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'shipment_boxes' },
+      (payload) => callback(payload.eventType, payload.new, payload.old)
+    )
+    .subscribe()
+}
+
+export function subscribeToBoxItems(callback) {
+  return supabase
+    .channel('box-items-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'box_items' },
+      (payload) => callback(payload.eventType, payload.new, payload.old)
+    )
+    .subscribe()
+}
+
 // Fetch all price history (for product-level rollups)
 export async function fetchAllPriceHistory() {
   const all = [];
