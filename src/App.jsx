@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v7.93";
-const BUILD_TIME   = "2026-03-27T21:34:00";   // local time of last push (Central)
+const APP_VERSION  = "v7.94";
+const BUILD_TIME   = "2026-03-27T21:36:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -11464,6 +11464,12 @@ function BOMManager({ user }) {
                                               <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:4 }}>Ship To</div>
                                               <div style={{ fontSize:12,color:"#3a3f51",lineHeight:"18px" }}>{fmtAddr(po.shippingAddress)}</div>
                                               {po.shippingAddress.phone && <div style={{ fontSize:11,color:"#86868b" }}>{po.shippingAddress.phone}</div>}
+                                            </div>
+                                          )}
+                                          {po.billingAddress && fmtAddr(po.billingAddress) && fmtAddr(po.billingAddress) !== fmtAddr(po.shippingAddress) && (
+                                            <div style={{ marginTop:8,paddingTop:8,borderTop:"1px solid #f0f0f2" }}>
+                                              <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:4 }}>Bill To</div>
+                                              <div style={{ fontSize:12,color:"#3a3f51",lineHeight:"18px" }}>{fmtAddr(po.billingAddress)}</div>
                                             </div>
                                           )}
                                         </div>
