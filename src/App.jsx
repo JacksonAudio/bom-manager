@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.28";
-const BUILD_TIME   = "2026-03-28T03:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.29";
+const BUILD_TIME   = "2026-03-28T04:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -15171,56 +15171,86 @@ function BOMManager({ user }) {
                   )}
                 </div>
 
-                {/* Products Grid */}
-                <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:16 }}>
-                  {products.map(prod => {
-                    const fg = fgMap[prod.id];
-                    const qty = fg?.quantity_on_hand ?? 0;
-                    const color = shelfColor(fg);
-                    const isEditingTarget = !!shelfTargetEdit[prod.id];
-                    return (
-                      <div key={prod.id} style={{ background:cardBg,borderRadius:14,padding:"18px 20px",border:`2px solid ${color}30`,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-                        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
-                          <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#0071e3" }} />
-                          <div style={{ fontSize:14,fontWeight:700,color:textPrimary,flex:1 }}>{prod.name}</div>
-                          <div style={{ width:10,height:10,borderRadius:"50%",background:color }} title={color==="#34c759"?"At/above target":color==="#ff9500"?"Below target":"Below min / no target"} />
-                        </div>
-                        <div style={{ fontSize:44,fontWeight:800,color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-1px",marginBottom:8,lineHeight:1 }}>
-                          {qty}
-                        </div>
-                        <div style={{ fontSize:12,color:"#86868b",marginBottom:10 }}>
-                          {fg?.target_stock != null ? `Target: ${fg.target_stock}` : "No target set"}{" "}
-                          {fg?.min_stock != null ? `· Min: ${fg.min_stock}` : ""}
-                        </div>
-                        {/* Inline target edit */}
-                        {isEditingTarget ? (
-                          <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:8 }}>
-                            <input type="number" placeholder="Target" value={shelfTargetEdit[prod.id]?.target ?? ""} min="0"
-                              onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), target: e.target.value } }))}
-                              style={{ width:70,padding:"5px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
-                            <input type="number" placeholder="Min" value={shelfTargetEdit[prod.id]?.min ?? ""} min="0"
-                              onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), min: e.target.value } }))}
-                              style={{ width:70,padding:"5px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
-                            <button onClick={() => handleShelfTargetSave(prod.id)}
-                              style={{ padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>Save</button>
-                            <button onClick={() => setShelfTargetEdit(prev => { const n={...prev}; delete n[prod.id]; return n; })}
-                              style={{ padding:"5px 10px",borderRadius:6,border:"1px solid #d2d2d7",cursor:"pointer",fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>✕</button>
-                          </div>
-                        ) : null}
-                        <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
-                          <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'add' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
-                            style={{ padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>+ Add</button>
-                          <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'remove' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
-                            disabled={qty === 0}
-                            style={{ padding:"6px 14px",borderRadius:980,border:"none",cursor:qty===0?"not-allowed":"pointer",fontWeight:600,fontSize:11,background:"#ff3b30",color:"#fff",fontFamily:"inherit",opacity:qty===0?0.4:1 }}>- Remove</button>
-                          <button onClick={() => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { target: fg?.target_stock ?? "", min: fg?.min_stock ?? "" } }))}
-                            style={{ padding:"6px 14px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>
-                            {isEditingTarget ? "Cancel" : "Set Target"}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                {/* Products Table */}
+                <div style={{ background:cardBg,borderRadius:14,border:cardBorder,overflow:"hidden" }}>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                    <thead>
+                      <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
+                        {["","Product","On Hand","Target","Min","Status","Actions"].map(h => (
+                          <th key={h} style={{ textAlign:"left",padding:"10px 14px",fontSize:10,fontWeight:700,color:"#86868b",letterSpacing:"0.06em",textTransform:"uppercase",
+                            fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",whiteSpace:"nowrap" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {products.map((prod, idx) => {
+                        const fg = fgMap[prod.id];
+                        const qty = fg?.quantity_on_hand ?? 0;
+                        const color = shelfColor(fg);
+                        const isEditingTarget = !!shelfTargetEdit[prod.id];
+                        const statusLabel = color === "#34c759" ? "At Target" : color === "#ff9500" ? "Low" : fg ? "Below Min" : "No Target";
+                        return (
+                          <tr key={prod.id} style={{ borderBottom:"1px solid #f0f0f2",background: idx%2===0 ? "transparent" : (darkMode?"rgba(255,255,255,0.02)":"rgba(0,0,0,0.01)") }}>
+                            {/* Color dot */}
+                            <td style={{ padding:"10px 14px",width:28 }}>
+                              <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color||"#0071e3" }} />
+                            </td>
+                            {/* Name */}
+                            <td style={{ padding:"10px 14px",fontWeight:600,color:textPrimary }}>{prod.name}</td>
+                            {/* On Hand */}
+                            <td style={{ padding:"10px 14px",fontWeight:800,fontSize:18,color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{qty}</td>
+                            {/* Target — inline edit */}
+                            <td style={{ padding:"10px 14px" }}>
+                              {isEditingTarget
+                                ? <input type="number" placeholder="Target" value={shelfTargetEdit[prod.id]?.target ?? ""} min="0"
+                                    onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), target: e.target.value } }))}
+                                    style={{ width:70,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
+                                : <span style={{ color:"#86868b",fontSize:12 }}>{fg?.target_stock ?? "—"}</span>
+                              }
+                            </td>
+                            {/* Min — inline edit */}
+                            <td style={{ padding:"10px 14px" }}>
+                              {isEditingTarget
+                                ? <input type="number" placeholder="Min" value={shelfTargetEdit[prod.id]?.min ?? ""} min="0"
+                                    onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), min: e.target.value } }))}
+                                    style={{ width:70,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
+                                : <span style={{ color:"#86868b",fontSize:12 }}>{fg?.min_stock ?? "—"}</span>
+                              }
+                            </td>
+                            {/* Status pill */}
+                            <td style={{ padding:"10px 14px" }}>
+                              <span style={{ display:"inline-block",padding:"3px 10px",borderRadius:980,fontSize:11,fontWeight:600,
+                                background:`${color}18`,color }}>
+                                {statusLabel}
+                              </span>
+                            </td>
+                            {/* Actions */}
+                            <td style={{ padding:"10px 14px" }}>
+                              <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
+                                <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'add' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
+                                  style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>+ Add</button>
+                                <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'remove' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
+                                  disabled={qty === 0}
+                                  style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:qty===0?"not-allowed":"pointer",fontWeight:600,fontSize:11,background:"#ff3b30",color:"#fff",fontFamily:"inherit",opacity:qty===0?0.4:1 }}>− Remove</button>
+                                {isEditingTarget
+                                  ? <>
+                                      <button onClick={() => handleShelfTargetSave(prod.id)}
+                                        style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#0071e3",color:"#fff",fontFamily:"inherit" }}>Save</button>
+                                      <button onClick={() => setShelfTargetEdit(prev => { const n={...prev}; delete n[prod.id]; return n; })}
+                                        style={{ padding:"4px 10px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>✕</button>
+                                    </>
+                                  : <button onClick={() => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { target: fg?.target_stock ?? "", min: fg?.min_stock ?? "" } }))}
+                                      style={{ padding:"4px 12px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>
+                                      Set Target
+                                    </button>
+                                }
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
 
                 {/* Shelf Adjust Modal */}
