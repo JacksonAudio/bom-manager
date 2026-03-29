@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.75";
-const BUILD_TIME   = "2026-03-29T10:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.76";
+const BUILD_TIME   = "2026-03-29T10:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -405,6 +405,11 @@ function buildNexarQuery(mpn) {
   // Escape any quotes in the MPN just in case
   const safe = mpn.replace(/"/g, '\\"');
   return `{ supSearchMpn(q: "${safe}", limit: 10) { hits results { part { mpn manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
+}
+// Lightweight Nexar query for reel-qty auto-fill — includes packQty
+function buildNexarReelQuery(mpn) {
+  const safe = mpn.replace(/"/g, '\\"');
+  return `{ supSearchMpn(q: "${safe}", limit: 5) { hits results { part { mpn sellers { company { name } offers { packQty moq } } } } } }`;
 }
 
 async function fetchNexarPricing(mpn, quantity, token) {
@@ -6069,31 +6074,66 @@ function BOMManager({ user }) {
                 const checkedIds = new Set(rows.filter(r => r.checked).map(r => r.part.id));
                 setReelFillModal({ phase:"fetching", rows, checkedIds, apiCount:0, cacheCount });
 
-                // Phase 2: Mouser API for parts with mouser_pn but no cache hit
-                // Only query parts that have a Mouser part number — hardware/McMaster parts won't have one
-                if (apiKeys.mouser_api_key) {
-                  const needApi = rows.filter(r => !r.detected && r.part.mouser_pn);
+                // Phase 2: Nexar API for parts with MPN but no cache hit
+                // Nexar covers all distributors, no rate-limit issues, no CORS problems
+                const hasNexar = nexarToken && apiKeys.nexar_client_id;
+                const hasMouser = !!apiKeys.mouser_api_key;
+                if (hasNexar || hasMouser) {
+                  const needApi = rows.filter(r => !r.detected && r.part.mpn);
                   let apiCount = 0;
                   for (const row of needApi) {
                     try {
-                      const res = await fetch(
-                        `https://api.mouser.com/api/v1/search/partnumber?apiKey=${apiKeys.mouser_api_key}`,
-                        { method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
-                          body: JSON.stringify({ SearchByPartRequest:{ mouserPartNumber: row.part.mouser_pn, partSearchOptions:"Exact" } }) }
-                      );
-                      // Rate-limit: wait 300ms between requests to avoid Mouser 403 throttling
-                      await new Promise(r => setTimeout(r, 300));
-                      if (res.ok) {
-                        const data = await res.json();
-                        const mp = data?.SearchResults?.Parts?.[0];
-                        if (mp) {
-                          const fq = mp.FactoryPackQty || mp.MultPackQty;
-                          if (fq && parseInt(fq) > 0) {
-                            row.detected = parseInt(fq);
-                            row.source = "Mouser API";
-                            row.checked = true;
-                            checkedIds.add(row.part.id);
-                            apiCount++;
+                      if (hasNexar) {
+                        // Preferred: Nexar — lightweight packQty query
+                        const query = buildNexarReelQuery(row.part.mpn);
+                        const res = await fetch("https://api.nexar.com/graphql", {
+                          method: "POST",
+                          headers: { "Content-Type":"application/json", "Authorization":`Bearer ${nexarToken}` },
+                          body: JSON.stringify({ query }),
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          const part = data?.data?.supSearchMpn?.results?.[0]?.part;
+                          if (part) {
+                            // Find best packQty across all sellers (prefer largest non-trivial value)
+                            let bestPack = 0;
+                            let bestSeller = "";
+                            for (const seller of (part.sellers || [])) {
+                              for (const offer of (seller.offers || [])) {
+                                const pq = parseInt(offer.packQty) || 0;
+                                if (pq > bestPack) { bestPack = pq; bestSeller = seller.company?.name || "Nexar"; }
+                              }
+                            }
+                            if (bestPack > 0) {
+                              row.detected = bestPack;
+                              row.source = `Nexar (${bestSeller})`;
+                              row.checked = true;
+                              checkedIds.add(row.part.id);
+                              apiCount++;
+                            }
+                          }
+                        }
+                      } else {
+                        // Fallback: Mouser direct — only for parts with mouser_pn, with rate limiting
+                        if (!row.part.mouser_pn) continue;
+                        const res = await fetch(
+                          `https://api.mouser.com/api/v1/search/partnumber?apiKey=${apiKeys.mouser_api_key}`,
+                          { method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
+                            body: JSON.stringify({ SearchByPartRequest:{ mouserPartNumber: row.part.mouser_pn, partSearchOptions:"Exact" } }) }
+                        );
+                        await new Promise(r => setTimeout(r, 300));
+                        if (res.ok) {
+                          const data = await res.json();
+                          const mp = data?.SearchResults?.Parts?.[0];
+                          if (mp) {
+                            const fq = parseInt(mp.FactoryPackQty || mp.MultPackQty) || 0;
+                            if (fq > 0) {
+                              row.detected = fq;
+                              row.source = "Mouser API";
+                              row.checked = true;
+                              checkedIds.add(row.part.id);
+                              apiCount++;
+                            }
                           }
                         }
                       }
@@ -19759,7 +19799,7 @@ function BOMManager({ user }) {
               <div>
                 <h3 style={{ margin:0,fontSize:18,fontWeight:700,color:"#1d1d1f" }}>Auto-Fill Reel Quantities</h3>
                 {reelFillModal.phase === "scanning" && <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>Scanning pricing cache…</div>}
-                {reelFillModal.phase === "fetching" && <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>Fetching from Mouser API for parts with Mouser part numbers…</div>}
+                {reelFillModal.phase === "fetching" && <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>Fetching pack quantities from Nexar…</div>}
                 {reelFillModal.phase === "preview" && (
                   <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>
                     {reelFillModal.cacheCount} found in cache · {reelFillModal.apiCount} fetched from Mouser API
