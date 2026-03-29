@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.66";
-const BUILD_TIME   = "2026-03-28T23:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.67";
+const BUILD_TIME   = "2026-03-28T23:20:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -1887,10 +1887,22 @@ function BOMManager({ user }) {
   // DB BOOT — fetch initial data on mount
   // ─────────────────────────────────────────────
   // Sync build queue to DB when it changes
+  // Diff against previous queue so removals (including Clear All) zero out in DB
+  const prevBuildQueueRef = useRef([]);
   useEffect(() => {
+    const prev = prevBuildQueueRef.current;
+    const currentIds = new Set(buildQueue.map(q => q.productId));
+    // Zero out any product that was in the queue but is no longer
+    for (const q of prev) {
+      if (!currentIds.has(q.productId)) {
+        supabase.from("products").update({ build_queue_qty: null }).eq("id", q.productId).then();
+      }
+    }
+    // Write current quantities
     for (const q of buildQueue) {
       supabase.from("products").update({ build_queue_qty: q.qty }).eq("id", q.productId).then();
     }
+    prevBuildQueueRef.current = buildQueue;
   }, [buildQueue]);
 
   useEffect(() => {
@@ -8175,7 +8187,10 @@ function BOMManager({ user }) {
               <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:16 }}>
                 <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                   <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Build Queue — {buildQueue.length} product{buildQueue.length!==1?"s":""}</div>
-                  <button onClick={() => setBuildQueue([])}
+                  <button onClick={() => {
+                      if (!window.confirm(`Clear all ${buildQueue.length} product${buildQueue.length!==1?"s":""} from the build queue? This cannot be undone.`)) return;
+                      setBuildQueue([]);
+                    }}
                     style={{ fontSize:11,color:"#ff3b30",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:500 }}>
                     Clear All
                   </button>
