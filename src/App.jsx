@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.89";
-const BUILD_TIME   = "2026-03-29T17:18:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.90";
+const BUILD_TIME   = "2026-03-29T17:28:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6164,7 +6164,36 @@ function BOMManager({ user }) {
                 }
               }}>Auto-Fill Reel Quantities</button>
               <button className="btn-ghost btn-sm" style={{ color:"#5856d6" }} onClick={() => {
-                // Scan parts, build preview rows — no saves yet
+                // ── Value formatting rules ──────────────────────────────
+                // Capacitance : always uF/nF/pF (no µ symbol, must be searchable)
+                // Resistance  : <1000Ω → NNR (e.g. 470R, 820R)
+                //               ≥1000Ω → lowercase k (e.g. 1.2k, 22k, 680k)
+                //               Megaohm → NM (e.g. 1M, 2.2M)
+                // Inductance  : uH/nH/mH (no µ symbol)
+                // Numbers     : parseFloat strips leading zeros (001 → 1, not "001")
+                // ───────────────────────────────────────────────────────
+                function fmtCap(num, rawUnit) {
+                  const u = rawUnit.replace(/[µμ]/g, "u").replace(/^([A-Za-z])/, m => m.toLowerCase());
+                  // e.g. "uF","nF","pF","mF"
+                  return parseFloat(num) + (u.startsWith("u")||u.startsWith("n")||u.startsWith("p")||u.startsWith("m") ? u.charAt(0).toLowerCase() + u.slice(1) : u);
+                }
+                function fmtRes(num, rawUnit) {
+                  const unit = rawUnit.trim().toLowerCase();
+                  if (unit === "k" || unit === "kohm" || unit === "kω") {
+                    return parseFloat(num) + "k";
+                  }
+                  if (unit === "m" || unit === "meg" || unit === "mohm") {
+                    return parseFloat(num) + "M";
+                  }
+                  // Ohms / R — convert ≥1000 to k
+                  const n = parseFloat(num.replace(",","."));
+                  if (n >= 1000) return (n / 1000) + "k";
+                  return n + "R";
+                }
+                function fmtInd(num, rawUnit) {
+                  const u = rawUnit.replace(/[µμ]/g, "u");
+                  return parseFloat(num) + u;
+                }
                 const rows = [];
                 for (const p of parts) {
                   if (!p.mpn) continue;
@@ -6172,22 +6201,33 @@ function BOMManager({ user }) {
                   let detectedValue = null;
                   let detectedVoltage = null;
                   if (!p.value) {
-                    const capM = desc.match(/(\d+(?:\.\d+)?)\s*(pF|nF|µF|uF|μF|mF)\b/i);
-                    if (capM) detectedValue = capM[1] + capM[2].replace(/u/i, "µ").replace(/μ/, "µ");
+                    // Capacitance
+                    const capM = desc.match(/(\d+(?:\.\d+)?)\s*(pF|nF|[uµμ]F|mF)\b/i);
+                    if (capM) detectedValue = fmtCap(capM[1], capM[2]);
+                    // Resistance in ohms/R/OHM
                     if (!detectedValue) {
-                      const resM = desc.match(/\b(\d+(?:[.,]\d+)?)\s*(Ω|ohms?|R)\b/i) ||
-                                   desc.match(/\b(\d+(?:[.,]\d+)?)\s*(k|K)(?:\s|Ω|$)/) ||
-                                   desc.match(/\b(\d+(?:[.,]\d+)?)\s*(M|meg)(?:\s|Ω|$)/i);
-                      if (resM) detectedValue = resM[1] + resM[2];
+                      const resOhm = desc.match(/\b(\d+(?:[.,]\d+)?)\s*(?:Ω|ohms?|R)\b/i);
+                      if (resOhm) detectedValue = fmtRes(resOhm[1], "R");
                     }
+                    // Resistance in k
                     if (!detectedValue) {
-                      const indM = desc.match(/(\d+(?:\.\d+)?)\s*(nH|µH|uH|mH)\b/i);
-                      if (indM) detectedValue = indM[1] + indM[2];
+                      const resK = desc.match(/\b(\d+(?:[.,]\d+)?)\s*[kK](?:\s|Ω|$)/);
+                      if (resK) detectedValue = fmtRes(resK[1], "k");
+                    }
+                    // Resistance in M/meg
+                    if (!detectedValue) {
+                      const resM2 = desc.match(/\b(\d+(?:[.,]\d+)?)\s*(?:M|meg)(?:\s|Ω|$)/i);
+                      if (resM2) detectedValue = fmtRes(resM2[1], "M");
+                    }
+                    // Inductance
+                    if (!detectedValue) {
+                      const indM = desc.match(/(\d+(?:\.\d+)?)\s*(nH|[uµμ]H|mH)\b/i);
+                      if (indM) detectedValue = fmtInd(indM[1], indM[2]);
                     }
                   }
                   if (!p.voltage_rating) {
                     const vM = desc.match(/\b(\d+(?:\.\d+)?)\s*V(?:[^A-Za-z]|$)/);
-                    if (vM) detectedVoltage = vM[1] + "V";
+                    if (vM) detectedVoltage = parseFloat(vM[1]) + "V";
                   }
                   if (detectedValue || detectedVoltage) {
                     rows.push({ part: p, detectedValue, detectedVoltage });
