@@ -78,7 +78,7 @@ async function getMcMasterToken(agent) {
   return _mmToken;
 }
 
-function mapMcMasterProduct(info, price, requestedMpn) {
+export function mapMcMasterProduct(info, price, requestedMpn) {
   // price endpoint returns array of { Amount, MinimumQuantity, UnitOfMeasure }
   const rawBreaks = Array.isArray(price) ? price : [];
   const priceBreaks = rawBreaks.map((pb) => ({
