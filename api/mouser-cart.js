@@ -277,11 +277,21 @@ async function handlePackQty(res, body) {
   const caseAttr = attrs.find(a => /case.*(code|package)|package.*case/i.test(a.AttributeName || ""));
   const caseCode = caseAttr?.AttributeValue || null;
 
+  // Voltage rating from ProductAttributes
+  const voltAttr = attrs.find(a => /voltage.*rat|rated.*volt/i.test(a.AttributeName || ""));
+  const voltageRating = voltAttr?.AttributeValue || null;
+
+  // Packaging type (Tape & Reel, Cut Tape, Ammo Pack, Bulk)
+  const packagingType = part?.Packaging || null;
+
+  // Direct order URL
+  const orderUrl = part?.ProductDetailUrl || null;
+
   // Write into parts.pricing.mouser so Phase 1 cache scan finds it on future runs
   if (packQty > 0 && partId && supabaseUrl && supabaseKey) {
     try {
       const fetchRes = await fetch(
-        `${supabaseUrl}/rest/v1/parts?id=eq.${encodeURIComponent(partId)}&select=pricing,footprint`,
+        `${supabaseUrl}/rest/v1/parts?id=eq.${encodeURIComponent(partId)}&select=pricing,footprint,voltage_rating,url`,
         { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
       );
       if (fetchRes.ok) {
@@ -290,6 +300,8 @@ async function handlePackQty(res, body) {
         const merged = { ...existing, mouser: { ...(existing.mouser||{}), factoryPackQty: packQty, mouserPartNumber: mouserPartNumber || (existing.mouser?.mouserPartNumber) || "" } };
         const patchBody = { pricing: merged };
         if (!rows?.[0]?.footprint && caseCode) patchBody.footprint = caseCode;
+        if (!rows?.[0]?.voltage_rating && voltageRating) patchBody.voltage_rating = voltageRating;
+        if (!rows?.[0]?.url && orderUrl) patchBody.url = orderUrl;
         await fetch(`${supabaseUrl}/rest/v1/parts?id=eq.${encodeURIComponent(partId)}`, {
           method: "PATCH",
           headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
@@ -299,5 +311,5 @@ async function handlePackQty(res, body) {
     } catch (e) { console.warn(`[pack-qty] ${mpn}: cache write failed —`, e.message); }
   }
 
-  return res.json({ packQty, mouserPartNumber, source: "Mouser", caseCode });
+  return res.json({ packQty, mouserPartNumber, source: "Mouser", caseCode, voltageRating, packagingType, orderUrl });
 }

@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.86";
-const BUILD_TIME   = "2026-03-29T14:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.87";
+const BUILD_TIME   = "2026-03-29T15:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -562,6 +562,14 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
   const caseAttr = attrs.find(a => /case.*(code|package)|package.*case/i.test(a.AttributeName || ""));
   const caseCode = caseAttr?.AttributeValue || extractPackageCode(mpn, part.Description || "");
   if (caseCode) result.caseCode = caseCode;
+  // Voltage rating
+  const voltAttr = attrs.find(a => /voltage.*rat|rated.*volt/i.test(a.AttributeName || ""));
+  if (voltAttr?.AttributeValue) result.voltageRating = voltAttr.AttributeValue;
+  // Packaging type (Tape & Reel, Cut Tape, Ammo Pack, Bulk)
+  if (part.Packaging) result.packagingType = part.Packaging;
+  // Value from ProductAttributes (Capacitance, Resistance, Inductance)
+  const valAttr = attrs.find(a => /^(capacitance|resistance|inductance)$/i.test(a.AttributeName || ""));
+  if (valAttr?.AttributeValue) result.partValue = valAttr.AttributeValue;
   if (part.LeadTime) result.leadTime = part.LeadTime;
   if (part.SuggestedReplacement) result.suggestedReplacement = part.SuggestedReplacement;
   if (part.ImagePath) result.imagePath = part.ImagePath;
@@ -3955,7 +3963,7 @@ function BOMManager({ user }) {
     const mP = selProject === "all" || p.projectId === selProject || (selProject === "unassigned" && !p.projectId);
     if (!search.trim()) return mP;
     const words = search.toLowerCase().split(/\s+/).filter(Boolean);
-    const blob = [p.reference, p.value, p.mpn, p.description, p.manufacturer, p.preferredSupplier, p.footprint].join(" ").toLowerCase();
+    const blob = [p.reference, p.value, p.mpn, p.description, p.manufacturer, p.preferredSupplier, p.footprint, p.voltage_rating].join(" ").toLowerCase();
     return mP && words.every(w => blob.includes(w));
   });
 
@@ -6136,10 +6144,12 @@ function BOMManager({ user }) {
                           row.checked = true;
                           checkedIds.add(row.part.id);
                           apiCount++;
-                          // Update local state — pricing cache AND footprint (if blank)
+                          // Update local state — pricing cache, footprint, voltage_rating, url
                           setParts(prev => prev.map(p => p.id === row.part.id ? {
                             ...p,
                             ...(result.caseCode && !p.footprint ? { footprint: result.caseCode } : {}),
+                            ...(result.voltageRating && !p.voltage_rating ? { voltage_rating: result.voltageRating } : {}),
+                            ...(result.orderUrl && !p.url ? { url: result.orderUrl } : {}),
                             pricing: { ...(p.pricing||{}), mouser: { ...(p.pricing?.mouser||{}), factoryPackQty: fq } }
                           } : p));
                         }
@@ -6152,6 +6162,44 @@ function BOMManager({ user }) {
                   setReelFillModal(prev => prev ? { ...prev, phase:"preview" } : null);
                 }
               }}>Auto-Fill Reel Quantities</button>
+              <button className="btn-ghost btn-sm" style={{ color:"#5856d6" }} onClick={async () => {
+                // Parse value and voltage from description for parts missing them
+                const toParse = parts.filter(p => p.mpn && (!p.value || !p.voltage_rating));
+                if (!toParse.length) { alert("All parts already have values."); return; }
+                let updated = 0;
+                for (const p of toParse) {
+                  const desc = (p.description || "") + " " + (p.mpn || "");
+                  const updates = {};
+                  // Extract capacitance
+                  if (!p.value) {
+                    const capM = desc.match(/(\d+(?:\.\d+)?)\s*(pF|nF|µF|uF|μF|mF)\b/i);
+                    if (capM) updates.value = capM[1] + capM[2].replace("µ","µ").replace("u","µ");
+                    // Extract resistance (e.g. 390R, 10K, 4.7K, 1M)
+                    if (!updates.value) {
+                      const resM = desc.match(/\b(\d+(?:[.,]\d+)?)\s*(Ω|ohms?|R)\b/i) ||
+                                   desc.match(/\b(\d+(?:[.,]\d+)?)\s*(k|K)(?:\s|Ω|$)/) ||
+                                   desc.match(/\b(\d+(?:[.,]\d+)?)\s*(M|meg)(?:\s|Ω|$)/i);
+                      if (resM) updates.value = resM[1] + resM[2];
+                    }
+                    // Extract inductance
+                    if (!updates.value) {
+                      const indM = desc.match(/(\d+(?:\.\d+)?)\s*(nH|µH|uH|mH|µH)\b/i);
+                      if (indM) updates.value = indM[1] + indM[2];
+                    }
+                  }
+                  // Extract voltage rating
+                  if (!p.voltage_rating) {
+                    const vM = desc.match(/\b(\d+(?:\.\d+)?)\s*V(?:[^A-Za-z]|$)/);
+                    if (vM) updates.voltage_rating = vM[1] + "V";
+                  }
+                  if (Object.keys(updates).length) {
+                    setParts(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
+                    await supabase.from("parts").update(updates).eq("id", p.id);
+                    updated++;
+                  }
+                }
+                alert(`Updated ${updated} parts with values from description.`);
+              }}>Auto-fill Values</button>
               {(apiKeys.mouser_order_api_key || apiKeys.mouser_api_key) && (
                 <button className="btn-ghost btn-sm" onClick={syncMouserOrderHistory}
                   disabled={mouserOrderHistory?.loading}
@@ -7363,6 +7411,8 @@ function BOMManager({ user }) {
                                     <div>Manufacturer: {part.manufacturer || "—"}</div>
                                     <div>Reference: {part.reference || "—"}</div>
                                     <div>Footprint: {part.footprint || "—"}</div>
+                                    {part.voltage_rating && <div><span style={{fontWeight:600}}>Voltage Rating:</span> {part.voltage_rating}</div>}
+                                    {part.url && <div><span style={{fontWeight:600}}>Order URL:</span> <a href={part.url} target="_blank" rel="noopener noreferrer" style={{color:"#0071e3"}}>{part.url.length > 60 ? part.url.slice(0,60)+"…" : part.url}</a></div>}
                                   </div>
                                 </div>
                                 <div>
@@ -7419,6 +7469,7 @@ function BOMManager({ user }) {
                                         </a>
                                       </div>
                                     )}
+                                    {part.url && <div>Order URL: <a href={part.url} target="_blank" rel="noopener noreferrer" style={{color:"#0071e3",fontSize:11}}>Open →</a></div>}
                                     {part.addedVia && <div>Added via: <span style={{ fontWeight:600,color:"#5856d6" }}>{{
                                       "manual":"Manual Entry", "quick-add-url":"Quick Add URL", "csv-import":"CSV/BOM Import",
                                       "invoice-import":"Invoice Scanner", "mouser-history":"Mouser Order History",
