@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { isValidEmail, splitName } from "./register.js";
+import { isValidEmail, splitName } from "../../api/register.js";
 
 // ─────────────────────────────────────────────
 // isValidEmail

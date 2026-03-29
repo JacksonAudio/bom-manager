@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { mapProduct } from "./ti-search.js";
+import { mapProduct } from "../../api/ti-search.js";
 
 describe("mapProduct", () => {
   const baseProduct = {

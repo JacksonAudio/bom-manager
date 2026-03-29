@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { calcLeadTimeDays } from "./shipstation.js";
+import { calcLeadTimeDays } from "../../api/shipstation.js";
 
 describe("calcLeadTimeDays", () => {
   it("returns 0 for same timestamp order and ship", () => {

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { mapMcMasterProduct } from "./search-components.js";
+import { mapMcMasterProduct } from "../../api/search-components.js";
 
 describe("mapMcMasterProduct", () => {
   const baseInfo = {

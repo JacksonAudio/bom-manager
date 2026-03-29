@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { buildSignature, formatProduct } from "./lcsc-search.js";
+import { buildSignature, formatProduct } from "../../api/lcsc-search.js";
 
 // ─────────────────────────────────────────────
 // buildSignature
