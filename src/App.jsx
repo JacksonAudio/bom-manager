@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.79";
-const BUILD_TIME   = "2026-03-29T11:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.80";
+const BUILD_TIME   = "2026-03-29T11:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6094,13 +6094,20 @@ function BOMManager({ user }) {
                   for (const row of needApi) {
                     try {
                       if (hasNexar) {
-                        // Preferred: Nexar — lightweight packQty query
+                        // Preferred: Nexar — 8s timeout so one hanging part doesn't block the whole loop
                         const query = buildNexarReelQuery(row.part.mpn);
-                        const res = await fetch("https://api.nexar.com/graphql", {
-                          method: "POST",
-                          headers: { "Content-Type":"application/json", "Authorization":`Bearer ${activeNexarToken}` },
-                          body: JSON.stringify({ query }),
-                        });
+                        const ctrl = new AbortController();
+                        const timer = setTimeout(() => ctrl.abort(), 8000);
+                        let res;
+                        try {
+                          res = await fetch("https://api.nexar.com/graphql", {
+                            method: "POST",
+                            headers: { "Content-Type":"application/json", "Authorization":`Bearer ${activeNexarToken}` },
+                            body: JSON.stringify({ query }),
+                            signal: ctrl.signal,
+                          });
+                        } finally { clearTimeout(timer); }
+                        res = res || { ok: false };
                         if (res.ok) {
                           const data = await res.json();
                           const part = data?.data?.supSearchMpn?.results?.[0]?.part;
