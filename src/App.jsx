@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.90";
-const BUILD_TIME   = "2026-03-29T17:28:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.91";
+const BUILD_TIME   = "2026-03-29T17:35:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6201,8 +6201,8 @@ function BOMManager({ user }) {
                   let detectedValue = null;
                   let detectedVoltage = null;
                   if (!p.value) {
-                    // Capacitance
-                    const capM = desc.match(/(\d+(?:\.\d+)?)\s*(pF|nF|[uµμ]F|mF)\b/i);
+                    // Capacitance — allow leading-dot values like .001uF → 0.001uF
+                    const capM = desc.match(/(\d*\.?\d+)\s*(pF|nF|[uµμ]F|mF)\b/i);
                     if (capM) detectedValue = fmtCap(capM[1], capM[2]);
                     // Resistance in ohms/R/OHM
                     if (!detectedValue) {
