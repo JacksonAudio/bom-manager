@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.74";
-const BUILD_TIME   = "2026-03-29T01:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.75";
+const BUILD_TIME   = "2026-03-29T10:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6069,17 +6069,20 @@ function BOMManager({ user }) {
                 const checkedIds = new Set(rows.filter(r => r.checked).map(r => r.part.id));
                 setReelFillModal({ phase:"fetching", rows, checkedIds, apiCount:0, cacheCount });
 
-                // Phase 2: Mouser API for parts with MPN but no cache hit
+                // Phase 2: Mouser API for parts with mouser_pn but no cache hit
+                // Only query parts that have a Mouser part number — hardware/McMaster parts won't have one
                 if (apiKeys.mouser_api_key) {
-                  const needApi = rows.filter(r => !r.detected && r.part.mpn);
+                  const needApi = rows.filter(r => !r.detected && r.part.mouser_pn);
                   let apiCount = 0;
                   for (const row of needApi) {
                     try {
                       const res = await fetch(
                         `https://api.mouser.com/api/v1/search/partnumber?apiKey=${apiKeys.mouser_api_key}`,
                         { method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
-                          body: JSON.stringify({ SearchByPartRequest:{ mouserPartNumber: row.part.mpn, partSearchOptions:"Exact" } }) }
+                          body: JSON.stringify({ SearchByPartRequest:{ mouserPartNumber: row.part.mouser_pn, partSearchOptions:"Exact" } }) }
                       );
+                      // Rate-limit: wait 300ms between requests to avoid Mouser 403 throttling
+                      await new Promise(r => setTimeout(r, 300));
                       if (res.ok) {
                         const data = await res.json();
                         const mp = data?.SearchResults?.Parts?.[0];
@@ -19756,7 +19759,7 @@ function BOMManager({ user }) {
               <div>
                 <h3 style={{ margin:0,fontSize:18,fontWeight:700,color:"#1d1d1f" }}>Auto-Fill Reel Quantities</h3>
                 {reelFillModal.phase === "scanning" && <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>Scanning pricing cache…</div>}
-                {reelFillModal.phase === "fetching" && <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>Fetching from Mouser API for remaining parts…</div>}
+                {reelFillModal.phase === "fetching" && <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>Fetching from Mouser API for parts with Mouser part numbers…</div>}
                 {reelFillModal.phase === "preview" && (
                   <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>
                     {reelFillModal.cacheCount} found in cache · {reelFillModal.apiCount} fetched from Mouser API
