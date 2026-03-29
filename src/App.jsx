@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.65";
-const BUILD_TIME   = "2026-03-28T23:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.66";
+const BUILD_TIME   = "2026-03-28T23:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -15920,15 +15920,18 @@ function BOMManager({ user }) {
                             Build {maxBuildable} Now (parts available)
                           </button>
                         )}
-                        <button onClick={() => {
+                        <button onClick={async () => {
+                            // Flag every short part for ordering and navigate to Purchasing
+                            const shortPartIds = shortRows.map(r => r.part.id);
+                            setParts(prev => prev.map(p => shortPartIds.includes(p.id) ? { ...p, flaggedForOrder: true } : p));
+                            // Persist flags to DB in parallel
+                            await Promise.all(shortPartIds.map(id => dbUpdatePart(id, { flagged_for_order: true }, user.id).catch(() => {})));
                             setRestockPreflight(null);
-                            setNewBuildOrder(f => ({ ...f, product_id: product.id, quantity: String(quantity), notes: `Restock build — PARTS SHORT: ${shortRows.map(r=>`${r.part.mpn||r.part.description||"?"} (need ${r.short} more)`).join(", ")}` }));
-                            setActiveView("production");
-                            setProdSubTab("builds");
-                            setTimeout(() => { document.getElementById("create-build-order-section")?.scrollIntoView({ behavior:"smooth", block:"start" }); }, 100);
+                            setActiveView("purchasing");
+                            showToast(`${shortPartIds.length} part${shortPartIds.length!==1?"s":""} flagged — order them to build ${quantity}× ${product.name}`, "#ff9500");
                           }}
-                          style={{ flex:1,padding:"14px",borderRadius:980,border:"2px solid #ff9500",cursor:"pointer",fontWeight:700,fontSize:13,background:"transparent",color:"#ff9500",fontFamily:"inherit",minWidth:180 }}>
-                          Create Anyway — Order Parts First
+                          style={{ flex:1,padding:"14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#ff3b30",color:"#fff",fontFamily:"inherit",minWidth:180 }}>
+                          🛒 Order Missing Parts ({shortRows.length})
                         </button>
                       </>)}
                       <button onClick={() => setRestockPreflight(null)}
