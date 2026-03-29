@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.71";
-const BUILD_TIME   = "2026-03-29T00:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.72";
+const BUILD_TIME   = "2026-03-29T00:25:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -17565,7 +17565,7 @@ function BOMManager({ user }) {
                   </div>
                   <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                     <div style={{ display:"flex", gap:4 }}>
-                      {[["open","Open"],["all","All"],["completed","Done"],["cancelled","Cancelled"]].map(([v,l]) => (
+                      {[["open","Open Orders"],["completed","Completed Orders"],["cancelled","Cancelled Orders"],["all","All Orders"]].map(([v,l]) => (
                         <button key={v} onClick={() => setStatusFilter(v)}
                           style={{ padding:"4px 10px", borderRadius:980, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"inherit", border:"none",
                             background: statusFilter===v ? cfg.color : darkMode?"#3a3a3e":"#e5e5ea",
