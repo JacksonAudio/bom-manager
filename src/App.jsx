@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.81";
-const BUILD_TIME   = "2026-03-29T12:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.82";
+const BUILD_TIME   = "2026-03-29T12:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6093,51 +6093,9 @@ function BOMManager({ user }) {
                   let apiCount = 0;
                   for (const row of needApi) {
                     try {
-                      if (hasNexar) {
-                        // Preferred: Nexar — 8s timeout so one hanging part doesn't block the whole loop
-                        const query = buildNexarReelQuery(row.part.mpn);
-                        const ctrl = new AbortController();
-                        const timer = setTimeout(() => ctrl.abort(), 8000);
-                        let res;
-                        try {
-                          res = await fetch("https://api.nexar.com/graphql", {
-                            method: "POST",
-                            headers: { "Content-Type":"application/json", "Authorization":`Bearer ${activeNexarToken}` },
-                            body: JSON.stringify({ query }),
-                            signal: ctrl.signal,
-                          });
-                        } finally { clearTimeout(timer); }
-                        res = res || { ok: false };
-                        if (res.ok) {
-                          const data = await res.json();
-                          const part = data?.data?.supSearchMpn?.results?.[0]?.part;
-                          if (part) {
-                            // Find best pack qty across all sellers
-                            // Priority: factoryPackQuantity → moq of reel/tape offer → multipackQuantity
-                            let bestPack = 0;
-                            let bestSeller = "";
-                            for (const seller of (part.sellers || [])) {
-                              for (const offer of (seller.offers || [])) {
-                                const fpq = parseInt(offer.factoryPackQuantity) || 0;
-                                const mpq = parseInt(offer.multipackQuantity) || 0;
-                                const pkg = (offer.packaging || "").toLowerCase();
-                                const isReel = pkg.includes("reel") || pkg.includes("tape");
-                                const moqVal = isReel ? (parseInt(offer.moq) || 0) : 0;
-                                const pq = fpq || moqVal || mpq;
-                                if (pq > bestPack) { bestPack = pq; bestSeller = seller.company?.name || "Nexar"; }
-                              }
-                            }
-                            if (bestPack > 0) {
-                              row.detected = bestPack;
-                              row.source = `Nexar (${bestSeller})`;
-                              row.checked = true;
-                              checkedIds.add(row.part.id);
-                              apiCount++;
-                            }
-                          }
-                        }
-                      } else {
-                        // Fallback: Mouser direct (already filtered to letter-containing MPNs above)
+                      let found = false;
+                      // PRIMARY: Mouser — FactoryPackQty is well-populated, 300ms rate limit
+                      if (hasMouser && !found) {
                         const res = await fetch(
                           `https://api.mouser.com/api/v1/search/partnumber?apiKey=${apiKeys.mouser_api_key}`,
                           { method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
@@ -6151,7 +6109,47 @@ function BOMManager({ user }) {
                             const fq = parseInt(mp.FactoryPackQty || mp.MultPackQty) || 0;
                             if (fq > 0) {
                               row.detected = fq;
-                              row.source = "Mouser API";
+                              row.source = "Mouser";
+                              row.checked = true;
+                              checkedIds.add(row.part.id);
+                              apiCount++;
+                              found = true;
+                            }
+                          }
+                        }
+                      }
+                      // FALLBACK: Nexar — for parts Mouser doesn't carry
+                      if (hasNexar && !found) {
+                        const query = buildNexarReelQuery(row.part.mpn);
+                        const ctrl = new AbortController();
+                        const timer = setTimeout(() => ctrl.abort(), 8000);
+                        let res;
+                        try {
+                          res = await fetch("https://api.nexar.com/graphql", {
+                            method: "POST",
+                            headers: { "Content-Type":"application/json", "Authorization":`Bearer ${activeNexarToken}` },
+                            body: JSON.stringify({ query }),
+                            signal: ctrl.signal,
+                          });
+                        } finally { clearTimeout(timer); }
+                        if (res?.ok) {
+                          const data = await res.json();
+                          const part = data?.data?.supSearchMpn?.results?.[0]?.part;
+                          if (part) {
+                            let bestPack = 0, bestSeller = "";
+                            for (const seller of (part.sellers || [])) {
+                              for (const offer of (seller.offers || [])) {
+                                const fpq = parseInt(offer.factoryPackQuantity) || 0;
+                                const mpq = parseInt(offer.multipackQuantity) || 0;
+                                const pkg = (offer.packaging || "").toLowerCase();
+                                const moqVal = (pkg.includes("reel") || pkg.includes("tape")) ? (parseInt(offer.moq) || 0) : 0;
+                                const pq = fpq || moqVal || mpq;
+                                if (pq > bestPack) { bestPack = pq; bestSeller = seller.company?.name || "Nexar"; }
+                              }
+                            }
+                            if (bestPack > 0) {
+                              row.detected = bestPack;
+                              row.source = `Nexar (${bestSeller})`;
                               row.checked = true;
                               checkedIds.add(row.part.id);
                               apiCount++;
@@ -19824,7 +19822,7 @@ function BOMManager({ user }) {
                 {reelFillModal.phase === "fetching" && <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>Fetching pack quantities from Nexar…</div>}
                 {reelFillModal.phase === "preview" && (
                   <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>
-                    {reelFillModal.cacheCount} found in cache · {reelFillModal.apiCount} fetched from Nexar
+                    {reelFillModal.cacheCount} found in cache · {reelFillModal.apiCount} fetched from Mouser/Nexar
                   </div>
                 )}
               </div>
