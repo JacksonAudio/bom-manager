@@ -50,6 +50,20 @@ Two places in App.jsx per tab:
 
 Update both when a push affects that tab.
 
+## Modal / dialog styling standard
+
+All modals must match the established design language — clean, modern, Apple-inspired:
+
+- **Backdrop**: `rgba(0,0,0,0.55)` + `backdropFilter:"blur(4px)"`
+- **Card**: `borderRadius:20`, `padding:"32px 36px"`, `boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)"`
+- **Close button**: circular `#f5f5f7` background, hover to `#e8e8ed`, `×` symbol
+- **Table**: sticky thead with `#f9f9fb` background, `border:"1px solid #f0f0f2"` container, alternating row tints (`#fff` / `#fafafa`), hover to `#f0f6ff`
+- **Primary action button**: pill shape (`borderRadius:980`), solid brand color, hover darkens ~10%, disabled goes to `#c7c7cc`
+- **Cancel button**: pill shape, transparent with `#d2d2d7` border, hover to `#f5f5f7`
+- **Typography**: title `fontSize:20,fontWeight:700,color:"#1d1d1f"`, subtitle `fontSize:13,color:"#86868b"`, table headers `fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",color:"#86868b"`
+- Always add `onMouseEnter`/`onMouseLeave` hover states to buttons for polish
+- Clicking the backdrop closes the modal
+
 ## Supabase updates: only send known columns
 
 Never spread unknown/derived objects into Supabase update calls — it will 400 if unknown columns are included. Explicitly pick only the fields being saved.
