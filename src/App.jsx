@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.34";
-const BUILD_TIME   = "2026-03-28T04:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.35";
+const BUILD_TIME   = "2026-03-28T09:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -4811,7 +4811,7 @@ function BOMManager({ user }) {
           { id:"bom",       label:`Parts (${parts.length})`, step:1, color:"#0071e3" },
           { id:"projects",  label:"Products",   step:2, color:"#5856d6" },
           { id:"pricing",   label:`Pricing${pricedCount>0?` (${pricedCount}/${parts.length})`:""}`, step:3, color:"#ff9500" },
-          { id:"demand",    label:`Demand${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)?` (${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)})`:""}`, step:4, color:"#34c759" },
+          { id:"demand",    label:`Orders${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)?` (${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)})`:""}`, step:4, color:"#34c759" },
           { id:"purchasing",label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}`, step:5, color:"#ff3b30" },
           { id:"scan",      label:"Scan In",    step:6, color:"#00c7be" },
           { id:"orders",    label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}`, step:null, color:null },
@@ -4877,7 +4877,7 @@ function BOMManager({ user }) {
                   { step:1, title:"Add Parts", desc:"Import CSV, use Component Library, or Quick Add from a supplier URL to auto-fetch pricing, datasheets, and specs.", tab:"bom", color:"#0071e3" },
                   { step:2, title:"Create Products", desc:"Group parts into products (pedals, amps, etc). Assign each part to the product it belongs to.", tab:"projects", color:"#5856d6" },
                   { step:3, title:"Get Pricing", desc:"Live quotes from 900+ distributors. Landed costs include tariffs by country of origin. Mouser preferred within 5% of cheapest.", tab:"pricing", color:"#ff9500" },
-                  { step:4, title:"Check Demand", desc:"Shopify + Zoho orders with due dates, fulfillment tracking, and ShipStation shipment data. Track dealer POs and direct orders.", tab:"demand", color:"#34c759" },
+                  { step:4, title:"Track Orders", desc:"Shopify + Zoho customer orders with due dates, fulfillment tracking, and ShipStation shipment data. See shelf coverage at a glance.", tab:"demand", color:"#34c759" },
                   { step:5, title:"Review & Purchase", desc:"Aggregated POs by supplier with tariff visibility. Skip tariffed parts, check Mouser tariffs via Cart API, or export/email POs.", tab:"purchasing", color:"#ff3b30" },
                   { step:6, title:"Receive & Scan", desc:"When parts arrive, scan invoices to update stock quantities and close out open POs.", tab:"scan", color:"#00c7be" },
                 ].map((s, i, arr) => (
@@ -11208,10 +11208,10 @@ function BOMManager({ user }) {
             <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
               <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#34c759",color:"#fff",fontSize:12,fontWeight:800 }}>4</span>
-                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:20,fontWeight:700,margin:0 }}>Order Demand</h2>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:20,fontWeight:700,margin:0 }}>Orders</h2>
               </div>
               <p style={{ color:"#6e6e73",fontSize:13,lineHeight:"20px",margin:0 }}>
-                This is where customer orders meet your inventory. Dealer PO Tracker and Direct Order Tracker show every open order with due dates, fulfillment progress, and overdue alerts. Demand pulls unfulfilled orders from Shopify (direct-to-consumer) and Zoho Books (dealer/wholesale), with ShipStation data showing what's already shipped. Dismiss fulfilled orders, assign builds to specific POs, and see exactly which parts you need — real demand data driving every purchasing decision.
+                Your fulfillment queue — every open customer order from Shopify (direct-to-consumer) and Zoho Books (dealer/wholesale), with due dates, fulfillment progress, and overdue alerts. ShipStation data shows what's already shipped. Build orders are created automatically when shelf stock falls below your minimum threshold — set thresholds on the Shelf tab.
               </p>
             </div>
             <div style={{ display:"flex",justifyContent:"flex-end",marginBottom:16,flexWrap:"wrap",gap:6 }}>
@@ -11284,7 +11284,7 @@ function BOMManager({ user }) {
             {!shopifyDemand && !shopifyDemand?.loading && !zohoDemand && !zohoDemand?.loading && (
               <div className="card" style={{ textAlign:"center",padding:60 }}>
                 <div style={{ fontSize:40,marginBottom:12 }}>🛒</div>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:15,marginBottom:8 }}>Connect Shopify or Zoho Books to see order demand</div>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:15,marginBottom:8 }}>Connect Shopify or Zoho Books to see orders</div>
                 <p style={{ color:"#86868b",fontSize:13,marginBottom:16 }}>Add your Shopify store or Zoho Books credentials in Settings, then sync.</p>
                 <button className="btn-primary" onClick={() => setActiveView("settings")}>⚙ Go to Settings</button>
               </div>
