@@ -1,6 +1,6 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v7.36
-// Thursday, March 26, 2026
+// src/App.jsx — Jackson Audio BOM Manager v8.60
+// Saturday, March 28, 2026
 //
 // Changelog:
 //   [1] Fix Nexar query — inline MPN string instead of GraphQL variable (fixes 400)
@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.50";
-const BUILD_TIME   = "2026-03-28T09:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.60";
+const BUILD_TIME   = "2026-03-28T22:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -4890,7 +4890,7 @@ function BOMManager({ user }) {
       </header>
 
       {/* ── NAV ── */}
-      <nav style={{ display:"grid", gridTemplateColumns:"repeat(7, 1fr)", padding:"0",
+      <nav style={{ display:"grid", gridTemplateColumns:"repeat(8, 1fr)", padding:"0",
         borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
         background:darkMode?"#1c1c1e":"#fff" }}>
         {[
@@ -4903,6 +4903,7 @@ function BOMManager({ user }) {
           { id:"scan",      label:"Scan In",    step:6, color:"#00c7be" },
           { id:"orders",    label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}`, step:null, color:null },
           { id:"production",label:`Production${(()=>{ const c=buildOrders.filter(b=>b.status!=="completed").length+playTests.filter(t=>t.status!=="returned").length+boxingTasks.filter(t=>t.status!=="completed").length; return c>0?` (${c})`:""; })()}`, step:null, color:null },
+          { id:"shelf",     label:`Shelf${finishedGoods.length>0?` (${finishedGoods.reduce((s,r)=>s+(r.quantity_on_hand||0),0)})`:""}`, step:null, color:null },
           { id:"pipeline",label:`Pipeline${pedalUnits.filter(u=>u.status!=="shipped"&&u.status!=="boxed").length>0?` (${pedalUnits.filter(u=>u.status!=="shipped"&&u.status!=="boxed").length})`:""}`, step:null, color:null },
           { id:"scoreboard",label:"Scoreboard", step:null, color:null },
           { id:"suppliers", label:"Suppliers",   step:null, color:null },
@@ -4971,7 +4972,7 @@ function BOMManager({ user }) {
                       </div>
                       <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>Finished goods on the shelf right now</div>
                     </div>
-                    <button className="btn-ghost btn-sm" onClick={() => { setActiveView("production"); setProdSubTab("shelf"); }}>View Shelf →</button>
+                    <button className="btn-ghost btn-sm" onClick={() => { setActiveView("shelf"); }}>View Shelf →</button>
                   </div>
                   <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:12 }}>
                     {[
@@ -4981,7 +4982,7 @@ function BOMManager({ user }) {
                       { label:"Need Restock", value:needsRestock, color:needsRestock > 0 ? "#ff9500" : "#34c759" },
                     ].map(c => (
                       <div key={c.label} style={{ textAlign:"center",padding:"12px 8px",borderRadius:10,background:"#f9f9fb",border:"1px solid #e5e5ea",cursor:"pointer" }}
-                        onClick={() => { setActiveView("production"); setProdSubTab("shelf"); }}>
+                        onClick={() => { setActiveView("shelf"); }}>
                         <div style={{ fontSize:24,fontWeight:800,color:c.color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{c.value}</div>
                         <div style={{ fontSize:10,color:"#86868b",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase",marginTop:2 }}>{c.label}</div>
                       </div>
@@ -4989,7 +4990,7 @@ function BOMManager({ user }) {
                   </div>
                   {needsRestock > 0 && (
                     <div style={{ marginTop:12,fontSize:12,color:"#bf6800",fontWeight:600 }}>
-                      {needsRestock} product{needsRestock !== 1 ? "s" : ""} at or below minimum — <button className="btn-ghost" style={{ fontSize:11,color:"#ff9500",fontWeight:700 }} onClick={() => { setActiveView("production"); setProdSubTab("shelf"); }}>View restock suggestions →</button>
+                      {needsRestock} product{needsRestock !== 1 ? "s" : ""} at or below minimum — <button className="btn-ghost" style={{ fontSize:11,color:"#ff9500",fontWeight:700 }} onClick={() => { setActiveView("shelf"); }}>View restock suggestions →</button>
                     </div>
                   )}
                 </div>
@@ -12101,7 +12102,7 @@ function BOMManager({ user }) {
                                         {po.pctComplete < 100 && (
                                           <div style={{ fontSize:11,color:"#86868b",fontStyle:"italic",padding:"4px 0" }}>
                                             Build orders are created automatically when shelf stock falls below your minimum threshold.{" "}
-                                            <button className="btn-ghost" style={{ fontSize:11,padding:"2px 8px" }} onClick={() => { setActiveView("production"); setProdSubTab("shelf"); }}>Set thresholds on Shelf →</button>
+                                            <button className="btn-ghost" style={{ fontSize:11,padding:"2px 8px" }} onClick={() => { setActiveView("shelf"); }}>Set thresholds on Shelf →</button>
                                           </div>
                                         )}
                                         {po.pctComplete < 100 && (
@@ -13511,7 +13512,6 @@ function BOMManager({ user }) {
                 { id:"builds", label:"Build Orders", count: activeOrders.length },
                 { id:"playtesting", label:"Play Testing", count: playTests.filter(t=>t.status!=="returned").length },
                 { id:"boxing", label:"Boxing", count: boxingTasks.filter(t=>t.status!=="completed").length },
-                { id:"shelf", label:"Shelf", count: 0 },
               ].map(sub => (
                 <button key={sub.id} onClick={() => setProdSubTab(sub.id)}
                   style={{
@@ -15162,609 +15162,614 @@ function BOMManager({ user }) {
           );
             })()}
 
-            {/* ══ SHELF subtab ══ */}
-            {prodSubTab === "shelf" && (() => {
-              const cardBg = darkMode ? "#1c1c1e" : "#fff";
-              const cardBorder = darkMode ? "1px solid #3a3a3e" : "1px solid #e5e5ea";
-              const textPrimary = darkMode ? "#f5f5f7" : "#1d1d1f";
-              const inputStyle2 = { fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7", outline:"none", background:darkMode?"#2c2c2e":"#fff", color:textPrimary, width:"100%" };
+            {/* Shelf content moved to top-level activeView="shelf" */}
 
-              // Build a map of productId → finishedGoods row
-              const fgMap = {};
-              finishedGoods.forEach(row => { fgMap[row.product_id] = row; });
+          </div>
+          );
+        })()}
 
-              const shelfColor = (row) => {
-                if (!row) return "#86868b";
-                const qty = row.quantity_on_hand || 0;
-                const min = row.min_stock;
-                const target = row.target_stock;
-                if (min == null && target == null) return "#86868b";
-                if (qty <= (min || 0)) return "#ff3b30";
-                if (target != null && qty < target) return "#ff9500";
-                return "#34c759";
-              };
+        {/* ══════════════════════════════════════
+            SHELF — Finished Goods Inventory
+        ══════════════════════════════════════ */}
+        {/* ══ SHELF subtab ══ */}
+        {activeView === "shelf" && (() => {
+          const cardBg = darkMode ? "#1c1c1e" : "#fff";
+          const cardBorder = darkMode ? "1px solid #3a3a3e" : "1px solid #e5e5ea";
+          const textPrimary = darkMode ? "#f5f5f7" : "#1d1d1f";
+          const inputStyle2 = { fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7", outline:"none", background:darkMode?"#2c2c2e":"#fff", color:textPrimary, width:"100%" };
 
-              const handleShelfAdj = async () => {
-                if (!shelfAddModal?.productId || !shelfAdjQty) return;
-                const adjQty = parseInt(shelfAdjQty);
-                if (!adjQty || adjQty < 1) return;
-                if (shelfAddModal.action === 'remove') {
-                  const fg = finishedGoods.find(r => r.product_id === shelfAddModal.productId);
-                  const currentQty = fg?.quantity_on_hand ?? 0;
-                  if (adjQty > currentQty) { alert(`Only ${currentQty} units on shelf — cannot remove ${adjQty}.`); return; }
+          // Build a map of productId → finishedGoods row
+          const fgMap = {};
+          finishedGoods.forEach(row => { fgMap[row.product_id] = row; });
+
+          const shelfColor = (row) => {
+            if (!row) return "#86868b";
+            const qty = row.quantity_on_hand || 0;
+            const min = row.min_stock;
+            const target = row.target_stock;
+            if (min == null && target == null) return "#86868b";
+            if (qty <= (min || 0)) return "#ff3b30";
+            if (target != null && qty < target) return "#ff9500";
+            return "#34c759";
+          };
+
+          const handleShelfAdj = async () => {
+            if (!shelfAddModal?.productId || !shelfAdjQty) return;
+            const adjQty = parseInt(shelfAdjQty);
+            if (!adjQty || adjQty < 1) return;
+            if (shelfAddModal.action === 'remove') {
+              const fg = finishedGoods.find(r => r.product_id === shelfAddModal.productId);
+              const currentQty = fg?.quantity_on_hand ?? 0;
+              if (adjQty > currentQty) { alert(`Only ${currentQty} units on shelf — cannot remove ${adjQty}.`); return; }
+            }
+            setFinishedGoodsBusy(true);
+            try {
+              const delta = shelfAddModal.action === 'add' ? adjQty : -adjQty;
+              const updated = await upsertFinishedGoods(shelfAddModal.productId, delta, user.id);
+              setFinishedGoods(prev => {
+                const existing = prev.find(r => r.product_id === shelfAddModal.productId);
+                return existing ? prev.map(r => r.product_id === shelfAddModal.productId ? updated : r) : [...prev, updated];
+              });
+              const prod = products.find(p => p.id === shelfAddModal.productId);
+              showToast(`${shelfAddModal.action === 'add' ? '+' : '-'}${Math.abs(delta)} ${prod?.name || ''} on shelf`, shelfAddModal.action === 'add' ? "#34c759" : "#ff9500");
+              setShelfAddModal(null);
+              setShelfAdjQty("");
+              setShelfAdjNotes("");
+            } catch (e) { alert("Shelf update failed: " + e.message); }
+            setFinishedGoodsBusy(false);
+          };
+
+          const handleShelfTargetSave = async (productId) => {
+            const vals = shelfTargetEdit[productId];
+            if (!vals) return;
+            try {
+              const updated = await updateFinishedGoodsTargets(productId, {
+                target_stock: vals.target !== "" ? parseInt(vals.target) || 0 : 0,
+                min_stock: vals.min !== "" ? parseInt(vals.min) || 0 : 0,
+              }, user.id);
+              setFinishedGoods(prev => {
+                const existing = prev.find(r => r.product_id === productId);
+                return existing ? prev.map(r => r.product_id === productId ? updated : r) : [...prev, updated];
+              });
+              setShelfTargetEdit(prev => { const n = { ...prev }; delete n[productId]; return n; });
+            } catch (e) { alert("Save failed: " + e.message); }
+          };
+
+          // Feasibility check
+          const handleFeasibilityCheck = async () => {
+            setFeasibilityLoading(true);
+            const results = [];
+            for (const prod of products) {
+              const bomParts = parts.filter(p => p.projectId === prod.id);
+              if (bomParts.length === 0) continue;
+              let maxBuildable = Infinity;
+              const constraintPart = { part: null, have: 0, need: 0 };
+              const blockingParts = [];
+              for (const part of bomParts) {
+                const stock = parseInt(part.stockQty) || 0;
+                const reserved = componentReservations.filter(r => r.part_id === part.id && r.status === 'active').reduce((s, r) => s + (r.reserved_qty || 0), 0);
+                const available = Math.max(0, stock - reserved);
+                const needed = parseInt(part.quantity) || 1;
+                const canBuild = Math.floor(available / needed);
+                if (canBuild < maxBuildable) {
+                  maxBuildable = canBuild;
+                  constraintPart.part = part;
+                  constraintPart.have = available;
+                  constraintPart.need = needed;
                 }
-                setFinishedGoodsBusy(true);
-                try {
-                  const delta = shelfAddModal.action === 'add' ? adjQty : -adjQty;
-                  const updated = await upsertFinishedGoods(shelfAddModal.productId, delta, user.id);
-                  setFinishedGoods(prev => {
-                    const existing = prev.find(r => r.product_id === shelfAddModal.productId);
-                    return existing ? prev.map(r => r.product_id === shelfAddModal.productId ? updated : r) : [...prev, updated];
-                  });
-                  const prod = products.find(p => p.id === shelfAddModal.productId);
-                  showToast(`${shelfAddModal.action === 'add' ? '+' : '-'}${Math.abs(delta)} ${prod?.name || ''} on shelf`, shelfAddModal.action === 'add' ? "#34c759" : "#ff9500");
-                  setShelfAddModal(null);
-                  setShelfAdjQty("");
-                  setShelfAdjNotes("");
-                } catch (e) { alert("Shelf update failed: " + e.message); }
-                setFinishedGoodsBusy(false);
-              };
+                if (canBuild === 0) blockingParts.push({ part, have: available, need: needed });
+              }
+              if (maxBuildable === Infinity) maxBuildable = 0;
+              results.push({ product: prod, maxBuildable, constraintPart: constraintPart.part ? constraintPart : null, blockingParts, bomCount: bomParts.length });
+            }
+            results.sort((a, b) => b.maxBuildable - a.maxBuildable);
+            setFeasibilityResults(results);
+            setFeasibilityLoading(false);
+          };
 
-              const handleShelfTargetSave = async (productId) => {
-                const vals = shelfTargetEdit[productId];
-                if (!vals) return;
-                try {
-                  const updated = await updateFinishedGoodsTargets(productId, {
-                    target_stock: vals.target !== "" ? parseInt(vals.target) || 0 : 0,
-                    min_stock: vals.min !== "" ? parseInt(vals.min) || 0 : 0,
-                  }, user.id);
-                  setFinishedGoods(prev => {
-                    const existing = prev.find(r => r.product_id === productId);
-                    return existing ? prev.map(r => r.product_id === productId ? updated : r) : [...prev, updated];
-                  });
-                  setShelfTargetEdit(prev => { const n = { ...prev }; delete n[productId]; return n; });
-                } catch (e) { alert("Save failed: " + e.message); }
-              };
+          return (
+          <div style={{ maxWidth:"100%" }}>
+            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Finished Goods Shelf</h2>
+            <p style={{ fontSize:14,color:"#86868b",marginBottom:20 }}>Track completed units on the shelf. Units are added automatically when boxing tasks complete.</p>
 
-              // Feasibility check
-              const handleFeasibilityCheck = async () => {
-                setFeasibilityLoading(true);
-                const results = [];
-                for (const prod of products) {
-                  const bomParts = parts.filter(p => p.projectId === prod.id);
-                  if (bomParts.length === 0) continue;
-                  let maxBuildable = Infinity;
-                  const constraintPart = { part: null, have: 0, need: 0 };
-                  const blockingParts = [];
-                  for (const part of bomParts) {
-                    const stock = parseInt(part.stockQty) || 0;
-                    const reserved = componentReservations.filter(r => r.part_id === part.id && r.status === 'active').reduce((s, r) => s + (r.reserved_qty || 0), 0);
-                    const available = Math.max(0, stock - reserved);
-                    const needed = parseInt(part.quantity) || 1;
-                    const canBuild = Math.floor(available / needed);
-                    if (canBuild < maxBuildable) {
-                      maxBuildable = canBuild;
-                      constraintPart.part = part;
-                      constraintPart.have = available;
-                      constraintPart.need = needed;
-                    }
-                    if (canBuild === 0) blockingParts.push({ part, have: available, need: needed });
-                  }
-                  if (maxBuildable === Infinity) maxBuildable = 0;
-                  results.push({ product: prod, maxBuildable, constraintPart: constraintPart.part ? constraintPart : null, blockingParts, bomCount: bomParts.length });
-                }
-                results.sort((a, b) => b.maxBuildable - a.maxBuildable);
-                setFeasibilityResults(results);
-                setFeasibilityLoading(false);
-              };
-
+            {/* ── Restock Needed ── */}
+            {(() => {
+              const suggestions = products.filter(prod => {
+                const fg = fgMap[prod.id];
+                const min = fg?.min_stock;
+                if (!min || min <= 0) return false; // no threshold set
+                const qty = fg?.quantity_on_hand ?? 0;
+                return qty <= min;
+              }).map(prod => {
+                const fg = fgMap[prod.id];
+                const qty = fg?.quantity_on_hand ?? 0;
+                const min = fg?.min_stock || 0;
+                const vel = salesVelocity[prod.id];
+                const vpd = vel?.unitsPerDay || 0;
+                const unitsSold30d = vel?.unitsSold30d || 0;
+                const suggested = Math.max(50, Math.ceil(vpd * 30 * 1.5));
+                const burnDays = vpd > 0 && qty > 0 ? Math.floor(qty / vpd) : null;
+                // Parts needed for this build
+                const bomParts = parts.filter(p => p.projectId === prod.id);
+                const partsNeeded = bomParts.map(bp => {
+                  const stock = parseInt(bp.stockQty) || 0;
+                  const perUnit = parseInt(bp.quantity) || 1;
+                  const totalNeeded = perUnit * suggested;
+                  const shortfall = Math.max(0, totalNeeded - stock);
+                  return { part: bp, perUnit, totalNeeded, stock, shortfall };
+                }).sort((a, b) => b.shortfall - a.shortfall); // most needed first
+                return { prod, qty, min, suggested, unitsSold30d, burnDays, vpd, partsNeeded };
+              }).sort((a, b) => {
+                // Sort by urgency: fewest days of stock remaining first
+                const aDays = a.vpd > 0 ? a.qty / a.vpd : 9999;
+                const bDays = b.vpd > 0 ? b.qty / b.vpd : 9999;
+                return aDays - bDays;
+              });
+              if (suggestions.length === 0) return null;
               return (
-              <div style={{ maxWidth:"100%" }}>
-                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Finished Goods Shelf</h2>
-                <p style={{ fontSize:14,color:"#86868b",marginBottom:20 }}>Track completed units on the shelf. Units are added automatically when boxing tasks complete.</p>
-
-                {/* ── Restock Needed ── */}
-                {(() => {
-                  const suggestions = products.filter(prod => {
-                    const fg = fgMap[prod.id];
-                    const min = fg?.min_stock;
-                    if (!min || min <= 0) return false; // no threshold set
-                    const qty = fg?.quantity_on_hand ?? 0;
-                    return qty <= min;
-                  }).map(prod => {
-                    const fg = fgMap[prod.id];
-                    const qty = fg?.quantity_on_hand ?? 0;
-                    const min = fg?.min_stock || 0;
-                    const vel = salesVelocity[prod.id];
-                    const vpd = vel?.unitsPerDay || 0;
-                    const unitsSold30d = vel?.unitsSold30d || 0;
-                    const suggested = Math.max(50, Math.ceil(vpd * 30 * 1.5));
-                    const burnDays = vpd > 0 && qty > 0 ? Math.floor(qty / vpd) : null;
-                    // Parts needed for this build
-                    const bomParts = parts.filter(p => p.projectId === prod.id);
-                    const partsNeeded = bomParts.map(bp => {
-                      const stock = parseInt(bp.stockQty) || 0;
-                      const perUnit = parseInt(bp.quantity) || 1;
-                      const totalNeeded = perUnit * suggested;
-                      const shortfall = Math.max(0, totalNeeded - stock);
-                      return { part: bp, perUnit, totalNeeded, stock, shortfall };
-                    }).sort((a, b) => b.shortfall - a.shortfall); // most needed first
-                    return { prod, qty, min, suggested, unitsSold30d, burnDays, vpd, partsNeeded };
-                  }).sort((a, b) => {
-                    // Sort by urgency: fewest days of stock remaining first
-                    const aDays = a.vpd > 0 ? a.qty / a.vpd : 9999;
-                    const bDays = b.vpd > 0 ? b.qty / b.vpd : 9999;
-                    return aDays - bDays;
-                  });
-                  if (suggestions.length === 0) return null;
-                  return (
-                    <div style={{ background:"#fff8ee",border:"2px solid #ff9500",borderRadius:14,padding:"20px 24px",marginBottom:24 }}>
-                      <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:16 }}>
-                        <span style={{ fontSize:20 }}>⚠️</span>
-                        <div style={{ fontSize:16,fontWeight:800,color:"#bf6800",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
-                          Restock Needed — {suggestions.length} product{suggestions.length !== 1 ? "s" : ""} at or below minimum
+                <div style={{ background:"#fff8ee",border:"2px solid #ff9500",borderRadius:14,padding:"20px 24px",marginBottom:24 }}>
+                  <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:16 }}>
+                    <span style={{ fontSize:20 }}>⚠️</span>
+                    <div style={{ fontSize:16,fontWeight:800,color:"#bf6800",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                      Restock Needed — {suggestions.length} product{suggestions.length !== 1 ? "s" : ""} at or below minimum
+                    </div>
+                    <div style={{ marginLeft:"auto",fontSize:10,color:"#bf6800",fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase" }}>sorted by urgency</div>
+                  </div>
+                  <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14 }}>
+                    {suggestions.map(({ prod, qty, min, suggested, unitsSold30d, burnDays, vpd, partsNeeded }) => {
+                      const urgencyColor = burnDays !== null && burnDays <= 3 ? "#ff3b30" : burnDays !== null && burnDays <= 7 ? "#ff9500" : "#bf6800";
+                      const top5Parts = partsNeeded.slice(0, 5);
+                      const hasShortfall = top5Parts.some(p => p.shortfall > 0);
+                      return (
+                      <div key={prod.id} style={{ background:"#fff",borderRadius:10,padding:"16px 18px",border:"1px solid #ffd580",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
+                          <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#ff9500",flexShrink:0 }} />
+                          <div style={{ fontSize:14,fontWeight:700,color:"#1d1d1f" }}>{prod.name}</div>
+                          {prod.brand && <div style={{ fontSize:10,color:"#86868b",marginLeft:"auto",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>{prod.brand}</div>}
                         </div>
-                        <div style={{ marginLeft:"auto",fontSize:10,color:"#bf6800",fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase" }}>sorted by urgency</div>
-                      </div>
-                      <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14 }}>
-                        {suggestions.map(({ prod, qty, min, suggested, unitsSold30d, burnDays, vpd, partsNeeded }) => {
-                          const urgencyColor = burnDays !== null && burnDays <= 3 ? "#ff3b30" : burnDays !== null && burnDays <= 7 ? "#ff9500" : "#bf6800";
-                          const top5Parts = partsNeeded.slice(0, 5);
-                          const hasShortfall = top5Parts.some(p => p.shortfall > 0);
+                        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12,fontSize:12 }}>
+                          <div>
+                            <span style={{ color:"#86868b" }}>Current stock: </span>
+                            <span style={{ fontWeight:700,color:urgencyColor }}>
+                              {qty} units{burnDays !== null ? ` (${burnDays < 1 ? "<1d" : burnDays > 999 ? "999d+" : `${burnDays}d`} left)` : ""}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ color:"#86868b" }}>Min threshold: </span>
+                            <span style={{ fontWeight:700 }}>{min} units</span>
+                          </div>
+                          <div style={{ gridColumn:"1/-1" }}>
+                            <span style={{ color:"#86868b" }}>Velocity: </span>
+                            <span style={{ fontWeight:600 }}>
+                              {vpd > 0 ? `${vpd.toFixed(2)} units/day avg` : unitsSold30d > 0 ? `~${unitsSold30d} units/30d` : "No sales data"}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ background:"#fff8ee",borderRadius:8,padding:"10px 14px",marginBottom:12 }}>
+                          <div style={{ fontSize:13,fontWeight:700,color:"#bf6800" }}>
+                            Suggested build: <span style={{ fontSize:16 }}>{suggested}</span> units
+                          </div>
+                          {unitsSold30d > 0 && (
+                            <div style={{ fontSize:11,color:"#86868b",marginTop:3 }}>
+                              Based on ~{unitsSold30d} units sold in the last 30 days
+                            </div>
+                          )}
+                          {unitsSold30d === 0 && (
+                            <div style={{ fontSize:11,color:"#86868b",marginTop:3 }}>
+                              Minimum 50-unit build (no recent sales data)
+                            </div>
+                          )}
+                        </div>
+                        {top5Parts.length > 0 && (() => {
+                          const [partsOpen, setPartsOpen] = [null, () => {}]; // use inline collapsed state via details
                           return (
-                          <div key={prod.id} style={{ background:"#fff",borderRadius:10,padding:"16px 18px",border:"1px solid #ffd580",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-                            <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
-                              <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#ff9500",flexShrink:0 }} />
-                              <div style={{ fontSize:14,fontWeight:700,color:"#1d1d1f" }}>{prod.name}</div>
-                              {prod.brand && <div style={{ fontSize:10,color:"#86868b",marginLeft:"auto",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>{prod.brand}</div>}
-                            </div>
-                            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12,fontSize:12 }}>
-                              <div>
-                                <span style={{ color:"#86868b" }}>Current stock: </span>
-                                <span style={{ fontWeight:700,color:urgencyColor }}>
-                                  {qty} units{burnDays !== null ? ` (${burnDays < 1 ? "<1d" : burnDays > 999 ? "999d+" : `${burnDays}d`} left)` : ""}
-                                </span>
+                            <details style={{ marginBottom:12 }}>
+                              <summary style={{ fontSize:11,fontWeight:700,color: hasShortfall ? "#ff3b30" : "#34c759",cursor:"pointer",marginBottom:6,userSelect:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4 }}>
+                                <span style={{ fontSize:10 }}>▸</span>
+                                {hasShortfall
+                                  ? `Parts needed (${top5Parts.filter(p=>p.shortfall>0).length} short)`
+                                  : "Parts available ✓"}
+                              </summary>
+                              <div style={{ borderRadius:8,overflow:"hidden",border:"1px solid #f0f0f2" }}>
+                                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
+                                  <thead>
+                                    <tr style={{ background:"#f9f9fb",borderBottom:"1px solid #e5e5ea" }}>
+                                      <th style={{ textAlign:"left",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Part</th>
+                                      <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Have</th>
+                                      <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Need</th>
+                                      <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Short</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {top5Parts.map((p, i) => (
+                                      <tr key={p.part.id} style={{ borderBottom: i < top5Parts.length-1 ? "1px solid #f0f0f2" : "none" }}>
+                                        <td style={{ padding:"5px 8px",fontWeight:600,color:"#1d1d1f",maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                                          {p.part.mpn || p.part.description || p.part.reference || "?"}
+                                        </td>
+                                        <td style={{ padding:"5px 8px",textAlign:"center",color: p.stock >= p.totalNeeded ? "#34c759" : "#ff3b30",fontWeight:600 }}>{p.stock}</td>
+                                        <td style={{ padding:"5px 8px",textAlign:"center",color:"#86868b" }}>{p.totalNeeded}</td>
+                                        <td style={{ padding:"5px 8px",textAlign:"center",color: p.shortfall > 0 ? "#ff3b30" : "#34c759",fontWeight:700 }}>
+                                          {p.shortfall > 0 ? `-${p.shortfall}` : "✓"}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
                               </div>
-                              <div>
-                                <span style={{ color:"#86868b" }}>Min threshold: </span>
-                                <span style={{ fontWeight:700 }}>{min} units</span>
-                              </div>
-                              <div style={{ gridColumn:"1/-1" }}>
-                                <span style={{ color:"#86868b" }}>Velocity: </span>
-                                <span style={{ fontWeight:600 }}>
-                                  {vpd > 0 ? `${vpd.toFixed(2)} units/day avg` : unitsSold30d > 0 ? `~${unitsSold30d} units/30d` : "No sales data"}
-                                </span>
-                              </div>
-                            </div>
-                            <div style={{ background:"#fff8ee",borderRadius:8,padding:"10px 14px",marginBottom:12 }}>
-                              <div style={{ fontSize:13,fontWeight:700,color:"#bf6800" }}>
-                                Suggested build: <span style={{ fontSize:16 }}>{suggested}</span> units
-                              </div>
-                              {unitsSold30d > 0 && (
-                                <div style={{ fontSize:11,color:"#86868b",marginTop:3 }}>
-                                  Based on ~{unitsSold30d} units sold in the last 30 days
-                                </div>
-                              )}
-                              {unitsSold30d === 0 && (
-                                <div style={{ fontSize:11,color:"#86868b",marginTop:3 }}>
-                                  Minimum 50-unit build (no recent sales data)
-                                </div>
-                              )}
-                            </div>
-                            {top5Parts.length > 0 && (() => {
-                              const [partsOpen, setPartsOpen] = [null, () => {}]; // use inline collapsed state via details
-                              return (
-                                <details style={{ marginBottom:12 }}>
-                                  <summary style={{ fontSize:11,fontWeight:700,color: hasShortfall ? "#ff3b30" : "#34c759",cursor:"pointer",marginBottom:6,userSelect:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4 }}>
-                                    <span style={{ fontSize:10 }}>▸</span>
-                                    {hasShortfall
-                                      ? `Parts needed (${top5Parts.filter(p=>p.shortfall>0).length} short)`
-                                      : "Parts available ✓"}
-                                  </summary>
-                                  <div style={{ borderRadius:8,overflow:"hidden",border:"1px solid #f0f0f2" }}>
-                                    <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
-                                      <thead>
-                                        <tr style={{ background:"#f9f9fb",borderBottom:"1px solid #e5e5ea" }}>
-                                          <th style={{ textAlign:"left",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Part</th>
-                                          <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Have</th>
-                                          <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Need</th>
-                                          <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Short</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {top5Parts.map((p, i) => (
-                                          <tr key={p.part.id} style={{ borderBottom: i < top5Parts.length-1 ? "1px solid #f0f0f2" : "none" }}>
-                                            <td style={{ padding:"5px 8px",fontWeight:600,color:"#1d1d1f",maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
-                                              {p.part.mpn || p.part.description || p.part.reference || "?"}
-                                            </td>
-                                            <td style={{ padding:"5px 8px",textAlign:"center",color: p.stock >= p.totalNeeded ? "#34c759" : "#ff3b30",fontWeight:600 }}>{p.stock}</td>
-                                            <td style={{ padding:"5px 8px",textAlign:"center",color:"#86868b" }}>{p.totalNeeded}</td>
-                                            <td style={{ padding:"5px 8px",textAlign:"center",color: p.shortfall > 0 ? "#ff3b30" : "#34c759",fontWeight:700 }}>
-                                              {p.shortfall > 0 ? `-${p.shortfall}` : "✓"}
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                  {partsNeeded.length > 5 && <div style={{ fontSize:10,color:"#86868b",marginTop:4 }}>+{partsNeeded.length - 5} more parts</div>}
-                                </details>
-                              );
-                            })()}
-                            <button
-                              onClick={() => {
-                                setNewBuildOrder(f => ({ ...f, product_id: prod.id, quantity: String(suggested), notes: "Restock build — auto-suggested" }));
-                                setActiveView("production");
-                                setProdSubTab("builds");
-                                setTimeout(() => { document.getElementById("create-build-order-section")?.scrollIntoView({ behavior:"smooth", block:"start" }); }, 100);
-                              }}
-                              style={{ width:"100%",padding:"8px 0",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:"#ff9500",color:"#fff",fontFamily:"inherit" }}>
-                              Create Restock Build →
-                            </button>
-                          </div>
+                              {partsNeeded.length > 5 && <div style={{ fontSize:10,color:"#86868b",marginTop:4 }}>+{partsNeeded.length - 5} more parts</div>}
+                            </details>
                           );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Summary cards */}
-                <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))",gap:16,marginBottom:28 }}>
-                  {[
-                    { label:"Total Products", value:products.length, color:"#0071e3" },
-                    { label:"Total On Shelf", value:finishedGoods.reduce((s,r)=>s+(r.quantity_on_hand||0),0), color:"#34c759" },
-                    { label:"Below Min Stock", value:finishedGoods.filter(r=>r.min_stock!=null&&(r.quantity_on_hand||0)<=r.min_stock).length, color:"#ff3b30" },
-                    { label:"At/Above Target", value:finishedGoods.filter(r=>r.target_stock!=null&&(r.quantity_on_hand||0)>=r.target_stock).length, color:"#34c759" },
-                  ].map(card => (
-                    <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:cardBorder }}>
-                      <div style={{ fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
-                      <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* What Can I Build Today? */}
-                <div style={{ background:cardBg,borderRadius:14,padding:"20px 22px",marginBottom:20,border:cardBorder }}>
-                  <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:feasibilityResults ? 16 : 0 }}>
-                    <div>
-                      <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>What Can I Build Today?</div>
-                      <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>Calculates max units buildable per product based on available stock (minus reservations).</div>
-                    </div>
-                    <button onClick={handleFeasibilityCheck} disabled={feasibilityLoading}
-                      style={{ padding:"10px 24px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#0071e3",color:"#fff",fontFamily:"inherit",whiteSpace:"nowrap" }}>
-                      {feasibilityLoading ? "Calculating…" : "Check Now"}
-                    </button>
-                  </div>
-                  {feasibilityResults && feasibilityResults.length === 0 && (
-                    <div style={{ fontSize:13,color:"#86868b",textAlign:"center",padding:20 }}>No products with BOMs found.</div>
-                  )}
-                  {feasibilityResults && feasibilityResults.length > 0 && (
-                    <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14 }}>
-                      {feasibilityResults.map(r => (
-                        <div key={r.product.id} style={{ background:darkMode?"#2c2c2e":"#f9f9fb",borderRadius:12,padding:"16px 18px",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
-                          <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:8 }}>
-                            <div style={{ width:8,height:8,borderRadius:"50%",background:r.product.color||"#0071e3" }} />
-                            <div style={{ fontSize:14,fontWeight:700,color:textPrimary }}>{r.product.name}</div>
-                          </div>
-                          <div style={{ fontSize:26,fontWeight:800,color:r.maxBuildable>0?"#34c759":"#ff3b30",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",marginBottom:6 }}>
-                            {r.maxBuildable} <span style={{ fontSize:13,fontWeight:400,color:"#86868b" }}>can build</span>
-                          </div>
-                          {r.maxBuildable === 0 && r.blockingParts.length > 0 && (
-                            <div style={{ fontSize:11,color:"#ff3b30",marginBottom:6 }}>
-                              Blocked by: {r.blockingParts.slice(0,3).map(b => `${b.part.mpn||b.part.description||"?"} (have ${b.have}, need ${b.need}/unit)`).join("; ")}
-                              {r.blockingParts.length > 3 && ` +${r.blockingParts.length-3} more`}
-                            </div>
-                          )}
-                          {r.maxBuildable > 0 && r.constraintPart && r.constraintPart.part && (
-                            <div style={{ fontSize:11,color:"#ff9500" }}>
-                              Limited by: {r.constraintPart.part.mpn||r.constraintPart.part.description||"?"} ({r.constraintPart.have} avail, {r.constraintPart.need}/unit)
-                            </div>
-                          )}
-                          {r.maxBuildable > 0 && (
-                            <button onClick={() => {
-                              setNewBuildOrder(f => ({ ...f, product_id: r.product.id, quantity: String(r.maxBuildable) }));
-                              setProdSubTab("builds");
-                            }} style={{ marginTop:10,padding:"6px 16px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#0071e3",color:"#fff",fontFamily:"inherit" }}>
-                              Start Build
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Shelf Scan-Out */}
-                <div style={{ background:cardBg,borderRadius:14,padding:"20px 22px",marginBottom:20,border:cardBorder }}>
-                  <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom: shelfScanMode ? 16 : 0 }}>
-                    <div>
-                      <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>Scan Out — Fulfillment</div>
-                      <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>Remove finished units from shelf when shipping.</div>
-                    </div>
-                    <button onClick={() => { setShelfScanMode(!shelfScanMode); setShelfScanBarcode(false); setShelfScanProduct(""); setShelfScanQty("1"); }}
-                      style={{ padding:"10px 22px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,background:shelfScanMode?"#ff3b30":"#5856d6",color:"#fff",fontFamily:"inherit",minHeight:44 }}>
-                      {shelfScanMode ? "Cancel" : "📦 Scan Out"}
-                    </button>
-                  </div>
-                  {shelfScanMode && (
-                    <div style={{ marginTop:16 }}>
-                      {/* Mode toggle: dropdown vs camera barcode */}
-                      <div style={{ display:"flex",gap:8,marginBottom:16 }}>
-                        <button onClick={() => setShelfScanBarcode(false)}
-                          style={{ flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${!shelfScanBarcode?"#5856d6":"#d2d2d7"}`,cursor:"pointer",fontWeight:700,fontSize:13,
-                            background:!shelfScanBarcode?"#5856d618":"transparent",color:!shelfScanBarcode?"#5856d6":textPrimary,fontFamily:"inherit" }}>
-                          ☰ Select Product
-                        </button>
-                        <button onClick={() => setShelfScanBarcode(true)}
-                          style={{ flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${shelfScanBarcode?"#5856d6":"#d2d2d7"}`,cursor:"pointer",fontWeight:700,fontSize:13,
-                            background:shelfScanBarcode?"#5856d618":"transparent",color:shelfScanBarcode?"#5856d6":textPrimary,fontFamily:"inherit" }}>
-                          📷 Scan Barcode
+                        })()}
+                        <button
+                          onClick={() => {
+                            setNewBuildOrder(f => ({ ...f, product_id: prod.id, quantity: String(suggested), notes: "Restock build — auto-suggested" }));
+                            setActiveView("production");
+                            setProdSubTab("builds");
+                            setTimeout(() => { document.getElementById("create-build-order-section")?.scrollIntoView({ behavior:"smooth", block:"start" }); }, 100);
+                          }}
+                          style={{ width:"100%",padding:"8px 0",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:"#ff9500",color:"#fff",fontFamily:"inherit" }}>
+                          Create Restock Build →
                         </button>
                       </div>
-
-                      {shelfScanBarcode ? (
-                        <div style={{ marginBottom:16 }}>
-                          {/* Inline mini-scanner: scans product SKU barcode, auto-selects in dropdown */}
-                          {(() => {
-                            const [barcodeScanning, setBarcodeScanning] = [false, () => {}]; // inline state via ref approach
-                            return (
-                              <div>
-                                {shelfScanProduct && (
-                                  <div style={{ padding:"12px 16px",borderRadius:10,background:"#34c75915",border:"1px solid #34c75944",marginBottom:12 }}>
-                                    <div style={{ fontSize:13,fontWeight:700,color:"#34c759" }}>
-                                      ✓ {products.find(p=>p.id===shelfScanProduct)?.name || shelfScanProduct}
-                                      <span style={{ fontSize:12,fontWeight:400,color:"#86868b",marginLeft:8 }}>
-                                        {fgMap[shelfScanProduct]?.quantity_on_hand ?? 0} on shelf
-                                      </span>
-                                    </div>
-                                    <button style={{ fontSize:11,color:"#86868b",background:"none",border:"none",cursor:"pointer",padding:0,marginTop:4 }} onClick={() => setShelfScanProduct("")}>
-                                      Clear — scan a different product
-                                    </button>
-                                  </div>
-                                )}
-                                <ScannerView
-                                  parts={[]}
-                                  products={products}
-                                  updatePart={() => {}}
-                                  darkMode={darkMode}
-                                  onProductScan={(productId) => {
-                                    setShelfScanProduct(productId);
-                                    setShelfScanBarcode(false);
-                                  }}
-                                  userId={user?.id}
-                                  mode="product-scan"
-                                  productSku={(sku) => {
-                                    // Match scanned SKU/barcode to a product by name, importName, or sku field
-                                    const skuL = (sku||"").toLowerCase().trim();
-                                    const matched = products.find(p =>
-                                      (p.sku && p.sku.toLowerCase().trim() === skuL) ||
-                                      (p.name && p.name.toLowerCase().trim() === skuL) ||
-                                      (p.importName && p.importName.toLowerCase().trim() === skuL)
-                                    );
-                                    if (matched) { setShelfScanProduct(matched.id); setShelfScanBarcode(false); }
-                                    else { showToast(`No product found for barcode: ${sku}`, "#ff9500"); }
-                                  }}
-                                />
-                                <div style={{ fontSize:11,color:"#86868b",marginTop:8,textAlign:"center" }}>
-                                  Point the camera at a product barcode/QR to auto-select
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      ) : (
-                        <div style={{ marginBottom:16 }}>
-                          <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</div>
-                          <select style={{ ...inputStyle2, fontSize:15, padding:"12px 14px" }} value={shelfScanProduct} onChange={e => setShelfScanProduct(e.target.value)}>
-                            <option value="">Select product…</option>
-                            {products.map(p => {
-                              const fg = fgMap[p.id];
-                              return <option key={p.id} value={p.id}>{p.name} — {fg?.quantity_on_hand ?? 0} on shelf</option>;
-                            })}
-                          </select>
-                        </div>
-                      )}
-
-                      {shelfScanProduct && (
-                        <div style={{ display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap" }}>
-                          <div style={{ flex:"0 0 120px" }}>
-                            <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Qty to Remove</div>
-                            <input type="number" min="1" style={{ ...inputStyle2, fontSize:20, fontWeight:800, textAlign:"center", padding:"12px 14px" }}
-                              value={shelfScanQty} onChange={e => setShelfScanQty(e.target.value)} placeholder="1" />
-                          </div>
-                          <button onClick={async () => {
-                            if (!shelfScanProduct || !shelfScanQty) return;
-                            const qty = parseInt(shelfScanQty);
-                            if (!qty || qty < 1) return;
-                            const fg = fgMap[shelfScanProduct];
-                            const currentQty = fg?.quantity_on_hand ?? 0;
-                            if (qty > currentQty) { alert(`Only ${currentQty} units on shelf.`); return; }
-                            const prod = products.find(p => p.id === shelfScanProduct);
-                            if (!window.confirm(`Remove ${qty} ${prod?.name || ''} from shelf?`)) return;
-                            setFinishedGoodsBusy(true);
-                            try {
-                              const updated = await upsertFinishedGoods(shelfScanProduct, -qty, user.id);
-                              setFinishedGoods(prev => {
-                                const existing = prev.find(r => r.product_id === shelfScanProduct);
-                                return existing ? prev.map(r => r.product_id === shelfScanProduct ? updated : r) : [...prev, updated];
-                              });
-                              showToast(`-${qty} ${prod?.name || ''} removed from shelf`, "#ff9500");
-                              setShelfScanQty("1");
-                              setShelfScanProduct("");
-                              setShelfScanMode(false);
-                              setShelfScanBarcode(false);
-                            } catch (e) { alert("Scan out failed: " + e.message); }
-                            setFinishedGoodsBusy(false);
-                          }} disabled={finishedGoodsBusy || !shelfScanProduct || !shelfScanQty}
-                            style={{ flex:1,padding:"16px 0",borderRadius:14,border:"none",cursor:(!shelfScanProduct||!shelfScanQty||finishedGoodsBusy)?"not-allowed":"pointer",
-                              fontWeight:800,fontSize:16,background:"#ff3b30",color:"#fff",fontFamily:"inherit",
-                              opacity:(!shelfScanProduct||!shelfScanQty||finishedGoodsBusy)?0.5:1,
-                              minHeight:56,letterSpacing:"0.01em" }}>
-                            {finishedGoodsBusy ? "Saving…" : `Confirm Remove${shelfScanQty && parseInt(shelfScanQty) > 0 ? ` (${shelfScanQty})` : ""}`}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                      );
+                    })}
+                  </div>
                 </div>
-
-                {/* Search bar */}
-                <div style={{ position:"relative",marginBottom:14 }}>
-                  <input
-                    type="text"
-                    placeholder="Search products…"
-                    value={shelfSearch}
-                    onChange={e => setShelfSearch(e.target.value)}
-                    style={{ width:"100%",padding:"9px 36px 9px 14px",borderRadius:10,border:cardBorder,fontSize:13,
-                      background:cardBg,color:textPrimary,outline:"none",boxSizing:"border-box",fontFamily:"inherit" }} />
-                  {shelfSearch && (
-                    <span onClick={() => setShelfSearch("")}
-                      style={{ position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#86868b",lineHeight:1 }}>✕</span>
-                  )}
-                </div>
-
-                {/* Products Table — grouped by brand */}
-                {(() => {
-                  const q = shelfSearch.toLowerCase();
-                  const filtered = products.filter(p => !q || p.name.toLowerCase().includes(q) || (p.brand||"").toLowerCase().includes(q));
-                  const brandGroups = {};
-                  filtered.forEach(p => { const b = p.brand || "Jackson Audio"; (brandGroups[b] = brandGroups[b] || []).push(p); });
-                  const brands = Object.keys(brandGroups).sort();
-                  if (filtered.length === 0) return (
-                    <div style={{ textAlign:"center",padding:"40px 0",color:"#86868b",fontSize:13 }}>No products match "{shelfSearch}"</div>
-                  );
-                  return brands.map(brand => (
-                    <div key={brand} style={{ marginBottom:20 }}>
-                      {/* Brand header */}
-                      <div style={{ fontSize:11,fontWeight:700,color:"#86868b",letterSpacing:"0.08em",textTransform:"uppercase",
-                        padding:"8px 14px",background:darkMode?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)",
-                        borderRadius:"10px 10px 0 0",borderBottom:`2px solid ${darkMode?"#3a3a3e":"#e5e5ea"}` }}>
-                        {brand} — {brandGroups[brand].length} product{brandGroups[brand].length !== 1 ? "s" : ""}
-                      </div>
-                      <div style={{ background:cardBg,border:cardBorder,borderTop:"none",borderRadius:"0 0 10px 10px",overflow:"hidden",marginBottom:2 }}>
-                        <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
-                          <thead>
-                            <tr style={{ borderBottom:`1px solid ${darkMode?"#3a3a3e":"#e5e5ea"}` }}>
-                              {["","Product","On Hand","Target","Min","Status","Actions"].map(h => (
-                                <th key={h} style={{ textAlign:"left",padding:"8px 14px",fontSize:10,fontWeight:700,color:"#86868b",
-                                  letterSpacing:"0.06em",textTransform:"uppercase",
-                                  fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",whiteSpace:"nowrap" }}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {brandGroups[brand].map((prod, idx) => {
-                              const fg = fgMap[prod.id];
-                              const qty = fg?.quantity_on_hand ?? 0;
-                              const color = shelfColor(fg);
-                              const isEditingTarget = !!shelfTargetEdit[prod.id];
-                              const statusLabel = color === "#34c759" ? "At Target" : color === "#ff9500" ? "Low" : fg ? "Below Min" : "No Target";
-                              const vel = salesVelocity[prod.id];
-                              const burnDays = vel && vel.unitsPerDay > 0 && qty > 0 ? Math.floor(qty / vel.unitsPerDay) : null;
-                              const burnLabel = burnDays === null ? null : burnDays < 1 ? "<1d" : burnDays > 999 ? "999d+" : `${burnDays}d`;
-                              const burnColor = burnDays !== null && burnDays < 1 ? "#ff3b30" : "#86868b";
-                              return (
-                                <tr key={prod.id} style={{ borderBottom:"1px solid #f0f0f2",background: idx%2===0 ? "transparent" : (darkMode?"rgba(255,255,255,0.02)":"rgba(0,0,0,0.01)") }}>
-                                  <td style={{ padding:"10px 14px",width:28 }}>
-                                    <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color||"#0071e3" }} />
-                                  </td>
-                                  <td style={{ padding:"10px 14px",fontWeight:600,color:textPrimary }}>{prod.name}</td>
-                                  <td style={{ padding:"10px 14px" }}>
-                                    <span style={{ fontWeight:800,fontSize:18,color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{qty}</span>
-                                    {burnLabel && <div style={{ fontSize:10,color:burnColor,fontWeight:600,marginTop:2 }}>{burnLabel}</div>}
-                                  </td>
-                                  <td style={{ padding:"10px 14px" }}>
-                                    {isEditingTarget
-                                      ? <input type="number" placeholder="Target" value={shelfTargetEdit[prod.id]?.target ?? ""} min="0"
-                                          onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), target: e.target.value } }))}
-                                          style={{ width:70,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
-                                      : <span style={{ color:"#86868b",fontSize:12 }}>{fg?.target_stock || "—"}</span>
-                                    }
-                                  </td>
-                                  <td style={{ padding:"10px 14px" }}>
-                                    {isEditingTarget
-                                      ? <input type="number" placeholder="Min" value={shelfTargetEdit[prod.id]?.min ?? ""} min="0"
-                                          onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), min: e.target.value } }))}
-                                          style={{ width:70,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
-                                      : <span style={{ color:"#86868b",fontSize:12 }}>{fg?.min_stock || "—"}</span>
-                                    }
-                                  </td>
-                                  <td style={{ padding:"10px 14px" }}>
-                                    <span style={{ display:"inline-block",padding:"3px 10px",borderRadius:980,fontSize:11,fontWeight:600,background:`${color}18`,color }}>
-                                      {statusLabel}
-                                    </span>
-                                  </td>
-                                  <td style={{ padding:"10px 14px" }}>
-                                    <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
-                                      <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'add' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
-                                        style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>+ Add</button>
-                                      <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'remove' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
-                                        disabled={qty === 0}
-                                        style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:qty===0?"not-allowed":"pointer",fontWeight:600,fontSize:11,background:"#ff3b30",color:"#fff",fontFamily:"inherit",opacity:qty===0?0.4:1 }}>− Remove</button>
-                                      {isEditingTarget
-                                        ? <>
-                                            <button onClick={() => handleShelfTargetSave(prod.id)}
-                                              style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#0071e3",color:"#fff",fontFamily:"inherit" }}>Save</button>
-                                            <button onClick={() => setShelfTargetEdit(prev => { const n={...prev}; delete n[prod.id]; return n; })}
-                                              style={{ padding:"4px 10px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>✕</button>
-                                          </>
-                                        : <button onClick={() => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { target: fg?.target_stock ?? "", min: fg?.min_stock ?? "" } }))}
-                                            style={{ padding:"4px 12px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>
-                                            Set Target
-                                          </button>
-                                      }
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ));
-                })()}
-
-                {/* Shelf Adjust Modal */}
-                {shelfAddModal && (() => {
-                  const prod = products.find(p => p.id === shelfAddModal.productId);
-                  return (
-                    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
-                      onClick={(e) => { if (e.target === e.currentTarget) setShelfAddModal(null); }}>
-                      <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:16,padding:"28px 28px",minWidth:340,maxWidth:420,boxShadow:"0 8px 40px rgba(0,0,0,0.3)" }}>
-                        <div style={{ fontSize:18,fontWeight:700,color:textPrimary,marginBottom:20 }}>
-                          {shelfAddModal.action === 'add' ? 'Add to Shelf' : 'Remove from Shelf'} — {prod?.name}
-                        </div>
-                        <div style={{ marginBottom:14 }}>
-                          <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase" }}>Quantity</div>
-                          <input type="number" min="1" autoFocus style={inputStyle2} value={shelfAdjQty}
-                            onChange={e => setShelfAdjQty(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') handleShelfAdj(); }} />
-                        </div>
-                        <div style={{ marginBottom:20 }}>
-                          <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase" }}>Notes (optional)</div>
-                          <input style={inputStyle2} value={shelfAdjNotes} onChange={e => setShelfAdjNotes(e.target.value)} placeholder="Reason / order ref…" />
-                        </div>
-                        <div style={{ display:"flex",gap:10 }}>
-                          <button onClick={handleShelfAdj} disabled={!shelfAdjQty || finishedGoodsBusy}
-                            style={{ flex:1,padding:"12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,
-                              background:shelfAddModal.action==='add'?"#34c759":"#ff3b30",color:"#fff",fontFamily:"inherit" }}>
-                            {finishedGoodsBusy ? "Saving…" : shelfAddModal.action === 'add' ? 'Add to Shelf' : 'Remove from Shelf'}
-                          </button>
-                          <button onClick={() => setShelfAddModal(null)}
-                            style={{ padding:"12px 20px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:14,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
               );
             })()}
 
+            {/* Summary cards */}
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))",gap:16,marginBottom:28 }}>
+              {[
+                { label:"Total Products", value:products.length, color:"#0071e3" },
+                { label:"Total On Shelf", value:finishedGoods.reduce((s,r)=>s+(r.quantity_on_hand||0),0), color:"#34c759" },
+                { label:"Below Min Stock", value:finishedGoods.filter(r=>r.min_stock!=null&&(r.quantity_on_hand||0)<=r.min_stock).length, color:"#ff3b30" },
+                { label:"At/Above Target", value:finishedGoods.filter(r=>r.target_stock!=null&&(r.quantity_on_hand||0)>=r.target_stock).length, color:"#34c759" },
+              ].map(card => (
+                <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:cardBorder }}>
+                  <div style={{ fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
+                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* What Can I Build Today? */}
+            <div style={{ background:cardBg,borderRadius:14,padding:"20px 22px",marginBottom:20,border:cardBorder }}>
+              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:feasibilityResults ? 16 : 0 }}>
+                <div>
+                  <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>What Can I Build Today?</div>
+                  <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>Calculates max units buildable per product based on available stock (minus reservations).</div>
+                </div>
+                <button onClick={handleFeasibilityCheck} disabled={feasibilityLoading}
+                  style={{ padding:"10px 24px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#0071e3",color:"#fff",fontFamily:"inherit",whiteSpace:"nowrap" }}>
+                  {feasibilityLoading ? "Calculating…" : "Check Now"}
+                </button>
+              </div>
+              {feasibilityResults && feasibilityResults.length === 0 && (
+                <div style={{ fontSize:13,color:"#86868b",textAlign:"center",padding:20 }}>No products with BOMs found.</div>
+              )}
+              {feasibilityResults && feasibilityResults.length > 0 && (
+                <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14 }}>
+                  {feasibilityResults.map(r => (
+                    <div key={r.product.id} style={{ background:darkMode?"#2c2c2e":"#f9f9fb",borderRadius:12,padding:"16px 18px",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                      <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:8 }}>
+                        <div style={{ width:8,height:8,borderRadius:"50%",background:r.product.color||"#0071e3" }} />
+                        <div style={{ fontSize:14,fontWeight:700,color:textPrimary }}>{r.product.name}</div>
+                      </div>
+                      <div style={{ fontSize:26,fontWeight:800,color:r.maxBuildable>0?"#34c759":"#ff3b30",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",marginBottom:6 }}>
+                        {r.maxBuildable} <span style={{ fontSize:13,fontWeight:400,color:"#86868b" }}>can build</span>
+                      </div>
+                      {r.maxBuildable === 0 && r.blockingParts.length > 0 && (
+                        <div style={{ fontSize:11,color:"#ff3b30",marginBottom:6 }}>
+                          Blocked by: {r.blockingParts.slice(0,3).map(b => `${b.part.mpn||b.part.description||"?"} (have ${b.have}, need ${b.need}/unit)`).join("; ")}
+                          {r.blockingParts.length > 3 && ` +${r.blockingParts.length-3} more`}
+                        </div>
+                      )}
+                      {r.maxBuildable > 0 && r.constraintPart && r.constraintPart.part && (
+                        <div style={{ fontSize:11,color:"#ff9500" }}>
+                          Limited by: {r.constraintPart.part.mpn||r.constraintPart.part.description||"?"} ({r.constraintPart.have} avail, {r.constraintPart.need}/unit)
+                        </div>
+                      )}
+                      {r.maxBuildable > 0 && (
+                        <button onClick={() => {
+                          setNewBuildOrder(f => ({ ...f, product_id: r.product.id, quantity: String(r.maxBuildable) }));
+                          setProdSubTab("builds");
+                        }} style={{ marginTop:10,padding:"6px 16px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#0071e3",color:"#fff",fontFamily:"inherit" }}>
+                          Start Build
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Shelf Scan-Out */}
+            <div style={{ background:cardBg,borderRadius:14,padding:"20px 22px",marginBottom:20,border:cardBorder }}>
+              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom: shelfScanMode ? 16 : 0 }}>
+                <div>
+                  <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>Scan Out — Fulfillment</div>
+                  <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>Remove finished units from shelf when shipping.</div>
+                </div>
+                <button onClick={() => { setShelfScanMode(!shelfScanMode); setShelfScanBarcode(false); setShelfScanProduct(""); setShelfScanQty("1"); }}
+                  style={{ padding:"10px 22px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,background:shelfScanMode?"#ff3b30":"#5856d6",color:"#fff",fontFamily:"inherit",minHeight:44 }}>
+                  {shelfScanMode ? "Cancel" : "📦 Scan Out"}
+                </button>
+              </div>
+              {shelfScanMode && (
+                <div style={{ marginTop:16 }}>
+                  {/* Mode toggle: dropdown vs camera barcode */}
+                  <div style={{ display:"flex",gap:8,marginBottom:16 }}>
+                    <button onClick={() => setShelfScanBarcode(false)}
+                      style={{ flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${!shelfScanBarcode?"#5856d6":"#d2d2d7"}`,cursor:"pointer",fontWeight:700,fontSize:13,
+                        background:!shelfScanBarcode?"#5856d618":"transparent",color:!shelfScanBarcode?"#5856d6":textPrimary,fontFamily:"inherit" }}>
+                      ☰ Select Product
+                    </button>
+                    <button onClick={() => setShelfScanBarcode(true)}
+                      style={{ flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${shelfScanBarcode?"#5856d6":"#d2d2d7"}`,cursor:"pointer",fontWeight:700,fontSize:13,
+                        background:shelfScanBarcode?"#5856d618":"transparent",color:shelfScanBarcode?"#5856d6":textPrimary,fontFamily:"inherit" }}>
+                      📷 Scan Barcode
+                    </button>
+                  </div>
+
+                  {shelfScanBarcode ? (
+                    <div style={{ marginBottom:16 }}>
+                      {/* Inline mini-scanner: scans product SKU barcode, auto-selects in dropdown */}
+                      {(() => {
+                        const [barcodeScanning, setBarcodeScanning] = [false, () => {}]; // inline state via ref approach
+                        return (
+                          <div>
+                            {shelfScanProduct && (
+                              <div style={{ padding:"12px 16px",borderRadius:10,background:"#34c75915",border:"1px solid #34c75944",marginBottom:12 }}>
+                                <div style={{ fontSize:13,fontWeight:700,color:"#34c759" }}>
+                                  ✓ {products.find(p=>p.id===shelfScanProduct)?.name || shelfScanProduct}
+                                  <span style={{ fontSize:12,fontWeight:400,color:"#86868b",marginLeft:8 }}>
+                                    {fgMap[shelfScanProduct]?.quantity_on_hand ?? 0} on shelf
+                                  </span>
+                                </div>
+                                <button style={{ fontSize:11,color:"#86868b",background:"none",border:"none",cursor:"pointer",padding:0,marginTop:4 }} onClick={() => setShelfScanProduct("")}>
+                                  Clear — scan a different product
+                                </button>
+                              </div>
+                            )}
+                            <ScannerView
+                              parts={[]}
+                              products={products}
+                              updatePart={() => {}}
+                              darkMode={darkMode}
+                              onProductScan={(productId) => {
+                                setShelfScanProduct(productId);
+                                setShelfScanBarcode(false);
+                              }}
+                              userId={user?.id}
+                              mode="product-scan"
+                              productSku={(sku) => {
+                                // Match scanned SKU/barcode to a product by name, importName, or sku field
+                                const skuL = (sku||"").toLowerCase().trim();
+                                const matched = products.find(p =>
+                                  (p.sku && p.sku.toLowerCase().trim() === skuL) ||
+                                  (p.name && p.name.toLowerCase().trim() === skuL) ||
+                                  (p.importName && p.importName.toLowerCase().trim() === skuL)
+                                );
+                                if (matched) { setShelfScanProduct(matched.id); setShelfScanBarcode(false); }
+                                else { showToast(`No product found for barcode: ${sku}`, "#ff9500"); }
+                              }}
+                            />
+                            <div style={{ fontSize:11,color:"#86868b",marginTop:8,textAlign:"center" }}>
+                              Point the camera at a product barcode/QR to auto-select
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom:16 }}>
+                      <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</div>
+                      <select style={{ ...inputStyle2, fontSize:15, padding:"12px 14px" }} value={shelfScanProduct} onChange={e => setShelfScanProduct(e.target.value)}>
+                        <option value="">Select product…</option>
+                        {products.map(p => {
+                          const fg = fgMap[p.id];
+                          return <option key={p.id} value={p.id}>{p.name} — {fg?.quantity_on_hand ?? 0} on shelf</option>;
+                        })}
+                      </select>
+                    </div>
+                  )}
+
+                  {shelfScanProduct && (
+                    <div style={{ display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap" }}>
+                      <div style={{ flex:"0 0 120px" }}>
+                        <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Qty to Remove</div>
+                        <input type="number" min="1" style={{ ...inputStyle2, fontSize:20, fontWeight:800, textAlign:"center", padding:"12px 14px" }}
+                          value={shelfScanQty} onChange={e => setShelfScanQty(e.target.value)} placeholder="1" />
+                      </div>
+                      <button onClick={async () => {
+                        if (!shelfScanProduct || !shelfScanQty) return;
+                        const qty = parseInt(shelfScanQty);
+                        if (!qty || qty < 1) return;
+                        const fg = fgMap[shelfScanProduct];
+                        const currentQty = fg?.quantity_on_hand ?? 0;
+                        if (qty > currentQty) { alert(`Only ${currentQty} units on shelf.`); return; }
+                        const prod = products.find(p => p.id === shelfScanProduct);
+                        if (!window.confirm(`Remove ${qty} ${prod?.name || ''} from shelf?`)) return;
+                        setFinishedGoodsBusy(true);
+                        try {
+                          const updated = await upsertFinishedGoods(shelfScanProduct, -qty, user.id);
+                          setFinishedGoods(prev => {
+                            const existing = prev.find(r => r.product_id === shelfScanProduct);
+                            return existing ? prev.map(r => r.product_id === shelfScanProduct ? updated : r) : [...prev, updated];
+                          });
+                          showToast(`-${qty} ${prod?.name || ''} removed from shelf`, "#ff9500");
+                          setShelfScanQty("1");
+                          setShelfScanProduct("");
+                          setShelfScanMode(false);
+                          setShelfScanBarcode(false);
+                        } catch (e) { alert("Scan out failed: " + e.message); }
+                        setFinishedGoodsBusy(false);
+                      }} disabled={finishedGoodsBusy || !shelfScanProduct || !shelfScanQty}
+                        style={{ flex:1,padding:"16px 0",borderRadius:14,border:"none",cursor:(!shelfScanProduct||!shelfScanQty||finishedGoodsBusy)?"not-allowed":"pointer",
+                          fontWeight:800,fontSize:16,background:"#ff3b30",color:"#fff",fontFamily:"inherit",
+                          opacity:(!shelfScanProduct||!shelfScanQty||finishedGoodsBusy)?0.5:1,
+                          minHeight:56,letterSpacing:"0.01em" }}>
+                        {finishedGoodsBusy ? "Saving…" : `Confirm Remove${shelfScanQty && parseInt(shelfScanQty) > 0 ? ` (${shelfScanQty})` : ""}`}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Search bar */}
+            <div style={{ position:"relative",marginBottom:14 }}>
+              <input
+                type="text"
+                placeholder="Search products…"
+                value={shelfSearch}
+                onChange={e => setShelfSearch(e.target.value)}
+                style={{ width:"100%",padding:"9px 36px 9px 14px",borderRadius:10,border:cardBorder,fontSize:13,
+                  background:cardBg,color:textPrimary,outline:"none",boxSizing:"border-box",fontFamily:"inherit" }} />
+              {shelfSearch && (
+                <span onClick={() => setShelfSearch("")}
+                  style={{ position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#86868b",lineHeight:1 }}>✕</span>
+              )}
+            </div>
+
+            {/* Products Table — grouped by brand */}
+            {(() => {
+              const q = shelfSearch.toLowerCase();
+              const filtered = products.filter(p => !q || p.name.toLowerCase().includes(q) || (p.brand||"").toLowerCase().includes(q));
+              const brandGroups = {};
+              filtered.forEach(p => { const b = p.brand || "Jackson Audio"; (brandGroups[b] = brandGroups[b] || []).push(p); });
+              const brands = Object.keys(brandGroups).sort();
+              if (filtered.length === 0) return (
+                <div style={{ textAlign:"center",padding:"40px 0",color:"#86868b",fontSize:13 }}>No products match "{shelfSearch}"</div>
+              );
+              return brands.map(brand => (
+                <div key={brand} style={{ marginBottom:20 }}>
+                  {/* Brand header */}
+                  <div style={{ fontSize:11,fontWeight:700,color:"#86868b",letterSpacing:"0.08em",textTransform:"uppercase",
+                    padding:"8px 14px",background:darkMode?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)",
+                    borderRadius:"10px 10px 0 0",borderBottom:`2px solid ${darkMode?"#3a3a3e":"#e5e5ea"}` }}>
+                    {brand} — {brandGroups[brand].length} product{brandGroups[brand].length !== 1 ? "s" : ""}
+                  </div>
+                  <div style={{ background:cardBg,border:cardBorder,borderTop:"none",borderRadius:"0 0 10px 10px",overflow:"hidden",marginBottom:2 }}>
+                    <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                      <thead>
+                        <tr style={{ borderBottom:`1px solid ${darkMode?"#3a3a3e":"#e5e5ea"}` }}>
+                          {["","Product","On Hand","Target","Min","Status","Actions"].map(h => (
+                            <th key={h} style={{ textAlign:"left",padding:"8px 14px",fontSize:10,fontWeight:700,color:"#86868b",
+                              letterSpacing:"0.06em",textTransform:"uppercase",
+                              fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",whiteSpace:"nowrap" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {brandGroups[brand].map((prod, idx) => {
+                          const fg = fgMap[prod.id];
+                          const qty = fg?.quantity_on_hand ?? 0;
+                          const color = shelfColor(fg);
+                          const isEditingTarget = !!shelfTargetEdit[prod.id];
+                          const statusLabel = color === "#34c759" ? "At Target" : color === "#ff9500" ? "Low" : fg ? "Below Min" : "No Target";
+                          const vel = salesVelocity[prod.id];
+                          const burnDays = vel && vel.unitsPerDay > 0 && qty > 0 ? Math.floor(qty / vel.unitsPerDay) : null;
+                          const burnLabel = burnDays === null ? null : burnDays < 1 ? "<1d" : burnDays > 999 ? "999d+" : `${burnDays}d`;
+                          const burnColor = burnDays !== null && burnDays < 1 ? "#ff3b30" : "#86868b";
+                          return (
+                            <tr key={prod.id} style={{ borderBottom:"1px solid #f0f0f2",background: idx%2===0 ? "transparent" : (darkMode?"rgba(255,255,255,0.02)":"rgba(0,0,0,0.01)") }}>
+                              <td style={{ padding:"10px 14px",width:28 }}>
+                                <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color||"#0071e3" }} />
+                              </td>
+                              <td style={{ padding:"10px 14px",fontWeight:600,color:textPrimary }}>{prod.name}</td>
+                              <td style={{ padding:"10px 14px" }}>
+                                <span style={{ fontWeight:800,fontSize:18,color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{qty}</span>
+                                {burnLabel && <div style={{ fontSize:10,color:burnColor,fontWeight:600,marginTop:2 }}>{burnLabel}</div>}
+                              </td>
+                              <td style={{ padding:"10px 14px" }}>
+                                {isEditingTarget
+                                  ? <input type="number" placeholder="Target" value={shelfTargetEdit[prod.id]?.target ?? ""} min="0"
+                                      onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), target: e.target.value } }))}
+                                      style={{ width:70,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
+                                  : <span style={{ color:"#86868b",fontSize:12 }}>{fg?.target_stock || "—"}</span>
+                                }
+                              </td>
+                              <td style={{ padding:"10px 14px" }}>
+                                {isEditingTarget
+                                  ? <input type="number" placeholder="Min" value={shelfTargetEdit[prod.id]?.min ?? ""} min="0"
+                                      onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), min: e.target.value } }))}
+                                      style={{ width:70,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
+                                  : <span style={{ color:"#86868b",fontSize:12 }}>{fg?.min_stock || "—"}</span>
+                                }
+                              </td>
+                              <td style={{ padding:"10px 14px" }}>
+                                <span style={{ display:"inline-block",padding:"3px 10px",borderRadius:980,fontSize:11,fontWeight:600,background:`${color}18`,color }}>
+                                  {statusLabel}
+                                </span>
+                              </td>
+                              <td style={{ padding:"10px 14px" }}>
+                                <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
+                                  <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'add' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
+                                    style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>+ Add</button>
+                                  <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'remove' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
+                                    disabled={qty === 0}
+                                    style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:qty===0?"not-allowed":"pointer",fontWeight:600,fontSize:11,background:"#ff3b30",color:"#fff",fontFamily:"inherit",opacity:qty===0?0.4:1 }}>− Remove</button>
+                                  {isEditingTarget
+                                    ? <>
+                                        <button onClick={() => handleShelfTargetSave(prod.id)}
+                                          style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#0071e3",color:"#fff",fontFamily:"inherit" }}>Save</button>
+                                        <button onClick={() => setShelfTargetEdit(prev => { const n={...prev}; delete n[prod.id]; return n; })}
+                                          style={{ padding:"4px 10px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>✕</button>
+                                      </>
+                                    : <button onClick={() => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { target: fg?.target_stock ?? "", min: fg?.min_stock ?? "" } }))}
+                                        style={{ padding:"4px 12px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>
+                                        Set Target
+                                      </button>
+                                  }
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ));
+            })()}
+
+            {/* Shelf Adjust Modal */}
+            {shelfAddModal && (() => {
+              const prod = products.find(p => p.id === shelfAddModal.productId);
+              return (
+                <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
+                  onClick={(e) => { if (e.target === e.currentTarget) setShelfAddModal(null); }}>
+                  <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:16,padding:"28px 28px",minWidth:340,maxWidth:420,boxShadow:"0 8px 40px rgba(0,0,0,0.3)" }}>
+                    <div style={{ fontSize:18,fontWeight:700,color:textPrimary,marginBottom:20 }}>
+                      {shelfAddModal.action === 'add' ? 'Add to Shelf' : 'Remove from Shelf'} — {prod?.name}
+                    </div>
+                    <div style={{ marginBottom:14 }}>
+                      <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase" }}>Quantity</div>
+                      <input type="number" min="1" autoFocus style={inputStyle2} value={shelfAdjQty}
+                        onChange={e => setShelfAdjQty(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleShelfAdj(); }} />
+                    </div>
+                    <div style={{ marginBottom:20 }}>
+                      <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase" }}>Notes (optional)</div>
+                      <input style={inputStyle2} value={shelfAdjNotes} onChange={e => setShelfAdjNotes(e.target.value)} placeholder="Reason / order ref…" />
+                    </div>
+                    <div style={{ display:"flex",gap:10 }}>
+                      <button onClick={handleShelfAdj} disabled={!shelfAdjQty || finishedGoodsBusy}
+                        style={{ flex:1,padding:"12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,
+                          background:shelfAddModal.action==='add'?"#34c759":"#ff3b30",color:"#fff",fontFamily:"inherit" }}>
+                        {finishedGoodsBusy ? "Saving…" : shelfAddModal.action === 'add' ? 'Add to Shelf' : 'Remove from Shelf'}
+                      </button>
+                      <button onClick={() => setShelfAddModal(null)}
+                        style={{ padding:"12px 20px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:14,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
           );
         })()}
