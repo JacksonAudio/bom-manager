@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.83";
-const BUILD_TIME   = "2026-03-29T12:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.84";
+const BUILD_TIME   = "2026-03-29T13:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6074,87 +6074,41 @@ function BOMManager({ user }) {
                 const checkedIds = new Set(rows.filter(r => r.checked).map(r => r.part.id));
                 setReelFillModal({ phase:"fetching", rows, checkedIds, apiCount:0, cacheCount });
 
-                // Phase 2: Nexar API for parts with MPN but no cache hit
-                // Nexar covers all distributors, no rate-limit issues, no CORS problems
-                // Fetch Nexar token if not already loaded in session
-                let activeNexarToken = nexarToken;
-                if (!activeNexarToken && apiKeys.nexar_client_id && apiKeys.nexar_client_secret) {
-                  try {
-                    activeNexarToken = await fetchNexarToken(apiKeys.nexar_client_id, apiKeys.nexar_client_secret);
-                    setNexarToken(activeNexarToken);
-                  } catch(e) { console.warn("[AutoFill] Nexar token fetch failed:", e.message); }
-                }
-                const hasNexar = !!activeNexarToken;
-                const hasMouser = !!apiKeys.mouser_api_key;
-                if (hasNexar || hasMouser) {
-                  // Skip hardware/McMaster parts — their MPNs are purely numeric (2943, 7618, etc.)
-                  // Electronic component MPNs always contain at least one letter (RK73H1JTTDD1241F, GRM188...)
+                // Phase 2: serverless proxy (/api/mouser-pack-qty) → Mouser
+                // Results are written to parts.pricing.mouser.factoryPackQty in Supabase
+                // so Phase 1 finds them instantly on every future run — zero API calls after first pass.
+                // Rate limit: 2100ms between calls (Mouser allows 30/min).
+                if (apiKeys.mouser_api_key) {
                   const needApi = rows.filter(r => !r.detected && r.part.mpn && /[a-zA-Z]/.test(r.part.mpn));
                   let apiCount = 0;
                   for (const row of needApi) {
                     try {
-                      let found = false;
-                      // PRIMARY: Mouser — FactoryPackQty is well-populated, 300ms rate limit
-                      if (hasMouser && !found) {
-                        const res = await fetch(
-                          `https://api.mouser.com/api/v1/search/partnumber?apiKey=${apiKeys.mouser_api_key}`,
-                          { method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
-                            body: JSON.stringify({ SearchByPartRequest:{ mouserPartNumber: row.part.mpn, partSearchOptions:"Exact" } }) }
-                        );
-                        await new Promise(r => setTimeout(r, 2100)); // Mouser limit: 30 calls/min
-                        if (res.ok) {
-                          const data = await res.json();
-                          const mp = data?.SearchResults?.Parts?.[0];
-                          if (mp) {
-                            const fq = parseInt(mp.FactoryPackQty || mp.MultPackQty) || 0;
-                            if (fq > 0) {
-                              row.detected = fq;
-                              row.source = "Mouser";
-                              row.checked = true;
-                              checkedIds.add(row.part.id);
-                              apiCount++;
-                              found = true;
-                            }
-                          }
-                        }
-                      }
-                      // FALLBACK: Nexar — for parts Mouser doesn't carry
-                      if (hasNexar && !found) {
-                        const query = buildNexarReelQuery(row.part.mpn);
-                        const ctrl = new AbortController();
-                        const timer = setTimeout(() => ctrl.abort(), 8000);
-                        let res;
-                        try {
-                          res = await fetch("https://api.nexar.com/graphql", {
-                            method: "POST",
-                            headers: { "Content-Type":"application/json", "Authorization":`Bearer ${activeNexarToken}` },
-                            body: JSON.stringify({ query }),
-                            signal: ctrl.signal,
-                          });
-                        } finally { clearTimeout(timer); }
-                        if (res?.ok) {
-                          const data = await res.json();
-                          const part = data?.data?.supSearchMpn?.results?.[0]?.part;
-                          if (part) {
-                            let bestPack = 0, bestSeller = "";
-                            for (const seller of (part.sellers || [])) {
-                              for (const offer of (seller.offers || [])) {
-                                const fpq = parseInt(offer.factoryPackQuantity) || 0;
-                                const mpq = parseInt(offer.multipackQuantity) || 0;
-                                const pkg = (offer.packaging || "").toLowerCase();
-                                const moqVal = (pkg.includes("reel") || pkg.includes("tape")) ? (parseInt(offer.moq) || 0) : 0;
-                                const pq = fpq || moqVal || mpq;
-                                if (pq > bestPack) { bestPack = pq; bestSeller = seller.company?.name || "Nexar"; }
-                              }
-                            }
-                            if (bestPack > 0) {
-                              row.detected = bestPack;
-                              row.source = `Nexar (${bestSeller})`;
-                              row.checked = true;
-                              checkedIds.add(row.part.id);
-                              apiCount++;
-                            }
-                          }
+                      const apiRes = await fetch("/api/mouser-pack-qty", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          mpn: row.part.mpn,
+                          partId: row.part.id,
+                          apiKey: apiKeys.mouser_api_key,
+                          supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+                          supabaseKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+                        }),
+                      });
+                      await new Promise(r => setTimeout(r, 2100)); // Mouser: 30 calls/min max
+                      if (apiRes.ok) {
+                        const result = await apiRes.json();
+                        const fq = result.packQty || 0;
+                        if (fq > 0) {
+                          row.detected = fq;
+                          row.source = result.source || "Mouser";
+                          row.checked = true;
+                          checkedIds.add(row.part.id);
+                          apiCount++;
+                          // Update local parts state — Phase 1 will find this in cache on next run
+                          setParts(prev => prev.map(p => p.id === row.part.id ? {
+                            ...p,
+                            pricing: { ...(p.pricing||{}), mouser: { ...(p.pricing?.mouser||{}), factoryPackQty: fq } }
+                          } : p));
                         }
                       }
                     } catch(_) {}
