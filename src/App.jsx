@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.98";
-const BUILD_TIME   = "2026-03-29T19:20:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.99";
+const BUILD_TIME   = "2026-03-29T19:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7231,9 +7231,9 @@ function BOMManager({ user }) {
                         />
                       </th>
                       {[
-                        {label:"MPN",field:"mpn"},{label:"Value",field:"value"},{label:"Description",field:"description"},
+                        {label:"MPN",field:"mpn"},{label:"Value",field:"value"},{label:"Voltage",field:"voltage_rating"},{label:"Description",field:"description"},
                         {label:"Manufacturer",field:"manufacturer"},{label:"Stock",field:"stockQty"},
-                        {label:"Voltage",field:"voltage_rating"},{label:"Added",field:"createdAt"},{label:"",field:null}
+                        {label:"Added",field:"createdAt"},{label:"",field:null}
                       ].map((h,hi,arr)=>(
                         <th key={hi} onClick={h.field ? ()=>setPartSort(prev=>({field:h.field,asc:prev.field===h.field?!prev.asc:true})) : undefined}
                           style={{ textAlign:"left",padding:"12px 14px",
@@ -7282,6 +7282,12 @@ function BOMManager({ user }) {
                               onFocus={focusIn} onBlur={focusOut}
                               style={inputStyle} placeholder="" />
                           </td>
+                          <td style={{ padding:"6px 8px",width:72 }}>
+                            <input type="text" placeholder="—" value={part.voltage_rating||""}
+                              onChange={(e)=>updatePart(part.id,"voltage_rating",e.target.value)}
+                              onFocus={focusIn} onBlur={focusOut}
+                              style={{ ...inputStyle,color:"#ff9f0a",fontSize:12 }} />
+                          </td>
                           <td style={{ padding:"6px 8px",width:"30%" }}>
                             <input type="text" value={part.description||""}
                               onChange={(e)=>updatePart(part.id,"description",e.target.value)}
@@ -7305,12 +7311,6 @@ function BOMManager({ user }) {
                                 {totalPartReserved} rsv
                               </div>
                             )}
-                          </td>
-                          <td style={{ padding:"6px 8px",width:72 }}>
-                            <input type="text" placeholder="—" value={part.voltage_rating||""}
-                              onChange={(e)=>updatePart(part.id,"voltage_rating",e.target.value)}
-                              onFocus={focusIn} onBlur={focusOut}
-                              style={{ ...inputStyle,color:"#ff9f0a",fontSize:12 }} />
                           </td>
                           <td style={{ padding:"6px 8px",fontSize:11,color:"#86868b",whiteSpace:"nowrap" }}>
                             {part.createdAt ? new Date(part.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}
