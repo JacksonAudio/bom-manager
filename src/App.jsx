@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.72";
-const BUILD_TIME   = "2026-03-29T00:25:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.73";
+const BUILD_TIME   = "2026-03-29T00:40:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -8046,7 +8046,11 @@ function BOMManager({ user }) {
           }
           const demandList = Object.values(aggregated).map(d => {
             const stock = parseInt(d.part.stockQty) || 0;
-            const net = Math.max(0, d.totalNeeded - stock);
+            const rawNet = Math.max(0, d.totalNeeded - stock);
+            const reelQty = parseInt(d.part.reelQty) || 0;
+            // Round up to full reel when reel_qty is set — never order partial reels
+            const net = (reelQty > 0 && rawNet > 0) ? Math.ceil(rawNet / reelQty) * reelQty : rawNet;
+            const reelCount = (reelQty > 0 && rawNet > 0) ? Math.ceil(rawNet / reelQty) : null;
             const pr = d.part.pricing && typeof d.part.pricing === "object" ? d.part.pricing : null;
             let bestPrice = parseFloat(d.part.unitCost) || 0;
             let bestSupplier = d.part.preferredSupplier || "mouser";
@@ -8155,7 +8159,7 @@ function BOMManager({ user }) {
             const tariffRate = origin ? getTariffRate(origin, poTariffs) : 0;
             const hasTariff = tariffRate > 0;
             const landedPrice = hasTariff ? bestPrice * (1 + tariffRate / 100) : bestPrice;
-            return { ...d, stock, net, bestPrice, bestSupplier, bestSupplierName, isInternal: d.part.isInternal || false, origin, tariffRate, hasTariff, landedPrice, allocations, isSplitOrder };
+            return { ...d, stock, net, rawNet, reelCount, reelQty, bestPrice, bestSupplier, bestSupplierName, isInternal: d.part.isInternal || false, origin, tariffRate, hasTariff, landedPrice, allocations, isSplitOrder };
           }).filter(d => d.net > 0);
 
           // Group by supplier — split orders create entries in multiple supplier groups
@@ -8326,7 +8330,10 @@ function BOMManager({ user }) {
                         {d.origin} +{d.tariffRate}%
                       </span>
                       <div style={{ textAlign:"right",minWidth:80 }}>
-                        <div style={{ fontSize:13,fontWeight:600,color:"#1d1d1f" }}>{d.net.toLocaleString()} pcs</div>
+                        {d.reelCount
+                          ? <div style={{ fontSize:13,fontWeight:600,color:"#1d1d1f" }}>{d.reelCount} reel{d.reelCount!==1?"s":""} <span style={{ fontWeight:400,color:"#86868b" }}>({d.net.toLocaleString()} pcs)</span></div>
+                          : <div style={{ fontSize:13,fontWeight:600,color:"#1d1d1f" }}>{d.net.toLocaleString()} pcs</div>
+                        }
                         <div style={{ fontSize:10,color:"#86868b" }}>${fmtPrice(d.bestPrice)} + ${fmtPrice(d.landedPrice - d.bestPrice)} tariff</div>
                       </div>
                     </div>
@@ -8371,9 +8378,15 @@ function BOMManager({ user }) {
                           )}
                         </div>
                       </div>
-                      <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:70 }}>
+                      <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:90 }}>
                         <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Need</div>
-                        <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.net.toLocaleString()}</div>
+                        {d.reelCount ? (<>
+                          <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.reelCount} reel{d.reelCount!==1?"s":""}</div>
+                          <div style={{ fontSize:10,color:"#86868b" }}>{d.net.toLocaleString()} pcs</div>
+                          {d.net > d.rawNet && <div style={{ fontSize:9,color:"#34c759",fontWeight:600 }}>+{(d.net-d.rawNet).toLocaleString()} surplus</div>}
+                        </>) : (
+                          <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.net.toLocaleString()}</div>
+                        )}
                       </div>
                       <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:120 }}>
                         {d.isInternal
@@ -8438,7 +8451,9 @@ function BOMManager({ user }) {
                   {internalItems.map((d, idx) => (
                     <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"12px 22px",borderBottom:idx<internalItems.length-1?"1px solid #f0f0f2":"none" }}>
                       <div style={{ flex:1 }}><span style={{ fontWeight:600,color:"#1d1d1f" }}>{d.part.mpn || d.part.reference}</span></div>
-                      <div style={{ fontWeight:700 }}>{d.net.toLocaleString()} needed</div>
+                      <div style={{ fontWeight:700 }}>
+                        {d.reelCount ? `${d.reelCount} reel${d.reelCount!==1?"s":""} (${d.net.toLocaleString()} pcs)` : `${d.net.toLocaleString()} needed`}
+                      </div>
                     </div>
                   ))}
                 </div>
