@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.95";
-const BUILD_TIME   = "2026-03-29T18:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.96";
+const BUILD_TIME   = "2026-03-29T18:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7240,6 +7240,7 @@ function BOMManager({ user }) {
                     <option value="stockQty">Stock</option>
                     <option value="preferredSupplier">Supplier</option>
                     <option value="footprint">Package</option>
+                    <option value="voltage_rating">Voltage Rating</option>
                   </select>
                   {bulkField === "preferredSupplier" ? (
                     <>
@@ -11362,6 +11363,7 @@ function BOMManager({ user }) {
                     <option value="stockQty">Stock</option>
                     <option value="preferredSupplier">Supplier</option>
                     <option value="footprint">Package</option>
+                    <option value="voltage_rating">Voltage Rating</option>
                   </select>
                   <input id="pdBulkValue" type="text" placeholder="Set value..." list="pd-supplier-list"
                     style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",width:160 }} />
