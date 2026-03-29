@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.87";
-const BUILD_TIME   = "2026-03-29T15:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.88";
+const BUILD_TIME   = "2026-03-29T17:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -1620,6 +1620,7 @@ function BOMManager({ user }) {
   const [vendorDraft, setVendorDraft] = useState({});
   const [fullReelParts, setFullReelParts] = useState(new Set()); // part IDs where full reel is toggled
   const [reelFillModal, setReelFillModal] = useState(null); // null | { phase: 'scanning'|'fetching'|'preview', rows: [...], checkedIds: Set, apiCount, cacheCount }
+  const [valueFillModal, setValueFillModal] = useState(null); // null | { rows: [...], checkedIds: Set }
   const [reelDecisions, setReelDecisions] = useState({}); // { [partId]: 'reel' | 'cut' }
   const [settingsSaving, setSettingsSaving] = useState(""); // which section is saving
   const [settingsSaved, setSettingsSaved] = useState(""); // which section just saved
@@ -6162,43 +6163,38 @@ function BOMManager({ user }) {
                   setReelFillModal(prev => prev ? { ...prev, phase:"preview" } : null);
                 }
               }}>Auto-Fill Reel Quantities</button>
-              <button className="btn-ghost btn-sm" style={{ color:"#5856d6" }} onClick={async () => {
-                // Parse value and voltage from description for parts missing them
-                const toParse = parts.filter(p => p.mpn && (!p.value || !p.voltage_rating));
-                if (!toParse.length) { alert("All parts already have values."); return; }
-                let updated = 0;
-                for (const p of toParse) {
+              <button className="btn-ghost btn-sm" style={{ color:"#5856d6" }} onClick={() => {
+                // Scan parts, build preview rows — no saves yet
+                const rows = [];
+                for (const p of parts) {
+                  if (!p.mpn) continue;
                   const desc = (p.description || "") + " " + (p.mpn || "");
-                  const updates = {};
-                  // Extract capacitance
+                  let detectedValue = null;
+                  let detectedVoltage = null;
                   if (!p.value) {
                     const capM = desc.match(/(\d+(?:\.\d+)?)\s*(pF|nF|µF|uF|μF|mF)\b/i);
-                    if (capM) updates.value = capM[1] + capM[2].replace("µ","µ").replace("u","µ");
-                    // Extract resistance (e.g. 390R, 10K, 4.7K, 1M)
-                    if (!updates.value) {
+                    if (capM) detectedValue = capM[1] + capM[2].replace(/u/i, "µ").replace(/μ/, "µ");
+                    if (!detectedValue) {
                       const resM = desc.match(/\b(\d+(?:[.,]\d+)?)\s*(Ω|ohms?|R)\b/i) ||
                                    desc.match(/\b(\d+(?:[.,]\d+)?)\s*(k|K)(?:\s|Ω|$)/) ||
                                    desc.match(/\b(\d+(?:[.,]\d+)?)\s*(M|meg)(?:\s|Ω|$)/i);
-                      if (resM) updates.value = resM[1] + resM[2];
+                      if (resM) detectedValue = resM[1] + resM[2];
                     }
-                    // Extract inductance
-                    if (!updates.value) {
-                      const indM = desc.match(/(\d+(?:\.\d+)?)\s*(nH|µH|uH|mH|µH)\b/i);
-                      if (indM) updates.value = indM[1] + indM[2];
+                    if (!detectedValue) {
+                      const indM = desc.match(/(\d+(?:\.\d+)?)\s*(nH|µH|uH|mH)\b/i);
+                      if (indM) detectedValue = indM[1] + indM[2];
                     }
                   }
-                  // Extract voltage rating
                   if (!p.voltage_rating) {
                     const vM = desc.match(/\b(\d+(?:\.\d+)?)\s*V(?:[^A-Za-z]|$)/);
-                    if (vM) updates.voltage_rating = vM[1] + "V";
+                    if (vM) detectedVoltage = vM[1] + "V";
                   }
-                  if (Object.keys(updates).length) {
-                    setParts(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
-                    await supabase.from("parts").update(updates).eq("id", p.id);
-                    updated++;
+                  if (detectedValue || detectedVoltage) {
+                    rows.push({ part: p, detectedValue, detectedVoltage });
                   }
                 }
-                alert(`Updated ${updated} parts with values from description.`);
+                if (!rows.length) { alert("Nothing new detected — all parts already have values, or descriptions don't contain parseable values."); return; }
+                setValueFillModal({ rows, checkedIds: new Set(rows.map(r => r.part.id)) });
               }}>Auto-fill Values</button>
               {(apiKeys.mouser_order_api_key || apiKeys.mouser_api_key) && (
                 <button className="btn-ghost btn-sm" onClick={syncMouserOrderHistory}
@@ -19936,6 +19932,99 @@ function BOMManager({ user }) {
                 {reelFillModal.phase === "scanning" ? "Scanning…" : `Fetching API data… (${reelFillModal.apiCount} found so far)`}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Auto-Fill Values Modal ── */}
+      {valueFillModal && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setValueFillModal(null); }}>
+          <div style={{ background:"#fff",borderRadius:20,padding:"32px 36px",width:760,maxWidth:"95vw",maxHeight:"82vh",display:"flex",flexDirection:"column",gap:0,boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
+            {/* Header */}
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20 }}>
+              <div>
+                <h3 style={{ margin:0,fontSize:20,fontWeight:700,color:"#1d1d1f",letterSpacing:"-0.3px" }}>Auto-fill Values from Description</h3>
+                <p style={{ margin:"6px 0 0",fontSize:13,color:"#86868b",lineHeight:"18px" }}>
+                  {valueFillModal.rows.length} part{valueFillModal.rows.length !== 1 ? "s" : ""} detected · {valueFillModal.checkedIds.size} selected
+                </p>
+              </div>
+              <button onClick={() => setValueFillModal(null)}
+                style={{ background:"#f5f5f7",border:"none",borderRadius:"50%",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#86868b",cursor:"pointer",flexShrink:0,marginLeft:16,transition:"background 0.15s" }}
+                onMouseEnter={e => e.currentTarget.style.background="#e8e8ed"}
+                onMouseLeave={e => e.currentTarget.style.background="#f5f5f7"}>×</button>
+            </div>
+            {/* Select all / deselect all */}
+            <div style={{ display:"flex",gap:12,marginBottom:12 }}>
+              <button onClick={() => setValueFillModal(prev => ({ ...prev, checkedIds: new Set(prev.rows.map(r => r.part.id)) }))}
+                style={{ fontSize:12,color:"#0071e3",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit" }}>Select all</button>
+              <span style={{ color:"#d2d2d7",fontSize:12 }}>·</span>
+              <button onClick={() => setValueFillModal(prev => ({ ...prev, checkedIds: new Set() }))}
+                style={{ fontSize:12,color:"#0071e3",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit" }}>Deselect all</button>
+            </div>
+            {/* Table */}
+            <div style={{ overflowY:"auto",flex:1,marginBottom:20,borderRadius:12,border:"1px solid #f0f0f2" }}>
+              <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                <thead style={{ position:"sticky",top:0,background:"#f9f9fb",zIndex:1 }}>
+                  <tr>
+                    {["MPN","Description","Current Value","Detected Value","Current Voltage","Detected Voltage","Save"].map(h => (
+                      <th key={h} style={{ textAlign: h==="Save"?"center":"left",padding:"10px 12px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e8e8ed",whiteSpace:"nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {valueFillModal.rows.map((row, i) => (
+                    <tr key={row.part.id} style={{ background: i%2===0?"#fff":"#fafafa",transition:"background 0.1s" }}
+                      onMouseEnter={e => e.currentTarget.style.background="#f0f6ff"}
+                      onMouseLeave={e => e.currentTarget.style.background=i%2===0?"#fff":"#fafafa"}>
+                      <td style={{ padding:"9px 12px",fontWeight:600,color:"#1d1d1f",fontFamily:"monospace",fontSize:11,whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2" }}>{row.part.mpn || "—"}</td>
+                      <td style={{ padding:"9px 12px",color:"#6e6e73",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2" }} title={row.part.description}>{row.part.description || "—"}</td>
+                      <td style={{ padding:"9px 12px",textAlign:"left",color:"#c7c7cc",borderBottom:"1px solid #f0f0f2" }}>{row.part.value || <span style={{ fontStyle:"italic" }}>blank</span>}</td>
+                      <td style={{ padding:"9px 12px",textAlign:"left",fontWeight:row.detectedValue?700:400,color:row.detectedValue?"#5856d6":"#c7c7cc",borderBottom:"1px solid #f0f0f2" }}>{row.detectedValue || <span style={{ color:"#e8e8ed",fontStyle:"italic" }}>—</span>}</td>
+                      <td style={{ padding:"9px 12px",textAlign:"left",color:"#c7c7cc",borderBottom:"1px solid #f0f0f2" }}>{row.part.voltage_rating || <span style={{ fontStyle:"italic" }}>blank</span>}</td>
+                      <td style={{ padding:"9px 12px",textAlign:"left",fontWeight:row.detectedVoltage?700:400,color:row.detectedVoltage?"#ff9f0a":"#c7c7cc",borderBottom:"1px solid #f0f0f2" }}>{row.detectedVoltage || <span style={{ color:"#e8e8ed",fontStyle:"italic" }}>—</span>}</td>
+                      <td style={{ padding:"9px 12px",textAlign:"center",borderBottom:"1px solid #f0f0f2" }}>
+                        <input type="checkbox" checked={valueFillModal.checkedIds.has(row.part.id)}
+                          onChange={() => setValueFillModal(prev => {
+                            const next = new Set(prev.checkedIds);
+                            next.has(row.part.id) ? next.delete(row.part.id) : next.add(row.part.id);
+                            return { ...prev, checkedIds: next };
+                          })}
+                          style={{ width:15,height:15,accentColor:"#5856d6",cursor:"pointer" }} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Footer */}
+            <div style={{ display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,paddingTop:4,borderTop:"1px solid #f0f0f2" }}>
+              <button onClick={() => setValueFillModal(null)}
+                style={{ padding:"9px 22px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b",transition:"all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.background="#f5f5f7"; e.currentTarget.style.color="#1d1d1f"; }}
+                onMouseLeave={e => { e.currentTarget.style.background="transparent"; e.currentTarget.style.color="#86868b"; }}>
+                Cancel
+              </button>
+              <button
+                disabled={valueFillModal.checkedIds.size === 0}
+                onClick={async () => {
+                  const toSave = valueFillModal.rows.filter(r => valueFillModal.checkedIds.has(r.part.id));
+                  for (const row of toSave) {
+                    const updates = {};
+                    if (row.detectedValue) updates.value = row.detectedValue;
+                    if (row.detectedVoltage) updates.voltage_rating = row.detectedVoltage;
+                    if (!Object.keys(updates).length) continue;
+                    await supabase.from("parts").update(updates).eq("id", row.part.id);
+                    setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, ...updates } : p));
+                  }
+                  setValueFillModal(null);
+                }}
+                style={{ padding:"9px 22px",borderRadius:980,fontSize:13,fontWeight:600,cursor: valueFillModal.checkedIds.size===0?"not-allowed":"pointer",fontFamily:"inherit",border:"none",background: valueFillModal.checkedIds.size===0?"#c7c7cc":"#5856d6",color:"#fff",transition:"all 0.15s" }}
+                onMouseEnter={e => { if(valueFillModal.checkedIds.size>0) e.currentTarget.style.background="#4240c4"; }}
+                onMouseLeave={e => { if(valueFillModal.checkedIds.size>0) e.currentTarget.style.background="#5856d6"; }}>
+                Apply {valueFillModal.checkedIds.size} part{valueFillModal.checkedIds.size !== 1 ? "s" : ""}
+              </button>
+            </div>
           </div>
         </div>
       )}
