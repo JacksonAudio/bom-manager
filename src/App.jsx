@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.91";
-const BUILD_TIME   = "2026-03-29T17:35:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.92";
+const BUILD_TIME   = "2026-03-29T17:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -20065,14 +20065,22 @@ function BOMManager({ user }) {
                 disabled={valueFillModal.checkedIds.size === 0}
                 onClick={async () => {
                   const toSave = valueFillModal.rows.filter(r => valueFillModal.checkedIds.has(r.part.id));
-                  for (const row of toSave) {
+                  // Fire all updates in parallel — 797 calls takes seconds not minutes
+                  await Promise.all(toSave.map(async row => {
                     const updates = {};
                     if (row.detectedValue) updates.value = row.detectedValue;
                     if (row.detectedVoltage) updates.voltage_rating = row.detectedVoltage;
-                    if (!Object.keys(updates).length) continue;
+                    if (!Object.keys(updates).length) return;
                     await supabase.from("parts").update(updates).eq("id", row.part.id);
-                    setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, ...updates } : p));
+                  }));
+                  // Update local state in one pass
+                  const updateMap = {};
+                  for (const row of toSave) {
+                    updateMap[row.part.id] = {};
+                    if (row.detectedValue) updateMap[row.part.id].value = row.detectedValue;
+                    if (row.detectedVoltage) updateMap[row.part.id].voltage_rating = row.detectedVoltage;
                   }
+                  setParts(prev => prev.map(p => updateMap[p.id] ? { ...p, ...updateMap[p.id] } : p));
                   setValueFillModal(null);
                 }}
                 style={{ padding:"9px 22px",borderRadius:980,fontSize:13,fontWeight:600,cursor: valueFillModal.checkedIds.size===0?"not-allowed":"pointer",fontFamily:"inherit",border:"none",background: valueFillModal.checkedIds.size===0?"#c7c7cc":"#5856d6",color:"#fff",transition:"all 0.15s" }}
