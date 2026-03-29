@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.00";
-const BUILD_TIME   = "2026-03-29T19:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.99";
+const BUILD_TIME   = "2026-03-29T19:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -477,16 +477,6 @@ async function fetchNexarPricing(mpn, quantity, token) {
   // Attach countryOfOrigin to the pricing object so callers can access it
   if (detectedOrigin) pricing._countryOfOrigin = detectedOrigin;
   return pricing;
-}
-
-// Clean display description for table rows — removes leading duplicate category prefix
-// e.g. "Thick Film Resistors - SMD Thick Film Resistors - SMD RMC CQ03 (0603) 1/10W 5%"
-//   →  "RMC CQ03 (0603) 1/10W 5%"
-// Full description is preserved in the data and shown in the expanded row view.
-function cleanDesc(desc = "") {
-  if (!desc) return "";
-  const m = desc.match(/^(.{10,}?)\s+\1\s*/i);
-  return m ? desc.slice(m[0].length).trim() : desc;
 }
 
 // Extract PCB package/footprint code from MPN or description
@@ -7298,10 +7288,11 @@ function BOMManager({ user }) {
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,color:"#ff9f0a",fontSize:12 }} />
                           </td>
-                          <td style={{ padding:"6px 12px",width:"30%" }} title={part.description}>
-                            <div style={{ color:"#6e6e73",fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
-                              {cleanDesc(part.description) || "—"}
-                            </div>
+                          <td style={{ padding:"6px 8px",width:"30%" }}>
+                            <input type="text" value={part.description||""}
+                              onChange={(e)=>updatePart(part.id,"description",e.target.value)}
+                              onFocus={focusIn} onBlur={focusOut}
+                              style={{ ...inputStyle,color:"#6e6e73",width:"100%" }} placeholder="" />
                           </td>
                           <td style={{ padding:"6px 8px" }}>
                             <input type="text" value={part.manufacturer||""}
@@ -7340,9 +7331,7 @@ function BOMManager({ user }) {
                               <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,fontSize:12 }}>
                                 <div>
                                   <div style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Full Description</div>
-                                  <textarea value={part.description||""} onChange={e=>updatePart(part.id,"description",e.target.value)}
-                                    rows={3} style={{ width:"100%",fontSize:12,color:darkMode?"#f5f5f7":"#1d1d1f",lineHeight:1.5,background:darkMode?"#2c2c2e":"#fff",border:"1px solid #e5e5ea",borderRadius:6,padding:"6px 8px",resize:"vertical",fontFamily:"inherit",outline:"none",boxSizing:"border-box" }}
-                                    onFocus={e=>e.target.style.borderColor="#0071e3"} onBlur={e=>e.target.style.borderColor="#e5e5ea"} />
+                                  <div style={{ color:darkMode?"#f5f5f7":"#1d1d1f",lineHeight:1.4 }}>{part.description || "—"}</div>
                                 </div>
                                 <div>
                                   <div style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Details</div>
