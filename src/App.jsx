@@ -9,7 +9,7 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.40";
+const APP_VERSION  = "v8.50";
 const BUILD_TIME   = "2026-03-28T09:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
@@ -1654,7 +1654,9 @@ function BOMManager({ user }) {
   const [shelfScanMode, setShelfScanMode] = useState(false); // scan-out mode on shelf tab
   const [shelfScanProduct, setShelfScanProduct] = useState(""); // product_id selected in scan-out
   const [shelfScanQty, setShelfScanQty] = useState("1");
+  const [shelfScanBarcode, setShelfScanBarcode] = useState(false); // camera barcode scan mode within scan-out
   const [shelfSearch, setShelfSearch] = useState(""); // search filter on shelf tab
+  const [fulfillBusy, setFulfillBusy] = useState(false); // busy flag for "Fulfill from Shelf" in Orders tab
   const [feasibilityResults, setFeasibilityResults] = useState(null); // results from "What Can I Build?" check
   const [feasibilityLoading, setFeasibilityLoading] = useState(false);
   const [toasts, setToasts] = useState([]); // [{ id, message, color }]
@@ -4952,6 +4954,47 @@ function BOMManager({ user }) {
                 </div>
               ))}
             </div>
+
+            {/* ── Shelf Status Summary ── */}
+            {(() => {
+              const totalSkus = products.length;
+              const totalUnits = finishedGoods.reduce((s, r) => s + (r.quantity_on_hand || 0), 0);
+              const healthy = finishedGoods.filter(r => r.target_stock != null && (r.quantity_on_hand || 0) >= r.target_stock).length;
+              const needsRestock = finishedGoods.filter(r => r.min_stock != null && r.min_stock > 0 && (r.quantity_on_hand || 0) <= r.min_stock).length;
+              const shelfHealthy = needsRestock === 0;
+              return (
+                <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:`1px solid ${needsRestock > 0 ? "#ff9500" : "#e5e5ea"}` }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+                    <div>
+                      <div style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                        Shelf Status {shelfHealthy ? "✓" : "⚠"}
+                      </div>
+                      <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>Finished goods on the shelf right now</div>
+                    </div>
+                    <button className="btn-ghost btn-sm" onClick={() => { setActiveView("production"); setProdSubTab("shelf"); }}>View Shelf →</button>
+                  </div>
+                  <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:12 }}>
+                    {[
+                      { label:"SKUs Tracked", value:totalSkus, color:"#0071e3" },
+                      { label:"Total Units", value:totalUnits, color:"#34c759" },
+                      { label:"At/Above Target", value:healthy, color:"#34c759" },
+                      { label:"Need Restock", value:needsRestock, color:needsRestock > 0 ? "#ff9500" : "#34c759" },
+                    ].map(c => (
+                      <div key={c.label} style={{ textAlign:"center",padding:"12px 8px",borderRadius:10,background:"#f9f9fb",border:"1px solid #e5e5ea",cursor:"pointer" }}
+                        onClick={() => { setActiveView("production"); setProdSubTab("shelf"); }}>
+                        <div style={{ fontSize:24,fontWeight:800,color:c.color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{c.value}</div>
+                        <div style={{ fontSize:10,color:"#86868b",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase",marginTop:2 }}>{c.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {needsRestock > 0 && (
+                    <div style={{ marginTop:12,fontSize:12,color:"#bf6800",fontWeight:600 }}>
+                      {needsRestock} product{needsRestock !== 1 ? "s" : ""} at or below minimum — <button className="btn-ghost" style={{ fontSize:11,color:"#ff9500",fontWeight:700 }} onClick={() => { setActiveView("production"); setProdSubTab("shelf"); }}>View restock suggestions →</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* ── Workflow Flowchart */}
             <div style={{ background:"#fff",borderRadius:14,padding:"24px 28px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
@@ -11403,6 +11446,77 @@ function BOMManager({ user }) {
                   // Build finished goods map for shelf coverage indicators
                   const fgMap = {};
                   finishedGoods.forEach(row => { fgMap[row.product_id] = row; });
+
+                  // Improved product matching: try ID match, exact name, partial name, SKU
+                  const findBomProduct = (channel, productId, title, sku) => {
+                    if (!title && !productId && !sku) return null;
+                    // 1. ID match (most reliable)
+                    if (productId) {
+                      const byId = channel === "Dealer"
+                        ? products.find(p => p.zohoProductId === productId)
+                        : products.find(p => p.shopifyProductId === productId);
+                      if (byId) return byId;
+                    }
+                    // 2. Exact name match (case-insensitive)
+                    if (title) {
+                      const tl = title.toLowerCase().trim();
+                      const exact = products.find(p => (p.name || "").toLowerCase().trim() === tl || (p.importName || "").toLowerCase().trim() === tl);
+                      if (exact) return exact;
+                    }
+                    // 3. productMatchesTitle (partial/contains)
+                    if (title) {
+                      const fuzzy = products.find(p => productMatchesTitle(p, title));
+                      if (fuzzy) return fuzzy;
+                    }
+                    // 4. SKU match against product name or importName
+                    if (sku) {
+                      const skuL = sku.toLowerCase().trim();
+                      const bySku = products.find(p =>
+                        (p.sku && p.sku.toLowerCase().trim() === skuL) ||
+                        (p.name && p.name.toLowerCase().trim() === skuL) ||
+                        (p.importName && p.importName.toLowerCase().trim() === skuL)
+                      );
+                      if (bySku) return bySku;
+                    }
+                    return null;
+                  };
+
+                  // Check if ALL unfulfilled line items in an order are covered by the shelf
+                  const orderCoveredByShelf = (order) => {
+                    for (const li of order.lineItems) {
+                      const remaining = li.quantity - li.fulfilled;
+                      if (remaining <= 0) continue;
+                      const bomProduct = findBomProduct(order.channel, li.productId, li.title, li.sku);
+                      if (!bomProduct) return null; // unknown product → neutral
+                      const shelfQty = fgMap[bomProduct.id]?.quantity_on_hand ?? 0;
+                      if (shelfQty < remaining) return false;
+                    }
+                    return true;
+                  };
+
+                  // Fulfill from shelf: decrement finished_goods for each line item
+                  const fulfillFromShelf = async (order) => {
+                    if (fulfillBusy) return;
+                    setFulfillBusy(true);
+                    try {
+                      for (const li of order.lineItems) {
+                        const remaining = li.quantity - li.fulfilled;
+                        if (remaining <= 0) continue;
+                        const bomProduct = findBomProduct(order.channel, li.productId, li.title, li.sku);
+                        if (!bomProduct) continue;
+                        const updated = await upsertFinishedGoods(bomProduct.id, -remaining, user.id, `Fulfilled: ${order.orderName}`);
+                        setFinishedGoods(prev => {
+                          const existing = prev.find(r => r.product_id === bomProduct.id);
+                          return existing ? prev.map(r => r.product_id === bomProduct.id ? updated : r) : [...prev, updated];
+                        });
+                      }
+                      showToast(`Fulfilled ${order.orderName} from shelf`, "#34c759");
+                    } catch (e) {
+                      showToast(`Fulfill failed: ${e.message}`, "#ff3b30");
+                    } finally {
+                      setFulfillBusy(false);
+                    }
+                  };
                   const dismissOrder = (id) => {
                     setDismissedOrders(prev => { const s = new Set(prev); s.add(id); localStorage.setItem("ja_dismissed_orders", JSON.stringify([...s])); return s; });
                   };
@@ -11630,10 +11744,8 @@ function BOMManager({ user }) {
                                         {po.lineItems.map((li,i) => {
                                           const done = li.fulfilled >= li.quantity;
                                           const remaining = li.quantity - li.fulfilled;
-                                          // Shelf coverage check
-                                          const bomProduct = products.find(p =>
-                                            (po.channel === "Dealer" ? (p.zohoProductId === li.productId || productMatchesTitle(p, li.title)) : (p.shopifyProductId === li.productId || productMatchesTitle(p, li.title)))
-                                          );
+                                          // Improved shelf coverage check using findBomProduct
+                                          const bomProduct = findBomProduct(po.channel, li.productId, li.title, li.sku);
                                           const shelfQty = bomProduct ? (fgMap[bomProduct.id]?.quantity_on_hand ?? 0) : null;
                                           const covered = shelfQty !== null && shelfQty >= remaining;
                                           return (
@@ -11641,9 +11753,11 @@ function BOMManager({ user }) {
                                               <span className="badge" style={{ background: done ? "#34c75922" : "#ff950022", color: done ? "#34c759" : "#ff9500", fontSize:10 }}>
                                                 {li.title} ({li.fulfilled}/{li.quantity})
                                               </span>
-                                              {shelfQty !== null && !done && (
-                                                <span style={{ fontSize:9,fontWeight:600,color:covered?"#34c759":"#ff3b30",display:"flex",alignItems:"center",gap:2 }}>
-                                                  {covered ? "✓" : "✗"} {shelfQty} on shelf
+                                              {!done && (
+                                                <span style={{ fontSize:9,fontWeight:600,
+                                                  color: shelfQty === null ? "#aeaeb2" : covered ? "#34c759" : "#ff3b30",
+                                                  display:"flex",alignItems:"center",gap:2 }}>
+                                                  {shelfQty === null ? "— not mapped" : covered ? `✓ ${shelfQty} on shelf` : `✗ ${shelfQty} on shelf`}
                                                 </span>
                                               )}
                                             </div>
@@ -11702,38 +11816,68 @@ function BOMManager({ user }) {
                                       )}
                                     </td>
                                     <td style={{ padding:"10px 10px",textAlign:"center" }}>
-                                      <div style={{ display:"flex",gap:4,justifyContent:"center",flexWrap:"wrap" }}>
-                                        {po.pctComplete < 100 && (
-                                          <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
-                                            onClick={() => {
-                                              const newQueue = [];
-                                              for (const li of po.lineItems) {
-                                                const remaining = li.quantity - li.fulfilled;
-                                                if (remaining <= 0) continue;
-                                                const bomProduct = products.find(p => productMatchesTitle(p, li.title));
-                                                if (bomProduct && !buildQueue.find(q => q.productId === bomProduct.id)) {
-                                                  newQueue.push({ productId: bomProduct.id, name: bomProduct.name, qty: remaining, color: bomProduct.color, forOrder: po.orderName });
+                                      {(() => {
+                                        const shelfCovered = po.pctComplete < 100 ? orderCoveredByShelf(po) : null;
+                                        return (
+                                        <div style={{ display:"flex",gap:4,justifyContent:"center",flexWrap:"wrap",flexDirection:"column",alignItems:"center" }}>
+                                          {po.pctComplete < 100 && shelfCovered === true && (
+                                            <button style={{ fontSize:10,whiteSpace:"nowrap",padding:"4px 10px",borderRadius:980,border:"none",cursor:fulfillBusy?"not-allowed":"pointer",fontWeight:700,background:"#34c759",color:"#fff",fontFamily:"inherit",opacity:fulfillBusy?0.6:1 }}
+                                              disabled={fulfillBusy}
+                                              onClick={() => fulfillFromShelf(po)}>
+                                              Fulfill from Shelf ✓
+                                            </button>
+                                          )}
+                                          {po.pctComplete < 100 && shelfCovered === false && (
+                                            <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
+                                              onClick={() => {
+                                                const newQueue = [];
+                                                for (const li of po.lineItems) {
+                                                  const remaining = li.quantity - li.fulfilled;
+                                                  if (remaining <= 0) continue;
+                                                  const bomProduct = findBomProduct(po.channel, li.productId, li.title, li.sku);
+                                                  if (bomProduct && !buildQueue.find(q => q.productId === bomProduct.id)) {
+                                                    newQueue.push({ productId: bomProduct.id, name: bomProduct.name, qty: remaining, color: bomProduct.color, forOrder: po.orderName });
+                                                  }
                                                 }
-                                              }
-                                              if (newQueue.length > 0) { setBuildQueue(prev => [...prev, ...newQueue]); setActiveView("purchasing"); }
-                                              else { alert("No matching BOM products found. Map them in Products first."); }
-                                            }}>
-                                            Order Parts
-                                          </button>
-                                        )}
-                                        {po.pctComplete === 100 && !po.shipped && apiKeys.shipstation_api_key && (
-                                          <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap",color:"#00c7be",fontWeight:700 }}
-                                            onClick={() => openShipModal(po)}>
-                                            Ship It
-                                          </button>
-                                        )}
-                                        {!po.shipped && (
-                                          <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap",color:"#86868b" }}
-                                            onClick={() => dismissOrder(po.id)} title="Hide this order from the tracker">
-                                            Dismiss
-                                          </button>
-                                        )}
-                                      </div>
+                                                if (newQueue.length > 0) { setBuildQueue(prev => [...prev, ...newQueue]); setActiveView("purchasing"); }
+                                                else { alert("No matching BOM products found. Map them in Products first."); }
+                                              }}>
+                                              Order Parts
+                                            </button>
+                                          )}
+                                          {po.pctComplete < 100 && shelfCovered === null && (
+                                            <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
+                                              onClick={() => {
+                                                const newQueue = [];
+                                                for (const li of po.lineItems) {
+                                                  const remaining = li.quantity - li.fulfilled;
+                                                  if (remaining <= 0) continue;
+                                                  const bomProduct = findBomProduct(po.channel, li.productId, li.title, li.sku);
+                                                  if (bomProduct && !buildQueue.find(q => q.productId === bomProduct.id)) {
+                                                    newQueue.push({ productId: bomProduct.id, name: bomProduct.name, qty: remaining, color: bomProduct.color, forOrder: po.orderName });
+                                                  }
+                                                }
+                                                if (newQueue.length > 0) { setBuildQueue(prev => [...prev, ...newQueue]); setActiveView("purchasing"); }
+                                                else { alert("No matching BOM products found. Map them in Products first."); }
+                                              }}>
+                                              Order Parts
+                                            </button>
+                                          )}
+                                          {po.pctComplete === 100 && !po.shipped && apiKeys.shipstation_api_key && (
+                                            <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap",color:"#00c7be",fontWeight:700 }}
+                                              onClick={() => openShipModal(po)}>
+                                              Ship It
+                                            </button>
+                                          )}
+                                          {!po.shipped && (
+                                            <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap",color:"#86868b" }}
+                                              onClick={() => dismissOrder(po.id)} title="Hide this order from the tracker">
+                                              Dismiss
+                                            </button>
+                                          )}
+                                        </div>
+                                        );
+                                      })()}
                                     </td>
                                   </tr>
                                 ))}
@@ -11745,10 +11889,18 @@ function BOMManager({ user }) {
                     );
                   };
 
+                  // Sort: incomplete shelf-coverable first (ship today), then uncovered/urgent, then complete
                   const sortOrders = (arr) => arr.sort((a, b) => {
                     if (a.pctComplete === 100 && b.pctComplete < 100) return 1;
                     if (a.pctComplete < 100 && b.pctComplete === 100) return -1;
-                    // Urgent/overdue first
+                    if (a.pctComplete < 100 && b.pctComplete < 100) {
+                      const aCovered = orderCoveredByShelf(a);
+                      const bCovered = orderCoveredByShelf(b);
+                      // Shelf-covered (green/ship today) first
+                      if (aCovered === true && bCovered !== true) return -1;
+                      if (aCovered !== true && bCovered === true) return 1;
+                    }
+                    // Urgent/overdue next
                     if (a.due.urgent && !b.due.urgent) return -1;
                     if (!a.due.urgent && b.due.urgent) return 1;
                     return new Date(b.createdAt) - new Date(a.createdAt);
@@ -15128,7 +15280,21 @@ function BOMManager({ user }) {
                     const unitsSold30d = vel?.unitsSold30d || 0;
                     const suggested = Math.max(50, Math.ceil(vpd * 30 * 1.5));
                     const burnDays = vpd > 0 && qty > 0 ? Math.floor(qty / vpd) : null;
-                    return { prod, qty, min, suggested, unitsSold30d, burnDays };
+                    // Parts needed for this build
+                    const bomParts = parts.filter(p => p.projectId === prod.id);
+                    const partsNeeded = bomParts.map(bp => {
+                      const stock = parseInt(bp.stockQty) || 0;
+                      const perUnit = parseInt(bp.quantity) || 1;
+                      const totalNeeded = perUnit * suggested;
+                      const shortfall = Math.max(0, totalNeeded - stock);
+                      return { part: bp, perUnit, totalNeeded, stock, shortfall };
+                    }).sort((a, b) => b.shortfall - a.shortfall); // most needed first
+                    return { prod, qty, min, suggested, unitsSold30d, burnDays, vpd, partsNeeded };
+                  }).sort((a, b) => {
+                    // Sort by urgency: fewest days of stock remaining first
+                    const aDays = a.vpd > 0 ? a.qty / a.vpd : 9999;
+                    const bDays = b.vpd > 0 ? b.qty / b.vpd : 9999;
+                    return aDays - bDays;
                   });
                   if (suggestions.length === 0) return null;
                   return (
@@ -15138,9 +15304,14 @@ function BOMManager({ user }) {
                         <div style={{ fontSize:16,fontWeight:800,color:"#bf6800",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
                           Restock Needed — {suggestions.length} product{suggestions.length !== 1 ? "s" : ""} at or below minimum
                         </div>
+                        <div style={{ marginLeft:"auto",fontSize:10,color:"#bf6800",fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase" }}>sorted by urgency</div>
                       </div>
                       <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14 }}>
-                        {suggestions.map(({ prod, qty, min, suggested, unitsSold30d, burnDays }) => (
+                        {suggestions.map(({ prod, qty, min, suggested, unitsSold30d, burnDays, vpd, partsNeeded }) => {
+                          const urgencyColor = burnDays !== null && burnDays <= 3 ? "#ff3b30" : burnDays !== null && burnDays <= 7 ? "#ff9500" : "#bf6800";
+                          const top5Parts = partsNeeded.slice(0, 5);
+                          const hasShortfall = top5Parts.some(p => p.shortfall > 0);
+                          return (
                           <div key={prod.id} style={{ background:"#fff",borderRadius:10,padding:"16px 18px",border:"1px solid #ffd580",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                             <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
                               <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#ff9500",flexShrink:0 }} />
@@ -15150,13 +15321,19 @@ function BOMManager({ user }) {
                             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12,fontSize:12 }}>
                               <div>
                                 <span style={{ color:"#86868b" }}>Current stock: </span>
-                                <span style={{ fontWeight:700,color:"#ff3b30" }}>
-                                  {qty} units{burnDays !== null ? ` (${burnDays < 1 ? "<1d" : burnDays > 999 ? "999d+" : `${burnDays}d`})` : ""}
+                                <span style={{ fontWeight:700,color:urgencyColor }}>
+                                  {qty} units{burnDays !== null ? ` (${burnDays < 1 ? "<1d" : burnDays > 999 ? "999d+" : `${burnDays}d`} left)` : ""}
                                 </span>
                               </div>
                               <div>
                                 <span style={{ color:"#86868b" }}>Min threshold: </span>
                                 <span style={{ fontWeight:700 }}>{min} units</span>
+                              </div>
+                              <div style={{ gridColumn:"1/-1" }}>
+                                <span style={{ color:"#86868b" }}>Velocity: </span>
+                                <span style={{ fontWeight:600 }}>
+                                  {vpd > 0 ? `${vpd.toFixed(2)} units/day avg` : unitsSold30d > 0 ? `~${unitsSold30d} units/30d` : "No sales data"}
+                                </span>
                               </div>
                             </div>
                             <div style={{ background:"#fff8ee",borderRadius:8,padding:"10px 14px",marginBottom:12 }}>
@@ -15174,6 +15351,46 @@ function BOMManager({ user }) {
                                 </div>
                               )}
                             </div>
+                            {top5Parts.length > 0 && (() => {
+                              const [partsOpen, setPartsOpen] = [null, () => {}]; // use inline collapsed state via details
+                              return (
+                                <details style={{ marginBottom:12 }}>
+                                  <summary style={{ fontSize:11,fontWeight:700,color: hasShortfall ? "#ff3b30" : "#34c759",cursor:"pointer",marginBottom:6,userSelect:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4 }}>
+                                    <span style={{ fontSize:10 }}>▸</span>
+                                    {hasShortfall
+                                      ? `Parts needed (${top5Parts.filter(p=>p.shortfall>0).length} short)`
+                                      : "Parts available ✓"}
+                                  </summary>
+                                  <div style={{ borderRadius:8,overflow:"hidden",border:"1px solid #f0f0f2" }}>
+                                    <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
+                                      <thead>
+                                        <tr style={{ background:"#f9f9fb",borderBottom:"1px solid #e5e5ea" }}>
+                                          <th style={{ textAlign:"left",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Part</th>
+                                          <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Have</th>
+                                          <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Need</th>
+                                          <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Short</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {top5Parts.map((p, i) => (
+                                          <tr key={p.part.id} style={{ borderBottom: i < top5Parts.length-1 ? "1px solid #f0f0f2" : "none" }}>
+                                            <td style={{ padding:"5px 8px",fontWeight:600,color:"#1d1d1f",maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                                              {p.part.mpn || p.part.description || p.part.reference || "?"}
+                                            </td>
+                                            <td style={{ padding:"5px 8px",textAlign:"center",color: p.stock >= p.totalNeeded ? "#34c759" : "#ff3b30",fontWeight:600 }}>{p.stock}</td>
+                                            <td style={{ padding:"5px 8px",textAlign:"center",color:"#86868b" }}>{p.totalNeeded}</td>
+                                            <td style={{ padding:"5px 8px",textAlign:"center",color: p.shortfall > 0 ? "#ff3b30" : "#34c759",fontWeight:700 }}>
+                                              {p.shortfall > 0 ? `-${p.shortfall}` : "✓"}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                  {partsNeeded.length > 5 && <div style={{ fontSize:10,color:"#86868b",marginTop:4 }}>+{partsNeeded.length - 5} more parts</div>}
+                                </details>
+                              );
+                            })()}
                             <button
                               onClick={() => {
                                 setNewBuildOrder(f => ({ ...f, product_id: prod.id, quantity: String(suggested), notes: "Restock build — auto-suggested" }));
@@ -15185,7 +15402,8 @@ function BOMManager({ user }) {
                               Create Restock Build →
                             </button>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -15264,53 +15482,129 @@ function BOMManager({ user }) {
                       <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>Scan Out — Fulfillment</div>
                       <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>Remove finished units from shelf when shipping.</div>
                     </div>
-                    <button onClick={() => setShelfScanMode(!shelfScanMode)}
-                      style={{ padding:"8px 18px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:12,background:shelfScanMode?"#ff3b30":"#5856d6",color:"#fff",fontFamily:"inherit" }}>
-                      {shelfScanMode ? "Cancel" : "Scan Out"}
+                    <button onClick={() => { setShelfScanMode(!shelfScanMode); setShelfScanBarcode(false); setShelfScanProduct(""); setShelfScanQty("1"); }}
+                      style={{ padding:"10px 22px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,background:shelfScanMode?"#ff3b30":"#5856d6",color:"#fff",fontFamily:"inherit",minHeight:44 }}>
+                      {shelfScanMode ? "Cancel" : "📦 Scan Out"}
                     </button>
                   </div>
                   {shelfScanMode && (
-                    <div style={{ display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap",marginTop:16 }}>
-                      <div style={{ flex:"2 1 200px" }}>
-                        <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</div>
-                        <select style={{ ...inputStyle2 }} value={shelfScanProduct} onChange={e => setShelfScanProduct(e.target.value)}>
-                          <option value="">Select product…</option>
-                          {products.map(p => {
-                            const fg = fgMap[p.id];
-                            return <option key={p.id} value={p.id}>{p.name} — {fg?.quantity_on_hand ?? 0} on shelf</option>;
-                          })}
-                        </select>
+                    <div style={{ marginTop:16 }}>
+                      {/* Mode toggle: dropdown vs camera barcode */}
+                      <div style={{ display:"flex",gap:8,marginBottom:16 }}>
+                        <button onClick={() => setShelfScanBarcode(false)}
+                          style={{ flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${!shelfScanBarcode?"#5856d6":"#d2d2d7"}`,cursor:"pointer",fontWeight:700,fontSize:13,
+                            background:!shelfScanBarcode?"#5856d618":"transparent",color:!shelfScanBarcode?"#5856d6":textPrimary,fontFamily:"inherit" }}>
+                          ☰ Select Product
+                        </button>
+                        <button onClick={() => setShelfScanBarcode(true)}
+                          style={{ flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${shelfScanBarcode?"#5856d6":"#d2d2d7"}`,cursor:"pointer",fontWeight:700,fontSize:13,
+                            background:shelfScanBarcode?"#5856d618":"transparent",color:shelfScanBarcode?"#5856d6":textPrimary,fontFamily:"inherit" }}>
+                          📷 Scan Barcode
+                        </button>
                       </div>
-                      <div style={{ flex:"0 0 100px" }}>
-                        <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Qty</div>
-                        <input type="number" min="1" style={inputStyle2} value={shelfScanQty} onChange={e => setShelfScanQty(e.target.value)} placeholder="1" />
-                      </div>
-                      <button onClick={async () => {
-                        if (!shelfScanProduct || !shelfScanQty) return;
-                        const qty = parseInt(shelfScanQty);
-                        if (!qty || qty < 1) return;
-                        const fg = fgMap[shelfScanProduct];
-                        const currentQty = fg?.quantity_on_hand ?? 0;
-                        if (qty > currentQty) { alert(`Only ${currentQty} units on shelf.`); return; }
-                        const prod = products.find(p => p.id === shelfScanProduct);
-                        if (!window.confirm(`Remove ${qty} ${prod?.name || ''} from shelf?`)) return;
-                        setFinishedGoodsBusy(true);
-                        try {
-                          const updated = await upsertFinishedGoods(shelfScanProduct, -qty, user.id);
-                          setFinishedGoods(prev => {
-                            const existing = prev.find(r => r.product_id === shelfScanProduct);
-                            return existing ? prev.map(r => r.product_id === shelfScanProduct ? updated : r) : [...prev, updated];
-                          });
-                          showToast(`-${qty} ${prod?.name || ''} removed from shelf`, "#ff9500");
-                          setShelfScanQty("1");
-                          setShelfScanProduct("");
-                          setShelfScanMode(false);
-                        } catch (e) { alert("Scan out failed: " + e.message); }
-                        setFinishedGoodsBusy(false);
-                      }} disabled={finishedGoodsBusy || !shelfScanProduct}
-                        style={{ padding:"10px 24px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,background:"#ff3b30",color:"#fff",fontFamily:"inherit",minWidth:120 }}>
-                        Confirm Remove
-                      </button>
+
+                      {shelfScanBarcode ? (
+                        <div style={{ marginBottom:16 }}>
+                          {/* Inline mini-scanner: scans product SKU barcode, auto-selects in dropdown */}
+                          {(() => {
+                            const [barcodeScanning, setBarcodeScanning] = [false, () => {}]; // inline state via ref approach
+                            return (
+                              <div>
+                                {shelfScanProduct && (
+                                  <div style={{ padding:"12px 16px",borderRadius:10,background:"#34c75915",border:"1px solid #34c75944",marginBottom:12 }}>
+                                    <div style={{ fontSize:13,fontWeight:700,color:"#34c759" }}>
+                                      ✓ {products.find(p=>p.id===shelfScanProduct)?.name || shelfScanProduct}
+                                      <span style={{ fontSize:12,fontWeight:400,color:"#86868b",marginLeft:8 }}>
+                                        {fgMap[shelfScanProduct]?.quantity_on_hand ?? 0} on shelf
+                                      </span>
+                                    </div>
+                                    <button style={{ fontSize:11,color:"#86868b",background:"none",border:"none",cursor:"pointer",padding:0,marginTop:4 }} onClick={() => setShelfScanProduct("")}>
+                                      Clear — scan a different product
+                                    </button>
+                                  </div>
+                                )}
+                                <ScannerView
+                                  parts={[]}
+                                  products={products}
+                                  updatePart={() => {}}
+                                  darkMode={darkMode}
+                                  onProductScan={(productId) => {
+                                    setShelfScanProduct(productId);
+                                    setShelfScanBarcode(false);
+                                  }}
+                                  userId={user?.id}
+                                  mode="product-scan"
+                                  productSku={(sku) => {
+                                    // Match scanned SKU/barcode to a product by name, importName, or sku field
+                                    const skuL = (sku||"").toLowerCase().trim();
+                                    const matched = products.find(p =>
+                                      (p.sku && p.sku.toLowerCase().trim() === skuL) ||
+                                      (p.name && p.name.toLowerCase().trim() === skuL) ||
+                                      (p.importName && p.importName.toLowerCase().trim() === skuL)
+                                    );
+                                    if (matched) { setShelfScanProduct(matched.id); setShelfScanBarcode(false); }
+                                    else { showToast(`No product found for barcode: ${sku}`, "#ff9500"); }
+                                  }}
+                                />
+                                <div style={{ fontSize:11,color:"#86868b",marginTop:8,textAlign:"center" }}>
+                                  Point the camera at a product barcode/QR to auto-select
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      ) : (
+                        <div style={{ marginBottom:16 }}>
+                          <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</div>
+                          <select style={{ ...inputStyle2, fontSize:15, padding:"12px 14px" }} value={shelfScanProduct} onChange={e => setShelfScanProduct(e.target.value)}>
+                            <option value="">Select product…</option>
+                            {products.map(p => {
+                              const fg = fgMap[p.id];
+                              return <option key={p.id} value={p.id}>{p.name} — {fg?.quantity_on_hand ?? 0} on shelf</option>;
+                            })}
+                          </select>
+                        </div>
+                      )}
+
+                      {shelfScanProduct && (
+                        <div style={{ display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap" }}>
+                          <div style={{ flex:"0 0 120px" }}>
+                            <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Qty to Remove</div>
+                            <input type="number" min="1" style={{ ...inputStyle2, fontSize:20, fontWeight:800, textAlign:"center", padding:"12px 14px" }}
+                              value={shelfScanQty} onChange={e => setShelfScanQty(e.target.value)} placeholder="1" />
+                          </div>
+                          <button onClick={async () => {
+                            if (!shelfScanProduct || !shelfScanQty) return;
+                            const qty = parseInt(shelfScanQty);
+                            if (!qty || qty < 1) return;
+                            const fg = fgMap[shelfScanProduct];
+                            const currentQty = fg?.quantity_on_hand ?? 0;
+                            if (qty > currentQty) { alert(`Only ${currentQty} units on shelf.`); return; }
+                            const prod = products.find(p => p.id === shelfScanProduct);
+                            if (!window.confirm(`Remove ${qty} ${prod?.name || ''} from shelf?`)) return;
+                            setFinishedGoodsBusy(true);
+                            try {
+                              const updated = await upsertFinishedGoods(shelfScanProduct, -qty, user.id);
+                              setFinishedGoods(prev => {
+                                const existing = prev.find(r => r.product_id === shelfScanProduct);
+                                return existing ? prev.map(r => r.product_id === shelfScanProduct ? updated : r) : [...prev, updated];
+                              });
+                              showToast(`-${qty} ${prod?.name || ''} removed from shelf`, "#ff9500");
+                              setShelfScanQty("1");
+                              setShelfScanProduct("");
+                              setShelfScanMode(false);
+                              setShelfScanBarcode(false);
+                            } catch (e) { alert("Scan out failed: " + e.message); }
+                            setFinishedGoodsBusy(false);
+                          }} disabled={finishedGoodsBusy || !shelfScanProduct || !shelfScanQty}
+                            style={{ flex:1,padding:"16px 0",borderRadius:14,border:"none",cursor:(!shelfScanProduct||!shelfScanQty||finishedGoodsBusy)?"not-allowed":"pointer",
+                              fontWeight:800,fontSize:16,background:"#ff3b30",color:"#fff",fontFamily:"inherit",
+                              opacity:(!shelfScanProduct||!shelfScanQty||finishedGoodsBusy)?0.5:1,
+                              minHeight:56,letterSpacing:"0.01em" }}>
+                            {finishedGoodsBusy ? "Saving…" : `Confirm Remove${shelfScanQty && parseInt(shelfScanQty) > 0 ? ` (${shelfScanQty})` : ""}`}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
