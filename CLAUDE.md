@@ -54,6 +54,15 @@ Update both when a push affects that tab.
 
 Never spread unknown/derived objects into Supabase update calls — it will 400 if unknown columns are included. Explicitly pick only the fields being saved.
 
+## THE MANTRA — burn this into every decision
+
+> **Buy parts in bulk → build pedals in batches → stock the shelf → ship same day from shelf.**
+
+Every feature, every UI decision, every workflow must serve this loop.
+- Orders do NOT trigger builds. Low shelf stock triggers builds.
+- Builds are NOT for specific orders. Builds are for the shelf.
+- The app's #1 job is keeping the shelf stocked and visible.
+
 ## Project details
 
 - React 18 SPA with Vite, deployed on Vercel
