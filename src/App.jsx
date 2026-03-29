@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.69";
-const BUILD_TIME   = "2026-03-28T23:40:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.70";
+const BUILD_TIME   = "2026-03-28T23:55:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -1660,6 +1660,26 @@ function BOMManager({ user }) {
   const [feasibilityResults, setFeasibilityResults] = useState(null); // results from "What Can I Build?" check
   const [feasibilityLoading, setFeasibilityLoading] = useState(false);
   const [restockPreflight, setRestockPreflight] = useState(null); // { product, quantity, suggested, bomRows: [{part, have, reserved, available, need, totalNeeded, short}] }
+  // Tracks per-product restock ordering status — persisted to localStorage
+  // { [productId]: { status: 'queued'|'ordered', since: isoString, qty: number } }
+  const [restockStatusMap, setRestockStatusMap] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("ja_restock_status") || "{}"); } catch { return {}; }
+  });
+  const setRestockStatus = (productId, status, qty) => {
+    setRestockStatusMap(prev => {
+      const next = { ...prev, [productId]: { status, since: new Date().toISOString(), qty } };
+      localStorage.setItem("ja_restock_status", JSON.stringify(next));
+      return next;
+    });
+  };
+  const clearRestockStatus = (productId) => {
+    setRestockStatusMap(prev => {
+      const next = { ...prev };
+      delete next[productId];
+      localStorage.setItem("ja_restock_status", JSON.stringify(next));
+      return next;
+    });
+  };
   const [confirmModal, setConfirmModal] = useState(null);
   // confirmModal = { title, message, confirmLabel, confirmColor, onConfirm, onCancel }
   const showConfirm = (title, message, confirmLabel = "Confirm", confirmColor = "#ff3b30") =>
@@ -15345,6 +15365,7 @@ function BOMManager({ user }) {
                       const urgencyColor = burnDays !== null && burnDays <= 3 ? "#ff3b30" : burnDays !== null && burnDays <= 7 ? "#ff9500" : "#bf6800";
                       const top5Parts = partsNeeded.slice(0, 5);
                       const hasShortfall = top5Parts.some(p => p.shortfall > 0);
+                      const rstStatus = restockStatusMap[prod.id];
                       return (
                       <div key={prod.id} style={{ background:"#fff",borderRadius:10,padding:"16px 18px",border:"1px solid #ffd580",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                         <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
@@ -15352,6 +15373,28 @@ function BOMManager({ user }) {
                           <div style={{ fontSize:14,fontWeight:700,color:"#1d1d1f" }}>{prod.name}</div>
                           {prod.brand && <div style={{ fontSize:10,color:"#86868b",marginLeft:"auto",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>{prod.brand}</div>}
                         </div>
+                        {/* Ordering status banner */}
+                        {rstStatus && (
+                          <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",
+                            padding:"7px 12px",borderRadius:8,marginBottom:10,
+                            background: rstStatus.status === 'ordered' ? "#e8f5e9" : "#fff8ee",
+                            border: `1px solid ${rstStatus.status === 'ordered' ? "#34c759" : "#ff9500"}` }}>
+                            <div style={{ display:"flex",alignItems:"center",gap:7 }}>
+                              <span style={{ fontSize:14 }}>{rstStatus.status === 'ordered' ? "📦" : "🛒"}</span>
+                              <div>
+                                <div style={{ fontSize:12,fontWeight:700,color: rstStatus.status === 'ordered' ? "#166534" : "#bf6800" }}>
+                                  {rstStatus.status === 'ordered' ? "Parts ordered — awaiting delivery" : "Parts queued for ordering"}
+                                </div>
+                                <div style={{ fontSize:10,color:"#86868b" }}>
+                                  {rstStatus.qty} units · {new Date(rstStatus.since).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}
+                                </div>
+                              </div>
+                            </div>
+                            <button onClick={() => clearRestockStatus(prod.id)}
+                              title="Clear status"
+                              style={{ background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#86868b",padding:"2px 4px",lineHeight:1 }}>✕</button>
+                          </div>
+                        )}
                         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12,fontSize:12 }}>
                           <div>
                             <span style={{ color:"#86868b" }}>Current stock: </span>
@@ -15952,6 +15995,8 @@ function BOMManager({ user }) {
                             const shortPartIds = shortRows.map(r => r.part.id);
                             setParts(prev => prev.map(p => shortPartIds.includes(p.id) ? { ...p, flaggedForOrder: true } : p));
                             await Promise.all(shortPartIds.map(id => dbUpdatePart(id, { flagged_for_order: true }, user.id).catch(() => {})));
+                            // 3. Mark this product as "queued for ordering" on the Shelf
+                            setRestockStatus(product.id, 'queued', quantity);
                             setRestockPreflight(null);
                             setActiveView("purchasing");
                             showToast(`${product.name} added to queue — ${shortPartIds.length} part${shortPartIds.length!==1?"s":""} need ordering`, "#ff9500");
@@ -19476,6 +19521,12 @@ function BOMManager({ user }) {
                             items: d.items || [], total_value: d.poTotal || 0,
                             notes: `Emailed to ${d.email || "rep"}`, ordered_at: new Date().toISOString() }, user.id);
                         } catch (e) { console.warn("[PO Record] auto-create failed:", e); }
+                        // Advance any queued products to 'ordered' status on the Shelf
+                        buildQueue.forEach(q => {
+                          if (restockStatusMap[q.productId]?.status === 'queued') {
+                            setRestockStatus(q.productId, 'ordered', restockStatusMap[q.productId]?.qty || q.qty);
+                          }
+                        });
                       }}
                       style={{ padding:"6px 12px",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer",border:"none",
                         background: d.sent ? "#34c759" : "#0071e3",color:"#fff",textDecoration:"none",display:"inline-block" }}>
