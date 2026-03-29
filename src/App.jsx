@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.96";
-const BUILD_TIME   = "2026-03-29T18:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.97";
+const BUILD_TIME   = "2026-03-29T19:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -1152,18 +1152,13 @@ function printPO(supplier, lines, poNumber, companyInfo) {
 function buildPurchaseOrders(parts) {
   const orderParts = parts.filter((p) => {
     if (p.isInternal) return false; // internal parts have their own section
-    if (p.flaggedForOrder) return true;
-    const s = parseInt(p.stockQty), r = parseInt(p.reorderQty);
-    return !isNaN(s) && !isNaN(r) && s <= r;
+    return p.flaggedForOrder;
   });
   const grouped = {};
   for (const part of orderParts) {
     const sid = part.preferredSupplier || "mouser";
     if (!grouped[sid]) grouped[sid] = [];
-    const stock = parseInt(part.stockQty)||0, reorder = parseInt(part.reorderQty)||0;
-    const needed = part.flaggedForOrder && isNaN(parseInt(part.reorderQty))
-      ? parseInt(part.orderQty)||part.quantity
-      : Math.max(reorder - stock, parseInt(part.orderQty)||1);
+    const needed = parseInt(part.orderQty) || part.quantity || 1;
     grouped[sid].push({ ...part, neededQty: needed });
   }
   return grouped;
@@ -4838,10 +4833,10 @@ function BOMManager({ user }) {
     return { ready: missing.length === 0, missing, totalParts: bomParts.length };
   };
 
-  const lowStockParts = parts.filter((p) => { const s=parseInt(p.stockQty)||0, r=parseInt(p.reorderQty); return !isNaN(r) && r > 0 && s <= r; });
+  const lowStockParts = []; // reorder points removed — concept retired
   const unassignedCount = parts.filter((p) => !p.projectId).length;
   const purchaseOrders = buildPurchaseOrders(parts);
-  const internalOrderCount = parts.filter(p => p.isInternal && (p.flaggedForOrder || (() => { const s=parseInt(p.stockQty),r=parseInt(p.reorderQty); return !isNaN(s)&&!isNaN(r)&&s<=r; })())).length;
+  const internalOrderCount = parts.filter(p => p.isInternal && p.flaggedForOrder).length;
   const poPartCount = Object.values(purchaseOrders).reduce((s,a)=>s+a.length,0) + internalOrderCount;
   const pricedCount = parts.filter((p) => p.pricingStatus === "done").length;
 
@@ -4927,7 +4922,6 @@ function BOMManager({ user }) {
             { label:"Inventory", value:`$${fmtDollar(inventoryValue)}`, warn:false, nav:"bom", isCurrency:true },
             { label:"Priced",   value:pricedCount,    warn:false, nav:"pricing" },
             { label:"To Order", value:poPartCount,    warn:poPartCount>0, nav:"purchasing" },
-            { label:"Low Stock",value:lowStockParts.length, warn:lowStockParts.length>0, nav:"alerts" },
           ].map((s) => (
             <div key={s.label} style={{ textAlign:"center", cursor:"pointer" }}
               onClick={() => setActiveView(s.nav)}>
@@ -4985,7 +4979,7 @@ function BOMManager({ user }) {
         borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
         background:darkMode?"#1c1c1e":"#fff" }}>
         {[
-          { id:"dashboard", label:`Dashboard${lowStockParts.length>0?` ⚠${lowStockParts.length}`:""}`,  step:null, color:null },
+          { id:"dashboard", label:"Dashboard", step:null, color:null },
           { id:"bom",       label:`Parts (${parts.length})`, step:1, color:"#0071e3" },
           { id:"projects",  label:"Products",   step:2, color:"#5856d6" },
           { id:"pricing",   label:`Pricing${pricedCount>0?` (${pricedCount}/${parts.length})`:""}`, step:3, color:"#ff9500" },
@@ -5028,7 +5022,7 @@ function BOMManager({ user }) {
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:16,marginBottom:24 }}>
               {[
                 { label:"Inventory Value", value:`$${fmtDollar(inventoryValue)}`, sub:`${totalStockParts} parts, ${totalStockUnits.toLocaleString()} units`, color:"#0071e3", nav:"bom" },
-                { label:"Low Stock Alerts", value:lowStockParts.length, sub:lowStockParts.length>0?`${lowStockParts.slice(0,3).map(p=>p.mpn||p.reference).join(", ")}${lowStockParts.length>3?" ...":""}`:"All parts stocked", color:lowStockParts.length>0?"#ff3b30":"#34c759", nav:"dashboard" },
+                { label:"Parts Stocked", value:parts.filter(p=>(parseInt(p.stockQty)||0)>0).length, sub:"Parts with stock on hand", color:"#34c759", nav:"bom" },
                 { label:"Parts to Order", value:poPartCount, sub:poPartCount>0?`across ${Object.keys(purchaseOrders).length} suppliers`:"No orders pending", color:poPartCount>0?"#ff9500":"#34c759", nav:"purchasing" },
                 { label:"Products", value:products.length, sub:`${pricedCount}/${parts.length} parts priced`, color:"#5856d6", nav:"projects" },
                 ...(shopifyDemand?.totalOrders ? [{ label:"Shopify Orders", value:shopifyDemand.totalOrders, sub:"Direct / consumer", color:"#96bf48", nav:"demand" }] : []),
@@ -5119,42 +5113,6 @@ function BOMManager({ user }) {
               </div>
             </div>
 
-            {/* ── Low stock table */}
-            {lowStockParts.length > 0 && (
-              <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
-                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
-                  <div>
-                    <div style={{ fontSize:16,fontWeight:700,color:"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Low Stock Parts</div>
-                    <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>Parts at or below reorder point</div>
-                  </div>
-                  <button className="btn-ghost btn-sm" onClick={()=>setActiveView("alerts")}>View All</button>
-                </div>
-                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
-                  <thead>
-                    <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
-                      {["MPN","Description","Stock","Reorder Point","Deficit"].map(h=>(
-                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#86868b",letterSpacing:"0.06em",textTransform:"uppercase",
-                          fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lowStockParts.slice(0,8).map((part)=>{
-                      const s=parseInt(part.stockQty)||0, r=parseInt(part.reorderQty)||0;
-                      return (
-                        <tr key={part.id} style={{ borderBottom:"1px solid #f0f0f2" }}>
-                          <td style={{ padding:"10px 12px",fontWeight:600,color:"#0071e3" }}>{part.mpn||part.reference||"—"}</td>
-                          <td style={{ padding:"10px 12px",color:"#6e6e73" }}>{part.description||part.value||"—"}</td>
-                          <td style={{ padding:"10px 12px",fontWeight:700,color:"#ff3b30" }}>{s}</td>
-                          <td style={{ padding:"10px 12px" }}>{r}</td>
-                          <td style={{ padding:"10px 12px",fontWeight:700,color:"#ff3b30" }}>−{r - s}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
 
             {/* ── Top products by cost */}
             {productCosts.length > 0 && (
@@ -5392,12 +5350,12 @@ function BOMManager({ user }) {
                 <button className="btn-ghost" onClick={()=>setActiveView("purchasing")}>View Purchase Orders</button>
                 <button className="btn-ghost" onClick={() => {
                   // Export full inventory report
-                  const header = ["Product","MPN","Reference","Value","Description","Manufacturer","Qty/Build","Stock","Reorder","Unit Cost","Stock Value","Supplier"].join(",");
+                  const header = ["Product","MPN","Reference","Value","Description","Manufacturer","Qty/Build","Stock","Unit Cost","Stock Value","Supplier"].join(",");
                   const rows = parts.map(p => {
                     const stock = parseInt(p.stockQty)||0;
                     const cost = priceAtQty(p);
                     const prodName = products.find(x=>x.id===p.projectId)?.name || "Unassigned";
-                    return [`"${prodName}"`,p.mpn||"",p.reference||"",p.value||"",`"${(p.description||"").replace(/"/g,"'")}"`,p.manufacturer||"",p.quantity,stock,p.reorderQty||"",cost?fmtPrice(cost):"",stock*cost?(stock*cost).toFixed(2):"",p.preferredSupplier||""].join(",");
+                    return [`"${prodName}"`,p.mpn||"",p.reference||"",p.value||"",`"${(p.description||"").replace(/"/g,"'")}"`,p.manufacturer||"",p.quantity,stock,cost?fmtPrice(cost):"",stock*cost?(stock*cost).toFixed(2):"",p.preferredSupplier||""].join(",");
                   });
                   const blob = new Blob([[header,...rows].join("\n")],{type:"text/csv"});
                   const a = document.createElement("a"); a.href=URL.createObjectURL(blob);
@@ -5559,53 +5517,6 @@ function BOMManager({ user }) {
                   </div>
                 )}
 
-            {/* ── Low Stock Alerts (merged from Alerts tab) ── */}
-            <div style={{ borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",paddingTop:28,marginTop:28 }}>
-              <h3 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:22,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:4 }}>Low Stock Alerts</h3>
-              <p style={{ color:"#86868b",fontSize:13,marginBottom:16 }}>Parts at or below reorder threshold.</p>
-              {lowStockParts.length===0 ? (
-                <div style={{ textAlign:"center",padding:40,background:darkMode?"#1c1c1e":"#fff",borderRadius:14,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
-                  <div style={{ fontSize:28,marginBottom:8 }}>✅</div>
-                  <div style={{ fontWeight:700,fontSize:14,color:"#34c759" }}>All parts above reorder thresholds</div>
-                </div>
-              ) : (
-                <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
-                  {lowStockParts.slice(0, 10).map((part) => {
-                    const projList = products.filter((p)=>part.projectId === p.id);
-                    const sup = supplierById(part.preferredSupplier);
-                    return (
-                      <div key={part.id} style={{ borderLeft:"3px solid #ff3b30",display:"flex",alignItems:"center",gap:14,padding:"12px 16px",flexWrap:"wrap",
-                        background:darkMode?"#1c1c1e":"#fff",borderRadius:12,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
-                        <span className="alert-dot" />
-                        <div style={{ flex:1,minWidth:200 }}>
-                          <div style={{ display:"flex",gap:8,alignItems:"center",marginBottom:3,flexWrap:"wrap" }}>
-                            <span style={{ fontWeight:800,color:"#0071e3",fontSize:13 }}>{part.reference}</span>
-                            <span style={{ color:"#86868b",fontSize:12 }}>{part.value}</span>
-                            <span style={{ color:"#0071e3",fontSize:12 }}>{part.mpn}</span>
-                            {projList.map(pr=><span key={pr.id} className="badge" style={{ background:pr.color+"22",color:pr.color }}>{pr.name}</span>)}
-                          </div>
-                          <div style={{ fontSize:12,color:"#86868b" }}>
-                            Stock: <span style={{ color:"#ff3b30",fontWeight:700 }}>{part.stockQty}</span>
-                            &nbsp;· Reorder at: {part.reorderQty}
-                            &nbsp;· Via: <span style={{ color:sup.color,fontWeight:700 }}>{sup.name}</span>
-                          </div>
-                        </div>
-                        <div style={{ display:"flex",gap:6,alignItems:"center" }}>
-                          <input type="checkbox" style={{ width:16,height:16,cursor:"pointer",accentColor:"#0071e3" }}
-                            checked={part.flaggedForOrder} onChange={()=>toggleFlag(part.id)} />
-                          <span style={{ fontSize:11,color:"#86868b" }}>Flag</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {lowStockParts.length > 10 && <div style={{ fontSize:12,color:"#86868b",textAlign:"center" }}>...and {lowStockParts.length - 10} more low-stock parts</div>}
-                  <button className="btn-primary" style={{ alignSelf:"flex-start",marginTop:6 }}
-                    onClick={()=>{ setParts((prev)=>prev.map((p)=>{ const s=parseInt(p.stockQty),r=parseInt(p.reorderQty); if(!isNaN(s)&&!isNaN(r)&&s<=r) return {...p,flaggedForOrder:true}; return p; })); setActiveView("purchasing"); }}>
-                    Flag All & Go to Purchasing
-                  </button>
-                </div>
-              )}
-            </div>
 
             </div>
           </div>
@@ -6014,7 +5925,7 @@ function BOMManager({ user }) {
                 <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:"#1d1d1f",margin:0 }}>Parts Library</h2>
               </div>
               <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",margin:0 }}>
-                This is your master inventory — every component your company uses lives here. Import BOMs from KiCad, Altium, or Eagle, add parts manually, search the Component Library, or use Quick Add URL to paste a Mouser/DigiKey/Arrow link and auto-import the part with pricing, description, datasheet, country of origin, and quantity price breaks. Accurate part data with MPNs, stock levels, and reorder points ensures your team always knows what's on hand and what needs ordering.
+                This is your master inventory — every component your company uses lives here. Import BOMs from KiCad, Altium, or Eagle, add parts manually, search the Component Library, or use Quick Add URL to paste a Mouser/DigiKey/Arrow link and auto-import the part with pricing, description, datasheet, country of origin, and quantity price breaks. Accurate part data with MPNs, stock levels, and reel quantities keeps purchasing efficient and inventory visible.
               </p>
             </div>
             {/* ── Inventory Valuation Summary */}
@@ -6036,18 +5947,14 @@ function BOMManager({ user }) {
                   <div style={{ fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>Total Units</div>
                   <div style={{ fontSize:20,fontWeight:700,color:"#1d1d1f" }}>{totalStockUnits.toLocaleString()}</div>
                 </div>
-                <div style={{ borderLeft:"1px solid #e5e5ea",paddingLeft:20 }}>
-                  <div style={{ fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>Low Stock</div>
-                  <div style={{ fontSize:20,fontWeight:700,color:lowStockParts.length>0?"#ff3b30":"#34c759" }}>{lowStockParts.length}</div>
-                </div>
                 <div style={{ marginLeft:"auto",textAlign:"right" }}>
                   <button className="btn-ghost btn-sm" onClick={() => {
-                    const header = ["MPN","Reference","Value","Description","Manufacturer","Qty per Build","Stock","Reorder Point","Unit Cost","Stock Value","Product"].join(",");
+                    const header = ["MPN","Reference","Value","Description","Manufacturer","Qty per Build","Stock","Unit Cost","Stock Value","Product"].join(",");
                     const rows = parts.map(p => {
                       const stock = parseInt(p.stockQty)||0;
                       const cost = priceAtQty(p);
                       const prodName = products.find(x=>x.id===p.projectId)?.name || "";
-                      return [p.mpn,p.reference,p.value,`"${(p.description||"").replace(/"/g,"'")}"`,p.manufacturer,p.quantity,stock,p.reorderQty||"",cost?fmtPrice(cost):"",stock*cost?(stock*cost).toFixed(2):"",`"${prodName}"`].join(",");
+                      return [p.mpn,p.reference,p.value,`"${(p.description||"").replace(/"/g,"'")}"`,p.manufacturer,p.quantity,stock,cost?fmtPrice(cost):"",stock*cost?(stock*cost).toFixed(2):"",`"${prodName}"`].join(",");
                     });
                     const blob = new Blob([[header,...rows].join("\n")],{type:"text/csv"});
                     const a = document.createElement("a"); a.href=URL.createObjectURL(blob);
@@ -7235,7 +7142,6 @@ function BOMManager({ user }) {
                     <option value="manufacturer">Manufacturer</option>
                     <option value="value">Value</option>
                     <option value="description">Description</option>
-                    <option value="reorderQty">Reorder Point</option>
                     <option value="reelQty">Reel Qty</option>
                     <option value="stockQty">Stock</option>
                     <option value="preferredSupplier">Supplier</option>
@@ -7327,7 +7233,7 @@ function BOMManager({ user }) {
                       {[
                         {label:"MPN",field:"mpn"},{label:"Value",field:"value"},{label:"Description",field:"description"},
                         {label:"Manufacturer",field:"manufacturer"},{label:"Stock",field:"stockQty"},
-                        {label:"Reorder Pt",field:"reorderQty"},{label:"Reel Qty",field:"reelQty"},{label:"Stock Value",field:null},{label:"Added",field:"createdAt"},{label:"",field:null}
+                        {label:"Reel Qty",field:"reelQty"},{label:"Stock Value",field:null},{label:"Added",field:"createdAt"},{label:"",field:null}
                       ].map((h,hi,arr)=>(
                         <th key={hi} onClick={h.field ? ()=>setPartSort(prev=>({field:h.field,asc:prev.field===h.field?!prev.asc:true})) : undefined}
                           style={{ textAlign:"left",padding:"12px 14px",
@@ -7342,8 +7248,8 @@ function BOMManager({ user }) {
                   </thead>
                   <tbody>
                     {visibleParts.map((part,i) => {
-                      const sn=parseInt(part.stockQty)||0,rn=parseInt(part.reorderQty);
-                      const isLow = !isNaN(rn)&&rn>0&&sn<=rn;
+                      const sn=parseInt(part.stockQty)||0;
+                      const isLow = sn === 0;
                       const partActiveReservations = componentReservations.filter(r => r.part_id === part.id && r.status === 'active');
                       const totalPartReserved = partActiveReservations.reduce((s, r) => s + (r.reserved_qty || 0), 0);
                       const partAvailable = Math.max(0, sn - totalPartReserved);
@@ -7399,12 +7305,6 @@ function BOMManager({ user }) {
                                 {totalPartReserved} rsv
                               </div>
                             )}
-                          </td>
-                          <td style={{ padding:"6px 8px",width:80 }}>
-                            <input type="number" placeholder="0" value={part.reorderQty}
-                              onChange={(e)=>updatePart(part.id,"reorderQty",e.target.value)}
-                              onFocus={focusIn} onBlur={focusOut}
-                              style={inputStyle} min="0" />
                           </td>
                           <td style={{ padding:"6px 8px",width:80 }}>
                             <input type="number" placeholder="" value={part.reelQty}
@@ -7468,7 +7368,6 @@ function BOMManager({ user }) {
                                         <div>Available: <strong style={{ color:available > 0 ? "#34c759" : "#ff3b30" }}>{available}</strong></div>
                                       </>);
                                     })()}
-                                    <div>Reorder Point: {part.reorderQty || "—"}</div>
                                     <div>Reel Qty: {part.reelQty || "—"}</div>
                                     <div>Unit Cost: {priceAtQty(part) > 0 ? "$"+fmtPrice(priceAtQty(part)) : "—"}</div>
                                     <div>Stock Value: {sn * priceAtQty(part) > 0 ? "$"+fmtDollar(sn * priceAtQty(part)) : "—"}</div>
@@ -11358,7 +11257,6 @@ function BOMManager({ user }) {
                     <option value="manufacturer">Manufacturer</option>
                     <option value="value">Value</option>
                     <option value="description">Description</option>
-                    <option value="reorderQty">Reorder Point</option>
                     <option value="reelQty">Reel Qty</option>
                     <option value="stockQty">Stock</option>
                     <option value="preferredSupplier">Supplier</option>
@@ -11403,7 +11301,7 @@ function BOMManager({ user }) {
                               else selectNone();
                             }} />
                         </th>
-                        {["MPN","Value","Description","Manufacturer","Qty/Build","Stock","Reorder Pt","Stock Value","Actions"].map((h,hi,arr)=>(
+                        {["MPN","Value","Description","Manufacturer","Qty/Build","Stock","Stock Value","Actions"].map((h,hi,arr)=>(
                           <th key={hi} style={{ padding:"12px 10px",textAlign:hi>=4?"right":"left",
                             fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                             fontSize:10,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
@@ -11454,12 +11352,6 @@ function BOMManager({ user }) {
                             <td style={{ padding:"10px 10px",textAlign:"right" }}>
                               <input type="number" min="0" value={part.stockQty||""} onChange={e=>updatePart(part.id,"stockQty",e.target.value)}
                                 style={{ border:"none",background:"transparent",fontSize:13,width:50,textAlign:"right",color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"inherit",outline:"none" }}
-                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
-                                onBlur={e=>{e.target.style.background="transparent";}} />
-                            </td>
-                            <td style={{ padding:"10px 10px",textAlign:"right" }}>
-                              <input type="number" min="0" value={part.reorderQty||""} onChange={e=>updatePart(part.id,"reorderQty",e.target.value)}
-                                style={{ border:"none",background:"transparent",fontSize:12,width:50,textAlign:"right",color:darkMode?"#c7c7cc":"#86868b",fontFamily:"inherit",outline:"none" }}
                                 onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
                                 onBlur={e=>{e.target.style.background="transparent";}} />
                             </td>
@@ -18747,17 +18639,6 @@ function BOMManager({ user }) {
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
                 <p style={{ fontSize:11,color:"#86868b",marginTop:8 }}>Distributor emails are managed in the Distributors section above.</p>
-                {apiKeys.notify_email && lowStockParts.length > 0 && (
-                  <div style={{ marginTop:14 }}>
-                    <button className="btn-ghost" onClick={() => {
-                      const body = buildLowStockEmailBody(lowStockParts);
-                      if (body) window.location.href = `mailto:${apiKeys.notify_email}?subject=${encodeURIComponent("Low Stock Alert — Jackson Audio BOM")}&body=${encodeURIComponent(body)}`;
-                    }}>
-                      Preview Low-Stock Alert Email
-                    </button>
-                    <span style={{ fontSize:11,color:"#86868b",marginLeft:8 }}>{lowStockParts.length} parts below reorder level</span>
-                  </div>
-                )}
                 {sectionSaveBtn("notifications", "Email Settings")}
                 {apiKeys.notify_email && (
                   <div style={{ marginTop:14,paddingTop:14,borderTop:"1px solid #e5e5ea" }}>
