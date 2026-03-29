@@ -138,10 +138,10 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
     setUpdating(true)
     try {
       await updatePart(scannedPart.id, 'stockQty', String(newQty))
-      const delta = action === 'set' ? null : (action === 'add' ? qtyNum : -qtyNum)
+      const delta = action === 'set' ? (newQty - oldQty) : (action === 'add' ? qtyNum : -qtyNum)
       // Write inventory transaction if callback is provided
-      if (onStockAdjust && delta !== null) {
-        await onStockAdjust(scannedPart.id, delta, oldQty, newQty, null, userId)
+      if (onStockAdjust && delta !== 0) {
+        await onStockAdjust(scannedPart.id, delta, oldQty, newQty, action === 'set' ? 'Manual set via scanner' : null, userId)
       }
       const entry = {
         timestamp: new Date(),

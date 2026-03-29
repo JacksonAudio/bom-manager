@@ -1303,10 +1303,25 @@ export async function upsertFinishedGoods(productId, quantityDelta, userId) {
 
 // Update target/min stock for a product
 export async function updateFinishedGoodsTargets(productId, fields, userId) {
+  // Fetch existing row so we don't overwrite quantity_on_hand with 0
+  const { data: existing } = await supabase
+    .from('finished_goods')
+    .select('quantity_on_hand, target_stock, min_stock')
+    .eq('product_id', productId)
+    .single()
+
+  const currentQty = existing?.quantity_on_hand ?? 0
+
+  // Null values for target/min default to 0 to avoid NOT NULL constraint errors
+  const safeFields = {
+    target_stock: fields.target_stock ?? existing?.target_stock ?? 0,
+    min_stock:    fields.min_stock    ?? existing?.min_stock    ?? 0,
+  }
+
   const { data, error } = await supabase
     .from('finished_goods')
     .upsert(
-      { product_id: productId, ...fields, updated_at: new Date().toISOString(), updated_by: userId },
+      { product_id: productId, quantity_on_hand: currentQty, ...safeFields, updated_at: new Date().toISOString(), updated_by: userId },
       { onConflict: 'product_id' }
     )
     .select()

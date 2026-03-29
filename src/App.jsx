@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.35";
-const BUILD_TIME   = "2026-03-28T19:21:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.34";
+const BUILD_TIME   = "2026-03-28T04:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -62,13 +62,6 @@ import {
   fetchUnitRepairs, createUnitRepair, updateUnitRepair,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
-import {
-  toUSD, fmtCountry, fmtPrice, fmtDollar, getTariffRate,
-  splitCSVLine, parseBOM, isLockedSupplier, getSupplierWebsite,
-  getReelQty, bestPriceSupplier, buildDigiKeyCartUrl,
-  buildPurchaseOrders, buildPOEmailDraft, buildLowStockEmailBody,
-  COUNTRY_NAMES, COUNTRY_ALIAS, LOCKED_SUPPLIERS,
-} from "./utils.js";
 
 // ─────────────────────────────────────────────
 // API CONFIGURATION
@@ -186,6 +179,14 @@ async function fetchExchangeRates() {
   }
 }
 
+// Convert a price from source currency to USD
+function toUSD(price, currency, rates) {
+  if (!currency || currency === "USD" || !rates) return price;
+  const rate = rates[currency];
+  if (!rate) return price; // Unknown currency, assume USD
+  return price / rate;
+}
+
 // ─────────────────────────────────────────────
 // SUPPLIER DISPLAY CONFIG
 // ─────────────────────────────────────────────
@@ -209,6 +210,27 @@ const API_DISTRIBUTORS = new Set([
   "LCSC","Allied Electronics","Newark",
 ]);
 // Only suppliers explicitly added as non-API sources get locked (blocks API price lookups)
+const LOCKED_SUPPLIERS = new Set([
+  "ce dist","cedist","ce-dist","bolt depot","boltdepot",
+]);
+const isLockedSupplier = (supplier) => supplier && LOCKED_SUPPLIERS.has(supplier.toLowerCase().trim());
+
+// Build direct search/product URLs for manual (locked) suppliers
+const getSupplierWebsite = (supplier, mpn) => {
+  if (!supplier) return null;
+  const s = supplier.toLowerCase().trim();
+  const q = mpn ? encodeURIComponent(mpn) : "";
+  if (s === "bolt depot" || s === "boltdepot") {
+    return q ? `https://www.boltdepot.com/Search.aspx?kw=${q}` : "https://www.boltdepot.com";
+  }
+  if (s === "mcmaster" || s === "mcmaster-carr") {
+    return q ? `https://www.mcmaster.com/search/?query=${q}` : "https://www.mcmaster.com";
+  }
+  if (s === "ce dist" || s === "cedist" || s === "ce-dist") {
+    return q ? `https://www.cedist.com/search?q=${q}` : "https://www.cedist.com";
+  }
+  return null;
+};
 
 const NEXAR_DIST_MAP = {
   "Mouser Electronics": "mouser",
@@ -241,12 +263,118 @@ const DIST_COUNTRY = {
   "QuestComponents":"US","SemiStar Electronics":"HK","EBV Elektronik":"DE","WPG Holdings":"TW",
 };
 
+const COUNTRY_NAMES = {
+  US:"United States",CA:"Canada",CN:"China",HK:"Hong Kong",TW:"Taiwan",SG:"Singapore",JP:"Japan",
+  KR:"South Korea",UK:"United Kingdom",GB:"United Kingdom",DE:"Germany",FR:"France",IT:"Italy",
+  NL:"Netherlands",PL:"Poland",AU:"Australia",IN:"India",TH:"Thailand",MY:"Malaysia",PH:"Philippines",
+  VN:"Vietnam",MX:"Mexico",BR:"Brazil",IL:"Israel",SE:"Sweden",CH:"Switzerland",AT:"Austria",
+  CZ:"Czech Republic",HU:"Hungary",IE:"Ireland",DK:"Denmark",FI:"Finland",NO:"Norway",ES:"Spain",
+  PT:"Portugal",BE:"Belgium",RO:"Romania",SK:"Slovakia",SI:"Slovenia",BG:"Bulgaria",HR:"Croatia",
+};
+
+// Format country code → full name (falls back to the code itself)
+const fmtCountry = (code) => { if (!code) return ""; return COUNTRY_NAMES[code.toUpperCase()] || code; };
+
+// Format price: up to 4 decimals, strip trailing zeroes, keep min 2
+const fmtPrice = (v) => { const s = parseFloat(v).toFixed(4); return s.replace(/0{1,2}$/, ""); };
+const fmtDollar = (v) => parseFloat(v).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
+
 // Get country code for a supplier ID (from DIST_COUNTRY or SUPPLIERS)
 const getSupplierCountry = (supplierId) => DIST_COUNTRY[supplierId] || "";
 
+// Get tariff % for a country code given current tariff settings
+const COUNTRY_ALIAS = { "GB":"UK", "UK":"UK" }; // normalize country codes
+const getTariffRate = (countryCode, tariffs) => {
+  if (!countryCode || countryCode === "US") return 0;
+  const code = COUNTRY_ALIAS[countryCode.toUpperCase()] || countryCode.toUpperCase();
+  return tariffs[code] || 0;
+};
+
 // ─────────────────────────────────────────────
-// BOM PARSER — imported from ./utils.js
+// BOM PARSER
 // ─────────────────────────────────────────────
+// RFC 4180-compliant CSV splitter: handles quoted fields containing commas and escaped quotes ("")
+function splitCSVLine(line, delim) {
+  if (delim === "\t") return line.split("\t").map(c => c.replace(/^"|"$/g, "").trim());
+  const cells = [];
+  let cur = "", inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQ = false; }
+      else { cur += ch; }
+    } else {
+      if (ch === '"') { inQ = true; }
+      else if (ch === delim) { cells.push(cur.trim()); cur = ""; }
+      else { cur += ch; }
+    }
+  }
+  cells.push(cur.trim());
+  return cells;
+}
+function parseBOM(raw) {
+  const lines = raw.trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length < 1) return [];
+  const delim = lines[0].includes("\t") ? "\t" : ",";
+  const firstLine = splitCSVLine(lines[0], delim).map((h) => h.replace(/^"|"$/g, "").trim().toLowerCase());
+  // Detect if first line is a header row
+  const hasHeader = firstLine.some((h) => ["pn","mpn","part number","quantity","qty","reference","value","mfr part #"].includes(h));
+  const startIdx = hasHeader ? 1 : 0;
+  const colMap = {
+    reference:    ["reference", "ref", "designator", "refdes", "references"],
+    value:        ["value", "val", "component", "part value"],
+    mpn:          ["mpn", "mfr part #", "manufacturer part", "mfr#", "part number", "pn", "mfr. part #"],
+    quantity:     ["quantity", "qty", "count", "amount"],
+    description:  ["description", "desc", "comment", "notes"],
+    footprint:    ["footprint", "package"],
+    manufacturer: ["manufacturer", "mfr", "mfr."],
+    preferredSupplier: ["preferredsupplier", "preferred_supplier", "supplier", "vendor"],
+    unitCost:     ["unitcost", "unit_cost", "price", "cost"],
+    stockQty:     ["stockqty", "stock_qty", "stock", "in stock"],
+    addedDate:    ["addeddate", "added_date", "added", "created_at", "date"],
+    notes:        ["notes", "purchaseurl", "purchase_url", "sourceurl", "source_url", "reorderurl", "reorder_url"],
+  };
+  // If header detected, map columns; otherwise assume PN,QTY (2-column format)
+  const idx = {};
+  if (hasHeader) {
+    for (const [key, variants] of Object.entries(colMap)) {
+      idx[key] = firstLine.findIndex((h) => variants.some((v) => h.includes(v)));
+    }
+  } else {
+    idx.mpn = 0;
+    idx.quantity = lines[0].split(delim).length > 1 ? 1 : -1;
+    idx.description = lines[0].split(delim).length > 2 ? 2 : -1;
+  }
+  const parts = [];
+  for (let i = startIdx; i < lines.length; i++) {
+    const cells = splitCSVLine(lines[i], delim).map((c) => c.replace(/^"|"$/g, "").trim());
+    if (cells.every((c) => !c)) continue;
+    const get = (key) => (idx[key] >= 0 ? cells[idx[key]] || "" : "");
+    const refRaw = get("reference");
+    const refs = refRaw.split(/[\s,;]+/).filter(Boolean);
+    const mpn = get("mpn");
+    const qty = parseInt(get("quantity")) || refs.length || 1;
+    parts.push({
+      id: `part-${Date.now()}-${i}`,
+      reference: refRaw || mpn, refs, value: get("value"), mpn,
+      description: get("description"), footprint: get("footprint"),
+      manufacturer: get("manufacturer"), quantity: qty,
+      unitCost: get("unitCost") || "", projectId: null, reorderQty: "",
+      stockQty: get("stockQty") || "",
+      preferredSupplier: get("preferredSupplier") || "mouser",
+      addedDate: get("addedDate") || "",
+      notes: get("notes") || "",
+      orderQty: "", flaggedForOrder: false,
+      // Pricing data — populated by API
+      pricing: null,      // { [supplierId]: { unitPrice, stock, moq, priceBreaks: [{qty, price}], url } }
+      pricingStatus: "idle",  // idle | loading | done | error | no-mpn
+      pricingError: "",
+      bestSupplier: null, // supplierId with best price for qty
+    });
+  }
+  return parts;
+}
 
 // ─────────────────────────────────────────────
 // NEXAR / OCTOPART API
@@ -501,6 +629,16 @@ async function mouserGetOrderOptions(orderApiKey, cartKey) {
   return await res.json();
 }
 
+// ─────────────────────────────────────────────
+// DIGIKEY CART URL BUILDER
+// Builds a URL that opens DigiKey with parts pre-loaded into shopping cart
+// ─────────────────────────────────────────────
+function buildDigiKeyCartUrl(items) {
+  // items: [{ partNumber, quantity }]
+  // DigiKey URL format: https://www.digikey.com/ordering/shoppingcart?newproducts=PART1|QTY1,PART2|QTY2
+  const parts = items.map(i => `${encodeURIComponent(i.partNumber)}|${i.quantity}`).join(",");
+  return `https://www.digikey.com/ordering/shoppingcart?newproducts=${parts}`;
+}
 
 // ─────────────────────────────────────────────
 // SUPPLIER QUICK-ORDER URLS
@@ -521,6 +659,11 @@ function getSupplierOrderMode(supplierId, orderModesJson) {
   return modes[supplierId] || "manual";
 }
 
+// Get full reel quantity — uses part's reel_qty field, falls back to pricing data
+function getReelQty(part) {
+  if (part.reelQty && parseInt(part.reelQty) > 0) return parseInt(part.reelQty);
+  return null;
+}
 
 const ORDER_MODE_CONFIG = {
   api:    { label: "API",    color: "#34c759", bg: "rgba(52,199,89,0.12)", description: "Direct API ordering" },
@@ -881,6 +1024,27 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
 // ─────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────
+function bestPriceSupplier(pricing, prefId, prefMargin) {
+  if (!pricing) return null;
+  let best = null, bestPrice = Infinity, bestStock = 0;
+  for (const [key, data] of Object.entries(pricing)) {
+    if (key.startsWith("_")) continue;
+    if (data.unitPrice > 0 && data.stock > 0) {
+      if (data.unitPrice < bestPrice || (data.unitPrice === bestPrice && (data.stock||0) > bestStock)) {
+        bestPrice = data.unitPrice; bestStock = data.stock||0; best = key;
+      }
+    }
+  }
+  // If preferred supplier is in stock and within margin%, pick them instead
+  if (prefId && best !== prefId && pricing[prefId]) {
+    const pref = pricing[prefId];
+    const margin = parseFloat(prefMargin) || 0;
+    if (pref.unitPrice > 0 && pref.stock > 0 && pref.unitPrice <= bestPrice * (1 + margin / 100)) {
+      return prefId;
+    }
+  }
+  return best;
+}
 
 function exportPOasCSV(supplier, lines, poNumber) {
   const header = ["PO#","Supplier","MPN","Reference","Description","Value","Manufacturer","Qty Needed","Unit Cost","Extended Cost"].join(",");
@@ -945,6 +1109,25 @@ function printPO(supplier, lines, poNumber, companyInfo) {
   const w = window.open("", "_blank"); w.document.write(html); w.document.close();
 }
 
+function buildPurchaseOrders(parts) {
+  const orderParts = parts.filter((p) => {
+    if (p.isInternal) return false; // internal parts have their own section
+    if (p.flaggedForOrder) return true;
+    const s = parseInt(p.stockQty), r = parseInt(p.reorderQty);
+    return !isNaN(s) && !isNaN(r) && s <= r;
+  });
+  const grouped = {};
+  for (const part of orderParts) {
+    const sid = part.preferredSupplier || "mouser";
+    if (!grouped[sid]) grouped[sid] = [];
+    const stock = parseInt(part.stockQty)||0, reorder = parseInt(part.reorderQty)||0;
+    const needed = part.flaggedForOrder && isNaN(parseInt(part.reorderQty))
+      ? parseInt(part.orderQty)||part.quantity
+      : Math.max(reorder - stock, parseInt(part.orderQty)||1);
+    grouped[sid].push({ ...part, neededQty: needed });
+  }
+  return grouped;
+}
 
 function genPONumber(sid, poName) {
   const d = new Date();
@@ -953,7 +1136,53 @@ function genPONumber(sid, poName) {
   return `JA-PO-${dateStr}-${tag}`;
 }
 
+function buildPOEmailDraft(supplierName, lines, poNumber, companyInfo, contactName) {
+  const coName = companyInfo?.name || "Jackson Audio";
+  const coAddr = companyInfo?.address || "";
+  const subject = `Purchase Order ${poNumber} — ${coName}`;
+  const greeting = contactName ? `Hi ${contactName},` : `Hi ${supplierName} Team,`;
+  const body = [
+    greeting,
+    ``,
+    `Please quote / process the following order:`,
+    ``,
+    `PO #: ${poNumber}`,
+    `Date: ${new Date().toLocaleDateString()}`,
+    ...(coAddr ? [`Ship To:\n${coAddr}`, ``] : [``]),
+    `Part Number | Qty | Description`,
+    `-----------|-----|------------`,
+    ...lines.map(l => `${l.mpn} | ${l.neededQty.toLocaleString()} | ${l.description || l.value || ""}`),
+    ``,
+    `Please confirm availability, lead time, and total cost.`,
+    ``,
+    `Thank you,`,
+    coName,
+  ].join("\n");
+  return { subject, body };
+}
 
+function buildLowStockEmailBody(lowParts) {
+  if (!lowParts.length) return null;
+  const lines = lowParts.map(p => {
+    const stock = parseInt(p.stockQty)||0;
+    const reorder = parseInt(p.reorderQty)||0;
+    return `  ${p.mpn || p.reference} — Stock: ${stock}, Reorder point: ${reorder}, Need: ${Math.max(reorder-stock,0)}`;
+  });
+  return [
+    `Good morning,`,
+    ``,
+    `${lowParts.length} part${lowParts.length!==1?"s are":" is"} at or below reorder level:`,
+    ``,
+    ...lines,
+    ``,
+    `Would you like me to generate a list of POs and draft emails for you?`,
+    ``,
+    `Log in to review and take action:`,
+    `https://jackson-bom.vercel.app`,
+    ``,
+    `— Jackson Audio BOM Manager`,
+  ].join("\n");
+}
 
 // ─────────────────────────────────────────────
 // CSS
@@ -1425,6 +1654,7 @@ function BOMManager({ user }) {
   const [shelfScanMode, setShelfScanMode] = useState(false); // scan-out mode on shelf tab
   const [shelfScanProduct, setShelfScanProduct] = useState(""); // product_id selected in scan-out
   const [shelfScanQty, setShelfScanQty] = useState("1");
+  const [shelfSearch, setShelfSearch] = useState(""); // search filter on shelf tab
   const [feasibilityResults, setFeasibilityResults] = useState(null); // results from "What Can I Build?" check
   const [feasibilityLoading, setFeasibilityLoading] = useState(false);
   const [toasts, setToasts] = useState([]); // [{ id, message, color }]
@@ -2241,7 +2471,10 @@ function BOMManager({ user }) {
       bt.build_order_id === unit.build_order_id && bt.status !== "completed"
     );
     if (existingTask) {
-      // Add to existing boxing task
+      // Add unit to existing boxing task — increment its expected quantity by 1
+      const newQty = (existingTask.quantity || 1) + 1;
+      await updateBoxingTask(existingTask.id, { quantity: newQty });
+      setBoxingTasks(prev => prev.map(t => t.id === existingTask.id ? { ...t, quantity: newQty } : t));
       await updatePedalUnit(unit.id, { status: "boxing", boxing_task_id: existingTask.id });
       setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, status: "boxing", boxing_task_id: existingTask.id } : u));
     } else if (activeMembers.length > 0) {
@@ -11390,6 +11623,18 @@ function BOMManager({ user }) {
                                                     notes: po.customer ? `${po.customer}` : "",
                                                   });
                                                   setBuildOrders(prev => [...prev, bo]);
+                                                  // Auto-reserve components from BOM (same as manual build order creation)
+                                                  try {
+                                                    const productParts = parts.filter(p => p.projectId === bomProduct.id);
+                                                    if (productParts.length > 0) {
+                                                      const reservations = productParts.map(p => ({
+                                                        part_id: p.id,
+                                                        reserved_qty: (p.quantity || 1) * bo.quantity,
+                                                      }));
+                                                      const createdRes = await createComponentReservations(bo.id, reservations, user?.id);
+                                                      setComponentReservations(prev => [...prev, ...createdRes]);
+                                                    }
+                                                  } catch (resErr) { console.warn('[po build order] reservations failed:', resErr.message); }
                                                   created++;
                                                 } catch (err) { console.error("Create build order failed:", err); }
                                               }
@@ -11657,6 +11902,15 @@ function BOMManager({ user }) {
                                                 try {
                                                   const bo = await createBuildOrder({ product_id: bomProduct.id, quantity: remaining, priority: po.due?.urgent ? "high" : "normal", status: "pending", for_order: orderRef, notes: po.customer ? `${po.customer}` : "" });
                                                   setBuildOrders(prev => [...prev, bo]);
+                                                  // Auto-reserve components from BOM
+                                                  try {
+                                                    const productParts = parts.filter(p => p.projectId === bomProduct.id);
+                                                    if (productParts.length > 0) {
+                                                      const reservations = productParts.map(p => ({ part_id: p.id, reserved_qty: (p.quantity || 1) * bo.quantity }));
+                                                      const createdRes = await createComponentReservations(bo.id, reservations, user?.id);
+                                                      setComponentReservations(prev => [...prev, ...createdRes]);
+                                                    }
+                                                  } catch (resErr) { console.warn('[zoho build order] reservations failed:', resErr.message); }
                                                   created++;
                                                 } catch (err) { console.error(err); }
                                               }
@@ -14748,9 +15002,16 @@ function BOMManager({ user }) {
 
               const handleShelfAdj = async () => {
                 if (!shelfAddModal?.productId || !shelfAdjQty) return;
+                const adjQty = parseInt(shelfAdjQty);
+                if (!adjQty || adjQty < 1) return;
+                if (shelfAddModal.action === 'remove') {
+                  const fg = finishedGoods.find(r => r.product_id === shelfAddModal.productId);
+                  const currentQty = fg?.quantity_on_hand ?? 0;
+                  if (adjQty > currentQty) { alert(`Only ${currentQty} units on shelf — cannot remove ${adjQty}.`); return; }
+                }
                 setFinishedGoodsBusy(true);
                 try {
-                  const delta = shelfAddModal.action === 'add' ? parseInt(shelfAdjQty) : -parseInt(shelfAdjQty);
+                  const delta = shelfAddModal.action === 'add' ? adjQty : -adjQty;
                   const updated = await upsertFinishedGoods(shelfAddModal.productId, delta, user.id);
                   setFinishedGoods(prev => {
                     const existing = prev.find(r => r.product_id === shelfAddModal.productId);
@@ -14770,8 +15031,8 @@ function BOMManager({ user }) {
                 if (!vals) return;
                 try {
                   const updated = await updateFinishedGoodsTargets(productId, {
-                    target_stock: vals.target !== "" ? parseInt(vals.target) : null,
-                    min_stock: vals.min !== "" ? parseInt(vals.min) : null,
+                    target_stock: vals.target !== "" ? parseInt(vals.target) || 0 : 0,
+                    min_stock: vals.min !== "" ? parseInt(vals.min) || 0 : 0,
                   }, user.id);
                   setFinishedGoods(prev => {
                     const existing = prev.find(r => r.product_id === productId);
@@ -14942,57 +15203,115 @@ function BOMManager({ user }) {
                   )}
                 </div>
 
-                {/* Products Grid */}
-                <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:16 }}>
-                  {products.map(prod => {
-                    const fg = fgMap[prod.id];
-                    const qty = fg?.quantity_on_hand ?? 0;
-                    const color = shelfColor(fg);
-                    const isEditingTarget = !!shelfTargetEdit[prod.id];
-                    return (
-                      <div key={prod.id} style={{ background:cardBg,borderRadius:14,padding:"18px 20px",border:`2px solid ${color}30`,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-                        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
-                          <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#0071e3" }} />
-                          <div style={{ fontSize:14,fontWeight:700,color:textPrimary,flex:1 }}>{prod.name}</div>
-                          <div style={{ width:10,height:10,borderRadius:"50%",background:color }} title={color==="#34c759"?"At/above target":color==="#ff9500"?"Below target":"Below min / no target"} />
-                        </div>
-                        <div style={{ fontSize:44,fontWeight:800,color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-1px",marginBottom:8,lineHeight:1 }}>
-                          {qty}
-                        </div>
-                        <div style={{ fontSize:12,color:"#86868b",marginBottom:10 }}>
-                          {fg?.target_stock != null ? `Target: ${fg.target_stock}` : "No target set"}{" "}
-                          {fg?.min_stock != null ? `· Min: ${fg.min_stock}` : ""}
-                        </div>
-                        {/* Inline target edit */}
-                        {isEditingTarget ? (
-                          <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:8 }}>
-                            <input type="number" placeholder="Target" value={shelfTargetEdit[prod.id]?.target ?? ""} min="0"
-                              onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), target: e.target.value } }))}
-                              style={{ width:70,padding:"5px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
-                            <input type="number" placeholder="Min" value={shelfTargetEdit[prod.id]?.min ?? ""} min="0"
-                              onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), min: e.target.value } }))}
-                              style={{ width:70,padding:"5px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
-                            <button onClick={() => handleShelfTargetSave(prod.id)}
-                              style={{ padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>Save</button>
-                            <button onClick={() => setShelfTargetEdit(prev => { const n={...prev}; delete n[prod.id]; return n; })}
-                              style={{ padding:"5px 10px",borderRadius:6,border:"1px solid #d2d2d7",cursor:"pointer",fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>✕</button>
-                          </div>
-                        ) : null}
-                        <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
-                          <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'add' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
-                            style={{ padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>+ Add</button>
-                          <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'remove' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
-                            disabled={qty === 0}
-                            style={{ padding:"6px 14px",borderRadius:980,border:"none",cursor:qty===0?"not-allowed":"pointer",fontWeight:600,fontSize:11,background:"#ff3b30",color:"#fff",fontFamily:"inherit",opacity:qty===0?0.4:1 }}>- Remove</button>
-                          <button onClick={() => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { target: fg?.target_stock ?? "", min: fg?.min_stock ?? "" } }))}
-                            style={{ padding:"6px 14px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>
-                            {isEditingTarget ? "Cancel" : "Set Target"}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                {/* Search bar */}
+                <div style={{ position:"relative",marginBottom:14 }}>
+                  <input
+                    type="text"
+                    placeholder="Search products…"
+                    value={shelfSearch}
+                    onChange={e => setShelfSearch(e.target.value)}
+                    style={{ width:"100%",padding:"9px 36px 9px 14px",borderRadius:10,border:cardBorder,fontSize:13,
+                      background:cardBg,color:textPrimary,outline:"none",boxSizing:"border-box",fontFamily:"inherit" }} />
+                  {shelfSearch && (
+                    <span onClick={() => setShelfSearch("")}
+                      style={{ position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#86868b",lineHeight:1 }}>✕</span>
+                  )}
                 </div>
+
+                {/* Products Table — grouped by brand */}
+                {(() => {
+                  const q = shelfSearch.toLowerCase();
+                  const filtered = products.filter(p => !q || p.name.toLowerCase().includes(q) || (p.brand||"").toLowerCase().includes(q));
+                  const brandGroups = {};
+                  filtered.forEach(p => { const b = p.brand || "Jackson Audio"; (brandGroups[b] = brandGroups[b] || []).push(p); });
+                  const brands = Object.keys(brandGroups).sort();
+                  if (filtered.length === 0) return (
+                    <div style={{ textAlign:"center",padding:"40px 0",color:"#86868b",fontSize:13 }}>No products match "{shelfSearch}"</div>
+                  );
+                  return brands.map(brand => (
+                    <div key={brand} style={{ marginBottom:20 }}>
+                      {/* Brand header */}
+                      <div style={{ fontSize:11,fontWeight:700,color:"#86868b",letterSpacing:"0.08em",textTransform:"uppercase",
+                        padding:"8px 14px",background:darkMode?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)",
+                        borderRadius:"10px 10px 0 0",borderBottom:`2px solid ${darkMode?"#3a3a3e":"#e5e5ea"}` }}>
+                        {brand} — {brandGroups[brand].length} product{brandGroups[brand].length !== 1 ? "s" : ""}
+                      </div>
+                      <div style={{ background:cardBg,border:cardBorder,borderTop:"none",borderRadius:"0 0 10px 10px",overflow:"hidden",marginBottom:2 }}>
+                        <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                          <thead>
+                            <tr style={{ borderBottom:`1px solid ${darkMode?"#3a3a3e":"#e5e5ea"}` }}>
+                              {["","Product","On Hand","Target","Min","Status","Actions"].map(h => (
+                                <th key={h} style={{ textAlign:"left",padding:"8px 14px",fontSize:10,fontWeight:700,color:"#86868b",
+                                  letterSpacing:"0.06em",textTransform:"uppercase",
+                                  fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",whiteSpace:"nowrap" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {brandGroups[brand].map((prod, idx) => {
+                              const fg = fgMap[prod.id];
+                              const qty = fg?.quantity_on_hand ?? 0;
+                              const color = shelfColor(fg);
+                              const isEditingTarget = !!shelfTargetEdit[prod.id];
+                              const statusLabel = color === "#34c759" ? "At Target" : color === "#ff9500" ? "Low" : fg ? "Below Min" : "No Target";
+                              return (
+                                <tr key={prod.id} style={{ borderBottom:"1px solid #f0f0f2",background: idx%2===0 ? "transparent" : (darkMode?"rgba(255,255,255,0.02)":"rgba(0,0,0,0.01)") }}>
+                                  <td style={{ padding:"10px 14px",width:28 }}>
+                                    <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color||"#0071e3" }} />
+                                  </td>
+                                  <td style={{ padding:"10px 14px",fontWeight:600,color:textPrimary }}>{prod.name}</td>
+                                  <td style={{ padding:"10px 14px",fontWeight:800,fontSize:18,color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{qty}</td>
+                                  <td style={{ padding:"10px 14px" }}>
+                                    {isEditingTarget
+                                      ? <input type="number" placeholder="Target" value={shelfTargetEdit[prod.id]?.target ?? ""} min="0"
+                                          onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), target: e.target.value } }))}
+                                          style={{ width:70,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
+                                      : <span style={{ color:"#86868b",fontSize:12 }}>{fg?.target_stock || "—"}</span>
+                                    }
+                                  </td>
+                                  <td style={{ padding:"10px 14px" }}>
+                                    {isEditingTarget
+                                      ? <input type="number" placeholder="Min" value={shelfTargetEdit[prod.id]?.min ?? ""} min="0"
+                                          onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), min: e.target.value } }))}
+                                          style={{ width:70,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
+                                      : <span style={{ color:"#86868b",fontSize:12 }}>{fg?.min_stock || "—"}</span>
+                                    }
+                                  </td>
+                                  <td style={{ padding:"10px 14px" }}>
+                                    <span style={{ display:"inline-block",padding:"3px 10px",borderRadius:980,fontSize:11,fontWeight:600,background:`${color}18`,color }}>
+                                      {statusLabel}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding:"10px 14px" }}>
+                                    <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
+                                      <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'add' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
+                                        style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>+ Add</button>
+                                      <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'remove' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
+                                        disabled={qty === 0}
+                                        style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:qty===0?"not-allowed":"pointer",fontWeight:600,fontSize:11,background:"#ff3b30",color:"#fff",fontFamily:"inherit",opacity:qty===0?0.4:1 }}>− Remove</button>
+                                      {isEditingTarget
+                                        ? <>
+                                            <button onClick={() => handleShelfTargetSave(prod.id)}
+                                              style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#0071e3",color:"#fff",fontFamily:"inherit" }}>Save</button>
+                                            <button onClick={() => setShelfTargetEdit(prev => { const n={...prev}; delete n[prod.id]; return n; })}
+                                              style={{ padding:"4px 10px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>✕</button>
+                                          </>
+                                        : <button onClick={() => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { target: fg?.target_stock ?? "", min: fg?.min_stock ?? "" } }))}
+                                            style={{ padding:"4px 12px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>
+                                            Set Target
+                                          </button>
+                                      }
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ));
+                })()}
 
                 {/* Shelf Adjust Modal */}
                 {shelfAddModal && (() => {
