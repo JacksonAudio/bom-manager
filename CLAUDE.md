@@ -50,6 +50,40 @@ Two places in App.jsx per tab:
 
 Update both when a push affects that tab.
 
+## Component value formatting — MANDATORY standard
+
+These rules apply everywhere a component value is displayed, stored, or detected (auto-fill, bulk edit, imports, API responses, etc.):
+
+### Capacitance
+- Always use `uF`, `nF`, `pF` — **never `µF` or `μF`** (µ is not keyboard-typeable and can't be searched)
+- `parseFloat()` the number to strip leading zeros: `"001"` → `1`, `"0.001"` → `0.001`
+- Examples: `100pF`, `10nF`, `0.1uF`, `2.2uF`, `100uF`
+
+### Resistance
+- **Below 1000Ω** → `R` suffix: `470R`, `820R`, `220R`, `100R`
+- **1000Ω and above** → **lowercase `k`**: `1k`, `1.2k`, `22k`, `680k`, `1M` — **never uppercase `K`**
+- **Megaohm** → `M` suffix: `1M`, `2.2M`
+- Never write `470OHM` or `470 ohm` — always `470R`
+- If a value is written as `1200R` it should be normalized to `1.2k`
+
+### Inductance
+- Always use `uH`, `nH`, `mH` — **never `µH`**
+- Examples: `10uH`, `100nH`, `4.7uH`
+
+### Number formatting
+- Always use `parseFloat()` before outputting — strips leading zeros and normalizes decimals
+- Never output `001uF`, `047uF`, etc.
+
+### Summary table
+| Wrong | Correct |
+|-------|---------|
+| `0.1µF` | `0.1uF` |
+| `001µF` | `1uF` |
+| `680K` | `680k` |
+| `470OHM` | `470R` |
+| `1200R` | `1.2k` |
+| `10µH` | `10uH` |
+
 ## Modal / dialog styling standard
 
 All modals must match the established design language — clean, modern, Apple-inspired:
