@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.73";
-const BUILD_TIME   = "2026-03-29T00:40:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.74";
+const BUILD_TIME   = "2026-03-29T01:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -126,6 +126,7 @@ const DEFAULT_KEYS = {
   klaviyo_api_key_fulltone: "",                // klaviyo.com — Fulltone USA private API key
   admin_emails: "brad@jacksonaudio.net",
   timezone: "America/Chicago",  // Central Time default // comma-separated list of admin email addresses
+  reel_order_threshold: "1.00", // $/pc — parts at or above this price prompt reel vs. cut tape in Purchasing
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -1579,6 +1580,8 @@ function BOMManager({ user }) {
   const [editingVendorId, setEditingVendorId] = useState(false);
   const [vendorDraft, setVendorDraft] = useState({});
   const [fullReelParts, setFullReelParts] = useState(new Set()); // part IDs where full reel is toggled
+  const [reelFillModal, setReelFillModal] = useState(null); // null | { phase: 'scanning'|'fetching'|'preview', rows: [...], checkedIds: Set, apiCount, cacheCount }
+  const [reelDecisions, setReelDecisions] = useState({}); // { [partId]: 'reel' | 'cut' }
   const [settingsSaving, setSettingsSaving] = useState(""); // which section is saving
   const [settingsSaved, setSettingsSaved] = useState(""); // which section just saved
   const [apiTestResult, setApiTestResult] = useState({}); // { sectionId: { status:"ok"|"error"|"testing", msg:"..." } }
@@ -1680,6 +1683,8 @@ function BOMManager({ user }) {
       return next;
     });
   };
+  const [reelAutoModal, setReelAutoModal] = useState(null);
+  // reelAutoModal: null | { phase: 'scanning'|'results'|'saving', results: [{part, detectedQty, source, selected}], fetching: false, fetchProgress: 0 }
   const [confirmModal, setConfirmModal] = useState(null);
   // confirmModal = { title, message, confirmLabel, confirmColor, onConfirm, onCancel }
   const showConfirm = (title, message, confirmLabel = "Confirm", confirmColor = "#ff3b30") =>
@@ -5045,7 +5050,7 @@ function BOMManager({ user }) {
                   { step:2, title:"Create Products", desc:"Group parts into products (pedals, amps, etc). Assign each part to the product it belongs to.", tab:"projects", color:"#5856d6" },
                   { step:3, title:"Get Pricing", desc:"Live quotes from 900+ distributors. Landed costs include tariffs by country of origin. Mouser preferred within 5% of cheapest.", tab:"pricing", color:"#ff9500" },
                   { step:4, title:"Track Orders", desc:"Shopify + Zoho customer orders with due dates, fulfillment tracking, and ShipStation shipment data. See shelf coverage at a glance.", tab:"demand", color:"#34c759" },
-                  { step:5, title:"Review & Purchase", desc:"Aggregated POs by supplier with tariff visibility. Skip tariffed parts, check Mouser tariffs via Cart API, or export/email POs.", tab:"purchasing", color:"#ff3b30" },
+                  { step:5, title:"Review & Purchase", desc:"Aggregated POs by supplier with tariff visibility and reel-aware ordering. Expensive reel parts prompt full reel vs. cut tape decisions with burn-time estimates.", tab:"purchasing", color:"#ff3b30" },
                   { step:6, title:"Receive & Scan", desc:"When parts arrive, scan invoices to update stock quantities and close out open POs.", tab:"scan", color:"#00c7be" },
                 ].map((s, i, arr) => (
                   <div key={s.step} style={{ display:"flex",alignItems:"flex-start" }}>
@@ -6025,6 +6030,78 @@ function BOMManager({ user }) {
               <button className="btn-ghost btn-sm" onClick={()=>setShowImport(!showImport)}>{showImport ? "Close Import" : "+ Import"}</button>
               <button className="btn-ghost btn-sm" onClick={()=>{ setShowQuickUrl(!showQuickUrl); if(showQuickUrl){ setQuickUrlResult(null); setQuickUrlError(""); }}} style={{ color:"#34c759" }}>{showQuickUrl ? "Close Quick Add" : "Quick Add URL"}</button>
               <button className="btn-ghost btn-sm" onClick={()=>setShowResGen(!showResGen)} style={{ color:"#5856d6" }}>{showResGen ? "Close Component Library" : "Component Library"}</button>
+              <button className="btn-ghost btn-sm" style={{ color:"#e8500a" }} onClick={async () => {
+                // Phase 1: scan pricing cache for FactoryPackQty / MultPackQty
+                setReelFillModal({ phase:"scanning", rows:[], checkedIds:new Set(), apiCount:0, cacheCount:0 });
+                const rows = [];
+                for (const p of parts) {
+                  if (!p.mpn) continue;
+                  if (p.reelQty && parseInt(p.reelQty) > 0) continue; // already set
+                  let detected = null; let source = "";
+                  const pr = p.pricing && typeof p.pricing === "object" ? p.pricing : null;
+                  if (pr) {
+                    // Check mouser entry first
+                    const m = pr.mouser;
+                    if (m) {
+                      const fq = m.factoryPackQty || m.FactoryPackQty || m.multPackQty || m.MultPackQty;
+                      if (fq && parseInt(fq) > 0) { detected = parseInt(fq); source = "Cache (Mouser)"; }
+                    }
+                    if (!detected) {
+                      // Check _raw
+                      const raw = pr._raw;
+                      if (raw) {
+                        const fq = raw.FactoryPackQty || raw.factoryPackQty;
+                        if (fq && parseInt(fq) > 0) { detected = parseInt(fq); source = "Cache (raw)"; }
+                      }
+                    }
+                    if (!detected) {
+                      // Check any supplier entry
+                      for (const [k, v] of Object.entries(pr)) {
+                        if (k.startsWith("_") || !v || typeof v !== "object") continue;
+                        const fq = v.reelQty || v.packQty || v.factoryPackQty || v.FactoryPackQty || v.multPackQty || v.MultPackQty;
+                        if (fq && parseInt(fq) > 0) { detected = parseInt(fq); source = `Cache (${k})`; break; }
+                      }
+                    }
+                  }
+                  rows.push({ part: p, detected, source: detected ? source : null, checked: detected != null });
+                }
+                const cacheCount = rows.filter(r => r.detected).length;
+                const checkedIds = new Set(rows.filter(r => r.checked).map(r => r.part.id));
+                setReelFillModal({ phase:"fetching", rows, checkedIds, apiCount:0, cacheCount });
+
+                // Phase 2: Mouser API for parts with MPN but no cache hit
+                if (apiKeys.mouser_api_key) {
+                  const needApi = rows.filter(r => !r.detected && r.part.mpn);
+                  let apiCount = 0;
+                  for (const row of needApi) {
+                    try {
+                      const res = await fetch(
+                        `https://api.mouser.com/api/v1/search/partnumber?apiKey=${apiKeys.mouser_api_key}`,
+                        { method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
+                          body: JSON.stringify({ SearchByPartRequest:{ mouserPartNumber: row.part.mpn, partSearchOptions:"Exact" } }) }
+                      );
+                      if (res.ok) {
+                        const data = await res.json();
+                        const mp = data?.SearchResults?.Parts?.[0];
+                        if (mp) {
+                          const fq = mp.FactoryPackQty || mp.MultPackQty;
+                          if (fq && parseInt(fq) > 0) {
+                            row.detected = parseInt(fq);
+                            row.source = "Mouser API";
+                            row.checked = true;
+                            checkedIds.add(row.part.id);
+                            apiCount++;
+                          }
+                        }
+                      }
+                    } catch(_) {}
+                    setReelFillModal(prev => prev ? { ...prev, rows: [...rows], checkedIds: new Set(checkedIds), apiCount } : null);
+                  }
+                  setReelFillModal(prev => prev ? { ...prev, phase:"preview", rows: [...rows], checkedIds: new Set(checkedIds), apiCount, cacheCount } : null);
+                } else {
+                  setReelFillModal(prev => prev ? { ...prev, phase:"preview" } : null);
+                }
+              }}>Auto-Fill Reel Quantities</button>
               {(apiKeys.mouser_order_api_key || apiKeys.mouser_api_key) && (
                 <button className="btn-ghost btn-sm" onClick={syncMouserOrderHistory}
                   disabled={mouserOrderHistory?.loading}
@@ -8197,7 +8274,7 @@ function BOMManager({ user }) {
                 <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:"#1d1d1f",margin:0 }}>Purchasing</h2>
               </div>
               <p style={{ fontSize:13,color:"#6e6e73",lineHeight:"20px",margin:0 }}>
-                Your checkout page for parts. The build queue aggregates every part needed across all queued products, deduplicates shared components, subtracts current stock, and groups the remaining demand by supplier. Each line item shows tariff exposure by country of origin — use "Skip Tariffed Parts" to hold back tariffed components and order tariff-free parts first. For Mouser orders, "Check Tariffs" queries their Cart API for actual surcharges before you commit. Generate POs, email reps, export CSVs, or push directly to Mouser's cart.
+                Your checkout page for parts. The build queue aggregates every part needed across all queued products, deduplicates shared components, subtracts current stock, and groups the remaining demand by supplier. Each line item shows tariff exposure by country of origin — use "Skip Tariffed Parts" to hold back tariffed components and order tariff-free parts first. For Mouser orders, "Check Tariffs" queries their Cart API for actual surcharges before you commit. Parts priced at or above the reel order threshold prompt a reel vs. cut tape decision with burn-time estimates so you only buy full reels when it makes sense. Generate POs, email reps, export CSVs, or push directly to Mouser's cart.
               </p>
             </div>
 
@@ -8364,80 +8441,132 @@ function BOMManager({ user }) {
                       </div>
                     </div>
                   </div>
-                  {demandList.map((d, idx) => (
-                    <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"14px 22px",
-                      borderBottom:idx<demandList.length-1?"1px solid #f0f0f2":"none",gap:16 }}>
-                      <div style={{ flex:"1 1 200px",minWidth:0 }}>
-                        <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f" }}>{d.part.mpn || d.part.reference || "—"}</div>
-                        <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>
-                          {[d.part.description, d.part.value].filter(Boolean).join(" — ") || ""}
-                          {d.products.length > 0 && (
-                            <span style={{ marginLeft:6 }}>
-                              {d.products.map((p,i) => <span key={i} style={{ color:"#5856d6" }}>{i>0?", ":""}{p.name} ×{p.perUnit}</span>)}
+                  {(() => {
+                    const reelThreshold = parseFloat(apiKeys.reel_order_threshold) || 1.00;
+                    return demandList.map((d, idx) => {
+                      // Determine if this part needs a reel decision (has reelCount AND price >= threshold)
+                      const needsDecision = d.reelCount != null && d.bestPrice >= reelThreshold;
+                      const autoReel = d.reelCount != null && d.bestPrice < reelThreshold;
+                      const decision = reelDecisions[d.part.id]; // 'reel' | 'cut' | undefined
+                      // Burn time: total units needed per day across all queued products for this part
+                      let unitsPerDay = 0;
+                      for (const pp of d.products) {
+                        const prod = products.find(x => x.name === pp.name);
+                        const vel = prod ? salesVelocity[prod.id] : null;
+                        if (vel?.unitsPerDay) unitsPerDay += vel.unitsPerDay * (pp.perUnit || 1);
+                      }
+                      const burnDays = (d.reelQty > 0 && unitsPerDay > 0) ? d.reelQty / unitsPerDay : null;
+                      const burnMonths = burnDays ? burnDays / 30.4 : null;
+                      // Default decision: reel if burn < 18 months, cut if longer or no data
+                      const effectiveDecision = decision || (needsDecision ? (burnMonths == null || burnMonths > 18 ? "cut" : "reel") : (d.reelCount ? "reel" : null));
+                      // Effective qty for cost display
+                      const effectiveQty = needsDecision
+                        ? (effectiveDecision === "cut" ? d.rawNet : d.net)
+                        : d.net;
+                      const effectiveLandedPrice = d.hasTariff ? d.bestPrice * (1 + d.tariffRate / 100) : d.bestPrice;
+                      return (
+                        <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"14px 22px",
+                          borderBottom:idx<demandList.length-1?"1px solid #f0f0f2":"none",gap:16 }}>
+                          <div style={{ flex:"1 1 200px",minWidth:0 }}>
+                            <div style={{ fontSize:15,fontWeight:600,color:"#1d1d1f" }}>{d.part.mpn || d.part.reference || "—"}</div>
+                            <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>
+                              {[d.part.description, d.part.value].filter(Boolean).join(" — ") || ""}
+                              {d.products.length > 0 && (
+                                <span style={{ marginLeft:6 }}>
+                                  {d.products.map((p,i) => <span key={i} style={{ color:"#5856d6" }}>{i>0?", ":""}{p.name} ×{p.perUnit}</span>)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{ flex:"0 0 auto",textAlign:"center",minWidth: needsDecision ? 280 : 90 }}>
+                            <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase",marginBottom:4 }}>Need</div>
+                            {needsDecision ? (
+                              <div style={{ textAlign:"left" }}>
+                                <div style={{ fontSize:11,color:"#ff9500",fontWeight:600,marginBottom:6 }}>
+                                  {!decision && "⚠ "} ${fmtPrice(d.bestPrice)}/pc — confirm order quantity:
+                                </div>
+                                <div style={{ display:"flex",gap:6 }}>
+                                  <button onClick={() => setReelDecisions(prev => ({ ...prev, [d.part.id]: "reel" }))}
+                                    style={{ flex:1,padding:"6px 10px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                                      border:"none",
+                                      background: effectiveDecision === "reel" ? "#0071e3" : "#f5f5f7",
+                                      color: effectiveDecision === "reel" ? "#fff" : "#3a3f51",
+                                      transition:"all 0.15s" }}>
+                                    {effectiveDecision === "reel" ? "● " : "○ "}Full Reel {d.net.toLocaleString()} pcs · ${fmtDollar(d.bestPrice * d.net)}
+                                  </button>
+                                  <button onClick={() => setReelDecisions(prev => ({ ...prev, [d.part.id]: "cut" }))}
+                                    style={{ flex:1,padding:"6px 10px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                                      border:"none",
+                                      background: effectiveDecision === "cut" ? "#0071e3" : "#f5f5f7",
+                                      color: effectiveDecision === "cut" ? "#fff" : "#3a3f51",
+                                      transition:"all 0.15s" }}>
+                                    {effectiveDecision === "cut" ? "● " : "○ "}Cut Tape {d.rawNet.toLocaleString()} pcs · ~${fmtDollar(d.bestPrice * d.rawNet)}
+                                  </button>
+                                </div>
+                                {burnMonths != null && (
+                                  <div style={{ fontSize:10,color:"#86868b",marginTop:4 }}>
+                                    At current velocity: ~{burnMonths < 1 ? Math.round(burnDays) + " days" : burnMonths.toFixed(1) + " months"} to consume full reel
+                                  </div>
+                                )}
+                              </div>
+                            ) : d.reelCount ? (<>
+                              <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.reelCount} reel{d.reelCount!==1?"s":""}</div>
+                              <div style={{ fontSize:10,color:"#86868b" }}>{d.net.toLocaleString()} pcs</div>
+                              {d.net > d.rawNet && <div style={{ fontSize:9,color:"#34c759",fontWeight:600 }}>+{(d.net-d.rawNet).toLocaleString()} surplus</div>}
+                            </>) : (
+                              <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.net.toLocaleString()}</div>
+                            )}
+                          </div>
+                          <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:120 }}>
+                            {d.isInternal
+                              ? <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>IN-HOUSE</span>
+                              : d.isSplitOrder
+                              ? <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
+                                  <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"2px 6px",borderRadius:4,background:"rgba(52,199,89,0.1)",color:"#34c759" }}>SPLIT ORDER</span>
+                                  {d.allocations.map((a, ai) => (
+                                    <div key={ai} style={{ fontSize:9,color:"#6e6e73",whiteSpace:"nowrap" }}>
+                                      {a.supplierName}: {a.qty.toLocaleString()}
+                                      {a.backorderQty > 0 && <span style={{ color:"#ff9500" }}> ({a.backorderQty} backorder)</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              : (() => {
+                                  const supData = d.part.pricing?.[d.bestSupplier];
+                                  const supStock = supData?.stock || 0;
+                                  const hasShortfall = supStock > 0 && supStock < d.net;
+                                  return (
+                                    <div style={{ display:"flex",flexDirection:"column",gap:2,alignItems:"center" }}>
+                                      {d.bestSupplierName && <span style={{ fontSize:10,color:"#86868b" }}>{d.bestSupplierName}</span>}
+                                      {hasShortfall && (
+                                        <span style={{ fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
+                                          Only {supStock.toLocaleString()} in stock — {(d.net - supStock).toLocaleString()} backorder
+                                        </span>
+                                      )}
+                                      {hasShortfall && d.allocations.length <= 1 && (
+                                        <span style={{ fontSize:8,color:"#ff3b30" }}>No alt suppliers found</span>
+                                      )}
+                                    </div>
+                                  );
+                                })()
+                            }
+                          </div>
+                          {d.hasTariff && (
+                            <span style={{ flex:"0 0 auto",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:4,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
+                              {fmtCountry(d.origin)} +{d.tariffRate}%
                             </span>
                           )}
+                          <div style={{ flex:"0 0 auto",textAlign:"right",minWidth:90 }}>
+                            {d.bestPrice > 0
+                              ? <>
+                                  <div style={{ fontSize:18,fontWeight:600,color:d.hasTariff?"#ff9500":"#1d1d1f" }}>{"$"}{fmtDollar(effectiveLandedPrice * effectiveQty)}</div>
+                                  <div style={{ fontSize:11,color:"#86868b" }}>${fmtPrice(d.bestPrice)} ea{d.hasTariff ? ` + $${fmtPrice(effectiveLandedPrice - d.bestPrice)} tariff` : ""}</div>
+                                </>
+                              : <div style={{ fontSize:14,color:"#c7c7cc" }}>—</div>}
+                          </div>
                         </div>
-                      </div>
-                      <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:90 }}>
-                        <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Need</div>
-                        {d.reelCount ? (<>
-                          <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.reelCount} reel{d.reelCount!==1?"s":""}</div>
-                          <div style={{ fontSize:10,color:"#86868b" }}>{d.net.toLocaleString()} pcs</div>
-                          {d.net > d.rawNet && <div style={{ fontSize:9,color:"#34c759",fontWeight:600 }}>+{(d.net-d.rawNet).toLocaleString()} surplus</div>}
-                        </>) : (
-                          <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.net.toLocaleString()}</div>
-                        )}
-                      </div>
-                      <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:120 }}>
-                        {d.isInternal
-                          ? <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>IN-HOUSE</span>
-                          : d.isSplitOrder
-                          ? <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
-                              <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"2px 6px",borderRadius:4,background:"rgba(52,199,89,0.1)",color:"#34c759" }}>SPLIT ORDER</span>
-                              {d.allocations.map((a, ai) => (
-                                <div key={ai} style={{ fontSize:9,color:"#6e6e73",whiteSpace:"nowrap" }}>
-                                  {a.supplierName}: {a.qty.toLocaleString()}
-                                  {a.backorderQty > 0 && <span style={{ color:"#ff9500" }}> ({a.backorderQty} backorder)</span>}
-                                </div>
-                              ))}
-                            </div>
-                          : (() => {
-                              // Single supplier — check if they have enough stock
-                              const supData = d.part.pricing?.[d.bestSupplier];
-                              const supStock = supData?.stock || 0;
-                              const hasShortfall = supStock > 0 && supStock < d.net;
-                              const noStock = supStock === 0 && d.bestSupplierName;
-                              return (
-                                <div style={{ display:"flex",flexDirection:"column",gap:2,alignItems:"center" }}>
-                                  {d.bestSupplierName && <span style={{ fontSize:10,color:"#86868b" }}>{d.bestSupplierName}</span>}
-                                  {hasShortfall && (
-                                    <span style={{ fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
-                                      Only {supStock.toLocaleString()} in stock — {(d.net - supStock).toLocaleString()} backorder
-                                    </span>
-                                  )}
-                                  {hasShortfall && d.allocations.length <= 1 && (
-                                    <span style={{ fontSize:8,color:"#ff3b30" }}>No alt suppliers found</span>
-                                  )}
-                                </div>
-                              );
-                            })()
-                        }
-                      </div>
-                      {d.hasTariff && (
-                        <span style={{ flex:"0 0 auto",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:4,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
-                          {fmtCountry(d.origin)} +{d.tariffRate}%
-                        </span>
-                      )}
-                      <div style={{ flex:"0 0 auto",textAlign:"right",minWidth:90 }}>
-                        {d.bestPrice > 0
-                          ? <>
-                              <div style={{ fontSize:18,fontWeight:600,color:d.hasTariff?"#ff9500":"#1d1d1f" }}>{"$"}{fmtDollar(d.landedPrice * d.net)}</div>
-                              <div style={{ fontSize:11,color:"#86868b" }}>${fmtPrice(d.bestPrice)} ea{d.hasTariff ? ` + $${fmtPrice(d.landedPrice - d.bestPrice)} tariff` : ""}</div>
-                            </>
-                          : <div style={{ fontSize:14,color:"#c7c7cc" }}>—</div>}
-                      </div>
-                    </div>
-                  ))}
+                      );
+                    });
+                  })()}
                 </div>
               )}
 
@@ -17812,6 +17941,17 @@ function BOMManager({ user }) {
                   </div>
                   <p style={{ fontSize:12,color:"#86868b",marginTop:6 }}>If this supplier's price is within the margin % of the cheapest, they win the order automatically.</p>
                 </div>
+                <div style={{ borderTop:"1px solid #f0f0f2",marginTop:16,paddingTop:16 }}>
+                  <label style={{ display:"block",fontSize:13,fontWeight:600,color:"#3a3f51",marginBottom:6 }}>Reel Order Threshold ($/pc)</label>
+                  <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+                    <span style={{ fontSize:13,color:"#3a3f51" }}>$</span>
+                    <input type="number" min="0" step="0.01" style={{ width:80,padding:"8px 10px",border:"1px solid #d2d2d7",borderRadius:8,fontSize:14,textAlign:"center",boxSizing:"border-box" }}
+                      value={apiKeys.reel_order_threshold ?? "1.00"}
+                      onChange={e => setApiKeys(k => ({ ...k, reel_order_threshold: e.target.value }))} />
+                    <span style={{ fontSize:13,color:"#3a3f51" }}>per unit</span>
+                  </div>
+                  <p style={{ fontSize:12,color:"#86868b",marginTop:6 }}>Parts at or above this price per unit will prompt for reel vs. cut tape in Purchasing. Parts below this threshold always order the full reel automatically.</p>
+                </div>
                 {sectionSaveBtn("company", "Company Info")}
               </div>}
             </div>
@@ -19605,6 +19745,96 @@ function BOMManager({ user }) {
       {/* QR Label Modal */}
       {qrModalParts && qrModalParts.length > 0 && (
         <QRLabelModal parts={qrModalParts} products={products} onClose={() => setQrModalParts(null)} />
+      )}
+
+      {/* ── Auto-Fill Reel Quantities Modal ── */}
+      {reelFillModal && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setReelFillModal(null); }}>
+          <div style={{ background:"#fff",borderRadius:16,padding:"28px 32px",width:700,maxWidth:"95vw",maxHeight:"80vh",display:"flex",flexDirection:"column",gap:0,boxShadow:"0 20px 60px rgba(0,0,0,0.25)" }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+              <div>
+                <h3 style={{ margin:0,fontSize:18,fontWeight:700,color:"#1d1d1f" }}>Auto-Fill Reel Quantities</h3>
+                {reelFillModal.phase === "scanning" && <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>Scanning pricing cache…</div>}
+                {reelFillModal.phase === "fetching" && <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>Fetching from Mouser API for remaining parts…</div>}
+                {reelFillModal.phase === "preview" && (
+                  <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>
+                    {reelFillModal.cacheCount} found in cache · {reelFillModal.apiCount} fetched from Mouser API
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setReelFillModal(null)}
+                style={{ background:"none",border:"none",fontSize:20,color:"#86868b",cursor:"pointer",lineHeight:1,padding:4 }}>×</button>
+            </div>
+            <div style={{ overflowY:"auto",flex:1,marginBottom:16 }}>
+              {reelFillModal.rows.length === 0 && reelFillModal.phase !== "scanning" && (
+                <div style={{ textAlign:"center",padding:"40px 0",color:"#86868b",fontSize:13 }}>No parts with empty reel quantities found.</div>
+              )}
+              {reelFillModal.rows.length > 0 && (
+                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                  <thead>
+                    <tr style={{ borderBottom:"2px solid #f0f0f2" }}>
+                      <th style={{ textAlign:"left",padding:"6px 8px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>MPN</th>
+                      <th style={{ textAlign:"left",padding:"6px 8px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Description</th>
+                      <th style={{ textAlign:"center",padding:"6px 8px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Current</th>
+                      <th style={{ textAlign:"center",padding:"6px 8px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Detected</th>
+                      <th style={{ textAlign:"left",padding:"6px 8px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Source</th>
+                      <th style={{ textAlign:"center",padding:"6px 8px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Save</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reelFillModal.rows.map(row => (
+                      <tr key={row.part.id} style={{ borderBottom:"1px solid #f5f5f7",opacity:row.detected ? 1 : 0.45 }}>
+                        <td style={{ padding:"6px 8px",fontWeight:600,color:"#1d1d1f" }}>{row.part.mpn || "—"}</td>
+                        <td style={{ padding:"6px 8px",color:"#6e6e73",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{row.part.description || row.part.value || "—"}</td>
+                        <td style={{ padding:"6px 8px",textAlign:"center",color:"#86868b" }}>{row.part.reelQty || "—"}</td>
+                        <td style={{ padding:"6px 8px",textAlign:"center",fontWeight:row.detected?700:400,color:row.detected?"#34c759":"#c7c7cc" }}>
+                          {row.detected ? row.detected.toLocaleString() : "Not found"}
+                        </td>
+                        <td style={{ padding:"6px 8px",color:"#86868b",fontSize:11 }}>{row.source || "—"}</td>
+                        <td style={{ padding:"6px 8px",textAlign:"center" }}>
+                          {row.detected ? (
+                            <input type="checkbox" checked={reelFillModal.checkedIds.has(row.part.id)}
+                              onChange={() => setReelFillModal(prev => {
+                                const next = new Set(prev.checkedIds);
+                                next.has(row.part.id) ? next.delete(row.part.id) : next.add(row.part.id);
+                                return { ...prev, checkedIds: next };
+                              })}
+                              style={{ width:14,height:14,accentColor:"#0071e3",cursor:"pointer" }} />
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            {reelFillModal.phase === "preview" && reelFillModal.checkedIds.size > 0 && (
+              <div style={{ display:"flex",justifyContent:"flex-end",gap:10 }}>
+                <button onClick={() => setReelFillModal(null)}
+                  style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #d2d2d7",background:"transparent",color:"#86868b" }}>
+                  Cancel
+                </button>
+                <button onClick={async () => {
+                    const toSave = reelFillModal.rows.filter(r => r.detected && reelFillModal.checkedIds.has(r.part.id));
+                    for (const row of toSave) {
+                      await dbUpdatePart(row.part.id, { reel_qty: row.detected }, user.id);
+                      setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, reelQty: String(row.detected) } : p));
+                    }
+                    setReelFillModal(null);
+                  }}
+                  style={{ padding:"8px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#0071e3",color:"#fff" }}>
+                  Save {reelFillModal.checkedIds.size} reel {reelFillModal.checkedIds.size === 1 ? "quantity" : "quantities"}
+                </button>
+              </div>
+            )}
+            {(reelFillModal.phase === "scanning" || reelFillModal.phase === "fetching") && (
+              <div style={{ textAlign:"center",padding:"8px 0",color:"#86868b",fontSize:12 }}>
+                {reelFillModal.phase === "scanning" ? "Scanning…" : `Fetching API data… (${reelFillModal.apiCount} found so far)`}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ── Email All POs Modal ── */}
