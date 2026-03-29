@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.80";
-const BUILD_TIME   = "2026-03-29T11:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.81";
+const BUILD_TIME   = "2026-03-29T12:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6112,12 +6112,18 @@ function BOMManager({ user }) {
                           const data = await res.json();
                           const part = data?.data?.supSearchMpn?.results?.[0]?.part;
                           if (part) {
-                            // Find best factory pack qty across all sellers (prefer largest reel/tape value)
+                            // Find best pack qty across all sellers
+                            // Priority: factoryPackQuantity → moq of reel/tape offer → multipackQuantity
                             let bestPack = 0;
                             let bestSeller = "";
                             for (const seller of (part.sellers || [])) {
                               for (const offer of (seller.offers || [])) {
-                                const pq = parseInt(offer.factoryPackQuantity || offer.multipackQuantity) || 0;
+                                const fpq = parseInt(offer.factoryPackQuantity) || 0;
+                                const mpq = parseInt(offer.multipackQuantity) || 0;
+                                const pkg = (offer.packaging || "").toLowerCase();
+                                const isReel = pkg.includes("reel") || pkg.includes("tape");
+                                const moqVal = isReel ? (parseInt(offer.moq) || 0) : 0;
+                                const pq = fpq || moqVal || mpq;
                                 if (pq > bestPack) { bestPack = pq; bestSeller = seller.company?.name || "Nexar"; }
                               }
                             }
