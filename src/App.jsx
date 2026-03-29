@@ -9,11 +9,11 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.35";
-const BUILD_TIME   = "2026-03-28T09:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.40";
+const BUILD_TIME   = "2026-03-28T09:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import QRCode from "qrcode";
 import AuthScreen from "./components/AuthScreen.jsx";
 import QRLabelModal from "./components/QRLabelModal.jsx";
@@ -4565,6 +4565,91 @@ function BOMManager({ user }) {
       setShopifySalesPrices(prev => ({ ...(prev || {}), loading: false, error: e.message }));
     }
   };
+
+  // ── Sales Velocity Calculation ────────────────────────────────────────────────
+  // Returns { [productId]: { unitsPerDay, unitsSold30d, daysOfData } }
+  const calcSalesVelocity = () => {
+    const result = {};
+
+    // Helper: match a BOM product to a Shopify product entry
+    const matchShopify = (bomProd, sp) =>
+      (bomProd.shopifyProductId && bomProd.shopifyProductId === sp.shopifyProductId) ||
+      productMatchesTitle(bomProd, sp.title);
+
+    // Helper: match a BOM product to a Zoho product entry
+    const matchZoho = (bomProd, zp) =>
+      (bomProd.zohoProductId && bomProd.zohoProductId === zp.zohoProductId) ||
+      productMatchesTitle(bomProd, zp.title);
+
+    // Prefer salesHistory (monthly) — look at last 2 full months
+    if (salesHistory?.history?.length > 0) {
+      const sortedMonths = [...salesHistory.history].sort((a, b) => b.month.localeCompare(a.month));
+      // Take up to last 2 months
+      const recent = sortedMonths.slice(0, 2);
+      const totalDays = recent.length * 30; // approximate
+
+      // Aggregate units per product title across channels
+      const titleMap = {}; // title -> totalQty
+      for (const m of recent) {
+        for (const p of (m.products || [])) {
+          const t = (p.title || "").trim().toLowerCase();
+          if (!t) continue;
+          titleMap[t] = (titleMap[t] || 0) + (p.quantity || 0);
+        }
+      }
+
+      for (const prod of products) {
+        let unitsSold = 0;
+        // Try exact title match first, then fuzzy via productMatchesTitle
+        const titleKey = (prod.name || "").trim().toLowerCase();
+        if (titleMap[titleKey] != null) {
+          unitsSold = titleMap[titleKey];
+        } else {
+          // Fuzzy: find any title in the map that productMatchesTitle agrees with
+          for (const [t, qty] of Object.entries(titleMap)) {
+            if (productMatchesTitle(prod, t)) { unitsSold += qty; }
+          }
+        }
+        result[prod.id] = {
+          unitsPerDay: totalDays > 0 ? unitsSold / totalDays : 0,
+          unitsSold30d: totalDays > 0 ? Math.round(unitsSold * (30 / totalDays)) : 0,
+          daysOfData: totalDays,
+        };
+      }
+      return result;
+    }
+
+    // Fallback: use shopifySalesPrices (90-day window) + zohoDemand (unfulfilled as proxy)
+    for (const prod of products) {
+      let unitsSold = 0;
+      let daysOfData = 90;
+
+      if (shopifySalesPrices?.products?.length > 0) {
+        const sp = shopifySalesPrices.products.find(s => matchShopify(prod, s));
+        if (sp) unitsSold += sp.unitsSold || 0;
+      }
+
+      if (zohoDemand?.products?.length > 0) {
+        // Use unfulfilled quantity as rough recent-demand signal, scaled to 90 days
+        const zp = zohoDemand.products.find(z => matchZoho(prod, z));
+        if (zp) unitsSold += zp.totalUnfulfilled || 0;
+      }
+
+      result[prod.id] = {
+        unitsPerDay: daysOfData > 0 ? unitsSold / daysOfData : 0,
+        unitsSold30d: Math.round(unitsSold * (30 / daysOfData)),
+        daysOfData,
+      };
+    }
+    return result;
+  };
+
+  // Memoize velocity (recompute when source data changes)
+  const salesVelocity = useMemo(
+    () => calcSalesVelocity(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [salesHistory, shopifySalesPrices, zohoDemand, products.length]
+  );
 
   // Compute parts demand from Shopify + Zoho orders + product mappings
   const computePartsDemand = () => {
@@ -11315,6 +11400,9 @@ function BOMManager({ user }) {
                 {(zohoDemand?.orders?.length > 0 || shopifyDemand?.orders?.length > 0) && (() => {
                   const __skipWords = ["shipping","gift card","tip","gratuity","donation","insurance","handling","gift wrap","express shipping"];
                   const __isNonProduct = (title) => { const t = (title||"").toLowerCase(); return __skipWords.some(w => t.includes(w)); };
+                  // Build finished goods map for shelf coverage indicators
+                  const fgMap = {};
+                  finishedGoods.forEach(row => { fgMap[row.product_id] = row; });
                   const dismissOrder = (id) => {
                     setDismissedOrders(prev => { const s = new Set(prev); s.add(id); localStorage.setItem("ja_dismissed_orders", JSON.stringify([...s])); return s; });
                   };
@@ -11541,10 +11629,24 @@ function BOMManager({ user }) {
                                       <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
                                         {po.lineItems.map((li,i) => {
                                           const done = li.fulfilled >= li.quantity;
+                                          const remaining = li.quantity - li.fulfilled;
+                                          // Shelf coverage check
+                                          const bomProduct = products.find(p =>
+                                            (po.channel === "Dealer" ? (p.zohoProductId === li.productId || productMatchesTitle(p, li.title)) : (p.shopifyProductId === li.productId || productMatchesTitle(p, li.title)))
+                                          );
+                                          const shelfQty = bomProduct ? (fgMap[bomProduct.id]?.quantity_on_hand ?? 0) : null;
+                                          const covered = shelfQty !== null && shelfQty >= remaining;
                                           return (
-                                            <span key={i} className="badge" style={{ background: done ? "#34c75922" : "#ff950022", color: done ? "#34c759" : "#ff9500", fontSize:10 }}>
-                                              {li.title} ({li.fulfilled}/{li.quantity})
-                                            </span>
+                                            <div key={i} style={{ display:"flex",flexDirection:"column",gap:2 }}>
+                                              <span className="badge" style={{ background: done ? "#34c75922" : "#ff950022", color: done ? "#34c759" : "#ff9500", fontSize:10 }}>
+                                                {li.title} ({li.fulfilled}/{li.quantity})
+                                              </span>
+                                              {shelfQty !== null && !done && (
+                                                <span style={{ fontSize:9,fontWeight:600,color:covered?"#34c759":"#ff3b30",display:"flex",alignItems:"center",gap:2 }}>
+                                                  {covered ? "✓" : "✗"} {shelfQty} on shelf
+                                                </span>
+                                              )}
+                                            </div>
                                           );
                                         })}
                                       </div>
@@ -11601,49 +11703,6 @@ function BOMManager({ user }) {
                                     </td>
                                     <td style={{ padding:"10px 10px",textAlign:"center" }}>
                                       <div style={{ display:"flex",gap:4,justifyContent:"center",flexWrap:"wrap" }}>
-                                        {po.pctComplete < 100 && (
-                                          <button className="btn-primary" style={{ fontSize:10,whiteSpace:"nowrap",padding:"4px 12px" }}
-                                            onClick={async () => {
-                                              const orderRef = po.dealerPO || po.orderName || "";
-                                              let created = 0;
-                                              for (const li of po.lineItems) {
-                                                const remaining = li.quantity - li.fulfilled;
-                                                if (remaining <= 0) continue;
-                                                const bomProduct = products.find(p =>
-                                                  (po.channel === "Dealer" ? (p.zohoProductId === li.productId || productMatchesTitle(p, li.title)) : (p.shopifyProductId === li.productId || productMatchesTitle(p, li.title)))
-                                                );
-                                                if (!bomProduct) continue;
-                                                // Check if a build order already exists for this product + PO
-                                                const existing = buildOrders.find(b => b.product_id === bomProduct.id && b.for_order === orderRef && b.status !== "completed");
-                                                if (existing) continue;
-                                                try {
-                                                  const bo = await createBuildOrder({
-                                                    product_id: bomProduct.id, quantity: remaining, priority: po.due?.urgent ? "high" : "normal",
-                                                    status: "pending", for_order: orderRef,
-                                                    notes: po.customer ? `${po.customer}` : "",
-                                                  });
-                                                  setBuildOrders(prev => [...prev, bo]);
-                                                  // Auto-reserve components from BOM (same as manual build order creation)
-                                                  try {
-                                                    const productParts = parts.filter(p => p.projectId === bomProduct.id);
-                                                    if (productParts.length > 0) {
-                                                      const reservations = productParts.map(p => ({
-                                                        part_id: p.id,
-                                                        reserved_qty: (p.quantity || 1) * bo.quantity,
-                                                      }));
-                                                      const createdRes = await createComponentReservations(bo.id, reservations, user?.id);
-                                                      setComponentReservations(prev => [...prev, ...createdRes]);
-                                                    }
-                                                  } catch (resErr) { console.warn('[po build order] reservations failed:', resErr.message); }
-                                                  created++;
-                                                } catch (err) { console.error("Create build order failed:", err); }
-                                              }
-                                              if (created > 0) alert(`Created ${created} build order${created>1?"s":""}. Go to Production to start building.`);
-                                              else alert("No new build orders needed — either products aren't mapped or build orders already exist for this PO.");
-                                            }}>
-                                            Create Build Orders
-                                          </button>
-                                        )}
                                         {po.pctComplete < 100 && (
                                           <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
                                             onClick={() => {
@@ -11886,39 +11945,12 @@ function BOMManager({ user }) {
                                       </div>
 
                                       {/* Actions */}
-                                      <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                                      <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
                                         {po.pctComplete < 100 && (
-                                          <button className="btn-primary" style={{ fontSize:11,padding:"6px 16px" }}
-                                            onClick={async () => {
-                                              const orderRef = po.dealerPO || po.orderName || "";
-                                              let created = 0;
-                                              for (const li of po.lineItems) {
-                                                const remaining = li.quantity - li.fulfilled;
-                                                if (remaining <= 0) continue;
-                                                const bomProduct = products.find(p => p.zohoProductId === li.productId || productMatchesTitle(p, li.title));
-                                                if (!bomProduct) continue;
-                                                const existing = buildOrders.find(b => b.product_id === bomProduct.id && b.for_order === orderRef && b.status !== "completed");
-                                                if (existing) continue;
-                                                try {
-                                                  const bo = await createBuildOrder({ product_id: bomProduct.id, quantity: remaining, priority: po.due?.urgent ? "high" : "normal", status: "pending", for_order: orderRef, notes: po.customer ? `${po.customer}` : "" });
-                                                  setBuildOrders(prev => [...prev, bo]);
-                                                  // Auto-reserve components from BOM
-                                                  try {
-                                                    const productParts = parts.filter(p => p.projectId === bomProduct.id);
-                                                    if (productParts.length > 0) {
-                                                      const reservations = productParts.map(p => ({ part_id: p.id, reserved_qty: (p.quantity || 1) * bo.quantity }));
-                                                      const createdRes = await createComponentReservations(bo.id, reservations, user?.id);
-                                                      setComponentReservations(prev => [...prev, ...createdRes]);
-                                                    }
-                                                  } catch (resErr) { console.warn('[zoho build order] reservations failed:', resErr.message); }
-                                                  created++;
-                                                } catch (err) { console.error(err); }
-                                              }
-                                              if (created > 0) alert(`Created ${created} build order${created>1?"s":""}. Go to Production to start building.`);
-                                              else alert("No new build orders needed — products aren't mapped or build orders already exist.");
-                                            }}>
-                                            Create Build Orders
-                                          </button>
+                                          <div style={{ fontSize:11,color:"#86868b",fontStyle:"italic",padding:"4px 0" }}>
+                                            Build orders are created automatically when shelf stock falls below your minimum threshold.{" "}
+                                            <button className="btn-ghost" style={{ fontSize:11,padding:"2px 8px" }} onClick={() => { setActiveView("production"); setProdSubTab("shelf"); }}>Set thresholds on Shelf →</button>
+                                          </div>
                                         )}
                                         {po.pctComplete < 100 && (
                                           <button className="btn-ghost" style={{ fontSize:11 }}
@@ -15079,6 +15111,86 @@ function BOMManager({ user }) {
                 <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Finished Goods Shelf</h2>
                 <p style={{ fontSize:14,color:"#86868b",marginBottom:20 }}>Track completed units on the shelf. Units are added automatically when boxing tasks complete.</p>
 
+                {/* ── Restock Needed ── */}
+                {(() => {
+                  const suggestions = products.filter(prod => {
+                    const fg = fgMap[prod.id];
+                    const min = fg?.min_stock;
+                    if (!min || min <= 0) return false; // no threshold set
+                    const qty = fg?.quantity_on_hand ?? 0;
+                    return qty <= min;
+                  }).map(prod => {
+                    const fg = fgMap[prod.id];
+                    const qty = fg?.quantity_on_hand ?? 0;
+                    const min = fg?.min_stock || 0;
+                    const vel = salesVelocity[prod.id];
+                    const vpd = vel?.unitsPerDay || 0;
+                    const unitsSold30d = vel?.unitsSold30d || 0;
+                    const suggested = Math.max(50, Math.ceil(vpd * 30 * 1.5));
+                    const burnDays = vpd > 0 && qty > 0 ? Math.floor(qty / vpd) : null;
+                    return { prod, qty, min, suggested, unitsSold30d, burnDays };
+                  });
+                  if (suggestions.length === 0) return null;
+                  return (
+                    <div style={{ background:"#fff8ee",border:"2px solid #ff9500",borderRadius:14,padding:"20px 24px",marginBottom:24 }}>
+                      <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:16 }}>
+                        <span style={{ fontSize:20 }}>⚠️</span>
+                        <div style={{ fontSize:16,fontWeight:800,color:"#bf6800",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                          Restock Needed — {suggestions.length} product{suggestions.length !== 1 ? "s" : ""} at or below minimum
+                        </div>
+                      </div>
+                      <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14 }}>
+                        {suggestions.map(({ prod, qty, min, suggested, unitsSold30d, burnDays }) => (
+                          <div key={prod.id} style={{ background:"#fff",borderRadius:10,padding:"16px 18px",border:"1px solid #ffd580",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                            <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
+                              <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#ff9500",flexShrink:0 }} />
+                              <div style={{ fontSize:14,fontWeight:700,color:"#1d1d1f" }}>{prod.name}</div>
+                              {prod.brand && <div style={{ fontSize:10,color:"#86868b",marginLeft:"auto",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>{prod.brand}</div>}
+                            </div>
+                            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12,fontSize:12 }}>
+                              <div>
+                                <span style={{ color:"#86868b" }}>Current stock: </span>
+                                <span style={{ fontWeight:700,color:"#ff3b30" }}>
+                                  {qty} units{burnDays !== null ? ` (${burnDays < 1 ? "<1d" : burnDays > 999 ? "999d+" : `${burnDays}d`})` : ""}
+                                </span>
+                              </div>
+                              <div>
+                                <span style={{ color:"#86868b" }}>Min threshold: </span>
+                                <span style={{ fontWeight:700 }}>{min} units</span>
+                              </div>
+                            </div>
+                            <div style={{ background:"#fff8ee",borderRadius:8,padding:"10px 14px",marginBottom:12 }}>
+                              <div style={{ fontSize:13,fontWeight:700,color:"#bf6800" }}>
+                                Suggested build: <span style={{ fontSize:16 }}>{suggested}</span> units
+                              </div>
+                              {unitsSold30d > 0 && (
+                                <div style={{ fontSize:11,color:"#86868b",marginTop:3 }}>
+                                  Based on ~{unitsSold30d} units sold in the last 30 days
+                                </div>
+                              )}
+                              {unitsSold30d === 0 && (
+                                <div style={{ fontSize:11,color:"#86868b",marginTop:3 }}>
+                                  Minimum 50-unit build (no recent sales data)
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => {
+                                setNewBuildOrder(f => ({ ...f, product_id: prod.id, quantity: String(suggested), notes: "Restock build — auto-suggested" }));
+                                setActiveView("production");
+                                setProdSubTab("builds");
+                                setTimeout(() => { document.getElementById("create-build-order-section")?.scrollIntoView({ behavior:"smooth", block:"start" }); }, 100);
+                              }}
+                              style={{ width:"100%",padding:"8px 0",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:"#ff9500",color:"#fff",fontFamily:"inherit" }}>
+                              Create Restock Build →
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Summary cards */}
                 <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))",gap:16,marginBottom:28 }}>
                   {[
@@ -15254,13 +15366,20 @@ function BOMManager({ user }) {
                               const color = shelfColor(fg);
                               const isEditingTarget = !!shelfTargetEdit[prod.id];
                               const statusLabel = color === "#34c759" ? "At Target" : color === "#ff9500" ? "Low" : fg ? "Below Min" : "No Target";
+                              const vel = salesVelocity[prod.id];
+                              const burnDays = vel && vel.unitsPerDay > 0 && qty > 0 ? Math.floor(qty / vel.unitsPerDay) : null;
+                              const burnLabel = burnDays === null ? null : burnDays < 1 ? "<1d" : burnDays > 999 ? "999d+" : `${burnDays}d`;
+                              const burnColor = burnDays !== null && burnDays < 1 ? "#ff3b30" : "#86868b";
                               return (
                                 <tr key={prod.id} style={{ borderBottom:"1px solid #f0f0f2",background: idx%2===0 ? "transparent" : (darkMode?"rgba(255,255,255,0.02)":"rgba(0,0,0,0.01)") }}>
                                   <td style={{ padding:"10px 14px",width:28 }}>
                                     <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color||"#0071e3" }} />
                                   </td>
                                   <td style={{ padding:"10px 14px",fontWeight:600,color:textPrimary }}>{prod.name}</td>
-                                  <td style={{ padding:"10px 14px",fontWeight:800,fontSize:18,color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{qty}</td>
+                                  <td style={{ padding:"10px 14px" }}>
+                                    <span style={{ fontWeight:800,fontSize:18,color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{qty}</span>
+                                    {burnLabel && <div style={{ fontSize:10,color:burnColor,fontWeight:600,marginTop:2 }}>{burnLabel}</div>}
+                                  </td>
                                   <td style={{ padding:"10px 14px" }}>
                                     {isEditingTarget
                                       ? <input type="number" placeholder="Target" value={shelfTargetEdit[prod.id]?.target ?? ""} min="0"
@@ -15922,7 +16041,7 @@ function BOMManager({ user }) {
                 if (orders.length === 0) return (
                   <div style={{ background:cardBg,borderRadius:14,padding:"40px 22px",textAlign:"center",border:cardBorder,marginBottom:20 }}>
                     <div style={{ fontSize:32,marginBottom:8 }}>📦</div>
-                    <div style={{ fontSize:14,color:"#86868b" }}>No orders being tracked yet. Click "Create Build Orders" on a PO in the Demand tab, or set "For Order" when creating build orders manually.</div>
+                    <div style={{ fontSize:14,color:"#86868b" }}>No orders being tracked yet. Set "For Order" when creating build orders manually, or build orders will be auto-created when shelf stock drops below minimum threshold.</div>
                   </div>
                 );
 
