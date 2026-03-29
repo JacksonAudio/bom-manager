@@ -91,6 +91,15 @@ export default async function handler(req, res) {
   return res.status(200).json({ success: true, registration_id: data.id, klaviyo: klaviyoResult });
 }
 
+// ── Pure helpers (exported for testing) ─────────────────────────────────────
+
+export const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+export function splitName(fullName) {
+  const parts = (fullName || "").trim().split(/\s+/);
+  return { firstName: parts[0] || "", lastName: parts.slice(1).join(" ") || "" };
+}
+
 // ── Klaviyo Integration ──────────────────────────────────────────────────────
 
 async function getKlaviyoKey(supabase, brand) {

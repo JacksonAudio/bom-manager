@@ -2,6 +2,16 @@
 // Fetches shipment data, carriers/rates, and creates shipping labels
 // Route via ?action=shipments|carriers|services|rates|create-order|create-label
 
+// ── Pure helpers (exported for testing) ─────────────────────────────────────
+
+// Calculate business lead time in days between order date and ship date
+export function calcLeadTimeDays(orderDate, shipDate) {
+  if (!orderDate || !shipDate) return null;
+  const ordered = new Date(orderDate);
+  const shipped = new Date(shipDate);
+  return Math.max(0, Math.round((shipped - ordered) / 86400000));
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");

@@ -84,7 +84,7 @@ export default async function handler(req, res) {
   }
 }
 
-function mapProduct(p) {
+export function mapProduct(p) {
   const tiPN = p.tiPartNumber || p.genericPartNumber || p.gpn || p.partNumber || "";
 
   // v2 response: pricing is an array with currency + priceBreaks
