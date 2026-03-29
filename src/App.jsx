@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.82";
-const BUILD_TIME   = "2026-03-29T12:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.83";
+const BUILD_TIME   = "2026-03-29T12:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6101,7 +6101,7 @@ function BOMManager({ user }) {
                           { method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
                             body: JSON.stringify({ SearchByPartRequest:{ mouserPartNumber: row.part.mpn, partSearchOptions:"Exact" } }) }
                         );
-                        await new Promise(r => setTimeout(r, 300));
+                        await new Promise(r => setTimeout(r, 2100)); // Mouser limit: 30 calls/min
                         if (res.ok) {
                           const data = await res.json();
                           const mp = data?.SearchResults?.Parts?.[0];
