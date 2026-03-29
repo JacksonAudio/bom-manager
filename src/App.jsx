@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.88";
-const BUILD_TIME   = "2026-03-29T17:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.89";
+const BUILD_TIME   = "2026-03-29T17:18:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -19940,9 +19940,9 @@ function BOMManager({ user }) {
       {valueFillModal && (
         <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)" }}
           onClick={(e) => { if (e.target === e.currentTarget) setValueFillModal(null); }}>
-          <div style={{ background:"#fff",borderRadius:20,padding:"32px 36px",width:760,maxWidth:"95vw",maxHeight:"82vh",display:"flex",flexDirection:"column",gap:0,boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
+          <div style={{ background:"#fff",borderRadius:20,padding:"28px 32px",width:"min(1200px,96vw)",maxHeight:"92vh",display:"flex",flexDirection:"column",gap:0,boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
             {/* Header */}
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20 }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16 }}>
               <div>
                 <h3 style={{ margin:0,fontSize:20,fontWeight:700,color:"#1d1d1f",letterSpacing:"-0.3px" }}>Auto-fill Values from Description</h3>
                 <p style={{ margin:"6px 0 0",fontSize:13,color:"#86868b",lineHeight:"18px" }}>
@@ -19955,7 +19955,7 @@ function BOMManager({ user }) {
                 onMouseLeave={e => e.currentTarget.style.background="#f5f5f7"}>×</button>
             </div>
             {/* Select all / deselect all */}
-            <div style={{ display:"flex",gap:12,marginBottom:12 }}>
+            <div style={{ display:"flex",gap:12,marginBottom:10 }}>
               <button onClick={() => setValueFillModal(prev => ({ ...prev, checkedIds: new Set(prev.rows.map(r => r.part.id)) }))}
                 style={{ fontSize:12,color:"#0071e3",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit" }}>Select all</button>
               <span style={{ color:"#d2d2d7",fontSize:12 }}>·</span>
@@ -19963,13 +19963,28 @@ function BOMManager({ user }) {
                 style={{ fontSize:12,color:"#0071e3",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit" }}>Deselect all</button>
             </div>
             {/* Table */}
-            <div style={{ overflowY:"auto",flex:1,marginBottom:20,borderRadius:12,border:"1px solid #f0f0f2" }}>
-              <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+            <div style={{ overflowY:"auto",flex:1,marginBottom:16,borderRadius:12,border:"1px solid #f0f0f2" }}>
+              <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12,tableLayout:"fixed" }}>
+                <colgroup>
+                  <col style={{ width:"16%" }} />
+                  <col style={{ width:"24%" }} />
+                  <col style={{ width:"10%" }} />
+                  <col style={{ width:"12%" }} />
+                  <col style={{ width:"12%" }} />
+                  <col style={{ width:"12%" }} />
+                  <col style={{ width:"14%" }} />
+                  <col style={{ width:"6%" }} />
+                </colgroup>
                 <thead style={{ position:"sticky",top:0,background:"#f9f9fb",zIndex:1 }}>
                   <tr>
-                    {["MPN","Description","Current Value","Detected Value","Current Voltage","Detected Voltage","Save"].map(h => (
-                      <th key={h} style={{ textAlign: h==="Save"?"center":"left",padding:"10px 12px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e8e8ed",whiteSpace:"nowrap" }}>{h}</th>
-                    ))}
+                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e8e8ed" }}>MPN</th>
+                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e8e8ed" }}>Description</th>
+                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e8e8ed" }}>Cur. Value</th>
+                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#5856d6",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e8e8ed" }}>Det. Value</th>
+                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e8e8ed" }}>Cur. Voltage</th>
+                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#ff9f0a",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e8e8ed" }}>Det. Voltage</th>
+                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e8e8ed" }}>Manufacturer</th>
+                    <th style={{ textAlign:"center",padding:"10px 12px",color:"#86868b",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e8e8ed" }}>Save</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -19977,13 +19992,14 @@ function BOMManager({ user }) {
                     <tr key={row.part.id} style={{ background: i%2===0?"#fff":"#fafafa",transition:"background 0.1s" }}
                       onMouseEnter={e => e.currentTarget.style.background="#f0f6ff"}
                       onMouseLeave={e => e.currentTarget.style.background=i%2===0?"#fff":"#fafafa"}>
-                      <td style={{ padding:"9px 12px",fontWeight:600,color:"#1d1d1f",fontFamily:"monospace",fontSize:11,whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2" }}>{row.part.mpn || "—"}</td>
-                      <td style={{ padding:"9px 12px",color:"#6e6e73",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2" }} title={row.part.description}>{row.part.description || "—"}</td>
-                      <td style={{ padding:"9px 12px",textAlign:"left",color:"#c7c7cc",borderBottom:"1px solid #f0f0f2" }}>{row.part.value || <span style={{ fontStyle:"italic" }}>blank</span>}</td>
-                      <td style={{ padding:"9px 12px",textAlign:"left",fontWeight:row.detectedValue?700:400,color:row.detectedValue?"#5856d6":"#c7c7cc",borderBottom:"1px solid #f0f0f2" }}>{row.detectedValue || <span style={{ color:"#e8e8ed",fontStyle:"italic" }}>—</span>}</td>
-                      <td style={{ padding:"9px 12px",textAlign:"left",color:"#c7c7cc",borderBottom:"1px solid #f0f0f2" }}>{row.part.voltage_rating || <span style={{ fontStyle:"italic" }}>blank</span>}</td>
-                      <td style={{ padding:"9px 12px",textAlign:"left",fontWeight:row.detectedVoltage?700:400,color:row.detectedVoltage?"#ff9f0a":"#c7c7cc",borderBottom:"1px solid #f0f0f2" }}>{row.detectedVoltage || <span style={{ color:"#e8e8ed",fontStyle:"italic" }}>—</span>}</td>
-                      <td style={{ padding:"9px 12px",textAlign:"center",borderBottom:"1px solid #f0f0f2" }}>
+                      <td style={{ padding:"8px 12px",fontWeight:600,color:"#1d1d1f",fontFamily:"monospace",fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2" }} title={row.part.mpn}>{row.part.mpn || "—"}</td>
+                      <td style={{ padding:"8px 12px",color:"#6e6e73",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2",fontSize:11 }} title={row.part.description}>{row.part.description || "—"}</td>
+                      <td style={{ padding:"8px 12px",color:"#c7c7cc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.part.value || <span style={{ fontStyle:"italic",fontSize:10 }}>blank</span>}</td>
+                      <td style={{ padding:"8px 12px",fontWeight:row.detectedValue?700:400,color:row.detectedValue?"#5856d6":"#c7c7cc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.detectedValue || <span style={{ color:"#e8e8ed",fontSize:10 }}>—</span>}</td>
+                      <td style={{ padding:"8px 12px",color:"#c7c7cc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.part.voltage_rating || <span style={{ fontStyle:"italic",fontSize:10 }}>blank</span>}</td>
+                      <td style={{ padding:"8px 12px",fontWeight:row.detectedVoltage?700:400,color:row.detectedVoltage?"#ff9f0a":"#c7c7cc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.detectedVoltage || <span style={{ color:"#e8e8ed",fontSize:10 }}>—</span>}</td>
+                      <td style={{ padding:"8px 12px",color:"#86868b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2",fontSize:11 }} title={row.part.manufacturer}>{row.part.manufacturer || "—"}</td>
+                      <td style={{ padding:"8px 12px",textAlign:"center",borderBottom:"1px solid #f0f0f2" }}>
                         <input type="checkbox" checked={valueFillModal.checkedIds.has(row.part.id)}
                           onChange={() => setValueFillModal(prev => {
                             const next = new Set(prev.checkedIds);
