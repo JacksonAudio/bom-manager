@@ -6,7 +6,7 @@ import crypto from "crypto";
 
 const BASE_URL = "https://lcsc.com/api";
 
-function buildSignature(key, secret, nonce, timestamp) {
+export function buildSignature(key, secret, nonce, timestamp) {
   const str = `key=${key}&nonce=${nonce}&secret=${secret}&timestamp=${timestamp}`;
   return crypto.createHash("sha1").update(str).digest("hex");
 }
@@ -102,7 +102,7 @@ export default async function handler(req, res) {
   }
 }
 
-function formatProduct(p) {
+export function formatProduct(p) {
   // Normalize price breaks from LCSC's productPriceList format
   const priceBreaks = (p.productPriceList || p.priceList || []).map(pb => ({
     breakQty: pb.ladder  || pb.quantity || pb.startQty || 1,

@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
-export default function ScannerView({ parts, products, updatePart, darkMode }) {
+export default function ScannerView({ parts, products, updatePart, darkMode, onStockAdjust, userId }) {
   const bg = darkMode ? '#1c1c1e' : '#fff'
   const border = darkMode ? '#3a3a3e' : '#e5e5ea'
   const borderLight = darkMode ? '#2c2c2e' : '#f0f0f2'
@@ -138,12 +138,17 @@ export default function ScannerView({ parts, products, updatePart, darkMode }) {
     setUpdating(true)
     try {
       await updatePart(scannedPart.id, 'stockQty', String(newQty))
+      const delta = action === 'set' ? null : (action === 'add' ? qtyNum : -qtyNum)
+      // Write inventory transaction if callback is provided
+      if (onStockAdjust && delta !== null) {
+        await onStockAdjust(scannedPart.id, delta, oldQty, newQty, null, userId)
+      }
       const entry = {
         timestamp: new Date(),
         mpn: scannedPart.mpn || scannedPart.reference || '—',
         product: getProductName(scannedPart.projectId),
         action,
-        delta: action === 'set' ? null : (action === 'add' ? qtyNum : -qtyNum),
+        delta,
         oldQty,
         newQty,
       }

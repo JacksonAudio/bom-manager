@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.23";
-const BUILD_TIME   = "2026-03-28T15:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.35";
+const BUILD_TIME   = "2026-03-28T19:21:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -55,8 +55,20 @@ import {
   fetchBoxItems, createBoxItems, updateBoxItem,
   fetchDealers, createDealer, updateDealer, deleteDealer,
   fetchShopOrders, createShopOrder, updateShopOrder, deleteShopOrder,
+  fetchInventoryTransactions, createInventoryTransaction,
+  fetchAllComponentReservations, fetchComponentReservations,
+  createComponentReservations, releaseComponentReservations, consumeComponentReservations,
+  fetchFinishedGoods, upsertFinishedGoods, updateFinishedGoodsTargets,
+  fetchUnitRepairs, createUnitRepair, updateUnitRepair,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
+import {
+  toUSD, fmtCountry, fmtPrice, fmtDollar, getTariffRate,
+  splitCSVLine, parseBOM, isLockedSupplier, getSupplierWebsite,
+  getReelQty, bestPriceSupplier, buildDigiKeyCartUrl,
+  buildPurchaseOrders, buildPOEmailDraft, buildLowStockEmailBody,
+  COUNTRY_NAMES, COUNTRY_ALIAS, LOCKED_SUPPLIERS,
+} from "./utils.js";
 
 // ─────────────────────────────────────────────
 // API CONFIGURATION
@@ -174,14 +186,6 @@ async function fetchExchangeRates() {
   }
 }
 
-// Convert a price from source currency to USD
-function toUSD(price, currency, rates) {
-  if (!currency || currency === "USD" || !rates) return price;
-  const rate = rates[currency];
-  if (!rate) return price; // Unknown currency, assume USD
-  return price / rate;
-}
-
 // ─────────────────────────────────────────────
 // SUPPLIER DISPLAY CONFIG
 // ─────────────────────────────────────────────
@@ -205,27 +209,6 @@ const API_DISTRIBUTORS = new Set([
   "LCSC","Allied Electronics","Newark",
 ]);
 // Only suppliers explicitly added as non-API sources get locked (blocks API price lookups)
-const LOCKED_SUPPLIERS = new Set([
-  "ce dist","cedist","ce-dist","bolt depot","boltdepot",
-]);
-const isLockedSupplier = (supplier) => supplier && LOCKED_SUPPLIERS.has(supplier.toLowerCase().trim());
-
-// Build direct search/product URLs for manual (locked) suppliers
-const getSupplierWebsite = (supplier, mpn) => {
-  if (!supplier) return null;
-  const s = supplier.toLowerCase().trim();
-  const q = mpn ? encodeURIComponent(mpn) : "";
-  if (s === "bolt depot" || s === "boltdepot") {
-    return q ? `https://www.boltdepot.com/Search.aspx?kw=${q}` : "https://www.boltdepot.com";
-  }
-  if (s === "mcmaster" || s === "mcmaster-carr") {
-    return q ? `https://www.mcmaster.com/search/?query=${q}` : "https://www.mcmaster.com";
-  }
-  if (s === "ce dist" || s === "cedist" || s === "ce-dist") {
-    return q ? `https://www.cedist.com/search?q=${q}` : "https://www.cedist.com";
-  }
-  return null;
-};
 
 const NEXAR_DIST_MAP = {
   "Mouser Electronics": "mouser",
@@ -258,118 +241,12 @@ const DIST_COUNTRY = {
   "QuestComponents":"US","SemiStar Electronics":"HK","EBV Elektronik":"DE","WPG Holdings":"TW",
 };
 
-const COUNTRY_NAMES = {
-  US:"United States",CA:"Canada",CN:"China",HK:"Hong Kong",TW:"Taiwan",SG:"Singapore",JP:"Japan",
-  KR:"South Korea",UK:"United Kingdom",GB:"United Kingdom",DE:"Germany",FR:"France",IT:"Italy",
-  NL:"Netherlands",PL:"Poland",AU:"Australia",IN:"India",TH:"Thailand",MY:"Malaysia",PH:"Philippines",
-  VN:"Vietnam",MX:"Mexico",BR:"Brazil",IL:"Israel",SE:"Sweden",CH:"Switzerland",AT:"Austria",
-  CZ:"Czech Republic",HU:"Hungary",IE:"Ireland",DK:"Denmark",FI:"Finland",NO:"Norway",ES:"Spain",
-  PT:"Portugal",BE:"Belgium",RO:"Romania",SK:"Slovakia",SI:"Slovenia",BG:"Bulgaria",HR:"Croatia",
-};
-
-// Format country code → full name (falls back to the code itself)
-const fmtCountry = (code) => { if (!code) return ""; return COUNTRY_NAMES[code.toUpperCase()] || code; };
-
-// Format price: up to 4 decimals, strip trailing zeroes, keep min 2
-const fmtPrice = (v) => { const s = parseFloat(v).toFixed(4); return s.replace(/0{1,2}$/, ""); };
-const fmtDollar = (v) => parseFloat(v).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
-
 // Get country code for a supplier ID (from DIST_COUNTRY or SUPPLIERS)
 const getSupplierCountry = (supplierId) => DIST_COUNTRY[supplierId] || "";
 
-// Get tariff % for a country code given current tariff settings
-const COUNTRY_ALIAS = { "GB":"UK", "UK":"UK" }; // normalize country codes
-const getTariffRate = (countryCode, tariffs) => {
-  if (!countryCode || countryCode === "US") return 0;
-  const code = COUNTRY_ALIAS[countryCode.toUpperCase()] || countryCode.toUpperCase();
-  return tariffs[code] || 0;
-};
-
 // ─────────────────────────────────────────────
-// BOM PARSER
+// BOM PARSER — imported from ./utils.js
 // ─────────────────────────────────────────────
-// RFC 4180-compliant CSV splitter: handles quoted fields containing commas and escaped quotes ("")
-function splitCSVLine(line, delim) {
-  if (delim === "\t") return line.split("\t").map(c => c.replace(/^"|"$/g, "").trim());
-  const cells = [];
-  let cur = "", inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (inQ) {
-      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
-      else if (ch === '"') { inQ = false; }
-      else { cur += ch; }
-    } else {
-      if (ch === '"') { inQ = true; }
-      else if (ch === delim) { cells.push(cur.trim()); cur = ""; }
-      else { cur += ch; }
-    }
-  }
-  cells.push(cur.trim());
-  return cells;
-}
-function parseBOM(raw) {
-  const lines = raw.trim().split(/\r?\n/).filter(Boolean);
-  if (lines.length < 1) return [];
-  const delim = lines[0].includes("\t") ? "\t" : ",";
-  const firstLine = splitCSVLine(lines[0], delim).map((h) => h.replace(/^"|"$/g, "").trim().toLowerCase());
-  // Detect if first line is a header row
-  const hasHeader = firstLine.some((h) => ["pn","mpn","part number","quantity","qty","reference","value","mfr part #"].includes(h));
-  const startIdx = hasHeader ? 1 : 0;
-  const colMap = {
-    reference:    ["reference", "ref", "designator", "refdes", "references"],
-    value:        ["value", "val", "component", "part value"],
-    mpn:          ["mpn", "mfr part #", "manufacturer part", "mfr#", "part number", "pn", "mfr. part #"],
-    quantity:     ["quantity", "qty", "count", "amount"],
-    description:  ["description", "desc", "comment", "notes"],
-    footprint:    ["footprint", "package"],
-    manufacturer: ["manufacturer", "mfr", "mfr."],
-    preferredSupplier: ["preferredsupplier", "preferred_supplier", "supplier", "vendor"],
-    unitCost:     ["unitcost", "unit_cost", "price", "cost"],
-    stockQty:     ["stockqty", "stock_qty", "stock", "in stock"],
-    addedDate:    ["addeddate", "added_date", "added", "created_at", "date"],
-    notes:        ["notes", "purchaseurl", "purchase_url", "sourceurl", "source_url", "reorderurl", "reorder_url"],
-  };
-  // If header detected, map columns; otherwise assume PN,QTY (2-column format)
-  const idx = {};
-  if (hasHeader) {
-    for (const [key, variants] of Object.entries(colMap)) {
-      idx[key] = firstLine.findIndex((h) => variants.some((v) => h.includes(v)));
-    }
-  } else {
-    idx.mpn = 0;
-    idx.quantity = lines[0].split(delim).length > 1 ? 1 : -1;
-    idx.description = lines[0].split(delim).length > 2 ? 2 : -1;
-  }
-  const parts = [];
-  for (let i = startIdx; i < lines.length; i++) {
-    const cells = splitCSVLine(lines[i], delim).map((c) => c.replace(/^"|"$/g, "").trim());
-    if (cells.every((c) => !c)) continue;
-    const get = (key) => (idx[key] >= 0 ? cells[idx[key]] || "" : "");
-    const refRaw = get("reference");
-    const refs = refRaw.split(/[\s,;]+/).filter(Boolean);
-    const mpn = get("mpn");
-    const qty = parseInt(get("quantity")) || refs.length || 1;
-    parts.push({
-      id: `part-${Date.now()}-${i}`,
-      reference: refRaw || mpn, refs, value: get("value"), mpn,
-      description: get("description"), footprint: get("footprint"),
-      manufacturer: get("manufacturer"), quantity: qty,
-      unitCost: get("unitCost") || "", projectId: null, reorderQty: "",
-      stockQty: get("stockQty") || "",
-      preferredSupplier: get("preferredSupplier") || "mouser",
-      addedDate: get("addedDate") || "",
-      notes: get("notes") || "",
-      orderQty: "", flaggedForOrder: false,
-      // Pricing data — populated by API
-      pricing: null,      // { [supplierId]: { unitPrice, stock, moq, priceBreaks: [{qty, price}], url } }
-      pricingStatus: "idle",  // idle | loading | done | error | no-mpn
-      pricingError: "",
-      bestSupplier: null, // supplierId with best price for qty
-    });
-  }
-  return parts;
-}
 
 // ─────────────────────────────────────────────
 // NEXAR / OCTOPART API
@@ -624,16 +501,6 @@ async function mouserGetOrderOptions(orderApiKey, cartKey) {
   return await res.json();
 }
 
-// ─────────────────────────────────────────────
-// DIGIKEY CART URL BUILDER
-// Builds a URL that opens DigiKey with parts pre-loaded into shopping cart
-// ─────────────────────────────────────────────
-function buildDigiKeyCartUrl(items) {
-  // items: [{ partNumber, quantity }]
-  // DigiKey URL format: https://www.digikey.com/ordering/shoppingcart?newproducts=PART1|QTY1,PART2|QTY2
-  const parts = items.map(i => `${encodeURIComponent(i.partNumber)}|${i.quantity}`).join(",");
-  return `https://www.digikey.com/ordering/shoppingcart?newproducts=${parts}`;
-}
 
 // ─────────────────────────────────────────────
 // SUPPLIER QUICK-ORDER URLS
@@ -654,11 +521,6 @@ function getSupplierOrderMode(supplierId, orderModesJson) {
   return modes[supplierId] || "manual";
 }
 
-// Get full reel quantity — uses part's reel_qty field, falls back to pricing data
-function getReelQty(part) {
-  if (part.reelQty && parseInt(part.reelQty) > 0) return parseInt(part.reelQty);
-  return null;
-}
 
 const ORDER_MODE_CONFIG = {
   api:    { label: "API",    color: "#34c759", bg: "rgba(52,199,89,0.12)", description: "Direct API ordering" },
@@ -1019,27 +881,6 @@ async function fetchAllPricing(mpn, quantity, apiKeys, nexarToken, digiKeyToken)
 // ─────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────
-function bestPriceSupplier(pricing, prefId, prefMargin) {
-  if (!pricing) return null;
-  let best = null, bestPrice = Infinity, bestStock = 0;
-  for (const [key, data] of Object.entries(pricing)) {
-    if (key.startsWith("_")) continue;
-    if (data.unitPrice > 0 && data.stock > 0) {
-      if (data.unitPrice < bestPrice || (data.unitPrice === bestPrice && (data.stock||0) > bestStock)) {
-        bestPrice = data.unitPrice; bestStock = data.stock||0; best = key;
-      }
-    }
-  }
-  // If preferred supplier is in stock and within margin%, pick them instead
-  if (prefId && best !== prefId && pricing[prefId]) {
-    const pref = pricing[prefId];
-    const margin = parseFloat(prefMargin) || 0;
-    if (pref.unitPrice > 0 && pref.stock > 0 && pref.unitPrice <= bestPrice * (1 + margin / 100)) {
-      return prefId;
-    }
-  }
-  return best;
-}
 
 function exportPOasCSV(supplier, lines, poNumber) {
   const header = ["PO#","Supplier","MPN","Reference","Description","Value","Manufacturer","Qty Needed","Unit Cost","Extended Cost"].join(",");
@@ -1104,25 +945,6 @@ function printPO(supplier, lines, poNumber, companyInfo) {
   const w = window.open("", "_blank"); w.document.write(html); w.document.close();
 }
 
-function buildPurchaseOrders(parts) {
-  const orderParts = parts.filter((p) => {
-    if (p.isInternal) return false; // internal parts have their own section
-    if (p.flaggedForOrder) return true;
-    const s = parseInt(p.stockQty), r = parseInt(p.reorderQty);
-    return !isNaN(s) && !isNaN(r) && s <= r;
-  });
-  const grouped = {};
-  for (const part of orderParts) {
-    const sid = part.preferredSupplier || "mouser";
-    if (!grouped[sid]) grouped[sid] = [];
-    const stock = parseInt(part.stockQty)||0, reorder = parseInt(part.reorderQty)||0;
-    const needed = part.flaggedForOrder && isNaN(parseInt(part.reorderQty))
-      ? parseInt(part.orderQty)||part.quantity
-      : Math.max(reorder - stock, parseInt(part.orderQty)||1);
-    grouped[sid].push({ ...part, neededQty: needed });
-  }
-  return grouped;
-}
 
 function genPONumber(sid, poName) {
   const d = new Date();
@@ -1131,53 +953,7 @@ function genPONumber(sid, poName) {
   return `JA-PO-${dateStr}-${tag}`;
 }
 
-function buildPOEmailDraft(supplierName, lines, poNumber, companyInfo, contactName) {
-  const coName = companyInfo?.name || "Jackson Audio";
-  const coAddr = companyInfo?.address || "";
-  const subject = `Purchase Order ${poNumber} — ${coName}`;
-  const greeting = contactName ? `Hi ${contactName},` : `Hi ${supplierName} Team,`;
-  const body = [
-    greeting,
-    ``,
-    `Please quote / process the following order:`,
-    ``,
-    `PO #: ${poNumber}`,
-    `Date: ${new Date().toLocaleDateString()}`,
-    ...(coAddr ? [`Ship To:\n${coAddr}`, ``] : [``]),
-    `Part Number | Qty | Description`,
-    `-----------|-----|------------`,
-    ...lines.map(l => `${l.mpn} | ${l.neededQty.toLocaleString()} | ${l.description || l.value || ""}`),
-    ``,
-    `Please confirm availability, lead time, and total cost.`,
-    ``,
-    `Thank you,`,
-    coName,
-  ].join("\n");
-  return { subject, body };
-}
 
-function buildLowStockEmailBody(lowParts) {
-  if (!lowParts.length) return null;
-  const lines = lowParts.map(p => {
-    const stock = parseInt(p.stockQty)||0;
-    const reorder = parseInt(p.reorderQty)||0;
-    return `  ${p.mpn || p.reference} — Stock: ${stock}, Reorder point: ${reorder}, Need: ${Math.max(reorder-stock,0)}`;
-  });
-  return [
-    `Good morning,`,
-    ``,
-    `${lowParts.length} part${lowParts.length!==1?"s are":" is"} at or below reorder level:`,
-    ``,
-    ...lines,
-    ``,
-    `Would you like me to generate a list of POs and draft emails for you?`,
-    ``,
-    `Log in to review and take action:`,
-    `https://jackson-bom.vercel.app`,
-    ``,
-    `— Jackson Audio BOM Manager`,
-  ].join("\n");
-}
 
 // ─────────────────────────────────────────────
 // CSS
@@ -1470,6 +1246,9 @@ function BOMManager({ user }) {
   const [compSearchDescPrefix, setCompSearchDescPrefix] = useState("");
   const [compSearchLimit, setCompSearchLimit] = useState("10");
   const [compSearchSource, setCompSearchSource] = useState("auto"); // "auto" | "mouser" | "nexar"
+  const [mmSearchMpn,   setMmSearchMpn]   = useState("");
+  const [mmSearchResult, setMmSearchResult] = useState(null);  // null | { ...result } | { error: string }
+  const [mmSearchLoading, setMmSearchLoading] = useState(false);
   const [compSort, setCompSort] = useState({ field: "value", asc: true }); // sortable columns in component library
   const [compTariffFreeOnly, setCompTariffFreeOnly] = useState(false); // filter component library to tariff-free parts
   const [nexarUsed, setNexarUsed] = useState(() => { try { return parseInt(localStorage.getItem("nexar_used")||"6557"); } catch { return 6557; } });
@@ -1629,6 +1408,27 @@ function BOMManager({ user }) {
   const [boxingBusy, setBoxingBusy] = useState(false);
   const [boxingFilter, setBoxingFilter] = useState("active"); // "active" | "completed" | "all"
 
+  // ── Component Reservations state
+  const [componentReservations, setComponentReservations] = useState([]); // all active reservations
+  const [txHistoryOpen, setTxHistoryOpen] = useState({}); // { [partId]: bool }
+  const [txHistory, setTxHistory] = useState({}); // { [partId]: [] }
+  const [txHistoryLoading, setTxHistoryLoading] = useState({}); // { [partId]: bool }
+  const [releaseHoldConfirm, setReleaseHoldConfirm] = useState(null); // build_order_id awaiting confirmation
+
+  // ── Finished Goods (shelf) state
+  const [finishedGoods, setFinishedGoods] = useState([]); // array of finished_goods rows
+  const [finishedGoodsBusy, setFinishedGoodsBusy] = useState(false);
+  const [shelfAddModal, setShelfAddModal] = useState(null); // { productId, action: 'add'|'remove' }
+  const [shelfAdjQty, setShelfAdjQty] = useState("");
+  const [shelfAdjNotes, setShelfAdjNotes] = useState("");
+  const [shelfTargetEdit, setShelfTargetEdit] = useState({}); // { [productId]: { target, min } }
+  const [shelfScanMode, setShelfScanMode] = useState(false); // scan-out mode on shelf tab
+  const [shelfScanProduct, setShelfScanProduct] = useState(""); // product_id selected in scan-out
+  const [shelfScanQty, setShelfScanQty] = useState("1");
+  const [feasibilityResults, setFeasibilityResults] = useState(null); // results from "What Can I Build?" check
+  const [feasibilityLoading, setFeasibilityLoading] = useState(false);
+  const [toasts, setToasts] = useState([]); // [{ id, message, color }]
+
   // ── Pedal Units (individual serialized unit tracking)
   const [pedalUnits, setPedalUnits] = useState([]);
   const [pipelineFilter, setPipelineFilter] = useState("all"); // "all" | status filter
@@ -1682,6 +1482,13 @@ function BOMManager({ user }) {
   const qtyTimers = useRef({}); // debounce timers for qty→price refresh
   const simTimer = useRef(null); // debounce timer for sim auto-run
   const recentLocalWrites = useRef(new Set()); // part IDs written locally — skip realtime for these
+
+  // ── Toast notification helper
+  const showToast = (message, color = "#34c759") => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, message, color }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+  };
 
   // Settings per-section save button helper
   const sectionSaveBtn = (sectionId, label) => (
@@ -1942,6 +1749,10 @@ function BOMManager({ user }) {
 
         // Load boxing tasks from DB
         fetchBoxingTasks().then(rows => setBoxingTasks(rows || [])).catch(() => {});
+
+        // Load component reservations, finished goods from DB
+        fetchAllComponentReservations().then(rows => setComponentReservations(rows || [])).catch(() => {});
+        fetchFinishedGoods().then(rows => setFinishedGoods(rows || [])).catch(() => {});
 
         // Load pedal units and registrations from DB
         fetchPedalUnits().then(rows => setPedalUnits(rows || [])).catch(() => {});
@@ -2418,6 +2229,7 @@ function BOMManager({ user }) {
     } else {
       // PASSED — Auto-assign to boxing
       await autoAssignBoxing(unit);
+      showToast(`Unit ${unit.serial_number || ""} passed — moved to boxing queue`, "#34c759");
     }
   };
 
@@ -5361,7 +5173,22 @@ function BOMManager({ user }) {
                 The final step — when parts arrive, scan barcodes to update stock instantly or upload supplier invoices for AI-powered extraction. This closes the loop on your purchase orders, keeps inventory accurate in real time, and means your team on the floor always has the latest stock counts without manual data entry.
               </p>
             </div>
-            <ScannerView parts={parts} products={products} updatePart={updatePart} darkMode={darkMode} />
+            <ScannerView parts={parts} products={products} updatePart={updatePart} darkMode={darkMode}
+              onStockAdjust={async (partId, delta, oldQty, newQty, notes, userId) => {
+                try {
+                  await createInventoryTransaction({
+                    part_id: partId,
+                    type: 'adjustment',
+                    quantity_delta: delta,
+                    quantity_before: oldQty,
+                    quantity_after: newQty,
+                    reference_type: 'scan',
+                    notes: notes || 'Scanner stock adjustment',
+                    created_by: userId || user?.id,
+                  });
+                } catch (e) { console.warn('[scanner] tx write failed:', e.message); }
+              }}
+              userId={user?.id} />
 
             {/* ── Invoice Scanning Section */}
             <div style={{ maxWidth:600,margin:"16px auto 0" }}>
@@ -6651,11 +6478,120 @@ function BOMManager({ user }) {
                   );})()}
 
                   {compSearchLoading && (
-                    <div style={{ textAlign:"center",padding:"20px",color:"#86868b",fontSize:13 }}>Searching Mouser...</div>
+                    <div style={{ textAlign:"center",padding:"20px",color:"#86868b",fontSize:13 }}>Searching {compSearchSource === "mouser" || (compSearchSource === "auto" && apiKeys.mouser_api_key) ? "Mouser" : "Nexar"}...</div>
                   )}
                 </div>
               );
             })()}
+
+            {/* ── McMaster-Carr MPN Lookup */}
+            <div style={{ marginBottom:12,padding:"16px 20px",background:"#fff",borderRadius:10,border:"1px solid #f5d0d0",boxShadow:"0 1px 4px rgba(200,24,30,0.07)" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:4 }}>
+                <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,background:"#c8181e",color:"#fff",fontWeight:800,fontSize:11,letterSpacing:"-0.5px",flexShrink:0 }}>MC</span>
+                <div style={{ fontSize:14,fontWeight:700,color:"#c8181e" }}>McMaster-Carr Lookup</div>
+              </div>
+              <p style={{ color:"#86868b",fontSize:12,marginBottom:12 }}>Look up a McMaster-Carr part number directly — returns price breaks, description, and a product link. Cert auth is handled server-side.</p>
+              <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
+                <div style={{ flex:1,position:"relative",minWidth:160 }}>
+                  <input type="text" value={mmSearchMpn} onChange={e => setMmSearchMpn(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && mmSearchMpn.trim()) {
+                        setMmSearchResult(null);
+                        setMmSearchLoading(true);
+                        fetch(`/api/search-components?action=mcmaster&mpn=${encodeURIComponent(mmSearchMpn.trim())}`)
+                          .then(r => r.json())
+                          .then(d => setMmSearchResult(d))
+                          .catch(err => setMmSearchResult({ error: err.message }))
+                          .finally(() => setMmSearchLoading(false));
+                      }
+                    }}
+                    placeholder="McMaster part number (e.g. 91251A542)"
+                    style={{ width:"100%",padding:"9px 12px",paddingRight:mmSearchMpn?28:12,borderRadius:8,fontSize:13,border:"1px solid #f5d0d0",boxSizing:"border-box",fontFamily:"inherit" }} />
+                  {mmSearchMpn && <span onClick={() => { setMmSearchMpn(""); setMmSearchResult(null); }}
+                    style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#86868b",lineHeight:1 }}>✕</span>}
+                </div>
+                <button onClick={() => {
+                  if (!mmSearchMpn.trim()) return;
+                  setMmSearchResult(null);
+                  setMmSearchLoading(true);
+                  fetch(`/api/search-components?action=mcmaster&mpn=${encodeURIComponent(mmSearchMpn.trim())}`)
+                    .then(r => r.json())
+                    .then(d => setMmSearchResult(d))
+                    .catch(err => setMmSearchResult({ error: err.message }))
+                    .finally(() => setMmSearchLoading(false));
+                }} disabled={mmSearchLoading || !mmSearchMpn.trim()}
+                  style={{ padding:"9px 20px",borderRadius:980,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                    border:"none",background:"#c8181e",color:"#fff",opacity:mmSearchLoading||!mmSearchMpn.trim()?"0.5":"1",whiteSpace:"nowrap" }}>
+                  {mmSearchLoading ? "Looking up…" : "Look Up"}
+                </button>
+              </div>
+
+              {/* Result */}
+              {mmSearchResult && (() => {
+                if (mmSearchResult.error) {
+                  return (
+                    <div style={{ marginTop:12,padding:"10px 14px",background:"rgba(255,59,48,0.06)",border:"1px solid rgba(255,59,48,0.2)",borderRadius:8,fontSize:12,color:"#ff3b30" }}>
+                      <div>{mmSearchResult.error}</div>
+                      {mmSearchResult.raw && <div style={{ marginTop:6,fontFamily:"monospace",fontSize:11,color:"#86868b",wordBreak:"break-all" }}>{mmSearchResult.raw}</div>}
+                    </div>
+                  );
+                }
+                const r = mmSearchResult;
+                return (
+                  <div style={{ marginTop:12,padding:"14px 16px",background:"rgba(200,24,30,0.04)",border:"1px solid rgba(200,24,30,0.15)",borderRadius:8 }}>
+                    <div style={{ display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-start" }}>
+                      <div style={{ flex:"0 0 auto" }}>
+                        <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Part Number</div>
+                        <div style={{ fontFamily:"'SF Mono',monospace",fontWeight:700,fontSize:14,color:"#c8181e" }}>{r.mpn}</div>
+                      </div>
+                      <div style={{ flex:"1 1 200px" }}>
+                        <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Description</div>
+                        <div style={{ fontSize:12,color:"#1d1d1f",lineHeight:"18px" }}>{r.description || "—"}</div>
+                      </div>
+                      <div style={{ flex:"0 0 auto" }}>
+                        <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Unit Price</div>
+                        <div style={{ fontWeight:700,fontSize:14,color:"#1d1d1f" }}>{r.unitPrice > 0 ? `$${r.unitPrice.toFixed(4)}` : "—"}</div>
+                      </div>
+                      <div style={{ flex:"0 0 auto" }}>
+                        <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>MOQ</div>
+                        <div style={{ fontSize:12,color:"#1d1d1f" }}>{r.moq ?? "—"}</div>
+                      </div>
+                      <div style={{ flex:"0 0 auto" }}>
+                        <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Origin</div>
+                        <span style={{ fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(52,199,89,0.12)",color:"#34c759" }}>US</span>
+                      </div>
+                    </div>
+
+                    {/* Price breaks */}
+                    {r.priceBreaks && r.priceBreaks.length > 1 && (
+                      <div style={{ marginTop:10 }}>
+                        <div style={{ fontSize:10,color:"#86868b",marginBottom:4 }}>Price Breaks</div>
+                        <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+                          {r.priceBreaks.map((pb, i) => (
+                            <span key={i} style={{ fontSize:11,padding:"3px 8px",borderRadius:4,background:"rgba(200,24,30,0.06)",color:"#c8181e",fontWeight:600 }}>
+                              {pb.qty}+ @ ${pb.price.toFixed(4)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ marginTop:10,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
+                      <a href={r.url} target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize:12,color:"#c8181e",textDecoration:"none",fontWeight:600,display:"inline-flex",alignItems:"center",gap:3 }}>
+                        View on McMaster-Carr ↗
+                      </a>
+                      {r.datasheet && (
+                        <a href={r.datasheet} target="_blank" rel="noopener noreferrer"
+                          style={{ fontSize:12,color:"#0071e3",textDecoration:"none",fontWeight:600 }}>
+                          Datasheet ↗
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
 
             {/* ── Bulk-action bar — only visible when parts are selected */}
             {selectedParts.size > 0 && (
@@ -6793,6 +6729,9 @@ function BOMManager({ user }) {
                     {visibleParts.map((part,i) => {
                       const sn=parseInt(part.stockQty)||0,rn=parseInt(part.reorderQty);
                       const isLow = !isNaN(rn)&&rn>0&&sn<=rn;
+                      const partActiveReservations = componentReservations.filter(r => r.part_id === part.id && r.status === 'active');
+                      const totalPartReserved = partActiveReservations.reduce((s, r) => s + (r.reserved_qty || 0), 0);
+                      const partAvailable = Math.max(0, sn - totalPartReserved);
                       const inputStyle = { width:"100%",padding:"6px 10px",borderRadius:6,fontSize:13,
                         fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                         border:"1px solid transparent",background:"transparent",outline:"none",color:"#1d1d1f",
@@ -6840,6 +6779,11 @@ function BOMManager({ user }) {
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,fontWeight:600,
                                 color:isLow?"#ff3b30":"#1d1d1f" }} min="0" />
+                            {totalPartReserved > 0 && (
+                              <div style={{ fontSize:9,fontWeight:700,color:"#ff9500",marginTop:1,lineHeight:1 }} title={`${totalPartReserved} reserved — ${partAvailable} available`}>
+                                {totalPartReserved} rsv
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding:"6px 8px",width:80 }}>
                             <input type="number" placeholder="0" value={part.reorderQty}
@@ -6897,6 +6841,16 @@ function BOMManager({ user }) {
                                   <div style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Inventory</div>
                                   <div style={{ color:darkMode?"#f5f5f7":"#1d1d1f" }}>
                                     <div>Stock: <strong style={{ color:isLow?"#ff3b30":"#34c759" }}>{sn}</strong></div>
+                                    {(() => {
+                                      const partReservations = componentReservations.filter(r => r.part_id === part.id && r.status === 'active');
+                                      if (partReservations.length === 0) return null;
+                                      const totalReserved = partReservations.reduce((s, r) => s + (r.reserved_qty || 0), 0);
+                                      const available = Math.max(0, sn - totalReserved);
+                                      return (<>
+                                        <div style={{ color:"#ff9500",fontWeight:600 }}>Reserved: {totalReserved}</div>
+                                        <div>Available: <strong style={{ color:available > 0 ? "#34c759" : "#ff3b30" }}>{available}</strong></div>
+                                      </>);
+                                    })()}
                                     <div>Reorder Point: {part.reorderQty || "—"}</div>
                                     <div>Reel Qty: {part.reelQty || "—"}</div>
                                     <div>Unit Cost: {priceAtQty(part) > 0 ? "$"+fmtPrice(priceAtQty(part)) : "—"}</div>
@@ -6959,6 +6913,64 @@ function BOMManager({ user }) {
                                   </div>
                                 ) : null;
                               })()}
+                              {/* Transaction History (collapsible) */}
+                              <div style={{ marginTop:10,paddingTop:10,borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const isOpen = txHistoryOpen[part.id];
+                                    setTxHistoryOpen(prev => ({ ...prev, [part.id]: !isOpen }));
+                                    if (!isOpen && !txHistory[part.id]) {
+                                      setTxHistoryLoading(prev => ({ ...prev, [part.id]: true }));
+                                      try {
+                                        const rows = await fetchInventoryTransactions(part.id);
+                                        setTxHistory(prev => ({ ...prev, [part.id]: rows }));
+                                      } catch (e) { console.error('tx history load failed:', e); }
+                                      setTxHistoryLoading(prev => ({ ...prev, [part.id]: false }));
+                                    }
+                                  }}
+                                  style={{ fontSize:11,fontWeight:700,color:"#0071e3",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit" }}>
+                                  {txHistoryOpen[part.id] ? "▼" : "▶"} Transaction History
+                                </button>
+                                {txHistoryOpen[part.id] && (
+                                  <div style={{ marginTop:8 }}>
+                                    {txHistoryLoading[part.id] ? (
+                                      <div style={{ fontSize:12,color:"#86868b" }}>Loading…</div>
+                                    ) : (txHistory[part.id] || []).length === 0 ? (
+                                      <div style={{ fontSize:12,color:"#86868b" }}>No transactions recorded yet.</div>
+                                    ) : (
+                                      <table style={{ width:"100%",fontSize:11,borderCollapse:"collapse" }}>
+                                        <thead>
+                                          <tr style={{ color:"#86868b",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em" }}>
+                                            <th style={{ textAlign:"left",padding:"4px 6px" }}>Date</th>
+                                            <th style={{ textAlign:"left",padding:"4px 6px" }}>Type</th>
+                                            <th style={{ textAlign:"right",padding:"4px 6px" }}>Delta</th>
+                                            <th style={{ textAlign:"right",padding:"4px 6px" }}>Before</th>
+                                            <th style={{ textAlign:"right",padding:"4px 6px" }}>After</th>
+                                            <th style={{ textAlign:"left",padding:"4px 6px" }}>Notes</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {(txHistory[part.id] || []).map(tx => {
+                                            const delta = tx.quantity_delta || 0;
+                                            const deltaColor = delta > 0 ? "#34c759" : delta < 0 ? "#ff3b30" : "#86868b";
+                                            return (
+                                              <tr key={tx.id} style={{ borderTop:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2") }}>
+                                                <td style={{ padding:"4px 6px",color:"#86868b" }}>{tx.created_at ? new Date(tx.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "—"}</td>
+                                                <td style={{ padding:"4px 6px",fontWeight:600 }}>{tx.type || "—"}</td>
+                                                <td style={{ padding:"4px 6px",textAlign:"right",fontWeight:700,color:deltaColor }}>{delta > 0 ? "+" : ""}{delta}</td>
+                                                <td style={{ padding:"4px 6px",textAlign:"right",color:"#86868b" }}>{tx.quantity_before ?? "—"}</td>
+                                                <td style={{ padding:"4px 6px",textAlign:"right",color:"#86868b" }}>{tx.quantity_after ?? "—"}</td>
+                                                <td style={{ padding:"4px 6px",color:"#86868b",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{tx.notes || "—"}</td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </td>
                           </tr>}
                       </>);
@@ -12794,6 +12806,38 @@ function BOMManager({ user }) {
               // Immediately update local state (don't rely solely on realtime)
               setBuildOrders(prev => prev.find(b => b.id === bo.id) ? prev : [bo, ...prev]);
 
+              // ── Auto-reserve components from BOM
+              try {
+                const productParts = parts.filter(p => p.projectId === bo.product_id);
+                if (productParts.length > 0) {
+                  const reservations = productParts.map(p => ({
+                    part_id: p.id,
+                    reserved_qty: (p.quantity || 1) * bo.quantity,
+                  }));
+                  const createdReservations = await createComponentReservations(bo.id, reservations, user.id);
+                  setComponentReservations(prev => [...prev, ...createdReservations]);
+                  // Write inventory_transactions of type 'reserved' for each part
+                  for (const p of productParts) {
+                    const reservedQty = (p.quantity || 1) * bo.quantity;
+                    const currentStock = parseInt(p.stockQty) || 0;
+                    try {
+                      await createInventoryTransaction({
+                        part_id: p.id,
+                        type: 'reserved',
+                        quantity_delta: -reservedQty,
+                        quantity_before: currentStock,
+                        quantity_after: currentStock, // stockQty unchanged — reservation is tracked separately
+                        reference_type: 'build_order',
+                        reference_id: bo.id,
+                        notes: `Reserved for build order: ${bo.quantity}x ${products.find(pr => pr.id === bo.product_id)?.name || bo.product_id}`,
+                        created_by: user.id,
+                      });
+                    } catch (txErr) { console.warn('[reservations] tx write failed:', txErr.message); }
+                  }
+                  showToast(`Reserved components for ${productParts.length} BOM parts`, "#0071e3");
+                }
+              } catch (resErr) { console.warn('[reservations] create failed:', resErr.message); }
+
               if (newBuildOrder.team_member_id) {
                 const ba = await createBuildAssignment({
                   build_order_id: bo.id,
@@ -12880,14 +12924,35 @@ function BOMManager({ user }) {
                 if (bo.status === "pending" || bo.status === "assigned") {
                   await updateBuildOrder(bo.id, { status: "in-progress" });
                 }
-                // Deduct stock for all parts
+                // Deduct stock for all parts and write inventory transactions
                 const productParts = parts.filter(p => p.projectId === bo.product_id);
                 for (const part of productParts) {
                   const currentStock = parseInt(part.stockQty) || 0;
                   const deduction = (part.quantity || 1) * bo.quantity;
                   const newStock = Math.max(0, currentStock - deduction);
                   await updatePart(part.id, "stockQty", String(newStock));
+                  // Write used_in_build transaction
+                  try {
+                    await createInventoryTransaction({
+                      part_id: part.id,
+                      type: 'used_in_build',
+                      quantity_delta: -deduction,
+                      quantity_before: currentStock,
+                      quantity_after: newStock,
+                      reference_type: 'build_order',
+                      reference_id: bo.id,
+                      notes: `Used in build: ${bo.quantity}x ${products.find(pr => pr.id === bo.product_id)?.name || bo.product_id}`,
+                      created_by: user?.id,
+                    });
+                  } catch (txErr) { console.warn('[build_complete] tx write failed:', txErr.message); }
                 }
+                // Mark reservations as consumed
+                try {
+                  await consumeComponentReservations(bo.id);
+                  setComponentReservations(prev => prev.map(r =>
+                    r.build_order_id === bo.id && r.status === 'active' ? { ...r, status: 'consumed' } : r
+                  ));
+                } catch (resErr) { console.warn('[build_complete] consume reservations failed:', resErr.message); }
                 await updateBuildOrder(bo.id, { status: "completed", completed_count: newCount });
                 setBuildOrders(prev => prev.map(b => b.id === bo.id ? { ...b, status: "completed", completed_count: newCount, updated_at: new Date().toISOString() } : b));
                 const assignment = buildAssignments.find(a => a.build_order_id === bo.id && a.status !== "completed");
@@ -12959,6 +13024,38 @@ function BOMManager({ user }) {
             } catch (e) { console.error("Delete build order failed:", e); }
           };
 
+          const handleReleaseHold = async (boId) => {
+            try {
+              const boReservations = componentReservations.filter(r => r.build_order_id === boId && r.status === 'active');
+              await releaseComponentReservations(boId, user.id);
+              setComponentReservations(prev => prev.map(r =>
+                r.build_order_id === boId && r.status === 'active'
+                  ? { ...r, status: 'released', released_at: new Date().toISOString(), released_by: user.id }
+                  : r
+              ));
+              // Write reservation_released transactions
+              for (const res of boReservations) {
+                const part = parts.find(p => p.id === res.part_id);
+                const currentStock = parseInt(part?.stockQty) || 0;
+                try {
+                  await createInventoryTransaction({
+                    part_id: res.part_id,
+                    type: 'reservation_released',
+                    quantity_delta: res.reserved_qty,
+                    quantity_before: currentStock,
+                    quantity_after: currentStock, // stockQty unchanged
+                    reference_type: 'build_order',
+                    reference_id: boId,
+                    notes: `Reservation released`,
+                    created_by: user.id,
+                  });
+                } catch (txErr) { console.warn('[release_hold] tx write failed:', txErr.message); }
+              }
+              setReleaseHoldConfirm(null);
+              showToast(`Released ${boReservations.length} component reservations`, "#ff9500");
+            } catch (e) { alert("Release hold failed: " + e.message); }
+          };
+
           const priorityColors = { low:"#86868b", normal:"#0071e3", high:"#ff9500", urgent:"#ff3b30" };
           const statusColors = { pending:"#86868b", assigned:"#0071e3", "in-progress":"#ff9500", completed:"#34c759" };
           const inputStyle = { fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:"1px solid #d2d2d7", outline:"none", transition:"border 0.15s", width:"100%" };
@@ -12976,6 +13073,7 @@ function BOMManager({ user }) {
                 { id:"builds", label:"Build Orders", count: activeOrders.length },
                 { id:"playtesting", label:"Play Testing", count: playTests.filter(t=>t.status!=="returned").length },
                 { id:"boxing", label:"Boxing", count: boxingTasks.filter(t=>t.status!=="completed").length },
+                { id:"shelf", label:"Shelf", count: 0 },
               ].map(sub => (
                 <button key={sub.id} onClick={() => setProdSubTab(sub.id)}
                   style={{
@@ -13675,6 +13773,9 @@ function BOMManager({ user }) {
                     const startedAt = assignment?.started_at ? new Date(assignment.started_at) : null;
                     const elapsed = startedAt ? (Date.now() - startedAt) / 3600000 : 0;
 
+                    const boReservations = componentReservations.filter(r => r.build_order_id === bo.id && r.status === 'active');
+                    const hasReservations = boReservations.length > 0;
+
                     return (
                       <div key={bo.id} style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,
                         boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:isOverdue?`2px solid #ff3b30`:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
@@ -13808,6 +13909,33 @@ function BOMManager({ user }) {
                                 <button className="btn-ghost btn-sm" onClick={() => { setScrapFormOpen(null); setScrapForm({ quantity:1, category:"other", notes:"" }); }}
                                   style={{ height:37 }}>Cancel</button>
                               </div>
+                            </div>
+                          )}
+
+                          {/* Reservation info */}
+                          {hasReservations && (
+                            <div style={{ marginTop:8,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+                              <span style={{ fontSize:11,padding:"2px 10px",borderRadius:980,background:"#0071e318",color:"#0071e3",fontWeight:700 }}>
+                                {boReservations.length} parts reserved
+                              </span>
+                              {releaseHoldConfirm === bo.id ? (
+                                <>
+                                  <span style={{ fontSize:12,color:"#ff9500",fontWeight:600 }}>Release all holds?</span>
+                                  <button onClick={() => handleReleaseHold(bo.id)}
+                                    style={{ fontSize:11,padding:"3px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#ff9500",color:"#fff" }}>
+                                    Confirm
+                                  </button>
+                                  <button onClick={() => setReleaseHoldConfirm(null)}
+                                    style={{ fontSize:11,padding:"3px 12px",borderRadius:980,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <button onClick={() => setReleaseHoldConfirm(bo.id)}
+                                  style={{ fontSize:11,padding:"3px 12px",borderRadius:980,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                                  Release Hold
+                                </button>
+                              )}
                             </div>
                           )}
 
@@ -14505,9 +14633,21 @@ function BOMManager({ user }) {
                             const newCount = (task.completed_count || 0) + 1;
                             const updates = { completed_count: newCount };
                             if (task.status === "pending") { updates.status = "in_progress"; updates.started_at = new Date().toISOString(); }
-                            if (newCount >= task.quantity) { updates.status = "completed"; updates.completed_at = new Date().toISOString(); }
+                            const justCompleted = newCount >= task.quantity;
+                            if (justCompleted) { updates.status = "completed"; updates.completed_at = new Date().toISOString(); }
                             await updateBoxingTask(task.id, updates);
                             setBoxingTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t));
+                            if (justCompleted && task.product_id) {
+                              try {
+                                const updated = await upsertFinishedGoods(task.product_id, newCount, user.id);
+                                setFinishedGoods(prev => {
+                                  const existing = prev.find(r => r.product_id === task.product_id);
+                                  return existing ? prev.map(r => r.product_id === task.product_id ? updated : r) : [...prev, updated];
+                                });
+                                const prod = products.find(p => p.id === task.product_id);
+                                showToast(`${newCount} ${prod?.name || ''} added to shelf`, "#34c759");
+                              } catch (e) { console.warn('[boxing complete] shelf update failed:', e.message); }
+                            }
                           }} style={{ fontSize:13,padding:"8px 16px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,
                             background:"#34c759",color:"#fff" }}>
                             +1 Boxed
@@ -14519,9 +14659,21 @@ function BOMManager({ user }) {
                             const newCount = Math.min((task.completed_count || 0) + parseInt(amt), task.quantity);
                             const updates = { completed_count: newCount };
                             if (task.status === "pending") { updates.status = "in_progress"; updates.started_at = new Date().toISOString(); }
-                            if (newCount >= task.quantity) { updates.status = "completed"; updates.completed_at = new Date().toISOString(); }
+                            const justCompleted = newCount >= task.quantity;
+                            if (justCompleted) { updates.status = "completed"; updates.completed_at = new Date().toISOString(); }
                             await updateBoxingTask(task.id, updates);
                             setBoxingTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t));
+                            if (justCompleted && task.product_id) {
+                              try {
+                                const updated = await upsertFinishedGoods(task.product_id, newCount, user.id);
+                                setFinishedGoods(prev => {
+                                  const existing = prev.find(r => r.product_id === task.product_id);
+                                  return existing ? prev.map(r => r.product_id === task.product_id ? updated : r) : [...prev, updated];
+                                });
+                                const prod = products.find(p => p.id === task.product_id);
+                                showToast(`${newCount} ${prod?.name || ''} added to shelf`, "#34c759");
+                              } catch (e) { console.warn('[boxing complete] shelf update failed:', e.message); }
+                            }
                           }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,
                             background:darkMode?"#2c2c2e":"#f0f0f2",color:textPrimary }}>
                             +N
@@ -14570,6 +14722,315 @@ function BOMManager({ user }) {
             })}
           </div>
           );
+            })()}
+
+            {/* ══ SHELF subtab ══ */}
+            {prodSubTab === "shelf" && (() => {
+              const cardBg = darkMode ? "#1c1c1e" : "#fff";
+              const cardBorder = darkMode ? "1px solid #3a3a3e" : "1px solid #e5e5ea";
+              const textPrimary = darkMode ? "#f5f5f7" : "#1d1d1f";
+              const inputStyle2 = { fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7", outline:"none", background:darkMode?"#2c2c2e":"#fff", color:textPrimary, width:"100%" };
+
+              // Build a map of productId → finishedGoods row
+              const fgMap = {};
+              finishedGoods.forEach(row => { fgMap[row.product_id] = row; });
+
+              const shelfColor = (row) => {
+                if (!row) return "#86868b";
+                const qty = row.quantity_on_hand || 0;
+                const min = row.min_stock;
+                const target = row.target_stock;
+                if (min == null && target == null) return "#86868b";
+                if (qty <= (min || 0)) return "#ff3b30";
+                if (target != null && qty < target) return "#ff9500";
+                return "#34c759";
+              };
+
+              const handleShelfAdj = async () => {
+                if (!shelfAddModal?.productId || !shelfAdjQty) return;
+                setFinishedGoodsBusy(true);
+                try {
+                  const delta = shelfAddModal.action === 'add' ? parseInt(shelfAdjQty) : -parseInt(shelfAdjQty);
+                  const updated = await upsertFinishedGoods(shelfAddModal.productId, delta, user.id);
+                  setFinishedGoods(prev => {
+                    const existing = prev.find(r => r.product_id === shelfAddModal.productId);
+                    return existing ? prev.map(r => r.product_id === shelfAddModal.productId ? updated : r) : [...prev, updated];
+                  });
+                  const prod = products.find(p => p.id === shelfAddModal.productId);
+                  showToast(`${shelfAddModal.action === 'add' ? '+' : '-'}${Math.abs(delta)} ${prod?.name || ''} on shelf`, shelfAddModal.action === 'add' ? "#34c759" : "#ff9500");
+                  setShelfAddModal(null);
+                  setShelfAdjQty("");
+                  setShelfAdjNotes("");
+                } catch (e) { alert("Shelf update failed: " + e.message); }
+                setFinishedGoodsBusy(false);
+              };
+
+              const handleShelfTargetSave = async (productId) => {
+                const vals = shelfTargetEdit[productId];
+                if (!vals) return;
+                try {
+                  const updated = await updateFinishedGoodsTargets(productId, {
+                    target_stock: vals.target !== "" ? parseInt(vals.target) : null,
+                    min_stock: vals.min !== "" ? parseInt(vals.min) : null,
+                  }, user.id);
+                  setFinishedGoods(prev => {
+                    const existing = prev.find(r => r.product_id === productId);
+                    return existing ? prev.map(r => r.product_id === productId ? updated : r) : [...prev, updated];
+                  });
+                  setShelfTargetEdit(prev => { const n = { ...prev }; delete n[productId]; return n; });
+                } catch (e) { alert("Save failed: " + e.message); }
+              };
+
+              // Feasibility check
+              const handleFeasibilityCheck = async () => {
+                setFeasibilityLoading(true);
+                const results = [];
+                for (const prod of products) {
+                  const bomParts = parts.filter(p => p.projectId === prod.id);
+                  if (bomParts.length === 0) continue;
+                  let maxBuildable = Infinity;
+                  const constraintPart = { part: null, have: 0, need: 0 };
+                  const blockingParts = [];
+                  for (const part of bomParts) {
+                    const stock = parseInt(part.stockQty) || 0;
+                    const reserved = componentReservations.filter(r => r.part_id === part.id && r.status === 'active').reduce((s, r) => s + (r.reserved_qty || 0), 0);
+                    const available = Math.max(0, stock - reserved);
+                    const needed = parseInt(part.quantity) || 1;
+                    const canBuild = Math.floor(available / needed);
+                    if (canBuild < maxBuildable) {
+                      maxBuildable = canBuild;
+                      constraintPart.part = part;
+                      constraintPart.have = available;
+                      constraintPart.need = needed;
+                    }
+                    if (canBuild === 0) blockingParts.push({ part, have: available, need: needed });
+                  }
+                  if (maxBuildable === Infinity) maxBuildable = 0;
+                  results.push({ product: prod, maxBuildable, constraintPart: constraintPart.part ? constraintPart : null, blockingParts, bomCount: bomParts.length });
+                }
+                results.sort((a, b) => b.maxBuildable - a.maxBuildable);
+                setFeasibilityResults(results);
+                setFeasibilityLoading(false);
+              };
+
+              return (
+              <div style={{ maxWidth:"100%" }}>
+                <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Finished Goods Shelf</h2>
+                <p style={{ fontSize:14,color:"#86868b",marginBottom:20 }}>Track completed units on the shelf. Units are added automatically when boxing tasks complete.</p>
+
+                {/* Summary cards */}
+                <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))",gap:16,marginBottom:28 }}>
+                  {[
+                    { label:"Total Products", value:products.length, color:"#0071e3" },
+                    { label:"Total On Shelf", value:finishedGoods.reduce((s,r)=>s+(r.quantity_on_hand||0),0), color:"#34c759" },
+                    { label:"Below Min Stock", value:finishedGoods.filter(r=>r.min_stock!=null&&(r.quantity_on_hand||0)<=r.min_stock).length, color:"#ff3b30" },
+                    { label:"At/Above Target", value:finishedGoods.filter(r=>r.target_stock!=null&&(r.quantity_on_hand||0)>=r.target_stock).length, color:"#34c759" },
+                  ].map(card => (
+                    <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:cardBorder }}>
+                      <div style={{ fontSize:10,color:"#86868b",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
+                      <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* What Can I Build Today? */}
+                <div style={{ background:cardBg,borderRadius:14,padding:"20px 22px",marginBottom:20,border:cardBorder }}>
+                  <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:feasibilityResults ? 16 : 0 }}>
+                    <div>
+                      <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>What Can I Build Today?</div>
+                      <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>Calculates max units buildable per product based on available stock (minus reservations).</div>
+                    </div>
+                    <button onClick={handleFeasibilityCheck} disabled={feasibilityLoading}
+                      style={{ padding:"10px 24px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#0071e3",color:"#fff",fontFamily:"inherit",whiteSpace:"nowrap" }}>
+                      {feasibilityLoading ? "Calculating…" : "Check Now"}
+                    </button>
+                  </div>
+                  {feasibilityResults && feasibilityResults.length === 0 && (
+                    <div style={{ fontSize:13,color:"#86868b",textAlign:"center",padding:20 }}>No products with BOMs found.</div>
+                  )}
+                  {feasibilityResults && feasibilityResults.length > 0 && (
+                    <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14 }}>
+                      {feasibilityResults.map(r => (
+                        <div key={r.product.id} style={{ background:darkMode?"#2c2c2e":"#f9f9fb",borderRadius:12,padding:"16px 18px",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                          <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:8 }}>
+                            <div style={{ width:8,height:8,borderRadius:"50%",background:r.product.color||"#0071e3" }} />
+                            <div style={{ fontSize:14,fontWeight:700,color:textPrimary }}>{r.product.name}</div>
+                          </div>
+                          <div style={{ fontSize:26,fontWeight:800,color:r.maxBuildable>0?"#34c759":"#ff3b30",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",marginBottom:6 }}>
+                            {r.maxBuildable} <span style={{ fontSize:13,fontWeight:400,color:"#86868b" }}>can build</span>
+                          </div>
+                          {r.maxBuildable === 0 && r.blockingParts.length > 0 && (
+                            <div style={{ fontSize:11,color:"#ff3b30",marginBottom:6 }}>
+                              Blocked by: {r.blockingParts.slice(0,3).map(b => `${b.part.mpn||b.part.description||"?"} (have ${b.have}, need ${b.need}/unit)`).join("; ")}
+                              {r.blockingParts.length > 3 && ` +${r.blockingParts.length-3} more`}
+                            </div>
+                          )}
+                          {r.maxBuildable > 0 && r.constraintPart && r.constraintPart.part && (
+                            <div style={{ fontSize:11,color:"#ff9500" }}>
+                              Limited by: {r.constraintPart.part.mpn||r.constraintPart.part.description||"?"} ({r.constraintPart.have} avail, {r.constraintPart.need}/unit)
+                            </div>
+                          )}
+                          {r.maxBuildable > 0 && (
+                            <button onClick={() => {
+                              setNewBuildOrder(f => ({ ...f, product_id: r.product.id, quantity: String(r.maxBuildable) }));
+                              setProdSubTab("builds");
+                            }} style={{ marginTop:10,padding:"6px 16px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#0071e3",color:"#fff",fontFamily:"inherit" }}>
+                              Start Build
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Shelf Scan-Out */}
+                <div style={{ background:cardBg,borderRadius:14,padding:"20px 22px",marginBottom:20,border:cardBorder }}>
+                  <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom: shelfScanMode ? 16 : 0 }}>
+                    <div>
+                      <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>Scan Out — Fulfillment</div>
+                      <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>Remove finished units from shelf when shipping.</div>
+                    </div>
+                    <button onClick={() => setShelfScanMode(!shelfScanMode)}
+                      style={{ padding:"8px 18px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:12,background:shelfScanMode?"#ff3b30":"#5856d6",color:"#fff",fontFamily:"inherit" }}>
+                      {shelfScanMode ? "Cancel" : "Scan Out"}
+                    </button>
+                  </div>
+                  {shelfScanMode && (
+                    <div style={{ display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap",marginTop:16 }}>
+                      <div style={{ flex:"2 1 200px" }}>
+                        <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</div>
+                        <select style={{ ...inputStyle2 }} value={shelfScanProduct} onChange={e => setShelfScanProduct(e.target.value)}>
+                          <option value="">Select product…</option>
+                          {products.map(p => {
+                            const fg = fgMap[p.id];
+                            return <option key={p.id} value={p.id}>{p.name} — {fg?.quantity_on_hand ?? 0} on shelf</option>;
+                          })}
+                        </select>
+                      </div>
+                      <div style={{ flex:"0 0 100px" }}>
+                        <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Qty</div>
+                        <input type="number" min="1" style={inputStyle2} value={shelfScanQty} onChange={e => setShelfScanQty(e.target.value)} placeholder="1" />
+                      </div>
+                      <button onClick={async () => {
+                        if (!shelfScanProduct || !shelfScanQty) return;
+                        const qty = parseInt(shelfScanQty);
+                        if (!qty || qty < 1) return;
+                        const fg = fgMap[shelfScanProduct];
+                        const currentQty = fg?.quantity_on_hand ?? 0;
+                        if (qty > currentQty) { alert(`Only ${currentQty} units on shelf.`); return; }
+                        const prod = products.find(p => p.id === shelfScanProduct);
+                        if (!window.confirm(`Remove ${qty} ${prod?.name || ''} from shelf?`)) return;
+                        setFinishedGoodsBusy(true);
+                        try {
+                          const updated = await upsertFinishedGoods(shelfScanProduct, -qty, user.id);
+                          setFinishedGoods(prev => {
+                            const existing = prev.find(r => r.product_id === shelfScanProduct);
+                            return existing ? prev.map(r => r.product_id === shelfScanProduct ? updated : r) : [...prev, updated];
+                          });
+                          showToast(`-${qty} ${prod?.name || ''} removed from shelf`, "#ff9500");
+                          setShelfScanQty("1");
+                          setShelfScanProduct("");
+                          setShelfScanMode(false);
+                        } catch (e) { alert("Scan out failed: " + e.message); }
+                        setFinishedGoodsBusy(false);
+                      }} disabled={finishedGoodsBusy || !shelfScanProduct}
+                        style={{ padding:"10px 24px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,background:"#ff3b30",color:"#fff",fontFamily:"inherit",minWidth:120 }}>
+                        Confirm Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Products Grid */}
+                <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:16 }}>
+                  {products.map(prod => {
+                    const fg = fgMap[prod.id];
+                    const qty = fg?.quantity_on_hand ?? 0;
+                    const color = shelfColor(fg);
+                    const isEditingTarget = !!shelfTargetEdit[prod.id];
+                    return (
+                      <div key={prod.id} style={{ background:cardBg,borderRadius:14,padding:"18px 20px",border:`2px solid ${color}30`,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
+                          <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#0071e3" }} />
+                          <div style={{ fontSize:14,fontWeight:700,color:textPrimary,flex:1 }}>{prod.name}</div>
+                          <div style={{ width:10,height:10,borderRadius:"50%",background:color }} title={color==="#34c759"?"At/above target":color==="#ff9500"?"Below target":"Below min / no target"} />
+                        </div>
+                        <div style={{ fontSize:44,fontWeight:800,color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-1px",marginBottom:8,lineHeight:1 }}>
+                          {qty}
+                        </div>
+                        <div style={{ fontSize:12,color:"#86868b",marginBottom:10 }}>
+                          {fg?.target_stock != null ? `Target: ${fg.target_stock}` : "No target set"}{" "}
+                          {fg?.min_stock != null ? `· Min: ${fg.min_stock}` : ""}
+                        </div>
+                        {/* Inline target edit */}
+                        {isEditingTarget ? (
+                          <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:8 }}>
+                            <input type="number" placeholder="Target" value={shelfTargetEdit[prod.id]?.target ?? ""} min="0"
+                              onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), target: e.target.value } }))}
+                              style={{ width:70,padding:"5px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
+                            <input type="number" placeholder="Min" value={shelfTargetEdit[prod.id]?.min ?? ""} min="0"
+                              onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), min: e.target.value } }))}
+                              style={{ width:70,padding:"5px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
+                            <button onClick={() => handleShelfTargetSave(prod.id)}
+                              style={{ padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>Save</button>
+                            <button onClick={() => setShelfTargetEdit(prev => { const n={...prev}; delete n[prod.id]; return n; })}
+                              style={{ padding:"5px 10px",borderRadius:6,border:"1px solid #d2d2d7",cursor:"pointer",fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>✕</button>
+                          </div>
+                        ) : null}
+                        <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+                          <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'add' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
+                            style={{ padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>+ Add</button>
+                          <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'remove' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
+                            disabled={qty === 0}
+                            style={{ padding:"6px 14px",borderRadius:980,border:"none",cursor:qty===0?"not-allowed":"pointer",fontWeight:600,fontSize:11,background:"#ff3b30",color:"#fff",fontFamily:"inherit",opacity:qty===0?0.4:1 }}>- Remove</button>
+                          <button onClick={() => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { target: fg?.target_stock ?? "", min: fg?.min_stock ?? "" } }))}
+                            style={{ padding:"6px 14px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>
+                            {isEditingTarget ? "Cancel" : "Set Target"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Shelf Adjust Modal */}
+                {shelfAddModal && (() => {
+                  const prod = products.find(p => p.id === shelfAddModal.productId);
+                  return (
+                    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
+                      onClick={(e) => { if (e.target === e.currentTarget) setShelfAddModal(null); }}>
+                      <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:16,padding:"28px 28px",minWidth:340,maxWidth:420,boxShadow:"0 8px 40px rgba(0,0,0,0.3)" }}>
+                        <div style={{ fontSize:18,fontWeight:700,color:textPrimary,marginBottom:20 }}>
+                          {shelfAddModal.action === 'add' ? 'Add to Shelf' : 'Remove from Shelf'} — {prod?.name}
+                        </div>
+                        <div style={{ marginBottom:14 }}>
+                          <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase" }}>Quantity</div>
+                          <input type="number" min="1" autoFocus style={inputStyle2} value={shelfAdjQty}
+                            onChange={e => setShelfAdjQty(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleShelfAdj(); }} />
+                        </div>
+                        <div style={{ marginBottom:20 }}>
+                          <div style={{ fontSize:10,fontWeight:700,color:"#86868b",marginBottom:4,textTransform:"uppercase" }}>Notes (optional)</div>
+                          <input style={inputStyle2} value={shelfAdjNotes} onChange={e => setShelfAdjNotes(e.target.value)} placeholder="Reason / order ref…" />
+                        </div>
+                        <div style={{ display:"flex",gap:10 }}>
+                          <button onClick={handleShelfAdj} disabled={!shelfAdjQty || finishedGoodsBusy}
+                            style={{ flex:1,padding:"12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,
+                              background:shelfAddModal.action==='add'?"#34c759":"#ff3b30",color:"#fff",fontFamily:"inherit" }}>
+                            {finishedGoodsBusy ? "Saving…" : shelfAddModal.action === 'add' ? 'Add to Shelf' : 'Remove from Shelf'}
+                          </button>
+                          <button onClick={() => setShelfAddModal(null)}
+                            style={{ padding:"12px 20px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:14,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+              );
             })()}
 
           </div>
@@ -16562,8 +17023,8 @@ function BOMManager({ user }) {
                   <br /><br />
                   <strong>Setup:</strong> In Vercel → Project Settings → Environment Variables, add:
                   <ul style={{ margin:"8px 0 0 16px",padding:0,lineHeight:"1.8" }}>
-                    <li><code>MCMASTER_PFX_B64_1</code> — first 3999 chars of base64-encoded Jackson-1.pfx</li>
-                    <li><code>MCMASTER_PFX_B64_2</code> — remaining chars of base64-encoded Jackson-1.pfx</li>
+                    <li><code>MCMASTER_PFX_B64_1</code> — first 2388 chars of base64-encoded Jackson-1.pfx</li>
+                    <li><code>MCMASTER_PFX_B64_2</code> — chars 2389 to end of base64-encoded Jackson-1.pfx</li>
                     <li><code>MCMASTER_PFX_PASS</code> — PFX passphrase</li>
                     <li><code>MCMASTER_USERNAME</code> — McMaster API username</li>
                     <li><code>MCMASTER_PASSWORD</code> — McMaster API password</li>
@@ -18262,6 +18723,22 @@ function BOMManager({ user }) {
           <span style={{ color:"#aeaeb2" }}>{new Date(BUILD_TIME).toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
         </span>
       </footer>
+
+      {/* ── Toast Notifications ── */}
+      {toasts.length > 0 && (
+        <div style={{ position:"fixed",bottom:24,right:24,zIndex:99999,display:"flex",flexDirection:"column",gap:8,pointerEvents:"none" }}>
+          {toasts.map(t => (
+            <div key={t.id} style={{
+              background:t.color||"#34c759",color:"#fff",padding:"12px 20px",borderRadius:12,
+              fontSize:13,fontWeight:600,boxShadow:"0 4px 16px rgba(0,0,0,0.2)",
+              fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+              maxWidth:360,animation:"fadeInUp 0.2s ease",
+            }}>
+              {t.message}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

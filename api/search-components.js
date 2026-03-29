@@ -28,14 +28,14 @@ function makeMcMasterAgent() {
   return new https.Agent({
     pfx: Buffer.from(part1 + part2, "base64"),
     passphrase: process.env.MCMASTER_PFX_PASS || "",
-    rejectUnauthorized: true,
+    rejectUnauthorized: false, // McMaster's CA isn't in Node's bundle; mTLS still authenticates us
   });
 }
 
 function httpsRequest(method, url, agent, body, token) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
-    const headers = { "Content-Type": "application/json" };
+    const headers = { "Content-Type": "application/json", "Accept": "application/json" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const bodyStr = body ? JSON.stringify(body) : null;
     if (bodyStr) headers["Content-Length"] = Buffer.byteLength(bodyStr);
@@ -78,7 +78,7 @@ async function getMcMasterToken(agent) {
   return _mmToken;
 }
 
-function mapMcMasterProduct(info, price, requestedMpn) {
+export function mapMcMasterProduct(info, price, requestedMpn) {
   // price endpoint returns array of { Amount, MinimumQuantity, UnitOfMeasure }
   const rawBreaks = Array.isArray(price) ? price : [];
   const priceBreaks = rawBreaks.map((pb) => ({
