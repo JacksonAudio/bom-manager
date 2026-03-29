@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.64";
-const BUILD_TIME   = "2026-03-28T22:40:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.65";
+const BUILD_TIME   = "2026-03-28T23:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -1659,6 +1659,7 @@ function BOMManager({ user }) {
   const [fulfillBusy, setFulfillBusy] = useState(false); // busy flag for "Fulfill from Shelf" in Orders tab
   const [feasibilityResults, setFeasibilityResults] = useState(null); // results from "What Can I Build?" check
   const [feasibilityLoading, setFeasibilityLoading] = useState(false);
+  const [restockPreflight, setRestockPreflight] = useState(null); // { product, quantity, suggested, bomRows: [{part, have, reserved, available, need, totalNeeded, short}] }
   const [toasts, setToasts] = useState([]); // [{ id, message, color }]
 
   // ── Pedal Units (individual serialized unit tracking)
@@ -15405,13 +15406,20 @@ function BOMManager({ user }) {
                         })()}
                         <button
                           onClick={() => {
-                            setNewBuildOrder(f => ({ ...f, product_id: prod.id, quantity: String(suggested), notes: "Restock build — auto-suggested" }));
-                            setActiveView("production");
-                            setProdSubTab("builds");
-                            setTimeout(() => { document.getElementById("create-build-order-section")?.scrollIntoView({ behavior:"smooth", block:"start" }); }, 100);
+                            const bomParts = parts.filter(p => p.projectId === prod.id);
+                            const bomRows = bomParts.map(bp => {
+                              const stock = parseInt(bp.stockQty) || 0;
+                              const reserved = componentReservations.filter(r => r.part_id === bp.id && r.status === 'active').reduce((s,r) => s + (r.reserved_qty || 0), 0);
+                              const available = Math.max(0, stock - reserved);
+                              const need = parseInt(bp.quantity) || 1;
+                              const totalNeeded = need * suggested;
+                              const short = Math.max(0, totalNeeded - available);
+                              return { part: bp, stock, reserved, available, need, totalNeeded, short };
+                            }).sort((a, b) => b.short - a.short);
+                            setRestockPreflight({ product: prod, quantity: suggested, bomRows });
                           }}
                           style={{ width:"100%",padding:"8px 0",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:"#ff9500",color:"#fff",fontFamily:"inherit" }}>
-                          Create Restock Build →
+                          Check Parts &amp; Create Build →
                         </button>
                       </div>
                       );
@@ -15756,6 +15764,175 @@ function BOMManager({ user }) {
                       </button>
                       <button onClick={() => setShelfAddModal(null)}
                         style={{ padding:"12px 20px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:14,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Restock Preflight Modal ── */}
+            {restockPreflight && (() => {
+              const { product, quantity, bomRows } = restockPreflight;
+              const shortRows = bomRows.filter(r => r.short > 0);
+              const okRows    = bomRows.filter(r => r.short === 0);
+              const totalShort = shortRows.length;
+              const canBuildNow = totalShort === 0 && bomRows.length > 0;
+              const maxBuildable = bomRows.length === 0 ? 0 : Math.min(...bomRows.map(r => Math.floor(r.available / r.need)));
+              return (
+                <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:"20px" }}
+                  onClick={e => { if (e.target===e.currentTarget) setRestockPreflight(null); }}>
+                  <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:18,padding:"28px 28px 24px",width:"100%",maxWidth:700,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 16px 64px rgba(0,0,0,0.4)" }}>
+
+                    {/* Header */}
+                    <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20 }}>
+                      <div>
+                        <div style={{ fontSize:20,fontWeight:800,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",marginBottom:4 }}>
+                          Parts Pre-Flight — {product.name}
+                        </div>
+                        <div style={{ fontSize:13,color:"#86868b" }}>
+                          Build quantity: <strong>{quantity} units</strong>
+                          {" · "}{bomRows.length} BOM line{bomRows.length!==1?"s":""}
+                          {" · "}Can build right now: <strong style={{ color:maxBuildable>0?"#34c759":"#ff3b30" }}>{maxBuildable}</strong>
+                        </div>
+                      </div>
+                      <button onClick={() => setRestockPreflight(null)}
+                        style={{ padding:"6px 10px",borderRadius:8,border:"1px solid #d2d2d7",background:"transparent",cursor:"pointer",fontSize:16,color:"#86868b",lineHeight:1 }}>✕</button>
+                    </div>
+
+                    {/* Status banner */}
+                    {bomRows.length === 0 ? (
+                      <div style={{ background:darkMode?"#2c2c2e":"#f9f9fb",border:"1px solid #d2d2d7",borderRadius:12,padding:"16px",marginBottom:18,textAlign:"center" }}>
+                        <div style={{ fontSize:14,fontWeight:700,color:"#86868b" }}>⚠ No BOM found for this product</div>
+                        <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>Add components in the Products tab before creating a build order.</div>
+                      </div>
+                    ) : canBuildNow ? (
+                      <div style={{ background:"#f0fdf4",border:"1px solid #34c759",borderRadius:12,padding:"12px 16px",marginBottom:18,display:"flex",alignItems:"center",gap:10 }}>
+                        <span style={{ fontSize:20 }}>✅</span>
+                        <div style={{ fontSize:14,fontWeight:700,color:"#166534" }}>All parts in stock — ready to build {quantity} units!</div>
+                      </div>
+                    ) : (
+                      <div style={{ background:"#fff5f5",border:"1px solid #ff3b30",borderRadius:12,padding:"14px 16px",marginBottom:18 }}>
+                        <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
+                          <span style={{ fontSize:20 }}>🚫</span>
+                          <div style={{ fontSize:14,fontWeight:700,color:"#c0392b" }}>
+                            {totalShort} part{totalShort!==1?"s":""} short — cannot build all {quantity} units today
+                          </div>
+                        </div>
+                        <div style={{ fontSize:12,color:"#86868b",lineHeight:"18px" }}>
+                          With current available stock you can build <strong style={{ color:"#ff9500" }}>{maxBuildable}</strong> unit{maxBuildable!==1?"s":""}.
+                          {" "}You can create the build order now to lock in a plan and trigger purchasing, or wait until the missing parts arrive.
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Short parts table */}
+                    {shortRows.length > 0 && (
+                      <div style={{ marginBottom:16 }}>
+                        <div style={{ fontSize:11,fontWeight:700,color:"#ff3b30",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8 }}>
+                          Parts Short — need to procure
+                        </div>
+                        <div style={{ border:"1px solid #ffd5d5",borderRadius:10,overflow:"hidden" }}>
+                          <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                            <thead>
+                              <tr style={{ background:"#fff5f5",borderBottom:"1px solid #ffd5d5" }}>
+                                {["Part / MPN","Ref","On Hand","Reserved","Available","Per Unit","Total Need","Short"].map(h => (
+                                  <th key={h} style={{ textAlign:"left",padding:"7px 10px",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap" }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {shortRows.map((r,i) => (
+                                <tr key={r.part.id} style={{ borderBottom:i<shortRows.length-1?"1px solid #ffeaea":"none",background:i%2===0?"transparent":"rgba(255,59,48,0.02)" }}>
+                                  <td style={{ padding:"8px 10px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                                    {r.part.mpn || r.part.description || "?"}
+                                  </td>
+                                  <td style={{ padding:"8px 10px",color:"#86868b",fontSize:11 }}>{r.part.reference || "—"}</td>
+                                  <td style={{ padding:"8px 10px",color:"#86868b" }}>{r.stock}</td>
+                                  <td style={{ padding:"8px 10px",color:r.reserved>0?"#ff9500":"#86868b" }}>{r.reserved||"—"}</td>
+                                  <td style={{ padding:"8px 10px",fontWeight:600,color:r.available>0?"#ff9500":"#ff3b30" }}>{r.available}</td>
+                                  <td style={{ padding:"8px 10px",color:"#86868b" }}>{r.need}</td>
+                                  <td style={{ padding:"8px 10px",color:"#86868b" }}>{r.totalNeeded}</td>
+                                  <td style={{ padding:"8px 10px",fontWeight:800,color:"#ff3b30",whiteSpace:"nowrap" }}>−{r.short}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* OK parts (collapsed) */}
+                    {okRows.length > 0 && (
+                      <details style={{ marginBottom:18 }}>
+                        <summary style={{ fontSize:11,fontWeight:700,color:"#34c759",letterSpacing:"0.06em",textTransform:"uppercase",cursor:"pointer",userSelect:"none",listStyle:"none",display:"flex",alignItems:"center",gap:6,padding:"4px 0",marginBottom:0 }}>
+                          <span style={{ fontSize:9 }}>▶</span>
+                          {okRows.length} part{okRows.length!==1?"s":""} fully stocked ✓
+                        </summary>
+                        <div style={{ border:"1px solid #d1fae5",borderRadius:10,overflow:"hidden",marginTop:8 }}>
+                          <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
+                            <thead>
+                              <tr style={{ background:"#f0fdf4",borderBottom:"1px solid #d1fae5" }}>
+                                {["Part / MPN","Available","Need Total"].map(h => (
+                                  <th key={h} style={{ textAlign:"left",padding:"6px 10px",fontSize:10,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.05em" }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {okRows.map((r,i) => (
+                                <tr key={r.part.id} style={{ borderBottom:i<okRows.length-1?"1px solid #ecfdf5":"none" }}>
+                                  <td style={{ padding:"6px 10px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{r.part.mpn || r.part.description || r.part.reference || "?"}</td>
+                                  <td style={{ padding:"6px 10px",color:"#34c759",fontWeight:600 }}>{r.available}</td>
+                                  <td style={{ padding:"6px 10px",color:"#86868b" }}>{r.totalNeeded}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </details>
+                    )}
+
+                    {/* Action buttons */}
+                    <div style={{ display:"flex",gap:10,marginTop:8,flexWrap:"wrap" }}>
+                      {canBuildNow && (
+                        <button onClick={() => {
+                            setRestockPreflight(null);
+                            setNewBuildOrder(f => ({ ...f, product_id: product.id, quantity: String(quantity), notes: "Restock build — auto-suggested, all parts verified in stock" }));
+                            setActiveView("production");
+                            setProdSubTab("builds");
+                            setTimeout(() => { document.getElementById("create-build-order-section")?.scrollIntoView({ behavior:"smooth", block:"start" }); }, 100);
+                          }}
+                          style={{ flex:1,padding:"14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,background:"#34c759",color:"#fff",fontFamily:"inherit",minWidth:200 }}>
+                          ✓ Create Build Order — {quantity} units
+                        </button>
+                      )}
+                      {!canBuildNow && bomRows.length > 0 && (<>
+                        {maxBuildable > 0 && (
+                          <button onClick={() => {
+                              setRestockPreflight(null);
+                              setNewBuildOrder(f => ({ ...f, product_id: product.id, quantity: String(maxBuildable), notes: `Restock build — ${maxBuildable} units (limited by available parts; ${totalShort} part(s) still need ordering for full ${quantity}-unit run)` }));
+                              setActiveView("production");
+                              setProdSubTab("builds");
+                              setTimeout(() => { document.getElementById("create-build-order-section")?.scrollIntoView({ behavior:"smooth", block:"start" }); }, 100);
+                            }}
+                            style={{ flex:1,padding:"14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#0071e3",color:"#fff",fontFamily:"inherit",minWidth:180 }}>
+                            Build {maxBuildable} Now (parts available)
+                          </button>
+                        )}
+                        <button onClick={() => {
+                            setRestockPreflight(null);
+                            setNewBuildOrder(f => ({ ...f, product_id: product.id, quantity: String(quantity), notes: `Restock build — PARTS SHORT: ${shortRows.map(r=>`${r.part.mpn||r.part.description||"?"} (need ${r.short} more)`).join(", ")}` }));
+                            setActiveView("production");
+                            setProdSubTab("builds");
+                            setTimeout(() => { document.getElementById("create-build-order-section")?.scrollIntoView({ behavior:"smooth", block:"start" }); }, 100);
+                          }}
+                          style={{ flex:1,padding:"14px",borderRadius:980,border:"2px solid #ff9500",cursor:"pointer",fontWeight:700,fontSize:13,background:"transparent",color:"#ff9500",fontFamily:"inherit",minWidth:180 }}>
+                          Create Anyway — Order Parts First
+                        </button>
+                      </>)}
+                      <button onClick={() => setRestockPreflight(null)}
+                        style={{ padding:"14px 22px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:13,background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"inherit" }}>
                         Cancel
                       </button>
                     </div>
