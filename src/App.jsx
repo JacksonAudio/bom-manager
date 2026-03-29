@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.04";
-const BUILD_TIME   = "2026-03-29T18:48:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.05";
+const BUILD_TIME   = "2026-03-29T18:58:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7212,6 +7212,15 @@ function BOMManager({ user }) {
               </div>
             ) : (
               <div style={{ overflowX:"auto",maxHeight:"75vh",overflowY:"auto",background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                {(()=>{
+                  const CH=8.2, PAD=20;
+                  const wMPN  = Math.max(...visibleParts.map(p=>(p.mpn||"").length),3)*CH+PAD;
+                  const wVal  = Math.max(...visibleParts.map(p=>(p.value||"").length),4)*CH+PAD;
+                  const wVolt = Math.max(...visibleParts.map(p=>(p.voltage_rating||"—").length),3)*CH+PAD;
+                  const wMfr  = Math.max(...visibleParts.map(p=>(p.manufacturer||"").length),6)*CH+PAD;
+                  const wStk  = Math.max(...visibleParts.map(p=>String(p.stockQty||0).length),4)*CH+PAD;
+                  const colWidths={mpn:wMPN,value:wVal,voltage:wVolt,mfr:wMfr,stk:wStk};
+                  return (
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13,tableLayout:"fixed" }}>
                   <thead style={{ position:"sticky",top:0,zIndex:10 }}>
                     <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
@@ -7231,8 +7240,8 @@ function BOMManager({ user }) {
                         />
                       </th>
                       {[
-                        {label:"MPN",field:"mpn",w:155},{label:"Value",field:"value",w:68},{label:"Voltage",field:"voltage_rating",w:58},{label:"Description",field:"description",wide:true},
-                        {label:"Manufacturer",field:"manufacturer",w:115},{label:"Stock",field:"stockQty",w:58},
+                        {label:"MPN",field:"mpn",w:colWidths.mpn},{label:"Value",field:"value",w:colWidths.value},{label:"Voltage",field:"voltage_rating",w:colWidths.voltage},{label:"Description",field:"description",wide:true},
+                        {label:"Manufacturer",field:"manufacturer",w:colWidths.mfr},{label:"Stock",field:"stockQty",w:colWidths.stk},
                         {label:"Added",field:"createdAt",w:92},{label:"",field:null,w:56}
                       ].map((h,hi,arr)=>(
                         <th key={hi} onClick={h.field ? ()=>setPartSort(prev=>({field:h.field,asc:prev.field===h.field?!prev.asc:true})) : undefined}
@@ -7272,20 +7281,19 @@ function BOMManager({ user }) {
                               checked={selectedParts.has(part.id)}
                               onChange={() => toggleSelect(part.id)} />
                           </td>
-                          <td style={{ padding:"6px 8px",overflow:"hidden" }}>
+                          <td style={{ padding:"6px 8px" }}>
                             <input type="text" value={part.mpn||""}
                               onChange={(e)=>updatePart(part.id,"mpn",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
-                              title={part.mpn||""}
                               style={{ ...inputStyle,width:"100%",color:"#0071e3",fontWeight:600 }} placeholder="—" />
                           </td>
-                          <td style={{ padding:"6px 8px",overflow:"hidden" }}>
+                          <td style={{ padding:"6px 8px" }}>
                             <input type="text" value={part.value||""}
                               onChange={(e)=>updatePart(part.id,"value",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,width:"100%" }} placeholder="" />
                           </td>
-                          <td style={{ padding:"6px 8px",overflow:"hidden" }}>
+                          <td style={{ padding:"6px 8px" }}>
                             <input type="text" placeholder="—" value={part.voltage_rating||""}
                               onChange={(e)=>updatePart(part.id,"voltage_rating",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
@@ -7297,13 +7305,13 @@ function BOMManager({ user }) {
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,color:"#6e6e73",width:"100%" }} placeholder="" />
                           </td>
-                          <td style={{ padding:"6px 8px",overflow:"hidden" }}>
+                          <td style={{ padding:"6px 8px" }}>
                             <input type="text" value={part.manufacturer||""}
                               onChange={(e)=>updatePart(part.id,"manufacturer",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,width:"100%",color:"#86868b" }} placeholder="" />
                           </td>
-                          <td style={{ padding:"6px 8px",overflow:"hidden" }}>
+                          <td style={{ padding:"6px 8px" }}>
                             <input type="number" placeholder="0" value={part.stockQty}
                               onChange={(e)=>updatePart(part.id,"stockQty",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
@@ -7488,6 +7496,8 @@ function BOMManager({ user }) {
                     })}
                   </tbody>
                 </table>
+                  );
+                })()}
               </div>
             )}
           </div>
