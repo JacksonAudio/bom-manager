@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.62";
-const BUILD_TIME   = "2026-03-28T22:20:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.63";
+const BUILD_TIME   = "2026-03-28T22:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -15668,8 +15668,10 @@ function BOMManager({ user }) {
                           const fg = fgMap[prod.id];
                           const qty = fg?.quantity_on_hand ?? 0;
                           const color = shelfColor(fg);
-                          const isEditingTarget = !!shelfTargetEdit[prod.id];
                           const statusLabel = color === "#34c759" ? "At Target" : color === "#ff9500" ? "Low" : fg ? "Below Min" : "No Target";
+                          const targetVal = shelfTargetEdit[prod.id]?.target ?? (fg?.target_stock != null ? String(fg.target_stock) : "");
+                          const minVal    = shelfTargetEdit[prod.id]?.min    ?? (fg?.min_stock    != null ? String(fg.min_stock)    : "");
+                          const isDirty   = shelfTargetEdit[prod.id] != null;
                           const vel = salesVelocity[prod.id];
                           const burnDays = vel && vel.unitsPerDay > 0 && qty > 0 ? Math.floor(qty / vel.unitsPerDay) : null;
                           const burnLabel = burnDays === null ? null : burnDays < 1 ? "<1d" : burnDays > 999 ? "999d+" : `${burnDays}d`;
@@ -15684,46 +15686,32 @@ function BOMManager({ user }) {
                                 <span style={{ fontWeight:800,fontSize:18,color,fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{qty}</span>
                                 {burnLabel && <div style={{ fontSize:10,color:burnColor,fontWeight:600,marginTop:2 }}>{burnLabel}</div>}
                               </td>
-                              <td style={{ padding:"10px 14px" }}>
-                                {isEditingTarget
-                                  ? <input type="number" placeholder="Target" value={shelfTargetEdit[prod.id]?.target ?? ""} min="0"
-                                      onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), target: e.target.value } }))}
-                                      style={{ width:70,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
-                                  : <span style={{ color:"#86868b",fontSize:12 }}>{fg?.target_stock || "—"}</span>
-                                }
+                              <td style={{ padding:"8px 14px" }}>
+                                <input type="number" placeholder="—" value={targetVal} min="0"
+                                  onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { target: e.target.value, min: prev[prod.id]?.min ?? (fg?.min_stock != null ? String(fg.min_stock) : "") } }))}
+                                  onBlur={() => { if (shelfTargetEdit[prod.id] != null) handleShelfTargetSave(prod.id); }}
+                                  onKeyDown={e => { if (e.key === "Enter") { e.target.blur(); } }}
+                                  style={{ width:64,padding:"5px 8px",borderRadius:7,border:isDirty?"1px solid #0071e3":"1px solid #d2d2d7",fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none",fontFamily:"inherit",textAlign:"center" }} />
                               </td>
-                              <td style={{ padding:"10px 14px" }}>
-                                {isEditingTarget
-                                  ? <input type="number" placeholder="Min" value={shelfTargetEdit[prod.id]?.min ?? ""} min="0"
-                                      onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { ...(prev[prod.id]||{}), min: e.target.value } }))}
-                                      style={{ width:70,padding:"4px 8px",borderRadius:6,border:"1px solid #d2d2d7",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none" }} />
-                                  : <span style={{ color:"#86868b",fontSize:12 }}>{fg?.min_stock || "—"}</span>
-                                }
+                              <td style={{ padding:"8px 14px" }}>
+                                <input type="number" placeholder="—" value={minVal} min="0"
+                                  onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { min: e.target.value, target: prev[prod.id]?.target ?? (fg?.target_stock != null ? String(fg.target_stock) : "") } }))}
+                                  onBlur={() => { if (shelfTargetEdit[prod.id] != null) handleShelfTargetSave(prod.id); }}
+                                  onKeyDown={e => { if (e.key === "Enter") { e.target.blur(); } }}
+                                  style={{ width:64,padding:"5px 8px",borderRadius:7,border:isDirty?"1px solid #0071e3":"1px solid #d2d2d7",fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none",fontFamily:"inherit",textAlign:"center" }} />
                               </td>
                               <td style={{ padding:"10px 14px" }}>
                                 <span style={{ display:"inline-block",padding:"3px 10px",borderRadius:980,fontSize:11,fontWeight:600,background:`${color}18`,color }}>
                                   {statusLabel}
                                 </span>
                               </td>
-                              <td style={{ padding:"10px 14px" }}>
-                                <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
+                              <td style={{ padding:"8px 14px" }}>
+                                <div style={{ display:"flex",gap:6,alignItems:"center" }}>
                                   <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'add' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
                                     style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>+ Add</button>
                                   <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'remove' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
                                     disabled={qty === 0}
                                     style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:qty===0?"not-allowed":"pointer",fontWeight:600,fontSize:11,background:"#ff3b30",color:"#fff",fontFamily:"inherit",opacity:qty===0?0.4:1 }}>− Remove</button>
-                                  {isEditingTarget
-                                    ? <>
-                                        <button onClick={() => handleShelfTargetSave(prod.id)}
-                                          style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#0071e3",color:"#fff",fontFamily:"inherit" }}>Save</button>
-                                        <button onClick={() => setShelfTargetEdit(prev => { const n={...prev}; delete n[prod.id]; return n; })}
-                                          style={{ padding:"4px 10px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>✕</button>
-                                      </>
-                                    : <button onClick={() => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { target: fg?.target_stock ?? "", min: fg?.min_stock ?? "" } }))}
-                                        style={{ padding:"4px 12px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:11,background:"transparent",color:textPrimary,fontFamily:"inherit" }}>
-                                        Set Target
-                                      </button>
-                                  }
                                 </div>
                               </td>
                             </tr>
