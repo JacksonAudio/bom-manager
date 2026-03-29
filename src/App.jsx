@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.68";
-const BUILD_TIME   = "2026-03-28T23:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.69";
+const BUILD_TIME   = "2026-03-28T23:40:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -15942,14 +15942,19 @@ function BOMManager({ user }) {
                           </button>
                         )}
                         <button onClick={async () => {
-                            // Flag every short part for ordering and navigate to Purchasing
+                            // 1. Add product + quantity to build queue so Purchasing explodes the BOM
+                            setBuildQueue(prev => {
+                              const existing = prev.find(q => q.productId === product.id);
+                              if (existing) return prev.map(q => q.productId === product.id ? { ...q, qty: quantity } : q);
+                              return [...prev, { productId: product.id, name: product.name, qty: quantity, color: product.color }];
+                            });
+                            // 2. Flag only the short parts so they surface in the parts list
                             const shortPartIds = shortRows.map(r => r.part.id);
                             setParts(prev => prev.map(p => shortPartIds.includes(p.id) ? { ...p, flaggedForOrder: true } : p));
-                            // Persist flags to DB in parallel
                             await Promise.all(shortPartIds.map(id => dbUpdatePart(id, { flagged_for_order: true }, user.id).catch(() => {})));
                             setRestockPreflight(null);
                             setActiveView("purchasing");
-                            showToast(`${shortPartIds.length} part${shortPartIds.length!==1?"s":""} flagged — order them to build ${quantity}× ${product.name}`, "#ff9500");
+                            showToast(`${product.name} added to queue — ${shortPartIds.length} part${shortPartIds.length!==1?"s":""} need ordering`, "#ff9500");
                           }}
                           style={{ flex:1,padding:"14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#ff3b30",color:"#fff",fontFamily:"inherit",minWidth:180 }}>
                           🛒 Order Missing Parts ({shortRows.length})
