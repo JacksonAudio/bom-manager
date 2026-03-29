@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.94";
-const BUILD_TIME   = "2026-03-29T18:05:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.95";
+const BUILD_TIME   = "2026-03-29T18:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7449,8 +7449,8 @@ function BOMManager({ user }) {
                                     <div>Manufacturer: {part.manufacturer || "—"}</div>
                                     <div>Reference: {part.reference || "—"}</div>
                                     <div>Footprint: {part.footprint || "—"}</div>
-                                    {part.voltage_rating && <div><span style={{fontWeight:600}}>Voltage Rating:</span> {part.voltage_rating}</div>}
-                                    {part.url && <div><span style={{fontWeight:600}}>Order URL:</span> <a href={part.url} target="_blank" rel="noopener noreferrer" style={{color:"#0071e3"}}>{part.url.length > 60 ? part.url.slice(0,60)+"…" : part.url}</a></div>}
+                                    <div>Voltage Rating: {part.voltage_rating || "—"}</div>
+                                    <div>Order URL: {part.url ? <a href={part.url} target="_blank" rel="noopener noreferrer" style={{color:"#0071e3"}}>{part.url.length > 60 ? part.url.slice(0,60)+"…" : part.url}</a> : "—"}</div>
                                   </div>
                                 </div>
                                 <div>
