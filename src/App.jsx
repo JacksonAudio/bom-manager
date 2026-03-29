@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.70";
-const BUILD_TIME   = "2026-03-28T23:55:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.71";
+const BUILD_TIME   = "2026-03-29T00:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -15373,26 +15373,69 @@ function BOMManager({ user }) {
                           <div style={{ fontSize:14,fontWeight:700,color:"#1d1d1f" }}>{prod.name}</div>
                           {prod.brand && <div style={{ fontSize:10,color:"#86868b",marginLeft:"auto",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>{prod.brand}</div>}
                         </div>
-                        {/* Ordering status banner */}
+                        {/* Ordering status banners */}
                         {rstStatus && (
-                          <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",
-                            padding:"7px 12px",borderRadius:8,marginBottom:10,
-                            background: rstStatus.status === 'ordered' ? "#e8f5e9" : "#fff8ee",
-                            border: `1px solid ${rstStatus.status === 'ordered' ? "#34c759" : "#ff9500"}` }}>
-                            <div style={{ display:"flex",alignItems:"center",gap:7 }}>
-                              <span style={{ fontSize:14 }}>{rstStatus.status === 'ordered' ? "📦" : "🛒"}</span>
-                              <div>
-                                <div style={{ fontSize:12,fontWeight:700,color: rstStatus.status === 'ordered' ? "#166534" : "#bf6800" }}>
-                                  {rstStatus.status === 'ordered' ? "Parts ordered — awaiting delivery" : "Parts queued for ordering"}
+                          <div style={{ marginBottom:10, display:"flex",flexDirection:"column",gap:5 }}>
+                            {/* External parts status */}
+                            {rstStatus.status && (
+                              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",
+                                padding:"7px 12px",borderRadius:8,
+                                background: rstStatus.status === 'ordered' ? "#e8f5e9" : "#fff8ee",
+                                border: `1px solid ${rstStatus.status === 'ordered' ? "#34c759" : "#ff9500"}` }}>
+                                <div style={{ display:"flex",alignItems:"center",gap:7 }}>
+                                  <span style={{ fontSize:13 }}>{rstStatus.status === 'ordered' ? "📦" : "🛒"}</span>
+                                  <div>
+                                    <div style={{ fontSize:12,fontWeight:700,color: rstStatus.status === 'ordered' ? "#166534" : "#bf6800" }}>
+                                      {rstStatus.status === 'ordered' ? "Parts ordered — awaiting delivery" : "Parts queued for ordering"}
+                                    </div>
+                                    <div style={{ fontSize:10,color:"#86868b" }}>
+                                      {rstStatus.qty} units · {new Date(rstStatus.since).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}
+                                    </div>
+                                  </div>
                                 </div>
-                                <div style={{ fontSize:10,color:"#86868b" }}>
-                                  {rstStatus.qty} units · {new Date(rstStatus.since).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}
-                                </div>
+                                <button onClick={() => {
+                                    setRestockStatusMap(prev => {
+                                      const next = { ...prev, [prod.id]: { ...prev[prod.id] } };
+                                      delete next[prod.id].status; delete next[prod.id].since; delete next[prod.id].qty;
+                                      if (!Object.keys(next[prod.id]).length || !next[prod.id].internalOrders) delete next[prod.id];
+                                      localStorage.setItem("ja_restock_status", JSON.stringify(next));
+                                      return next;
+                                    });
+                                  }}
+                                  title="Clear" style={{ background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#86868b",padding:"2px 4px",lineHeight:1 }}>✕</button>
                               </div>
-                            </div>
-                            <button onClick={() => clearRestockStatus(prod.id)}
-                              title="Clear status"
-                              style={{ background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#86868b",padding:"2px 4px",lineHeight:1 }}>✕</button>
+                            )}
+                            {/* Internal shop order statuses */}
+                            {rstStatus.internalOrders && Object.entries(rstStatus.internalOrders).map(([key, io]) => {
+                              const SHOP_COLORS = { pcb:"#5856d6", sheet_metal:"#ff6b35", powder_coating:"#30b050" };
+                              const SHOP_ICONS  = { pcb:"🔲", sheet_metal:"🔩", powder_coating:"🎨" };
+                              const c = SHOP_COLORS[key] || "#86868b";
+                              return (
+                                <div key={key} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",
+                                  padding:"7px 12px",borderRadius:8,
+                                  background:`${c}0f`, border:`1px solid ${c}50` }}>
+                                  <div style={{ display:"flex",alignItems:"center",gap:7 }}>
+                                    <span style={{ fontSize:13 }}>{SHOP_ICONS[key]||"🏭"}</span>
+                                    <div>
+                                      <div style={{ fontSize:12,fontWeight:700,color:c }}>{io.label} — work order queued</div>
+                                      <div style={{ fontSize:10,color:"#86868b" }}>
+                                        {new Date(io.since).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <button onClick={() => {
+                                      setRestockStatusMap(prev => {
+                                        const next = { ...prev, [prod.id]: { ...prev[prod.id], internalOrders: { ...prev[prod.id].internalOrders } } };
+                                        delete next[prod.id].internalOrders[key];
+                                        if (!Object.keys(next[prod.id].internalOrders).length) delete next[prod.id].internalOrders;
+                                        localStorage.setItem("ja_restock_status", JSON.stringify(next));
+                                        return next;
+                                      });
+                                    }}
+                                    title="Clear" style={{ background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#86868b",padding:"2px 4px",lineHeight:1 }}>✕</button>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12,fontSize:12 }}>
@@ -15956,6 +15999,80 @@ function BOMManager({ user }) {
                         </div>
                       </details>
                     )}
+
+                    {/* Internal Work Orders */}
+                    <div style={{ marginBottom:20 }}>
+                      <div style={{ fontSize:11,fontWeight:700,color:"#5856d6",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8 }}>
+                        Internal Work Orders — queue alongside parts
+                      </div>
+                      <div style={{ border:`1px solid ${darkMode?"#3a3a3e":"#e5e5ea"}`,borderRadius:10,overflow:"hidden" }}>
+                        {[
+                          { key:"pcb",           label:"PCB Shop",                 desc:"Populate printed circuit boards for this build", color:"#5856d6", icon:"🔲" },
+                          { key:"sheet_metal",   label:"Sheet Metal Shop",         desc:"Fabricate chassis / enclosures",                  color:"#ff6b35", icon:"🔩" },
+                          { key:"powder_coating",label:"Powder Coating & Graphics",desc:"Finish and apply graphics to enclosures",         color:"#30b050", icon:"🎨" },
+                        ].map((shop, i) => {
+                          const checked = !!(restockPreflight.internalChecked?.[shop.key]);
+                          const alreadyQueued = restockStatusMap[product.id]?.internalOrders?.[shop.key];
+                          return (
+                            <div key={shop.key} onClick={() => setRestockPreflight(prev => ({ ...prev, internalChecked: { ...(prev.internalChecked||{}), [shop.key]: !prev.internalChecked?.[shop.key] } }))}
+                              style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
+                                borderBottom:i<2?`1px solid ${darkMode?"#3a3a3e":"#f0f0f2"}`:"none",
+                                cursor:"pointer",background:checked?(darkMode?"rgba(88,86,214,0.1)":"rgba(88,86,214,0.06)"):"transparent",
+                                transition:"background 0.1s" }}>
+                              <div style={{ width:18,height:18,borderRadius:5,border:`2px solid ${checked?shop.color:"#d2d2d7"}`,
+                                background:checked?shop.color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",
+                                flexShrink:0,transition:"all 0.1s" }}>
+                                {checked && <span style={{ color:"#fff",fontSize:11,fontWeight:700 }}>✓</span>}
+                              </div>
+                              <span style={{ fontSize:16 }}>{shop.icon}</span>
+                              <div style={{ flex:1 }}>
+                                <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{shop.label}</div>
+                                <div style={{ fontSize:11,color:"#86868b" }}>{shop.desc}</div>
+                              </div>
+                              {alreadyQueued && (
+                                <div style={{ fontSize:10,fontWeight:700,color:shop.color,background:`${shop.color}18`,padding:"2px 8px",borderRadius:980,whiteSpace:"nowrap" }}>
+                                  Already queued
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {Object.values(restockPreflight.internalChecked||{}).some(Boolean) && (
+                        <button onClick={async () => {
+                            const SHOPS = { pcb:"PCB Shop", sheet_metal:"Sheet Metal Shop", powder_coating:"Powder Coating & Graphics" };
+                            const PREFIXES = { pcb:"PCB", sheet_metal:"SM", powder_coating:"PC" };
+                            const checked = restockPreflight.internalChecked || {};
+                            const newInternalOrders = { ...(restockStatusMap[product.id]?.internalOrders || {}) };
+                            for (const [key, isChecked] of Object.entries(checked)) {
+                              if (!isChecked) continue;
+                              const existing = shopOrders.filter(o => o.shop_type === key).length + 1;
+                              const orderNum = `${PREFIXES[key]}-${new Date().getFullYear()}-${String(existing).padStart(3,"0")}`;
+                              try {
+                                const row = { shop_type: key, order_number: orderNum,
+                                  product_name: product.name, product_id: product.id,
+                                  quantity, status:"pending", priority:"normal",
+                                  notes:`Restock build — ${quantity} units. Auto-queued from Shelf.`, created_by: user.id };
+                                const created = await createShopOrder(row);
+                                setShopOrders(prev => [created, ...prev]);
+                                newInternalOrders[key] = { status:"queued", since: new Date().toISOString(), orderId: created.id, label: SHOPS[key] };
+                              } catch(e) { console.warn("Shop order create failed:", e); }
+                            }
+                            // Persist internal order statuses to restockStatusMap
+                            setRestockStatusMap(prev => {
+                              const next = { ...prev, [product.id]: { ...(prev[product.id]||{}), internalOrders: newInternalOrders } };
+                              localStorage.setItem("ja_restock_status", JSON.stringify(next));
+                              return next;
+                            });
+                            setRestockPreflight(prev => ({ ...prev, internalChecked: {} }));
+                            const queuedNames = Object.entries(newInternalOrders).filter(([k]) => checked[k]).map(([,v]) => v.label).join(", ");
+                            showToast(`Internal orders queued: ${queuedNames}`, "#5856d6");
+                          }}
+                          style={{ marginTop:10,width:"100%",padding:"10px",borderRadius:10,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#5856d6",color:"#fff",fontFamily:"inherit" }}>
+                          Queue Selected Internal Work Orders
+                        </button>
+                      )}
+                    </div>
 
                     {/* Action buttons */}
                     <div style={{ display:"flex",gap:10,marginTop:8,flexWrap:"wrap" }}>
