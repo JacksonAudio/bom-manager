@@ -1,9 +1,10 @@
 // ============================================================
-// api/mouser-cart.js — Mouser Cart, Order Options & Order History
+// api/mouser-cart.js — Mouser Cart, Order Options, Order History & Pack Qty
 //
 // Actions:
-//   cart (POST) — create temp cart + get tariff fees
-//   order-history (POST) — fetch all past orders with line items
+//   cart (POST)         — create temp cart + get tariff fees
+//   order-history (POST)— fetch all past orders with line items
+//   pack-qty (POST)     — look up FactoryPackQty, cache in Supabase
 // ============================================================
 
 const MOUSER_CART_API = "https://api.mouser.com/api/v2/cart";
@@ -28,6 +29,8 @@ export default async function handler(req, res) {
         return await handleOrderHistory(res, body);
       case "order-detail":
         return await handleOrderDetail(res, body);
+      case "pack-qty":
+        return await handlePackQty(res, body);
       default:
         return res.status(400).json({ error: `Unknown action: ${action}` });
     }
@@ -238,4 +241,57 @@ async function handleOrderDetail(res, body) {
     return res.status(detRes.status).json({ error: `Detail API error: ${detRes.status}`, detail: errText.slice(0, 500) });
   }
   return res.status(200).json(await detRes.json());
+}
+
+// ── Factory pack qty lookup + Supabase cache write
+async function handlePackQty(res, body) {
+  const { mpn, partId, apiKey, supabaseUrl, supabaseKey } = body;
+  if (!mpn)    return res.status(400).json({ error: "mpn is required" });
+  if (!apiKey) return res.status(400).json({ error: "apiKey is required" });
+
+  const mouserRes = await fetch(
+    `https://api.mouser.com/api/v1/search/partnumber?apiKey=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ SearchByPartRequest: { mouserPartNumber: mpn, partSearchOptions: "Exact" } }),
+    }
+  );
+
+  if (!mouserRes.ok) {
+    const errText = await mouserRes.text().catch(() => "");
+    console.error(`[pack-qty] ${mpn}: Mouser ${mouserRes.status}`, errText.slice(0, 200));
+    return res.json({ packQty: 0, error: `Mouser ${mouserRes.status}` });
+  }
+
+  const data = await mouserRes.json();
+  if (data.Errors?.length) {
+    return res.json({ packQty: 0, error: data.Errors.map(e => e.Message || e.Code).join(", ") });
+  }
+
+  const part    = data?.SearchResults?.Parts?.[0];
+  const packQty = parseInt(part?.FactoryPackQty || part?.MultPackQty) || 0;
+  const mouserPartNumber = part?.MouserPartNumber || "";
+
+  // Write into parts.pricing.mouser so Phase 1 cache scan finds it on future runs
+  if (packQty > 0 && partId && supabaseUrl && supabaseKey) {
+    try {
+      const fetchRes = await fetch(
+        `${supabaseUrl}/rest/v1/parts?id=eq.${encodeURIComponent(partId)}&select=pricing`,
+        { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
+      );
+      if (fetchRes.ok) {
+        const rows = await fetchRes.json();
+        const existing = rows?.[0]?.pricing || {};
+        const merged = { ...existing, mouser: { ...(existing.mouser||{}), factoryPackQty: packQty, mouserPartNumber: mouserPartNumber || (existing.mouser?.mouserPartNumber) || "" } };
+        await fetch(`${supabaseUrl}/rest/v1/parts?id=eq.${encodeURIComponent(partId)}`, {
+          method: "PATCH",
+          headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({ pricing: merged }),
+        });
+      }
+    } catch (e) { console.warn(`[pack-qty] ${mpn}: cache write failed —`, e.message); }
+  }
+
+  return res.json({ packQty, mouserPartNumber, source: "Mouser" });
 }

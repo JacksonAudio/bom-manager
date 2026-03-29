@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.84";
-const BUILD_TIME   = "2026-03-29T13:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.85";
+const BUILD_TIME   = "2026-03-29T13:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6083,10 +6083,11 @@ function BOMManager({ user }) {
                   let apiCount = 0;
                   for (const row of needApi) {
                     try {
-                      const apiRes = await fetch("/api/mouser-pack-qty", {
+                      const apiRes = await fetch("/api/mouser-cart", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
+                          action: "pack-qty",
                           mpn: row.part.mpn,
                           partId: row.part.id,
                           apiKey: apiKeys.mouser_api_key,
