@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.76";
-const BUILD_TIME   = "2026-03-29T10:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.77";
+const BUILD_TIME   = "2026-03-29T11:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6079,7 +6079,9 @@ function BOMManager({ user }) {
                 const hasNexar = nexarToken && apiKeys.nexar_client_id;
                 const hasMouser = !!apiKeys.mouser_api_key;
                 if (hasNexar || hasMouser) {
-                  const needApi = rows.filter(r => !r.detected && r.part.mpn);
+                  // Only query electronic parts — mouser_pn presence indicates it's on electronic distributors
+                  // Hardware (McMaster screws/washers) have numeric-only MPNs and no mouser_pn
+                  const needApi = rows.filter(r => !r.detected && r.part.mouser_pn);
                   let apiCount = 0;
                   for (const row of needApi) {
                     try {
