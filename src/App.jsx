@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.85";
-const BUILD_TIME   = "2026-03-29T13:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.86";
+const BUILD_TIME   = "2026-03-29T14:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -479,6 +479,26 @@ async function fetchNexarPricing(mpn, quantity, token) {
   return pricing;
 }
 
+// Extract PCB package/footprint code from MPN or description
+function extractPackageCode(mpn = "", description = "") {
+  const SMD_SIZES = ["0201","0402","0603","0805","1206","1210","1812","2010","2512","2920"];
+  const SMD_IC    = ["SOT-23-6","SOT-23-5","SOT-23-3","SOT-23","SOT-323","SOT-363","SOT-89","SOT-223",
+                     "SOIC-16","SOIC-14","SOIC-8","SOP-16","SOP-8","TSSOP-28","TSSOP-24","TSSOP-20",
+                     "TSSOP-16","TSSOP-14","TSSOP-8","QFN","DFN","LGA","BGA","TSOT"];
+  const TH        = ["TO-247","TO-220","TO-263","TO-252","TO-251","TO-92","D2PAK","DPAK",
+                     "DIP-28","DIP-16","DIP-14","DIP-8","PDIP"];
+  const combined  = `${mpn} ${description}`;
+  // SMD sizes first — word-boundary match (0603 in "RC0603..." or "SMD 0603 1/10W")
+  for (const code of SMD_SIZES) {
+    if (new RegExp(`(?<![0-9])${code}(?![0-9])`).test(combined)) return code;
+  }
+  // IC packages and through-hole — case-insensitive, allow optional hyphen
+  for (const code of [...SMD_IC, ...TH]) {
+    if (new RegExp(code.replace(/-/g, "-?"), "i").test(combined)) return code;
+  }
+  return null;
+}
+
 // ─────────────────────────────────────────────
 // MOUSER DIRECT API (fallback / supplement)
 // Endpoint: https://api.mouser.com/api/v1/search/partnumber
@@ -494,6 +514,7 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
         SearchByPartRequest: {
           mouserPartNumber: mpn,
           partSearchOptions: "Exact",
+          includeExtendedAttributes: "true",
         },
       }),
     }
@@ -536,6 +557,11 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
   if (part.Description) result.partDescription = part.Description;
   if (part.Manufacturer) result.manufacturer = part.Manufacturer;
   if (part.Category) result.category = part.Category;
+  // Extract case/package code — ProductAttributes first, then MPN/description fallback
+  const attrs = part.ProductAttributes || [];
+  const caseAttr = attrs.find(a => /case.*(code|package)|package.*case/i.test(a.AttributeName || ""));
+  const caseCode = caseAttr?.AttributeValue || extractPackageCode(mpn, part.Description || "");
+  if (caseCode) result.caseCode = caseCode;
   if (part.LeadTime) result.leadTime = part.LeadTime;
   if (part.SuggestedReplacement) result.suggestedReplacement = part.SuggestedReplacement;
   if (part.ImagePath) result.imagePath = part.ImagePath;
@@ -2672,11 +2698,15 @@ function BOMManager({ user }) {
         if (d?.countryOfOrigin) { detectedOrigin = d.countryOfOrigin.toUpperCase(); break; }
       }
 
+      // Extract case/package code from Mouser pricing data
+      const mouserCaseCode = pricing?.mouser?.caseCode || null;
+
       // Update UI optimistically
       setParts((prev) => prev.map((p) => p.id === partId ? {
         ...p, pricing, pricingStatus: "done", bestSupplier: best,
         unitCost: newUnitCost, preferredSupplier: newPref,
         ...(detectedOrigin && !p.countryOfOrigin ? { countryOfOrigin: detectedOrigin } : {}),
+        ...(mouserCaseCode && !p.footprint ? { footprint: mouserCaseCode } : {}),
       } : p));
 
       // Record best price to price history
@@ -2696,6 +2726,7 @@ function BOMManager({ user }) {
         preferred_supplier: newPref,
       };
       if (detectedOrigin) dbFields.country_of_origin = detectedOrigin;
+      if (mouserCaseCode && !part.footprint) dbFields.footprint = mouserCaseCode;
       await dbUpdatePart(partId, dbFields, user.id);
     } catch (e) {
       setParts((prev) => prev.map((p) => p.id === partId ? {
@@ -6105,9 +6136,10 @@ function BOMManager({ user }) {
                           row.checked = true;
                           checkedIds.add(row.part.id);
                           apiCount++;
-                          // Update local parts state — Phase 1 will find this in cache on next run
+                          // Update local state — pricing cache AND footprint (if blank)
                           setParts(prev => prev.map(p => p.id === row.part.id ? {
                             ...p,
+                            ...(result.caseCode && !p.footprint ? { footprint: result.caseCode } : {}),
                             pricing: { ...(p.pricing||{}), mouser: { ...(p.pricing?.mouser||{}), factoryPackQty: fq } }
                           } : p));
                         }
@@ -7121,6 +7153,7 @@ function BOMManager({ user }) {
                     <option value="reelQty">Reel Qty</option>
                     <option value="stockQty">Stock</option>
                     <option value="preferredSupplier">Supplier</option>
+                    <option value="footprint">Package</option>
                   </select>
                   {bulkField === "preferredSupplier" ? (
                     <>
@@ -11239,6 +11272,7 @@ function BOMManager({ user }) {
                     <option value="reelQty">Reel Qty</option>
                     <option value="stockQty">Stock</option>
                     <option value="preferredSupplier">Supplier</option>
+                    <option value="footprint">Package</option>
                   </select>
                   <input id="pdBulkValue" type="text" placeholder="Set value..." list="pd-supplier-list"
                     style={{ padding:"5px 8px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",width:160 }} />

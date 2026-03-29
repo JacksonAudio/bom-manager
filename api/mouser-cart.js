@@ -254,7 +254,7 @@ async function handlePackQty(res, body) {
     {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ SearchByPartRequest: { mouserPartNumber: mpn, partSearchOptions: "Exact" } }),
+      body: JSON.stringify({ SearchByPartRequest: { mouserPartNumber: mpn, partSearchOptions: "Exact", includeExtendedAttributes: "true" } }),
     }
   );
 
@@ -273,25 +273,31 @@ async function handlePackQty(res, body) {
   const packQty = parseInt(part?.FactoryPackQty || part?.MultPackQty) || 0;
   const mouserPartNumber = part?.MouserPartNumber || "";
 
+  const attrs = data?.SearchResults?.Parts?.[0]?.ProductAttributes || [];
+  const caseAttr = attrs.find(a => /case.*(code|package)|package.*case/i.test(a.AttributeName || ""));
+  const caseCode = caseAttr?.AttributeValue || null;
+
   // Write into parts.pricing.mouser so Phase 1 cache scan finds it on future runs
   if (packQty > 0 && partId && supabaseUrl && supabaseKey) {
     try {
       const fetchRes = await fetch(
-        `${supabaseUrl}/rest/v1/parts?id=eq.${encodeURIComponent(partId)}&select=pricing`,
+        `${supabaseUrl}/rest/v1/parts?id=eq.${encodeURIComponent(partId)}&select=pricing,footprint`,
         { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
       );
       if (fetchRes.ok) {
         const rows = await fetchRes.json();
         const existing = rows?.[0]?.pricing || {};
         const merged = { ...existing, mouser: { ...(existing.mouser||{}), factoryPackQty: packQty, mouserPartNumber: mouserPartNumber || (existing.mouser?.mouserPartNumber) || "" } };
+        const patchBody = { pricing: merged };
+        if (!rows?.[0]?.footprint && caseCode) patchBody.footprint = caseCode;
         await fetch(`${supabaseUrl}/rest/v1/parts?id=eq.${encodeURIComponent(partId)}`, {
           method: "PATCH",
           headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-          body: JSON.stringify({ pricing: merged }),
+          body: JSON.stringify(patchBody),
         });
       }
     } catch (e) { console.warn(`[pack-qty] ${mpn}: cache write failed —`, e.message); }
   }
 
-  return res.json({ packQty, mouserPartNumber, source: "Mouser" });
+  return res.json({ packQty, mouserPartNumber, source: "Mouser", caseCode });
 }
