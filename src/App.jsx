@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.67";
-const BUILD_TIME   = "2026-03-28T23:20:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.68";
+const BUILD_TIME   = "2026-03-28T23:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -1660,6 +1660,12 @@ function BOMManager({ user }) {
   const [feasibilityResults, setFeasibilityResults] = useState(null); // results from "What Can I Build?" check
   const [feasibilityLoading, setFeasibilityLoading] = useState(false);
   const [restockPreflight, setRestockPreflight] = useState(null); // { product, quantity, suggested, bomRows: [{part, have, reserved, available, need, totalNeeded, short}] }
+  const [confirmModal, setConfirmModal] = useState(null);
+  // confirmModal = { title, message, confirmLabel, confirmColor, onConfirm, onCancel }
+  const showConfirm = (title, message, confirmLabel = "Confirm", confirmColor = "#ff3b30") =>
+    new Promise(resolve => {
+      setConfirmModal({ title, message, confirmLabel, confirmColor, resolve });
+    });
   const [toasts, setToasts] = useState([]); // [{ id, message, color }]
 
   // ── Pedal Units (individual serialized unit tracking)
@@ -1852,8 +1858,8 @@ function BOMManager({ user }) {
   };
 
   // Delete a tracked order
-  const deleteTrackedOrder = (orderId) => {
-    if (!window.confirm("Delete this order record? This cannot be undone.")) return;
+  const deleteTrackedOrder = async (orderId) => {
+    if (!await showConfirm("Delete Order", "Delete this order record? This cannot be undone.", "Delete", "#ff3b30")) return;
     saveTrackedOrders(trackedOrders.filter(o => o.id !== orderId));
     if (expandedOrder === orderId) setExpandedOrder(null);
   };
@@ -2911,7 +2917,7 @@ function BOMManager({ user }) {
   };
 
   const deleteVendor = async (id) => {
-    if (!window.confirm("Remove this vendor from the directory? This won't affect parts already using it.")) return;
+    if (!await showConfirm("Remove Vendor", "Remove this vendor from the directory? This won't affect parts already using it.", "Remove", "#ff3b30")) return;
     await supabase.from("vendors").delete().eq("id", id);
     setVendors(prev => prev.filter(v => v.id !== id));
   };
@@ -3018,7 +3024,7 @@ function BOMManager({ user }) {
 
   // Remove a custom supplier from a part
   const removeCustomSupplier = async (partId, supplierKey) => {
-    if (!window.confirm("Remove this custom supplier?")) return;
+    if (!await showConfirm("Remove Supplier", "Remove this custom supplier?", "Remove", "#ff3b30")) return;
     setParts((prev) => prev.map((p) => {
       if (p.id !== partId) return p;
       const pricing = { ...p.pricing };
@@ -3050,7 +3056,7 @@ function BOMManager({ user }) {
     if (!isAdmin) { alert("Only admins can delete parts. Contact your administrator."); return; }
     const part = parts.find(p => p.id === id);
     const label = part?.mpn || part?.reference || "this part";
-    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return;
+    if (!await showConfirm("Delete Part", `Delete "${label}"? This cannot be undone.`, "Delete", "#ff3b30")) return;
     setParts((prev) => prev.filter((p) => p.id !== id));
     setSelectedParts((prev) => { const n = new Set(prev); n.delete(id); return n; });
     try { await dbDeletePart(id); } catch (e) { console.error("deletePart failed:", e); }
@@ -3067,7 +3073,7 @@ function BOMManager({ user }) {
   const deleteSelected = async () => {
     if (!isAdmin) { alert("Only admins can delete parts. Contact your administrator."); return; }
     const ids = [...selectedParts];
-    if (!window.confirm(`Delete ${ids.length} selected part${ids.length !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+    if (!await showConfirm("Delete Parts", `Delete ${ids.length} selected part${ids.length !== 1 ? "s" : ""}? This cannot be undone.`, "Delete All", "#ff3b30")) return;
     setParts((prev) => prev.filter((p) => !selectedParts.has(p.id)));
     setSelectedParts(new Set());
     try { await deletePartsMany(ids); } catch (e) { console.error("deleteSelected failed:", e); alert("Delete failed: " + e.message); }
@@ -5770,7 +5776,7 @@ function BOMManager({ user }) {
                 </div>
                 <button style={{ background:"#ff9500",color:"#fff",border:"none",borderRadius:8,padding:"7px 16px",fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap" }}
                   onClick={async () => {
-                    if (!window.confirm(`Delete the ${lastImportBatch.count} parts from the last import? This cannot be undone.`)) return;
+                    if (!await showConfirm("Undo Import", `Delete the ${lastImportBatch.count} parts from the last import? This cannot be undone.`, "Delete", "#ff3b30")) return;
                     await deletePartsMany(lastImportBatch.ids);
                     setLastImportBatch(null);
                     try { localStorage.removeItem("bom_last_import"); } catch {}
@@ -6342,7 +6348,7 @@ function BOMManager({ user }) {
                     </div>
                     <button style={{ background:"#ff9500",color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontWeight:700,fontSize:12,cursor:"pointer",whiteSpace:"nowrap" }}
                       onClick={async () => {
-                        if (!window.confirm(`Delete the ${lastImportBatch.count} parts from the last import?`)) return;
+                        if (!await showConfirm("Undo Import", `Delete the ${lastImportBatch.count} parts from the last import? This cannot be undone.`, "Delete", "#ff3b30")) return;
                         await deletePartsMany(lastImportBatch.ids);
                         setLastImportBatch(null);
                         try { localStorage.removeItem("bom_last_import"); } catch {}
@@ -6616,7 +6622,7 @@ function BOMManager({ user }) {
                 const msg = fresh.length < toImport.length
                   ? `Import ${fresh.length} new parts? (${dupes.length} already exist and will be skipped)`
                   : `Import ${fresh.length} parts into the master library?`;
-                if (!window.confirm(msg)) return;
+                if (!await showConfirm("Confirm", msg, "Confirm", "#ff3b30")) return;
                 try {
                   const dbRows = fresh.map(p => {
                     const mfr = compSearchMfr || p.manufacturer;
@@ -8187,8 +8193,8 @@ function BOMManager({ user }) {
               <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:16 }}>
                 <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                   <div style={{ fontSize:10,color:"#86868b",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Build Queue — {buildQueue.length} product{buildQueue.length!==1?"s":""}</div>
-                  <button onClick={() => {
-                      if (!window.confirm(`Clear all ${buildQueue.length} product${buildQueue.length!==1?"s":""} from the build queue? This cannot be undone.`)) return;
+                  <button onClick={async () => {
+                      if (!await showConfirm("Clear Build Queue", `Remove all ${buildQueue.length} product${buildQueue.length!==1?"s":""} from the build queue?`, "Clear All", "#ff3b30")) return;
                       setBuildQueue([]);
                     }}
                     style={{ fontSize:11,color:"#ff3b30",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:500 }}>
@@ -9804,7 +9810,7 @@ function BOMManager({ user }) {
                   {lastProductImport.importedAt ? ` · ${new Date(lastProductImport.importedAt).toLocaleString()}` : ""}
                 </span>
                 <button onClick={async () => {
-                  if (!window.confirm(`Delete the ${lastProductImport.count} products from the last import? This cannot be undone.`)) return;
+                  if (!await showConfirm("Undo Import", `Delete the ${lastProductImport.count} products from the last import? This cannot be undone.`, "Delete", "#ff3b30")) return;
                   try {
                     for (const id of lastProductImport.ids) {
                       await supabase.from("products").delete().eq("id", id);
@@ -9864,7 +9870,7 @@ function BOMManager({ user }) {
                       const msg = totalParts > 0
                         ? `Delete ${count} product${count !== 1 ? "s" : ""} and their ${totalParts} part${totalParts !== 1 ? "s" : ""}?\n\nThis cannot be undone.`
                         : `Delete ${count} product${count !== 1 ? "s" : ""}?\n\nThis cannot be undone.`;
-                      if (!window.confirm(msg)) return;
+                      if (!await showConfirm("Confirm Action", msg, "Confirm", "#ff3b30")) return;
                       let deleted = 0;
                       for (const id of selectedProductIds) {
                         try { await deleteProduct(id); deleted++; } catch (e) { console.error("Delete failed:", id, e); }
@@ -10545,7 +10551,7 @@ function BOMManager({ user }) {
                       const msg = totalParts > 0
                         ? `Delete ${count} product${count !== 1 ? "s" : ""} and their ${totalParts} part${totalParts !== 1 ? "s" : ""}?\n\nThis cannot be undone.`
                         : `Delete ${count} product${count !== 1 ? "s" : ""}?\n\nThis cannot be undone.`;
-                      if (!window.confirm(msg)) return;
+                      if (!await showConfirm("Confirm Action", msg, "Confirm", "#ff3b30")) return;
                       let deleted = 0;
                       const deletedIds = new Set();
                       for (const d of toDelete) {
@@ -10655,7 +10661,7 @@ function BOMManager({ user }) {
                       const msg = partCount > 0
                         ? `Delete "${prod.name}" and its ${partCount} part${partCount !== 1 ? "s" : ""}? This cannot be undone.`
                         : `Delete "${prod.name}"? This cannot be undone.`;
-                      if (!window.confirm(msg)) return;
+                      if (!await showConfirm("Confirm Action", msg, "Confirm", "#ff3b30")) return;
                       try {
                         await deleteProduct(prod.id);
                         setProducts(prev => prev.filter(p => p.id !== prod.id));
@@ -11154,7 +11160,7 @@ function BOMManager({ user }) {
                               {stockVal > 0 ? `$${fmtDollar(stockVal)}` : "--"}
                             </td>
                             <td style={{ padding:"10px 10px",textAlign:"right" }}>
-                              <button onClick={()=>{if(window.confirm(`Remove "${part.mpn||part.reference}" from this product?`))updatePart(part.id,"projectId",null);}}
+                              <button onClick={async ()=>{ if(await showConfirm("Remove Part", `Remove "${part.mpn||part.reference}" from this product?`, "Remove", "#ff3b30")) updatePart(part.id,"projectId",null); }}
                                 title="Remove from product"
                                 style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:13,padding:"2px 6px",borderRadius:4,transition:"color 0.15s" }}
                                 onMouseOver={(e)=>e.target.style.color="#ff9500"}
@@ -13235,7 +13241,7 @@ function BOMManager({ user }) {
 
           const handleDeleteTeamMember = async (id) => {
             if (!isAdmin) { alert("Only admins can delete team members."); return; }
-            if (!window.confirm("Delete this team member?")) return;
+            if (!await showConfirm("Delete Team Member", "Delete this team member? This cannot be undone.", "Delete", "#ff3b30")) return;
             try {
               await deleteTeamMember(id);
               setTeamMembers(prev => prev.filter(t => t.id !== id));
@@ -13471,7 +13477,7 @@ function BOMManager({ user }) {
 
           const handleDeleteBuildOrder = async (id) => {
             if (!isAdmin) { alert("Only admins can delete build orders."); return; }
-            if (!window.confirm("Delete this build order?")) return;
+            if (!await showConfirm("Delete Build Order", "Delete this build order? All associated reservations will be released.", "Delete", "#ff3b30")) return;
             try {
               await deleteBuildOrder(id);
               setBuildOrders(prev => prev.filter(b => b.id !== id));
@@ -14605,7 +14611,7 @@ function BOMManager({ user }) {
                         {tester.active !== false ? "Deactivate" : "Activate"}
                       </button>
                       {isAdmin && <button onClick={async () => {
-                        if (!window.confirm(`Delete tester "${tester.name}"?`)) return;
+                        if (!await showConfirm("Delete Tester", `Delete tester "${tester.name}"? This cannot be undone.`, "Delete", "#ff3b30")) return;
                         try { await deletePlayTester(tester.id); setPlayTesters(prev => prev.filter(t => t.id !== tester.id)); }
                         catch (e) { alert("Delete failed: " + e.message); }
                       }} style={{ fontSize:11,padding:"4px 10px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#ff3b30",color:"#fff" }}>
@@ -14762,7 +14768,7 @@ function BOMManager({ user }) {
                         </button>
                       )}
                       {isAdmin && <button onClick={async () => {
-                        if (!window.confirm("Delete this play test?")) return;
+                        if (!await showConfirm("Delete Play Test", "Delete this play test record? This cannot be undone.", "Delete", "#ff3b30")) return;
                         try { await deletePlayTest(test.id); setPlayTests(prev => prev.filter(t => t.id !== test.id)); }
                         catch (e) { alert("Delete failed: " + e.message); }
                       }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#ff3b30",color:"#fff" }}>
@@ -15162,7 +15168,7 @@ function BOMManager({ user }) {
                         </button>
                       </>)}
                       {isAdmin && <button onClick={async () => {
-                        if (!window.confirm("Delete this boxing task?")) return;
+                        if (!await showConfirm("Delete Boxing Task", "Delete this boxing task? This cannot be undone.", "Delete", "#ff3b30")) return;
                         try { await deleteBoxingTask(task.id); setBoxingTasks(prev => prev.filter(t => t.id !== task.id)); }
                         catch (e) { alert("Delete failed: " + e.message); }
                       }} style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#ff3b30",color:"#fff" }}>
@@ -15616,7 +15622,7 @@ function BOMManager({ user }) {
                         const currentQty = fg?.quantity_on_hand ?? 0;
                         if (qty > currentQty) { alert(`Only ${currentQty} units on shelf.`); return; }
                         const prod = products.find(p => p.id === shelfScanProduct);
-                        if (!window.confirm(`Remove ${qty} ${prod?.name || ''} from shelf?`)) return;
+                        if (!await showConfirm("Remove from Shelf", `Remove ${qty} ${prod?.name || ''} from shelf? This will update inventory.`, "Remove", "#ff9500")) return;
                         setFinishedGoodsBusy(true);
                         try {
                           const updated = await upsertFinishedGoods(shelfScanProduct, -qty, user.id);
@@ -16865,7 +16871,7 @@ function BOMManager({ user }) {
 
           const undoLastImport = async () => {
             if (!lastCsvImport) return;
-            if (!window.confirm(`Undo last import? This will delete ${lastCsvImport.created.length} new dealers and restore ${lastCsvImport.updated.length} updated dealers.`)) return;
+            if (!await showConfirm("Undo Dealer Import", `This will delete ${lastCsvImport.created.length} new dealers and restore ${lastCsvImport.updated.length} updated dealers to their previous state.`, "Undo Import", "#ff3b30")) return;
             for (const id of lastCsvImport.created) {
               try { await deleteDealer(id); } catch(e) { console.warn("Undo delete failed", id, e.message); }
             }
@@ -19388,6 +19394,30 @@ function BOMManager({ user }) {
           </div>
           );
         })()}
+        {/* ── Global Confirmation Modal ── */}
+        {confirmModal && (
+          <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:99999,display:"flex",alignItems:"center",justifyContent:"center",padding:"20px" }}
+            onClick={e => { if (e.target===e.currentTarget) { confirmModal.resolve(false); setConfirmModal(null); } }}>
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:18,padding:"32px 32px 28px",width:"100%",maxWidth:480,boxShadow:"0 20px 80px rgba(0,0,0,0.5)" }}>
+              <div style={{ fontSize:22,fontWeight:800,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",marginBottom:12,letterSpacing:"-0.3px" }}>
+                {confirmModal.title}
+              </div>
+              <div style={{ fontSize:15,color:"#86868b",lineHeight:"22px",marginBottom:28 }}>
+                {confirmModal.message}
+              </div>
+              <div style={{ display:"flex",gap:10,justifyContent:"flex-end" }}>
+                <button onClick={() => { confirmModal.resolve(false); setConfirmModal(null); }}
+                  style={{ padding:"12px 24px",borderRadius:980,border:"1px solid #d2d2d7",cursor:"pointer",fontWeight:600,fontSize:14,background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"inherit" }}>
+                  Cancel
+                </button>
+                <button onClick={() => { confirmModal.resolve(true); setConfirmModal(null); }}
+                  style={{ padding:"12px 28px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,background:confirmModal.confirmColor||"#ff3b30",color:"#fff",fontFamily:"inherit" }}>
+                  {confirmModal.confirmLabel}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* QR Label Modal */}
