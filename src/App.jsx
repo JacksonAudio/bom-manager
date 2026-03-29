@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.61";
-const BUILD_TIME   = "2026-03-28T22:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.62";
+const BUILD_TIME   = "2026-03-28T22:20:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -4900,7 +4900,7 @@ function BOMManager({ user }) {
           { id:"pricing",   label:`Pricing${pricedCount>0?` (${pricedCount}/${parts.length})`:""}`, step:3, color:"#ff9500" },
           { id:"demand",    label:`Orders${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)?` (${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)})`:""}`, step:4, color:"#34c759" },
           { id:"purchasing",label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}`, step:5, color:"#ff3b30" },
-          { id:"scan",      label:"Scan In",    step:6, color:"#00c7be" },
+          { id:"scan",      label:"Scan In/Out", step:6, color:"#00c7be" },
           { id:"orders",    label:`Orders${trackedOrders.length>0?` (${trackedOrders.length})`:""}`, step:null, color:null },
           { id:"production",label:`Production${(()=>{ const c=buildOrders.filter(b=>b.status!=="completed").length+playTests.filter(t=>t.status!=="returned").length+boxingTasks.filter(t=>t.status!=="completed").length; return c>0?` (${c})`:""; })()}`, step:null, color:null },
           { id:"shelf",     label:`Shelf${finishedGoods.length>0?` (${finishedGoods.reduce((s,r)=>s+(r.quantity_on_hand||0),0)})`:""}`, step:null, color:null },
@@ -15483,8 +15483,8 @@ function BOMManager({ user }) {
               )}
             </div>
 
-            {/* Shelf Scan-Out */}
-            <div style={{ background:cardBg,borderRadius:14,padding:"20px 22px",marginBottom:20,border:cardBorder }}>
+            {/* Shelf Scan-Out — moved to Scan In/Out tab */}
+            {false && <div style={{ background:cardBg,borderRadius:14,padding:"20px 22px",marginBottom:20,border:cardBorder }}>
               <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom: shelfScanMode ? 16 : 0 }}>
                 <div>
                   <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>Scan Out — Fulfillment</div>
@@ -15615,7 +15615,7 @@ function BOMManager({ user }) {
                   )}
                 </div>
               )}
-            </div>
+            </div>}
 
             {/* Search bar */}
             <div style={{ position:"relative",marginBottom:14 }}>
@@ -15643,13 +15643,15 @@ function BOMManager({ user }) {
                 <div style={{ textAlign:"center",padding:"40px 0",color:"#86868b",fontSize:13 }}>No products match "{shelfSearch}"</div>
               );
               return brands.map(brand => (
-                <div key={brand} style={{ marginBottom:20 }}>
-                  {/* Brand header */}
-                  <div style={{ fontSize:11,fontWeight:700,color:"#86868b",letterSpacing:"0.08em",textTransform:"uppercase",
+                <details key={brand} style={{ marginBottom:20 }} open>
+                  <summary style={{ listStyle:"none",cursor:"pointer",userSelect:"none",
+                    fontSize:11,fontWeight:700,color:"#86868b",letterSpacing:"0.08em",textTransform:"uppercase",
                     padding:"8px 14px",background:darkMode?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)",
-                    borderRadius:"10px 10px 0 0",borderBottom:`2px solid ${darkMode?"#3a3a3e":"#e5e5ea"}` }}>
+                    borderRadius:10,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
+                    display:"flex",alignItems:"center",gap:6 }}>
+                    <span style={{ fontSize:10,transition:"transform 0.15s" }}>▶</span>
                     {brand} — {brandGroups[brand].length} product{brandGroups[brand].length !== 1 ? "s" : ""}
-                  </div>
+                  </summary>
                   <div style={{ background:cardBg,border:cardBorder,borderTop:"none",borderRadius:"0 0 10px 10px",overflow:"hidden",marginBottom:2 }}>
                     <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                       <thead>
@@ -15730,7 +15732,7 @@ function BOMManager({ user }) {
                       </tbody>
                     </table>
                   </div>
-                </div>
+                </details>
               ));
             })()}
 
