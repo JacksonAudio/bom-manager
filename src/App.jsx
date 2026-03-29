@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.93";
-const BUILD_TIME   = "2026-03-29T17:55:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.94";
+const BUILD_TIME   = "2026-03-29T18:05:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -20067,20 +20067,20 @@ function BOMManager({ user }) {
                 disabled={valueFillModal.checkedIds.size === 0}
                 onClick={async () => {
                   const toSave = valueFillModal.rows.filter(r => valueFillModal.checkedIds.has(r.part.id));
-                  // Fire all updates in parallel — 797 calls takes seconds not minutes
-                  await Promise.all(toSave.map(async row => {
-                    const updates = {};
-                    if (row.detectedValue) updates.value = row.detectedValue;
-                    if (row.detectedVoltage) updates.voltage_rating = row.detectedVoltage;
-                    if (!Object.keys(updates).length) return;
-                    await supabase.from("parts").update(updates).eq("id", row.part.id);
-                  }));
+                  // 2 bulk upserts instead of N individual PATCHes —
+                  // Supabase upsert only updates the columns you provide per batch
+                  const valueRows   = toSave.filter(r => r.detectedValue).map(r => ({ id: r.part.id, value: r.detectedValue }));
+                  const voltageRows = toSave.filter(r => r.detectedVoltage).map(r => ({ id: r.part.id, voltage_rating: r.detectedVoltage }));
+                  await Promise.all([
+                    valueRows.length   ? supabase.from("parts").upsert(valueRows,   { onConflict: "id" }) : Promise.resolve(),
+                    voltageRows.length ? supabase.from("parts").upsert(voltageRows, { onConflict: "id" }) : Promise.resolve(),
+                  ]);
                   // Update local state in one pass
                   const updateMap = {};
                   for (const row of toSave) {
                     updateMap[row.part.id] = {};
-                    if (row.detectedValue) updateMap[row.part.id].value = row.detectedValue;
-                    if (row.detectedVoltage) updateMap[row.part.id].voltage_rating = row.detectedVoltage;
+                    if (row.detectedValue)   updateMap[row.part.id].value           = row.detectedValue;
+                    if (row.detectedVoltage) updateMap[row.part.id].voltage_rating  = row.detectedVoltage;
                   }
                   setParts(prev => prev.map(p => updateMap[p.id] ? { ...p, ...updateMap[p.id] } : p));
                   setValueFillModal(null);
