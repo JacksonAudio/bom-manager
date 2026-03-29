@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.92";
-const BUILD_TIME   = "2026-03-29T17:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.93";
+const BUILD_TIME   = "2026-03-29T17:55:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -2912,6 +2912,8 @@ function BOMManager({ user }) {
       countryOfOrigin:   row.country_of_origin || null,
       htsCode:           row.hts_code || null,
       notes:             row.notes || "",
+      voltage_rating:    row.voltage_rating || "",
+      url:               row.url || "",
     };
   }
 
