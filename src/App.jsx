@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.60";
-const BUILD_TIME   = "2026-03-28T22:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.61";
+const BUILD_TIME   = "2026-03-28T22:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -1438,7 +1438,7 @@ function BOMManager({ user }) {
   const [activeView,  setActiveViewRaw]  = useState(() => {
     const hash = window.location.hash.replace("#","");
     if (hash === "products") return "projects";
-    const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin"];
+    const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","shelf","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin","pipeline"];
     return validTabs.includes(hash) ? hash : "dashboard";
   });
   const setActiveView = (view) => {
@@ -2085,7 +2085,7 @@ function BOMManager({ user }) {
     const onPopState = () => {
       const hash = window.location.hash.replace("#","");
       if (hash === "products") { setActiveViewRaw("projects"); return; }
-      const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin"];
+      const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","shelf","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin","pipeline"];
       if (validTabs.includes(hash)) setActiveViewRaw(hash);
     };
     window.addEventListener("popstate", onPopState);
@@ -4905,7 +4905,6 @@ function BOMManager({ user }) {
           { id:"production",label:`Production${(()=>{ const c=buildOrders.filter(b=>b.status!=="completed").length+playTests.filter(t=>t.status!=="returned").length+boxingTasks.filter(t=>t.status!=="completed").length; return c>0?` (${c})`:""; })()}`, step:null, color:null },
           { id:"shelf",     label:`Shelf${finishedGoods.length>0?` (${finishedGoods.reduce((s,r)=>s+(r.quantity_on_hand||0),0)})`:""}`, step:null, color:null },
           { id:"pipeline",label:`Pipeline${pedalUnits.filter(u=>u.status!=="shipped"&&u.status!=="boxed").length>0?` (${pedalUnits.filter(u=>u.status!=="shipped"&&u.status!=="boxed").length})`:""}`, step:null, color:null },
-          { id:"scoreboard",label:"Scoreboard", step:null, color:null },
           { id:"suppliers", label:"Suppliers",   step:null, color:null },
           { id:"dealers",   label:`Dealers${dealers.length>0?` (${dealers.length})`:""}`, step:null, color:null },
           { id:"shops",     label:`Shops${shopOrders.filter(o=>o.status!=="completed"&&o.status!=="cancelled").length>0?` (${shopOrders.filter(o=>o.status!=="completed"&&o.status!=="cancelled").length})`:""}`, step:null, color:null },
