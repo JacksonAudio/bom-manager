@@ -2,6 +2,31 @@
 // Combines: shopify-orders, shopify-products, shopify-sales-prices, shopify-history
 // Route via ?action=orders|products|sales-prices|history
 
+// ── Pure helpers (exported for testing) ─────────────────────────────────────
+
+// Extract the "next" URL from a Shopify Link header
+export function parseNextLink(linkHeader) {
+  if (!linkHeader) return null;
+  const match = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+  return match ? match[1] : null;
+}
+
+// Determine if a line item title is a non-product (shipping, gift card, etc.)
+const NON_PRODUCT_WORDS = ["shipping", "gift card", "tip", "gratuity", "donation", "insurance", "handling", "gift wrap", "express shipping"];
+export function isNonProduct(title) {
+  const t = (title || "").toLowerCase();
+  return NON_PRODUCT_WORDS.some(w => t.includes(w));
+}
+
+// Calculate the effective per-unit price after discount allocations
+export function calcEffectiveLinePrice(linePrice, discountAllocations, quantity) {
+  const totalDiscount = (discountAllocations || []).reduce(
+    (sum, d) => sum + (parseFloat(d.amount) || 0), 0
+  );
+  const perItemDiscount = quantity > 0 ? totalDiscount / quantity : 0;
+  return linePrice - perItemDiscount;
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -362,11 +387,6 @@ async function handleHistory(req, res, domain, access_token) {
   }
 
   // Aggregate by month and product
-  const skipWords = ["shipping", "gift card", "tip", "gratuity", "donation", "insurance", "handling", "gift wrap", "express shipping"];
-  const isNonProduct = (title) => {
-    const t = (title || "").toLowerCase();
-    return skipWords.some(w => t.includes(w));
-  };
 
   const monthlyMap = {};
 

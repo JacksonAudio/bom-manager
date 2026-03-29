@@ -7,4 +7,9 @@ export default defineConfig({
   build: {
     outDir: 'dist',
   },
+  test: {
+    environment: 'node',
+    globals: true,
+    include: ['src/**/*.test.js', '__tests__/**/*.test.js'],
+  },
 })
