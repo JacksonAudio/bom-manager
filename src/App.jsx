@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.63";
-const BUILD_TIME   = "2026-03-28T22:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.64";
+const BUILD_TIME   = "2026-03-28T22:40:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -15286,7 +15286,11 @@ function BOMManager({ user }) {
                 const vel = salesVelocity[prod.id];
                 const vpd = vel?.unitsPerDay || 0;
                 const unitsSold30d = vel?.unitsSold30d || 0;
-                const suggested = Math.max(50, Math.ceil(vpd * 30 * 1.5));
+                const target = fg?.target_stock || 0;
+                const toReachTarget = Math.max(0, target - qty);   // units to get back to target
+                const toReachMin    = Math.max(0, min   - qty);    // units to at least clear min
+                const velocityBuild = Math.ceil(vpd * 30 * 1.5);  // 45-day supply at 1.5× safety
+                const suggested = Math.max(50, toReachTarget, toReachMin, velocityBuild);
                 const burnDays = vpd > 0 && qty > 0 ? Math.floor(qty / vpd) : null;
                 // Parts needed for this build
                 const bomParts = parts.filter(p => p.projectId === prod.id);
