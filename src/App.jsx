@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.77";
-const BUILD_TIME   = "2026-03-29T11:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.78";
+const BUILD_TIME   = "2026-03-29T11:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6076,12 +6076,20 @@ function BOMManager({ user }) {
 
                 // Phase 2: Nexar API for parts with MPN but no cache hit
                 // Nexar covers all distributors, no rate-limit issues, no CORS problems
-                const hasNexar = nexarToken && apiKeys.nexar_client_id;
+                // Fetch Nexar token if not already loaded in session
+                let activeNexarToken = nexarToken;
+                if (!activeNexarToken && apiKeys.nexar_client_id && apiKeys.nexar_client_secret) {
+                  try {
+                    activeNexarToken = await fetchNexarToken(apiKeys.nexar_client_id, apiKeys.nexar_client_secret);
+                    setNexarToken(activeNexarToken);
+                  } catch(e) { console.warn("[AutoFill] Nexar token fetch failed:", e.message); }
+                }
+                const hasNexar = !!activeNexarToken;
                 const hasMouser = !!apiKeys.mouser_api_key;
                 if (hasNexar || hasMouser) {
-                  // Only query electronic parts — mouser_pn presence indicates it's on electronic distributors
-                  // Hardware (McMaster screws/washers) have numeric-only MPNs and no mouser_pn
-                  const needApi = rows.filter(r => !r.detected && r.part.mouser_pn);
+                  // Skip hardware/McMaster parts — their MPNs are purely numeric (2943, 7618, etc.)
+                  // Electronic component MPNs always contain at least one letter (RK73H1JTTDD1241F, GRM188...)
+                  const needApi = rows.filter(r => !r.detected && r.part.mpn && /[a-zA-Z]/.test(r.part.mpn));
                   let apiCount = 0;
                   for (const row of needApi) {
                     try {
@@ -6090,7 +6098,7 @@ function BOMManager({ user }) {
                         const query = buildNexarReelQuery(row.part.mpn);
                         const res = await fetch("https://api.nexar.com/graphql", {
                           method: "POST",
-                          headers: { "Content-Type":"application/json", "Authorization":`Bearer ${nexarToken}` },
+                          headers: { "Content-Type":"application/json", "Authorization":`Bearer ${activeNexarToken}` },
                           body: JSON.stringify({ query }),
                         });
                         if (res.ok) {
@@ -6116,12 +6124,11 @@ function BOMManager({ user }) {
                           }
                         }
                       } else {
-                        // Fallback: Mouser direct — only for parts with mouser_pn, with rate limiting
-                        if (!row.part.mouser_pn) continue;
+                        // Fallback: Mouser direct (already filtered to letter-containing MPNs above)
                         const res = await fetch(
                           `https://api.mouser.com/api/v1/search/partnumber?apiKey=${apiKeys.mouser_api_key}`,
                           { method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
-                            body: JSON.stringify({ SearchByPartRequest:{ mouserPartNumber: row.part.mouser_pn, partSearchOptions:"Exact" } }) }
+                            body: JSON.stringify({ SearchByPartRequest:{ mouserPartNumber: row.part.mpn, partSearchOptions:"Exact" } }) }
                         );
                         await new Promise(r => setTimeout(r, 300));
                         if (res.ok) {
@@ -19804,7 +19811,7 @@ function BOMManager({ user }) {
                 {reelFillModal.phase === "fetching" && <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>Fetching pack quantities from Nexar…</div>}
                 {reelFillModal.phase === "preview" && (
                   <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>
-                    {reelFillModal.cacheCount} found in cache · {reelFillModal.apiCount} fetched from Mouser API
+                    {reelFillModal.cacheCount} found in cache · {reelFillModal.apiCount} fetched from Nexar
                   </div>
                 )}
               </div>
