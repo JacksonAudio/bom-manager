@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v8.78";
-const BUILD_TIME   = "2026-03-29T11:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v8.79";
+const BUILD_TIME   = "2026-03-29T11:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -406,10 +406,10 @@ function buildNexarQuery(mpn) {
   const safe = mpn.replace(/"/g, '\\"');
   return `{ supSearchMpn(q: "${safe}", limit: 10) { hits results { part { mpn manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
 }
-// Lightweight Nexar query for reel-qty auto-fill — includes packQty
+// Lightweight Nexar query for reel-qty auto-fill — factoryPackQuantity is the correct field name
 function buildNexarReelQuery(mpn) {
   const safe = mpn.replace(/"/g, '\\"');
-  return `{ supSearchMpn(q: "${safe}", limit: 5) { hits results { part { mpn sellers { company { name } offers { packQty moq } } } } } }`;
+  return `{ supSearchMpn(q: "${safe}", limit: 5) { hits results { part { mpn sellers { company { name } offers { factoryPackQuantity multipackQuantity moq packaging } } } } } }`;
 }
 
 async function fetchNexarPricing(mpn, quantity, token) {
@@ -6105,12 +6105,12 @@ function BOMManager({ user }) {
                           const data = await res.json();
                           const part = data?.data?.supSearchMpn?.results?.[0]?.part;
                           if (part) {
-                            // Find best packQty across all sellers (prefer largest non-trivial value)
+                            // Find best factory pack qty across all sellers (prefer largest reel/tape value)
                             let bestPack = 0;
                             let bestSeller = "";
                             for (const seller of (part.sellers || [])) {
                               for (const offer of (seller.offers || [])) {
-                                const pq = parseInt(offer.packQty) || 0;
+                                const pq = parseInt(offer.factoryPackQuantity || offer.multipackQuantity) || 0;
                                 if (pq > bestPack) { bestPack = pq; bestSeller = seller.company?.name || "Nexar"; }
                               }
                             }
