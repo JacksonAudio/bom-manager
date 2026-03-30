@@ -30,6 +30,12 @@ Never ask "want me to?", "shall I?", or "should I?" before pushing, committing, 
 
 **Always push to `master`. Never push to any other branch unless explicitly told otherwise.**
 
+When working in a worktree (e.g. `.claude/worktrees/silly-euler`), ALWAYS merge to master and push from the main repo directory immediately after every commit. Never leave commits sitting only on a worktree branch. The sequence every single time:
+```
+git add <files> && git commit -m "..." # in worktree
+cd /Users/BradJackson/Downloads/jackson-bom && git merge <worktree-branch> && git push origin master
+```
+
 ## React 18: Reading state inside async functions
 
 Never use side-effect variables inside setState updaters — React 18 batching defers execution:
@@ -90,6 +96,10 @@ These rules apply everywhere a component value is displayed, stored, or detected
 | `470OHM` | `470R` |
 | `1200R` | `1.2k` |
 | `10µH` | `10uH` |
+
+## MANDATORY: Never use native browser dialogs
+
+**Never use `confirm()`, `alert()`, or `prompt()`.** These are ugly OS-level dialogs that break the design. Always use a styled in-app modal instead. Every confirmation, error message, and user prompt must use the modal design standard below.
 
 ## Modal / dialog styling standard
 

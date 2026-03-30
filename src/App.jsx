@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.32";
-const BUILD_TIME   = "2026-03-30T11:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.33";
+const BUILD_TIME   = "2026-03-30T12:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -1689,6 +1689,8 @@ function BOMManager({ user }) {
   const [repairFilter, setRepairFilter] = useState("open");
   const [repairSearch, setRepairSearch] = useState("");
   const [repairSelected, setRepairSelected] = useState(new Set());
+  const [repairDeleteConfirm, setRepairDeleteConfirm] = useState(null); // null | { ids: [...] }
+  const [gmailAddAllBusy, setGmailAddAllBusy] = useState(false);
   const [gmailScanModal, setGmailScanModal] = useState(null);
   // null | { status:'loading'|'done'|'error', messages:[], error, ticketed: Set<id>, expanded: id|null, expandedBody:string, expandedLoading:bool }
 
@@ -17231,14 +17233,8 @@ function BOMManager({ user }) {
                   </button>
                 )}
                 {repairSelected.size > 0 && (
-                  <button onClick={async () => {
-                    if (!confirm(`Delete ${repairSelected.size} repair ticket${repairSelected.size>1?"s":""}? This does not delete any emails.`)) return;
-                    const ids = [...repairSelected];
-                    await supabase.from("unit_repairs").delete().in("id", ids);
-                    setRepairs(prev => prev.filter(r => !repairSelected.has(r.id)));
-                    setRepairSelected(new Set());
-                    showToast(`Deleted ${ids.length} ticket${ids.length>1?"s":""}`, "#ff3b30");
-                  }} style={{ padding:"5px 14px", borderRadius:980, border:"1px solid #ff3b30", fontSize:12, cursor:"pointer", background:"#fff5f5", color:"#ff3b30", fontWeight:600, whiteSpace:"nowrap" }}>
+                  <button onClick={() => setRepairDeleteConfirm({ ids: [...repairSelected] })}
+                    style={{ padding:"5px 14px", borderRadius:980, border:"1px solid #ff3b30", fontSize:12, cursor:"pointer", background:"#fff5f5", color:"#ff3b30", fontWeight:600, whiteSpace:"nowrap" }}>
                     🗑 Delete {repairSelected.size}
                   </button>
                 )}
@@ -20096,6 +20092,36 @@ function BOMManager({ user }) {
         <QRLabelModal parts={qrModalParts} products={products} onClose={() => setQrModalParts(null)} />
       )}
 
+      {/* ── Repair Delete Confirm Modal ── */}
+      {repairDeleteConfirm && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
+          onClick={e => { if (e.target===e.currentTarget) setRepairDeleteConfirm(null); }}>
+          <div style={{ background:"#fff",borderRadius:20,padding:"32px 36px",width:420,maxWidth:"92vw",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
+            <div style={{ fontSize:20,fontWeight:700,color:"#1d1d1f",marginBottom:8 }}>Delete {repairDeleteConfirm.ids.length} Repair Ticket{repairDeleteConfirm.ids.length>1?"s":""}</div>
+            <div style={{ fontSize:14,color:"#86868b",marginBottom:28,lineHeight:"20px" }}>This removes the ticket{repairDeleteConfirm.ids.length>1?"s":""} from BOM Manager only. No emails will be deleted.</div>
+            <div style={{ display:"flex",gap:10,justifyContent:"flex-end" }}>
+              <button onClick={() => setRepairDeleteConfirm(null)}
+                onMouseEnter={e=>e.currentTarget.style.background="#f5f5f7"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                style={{ padding:"9px 22px",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",fontSize:14,fontWeight:500,cursor:"pointer",color:"#1d1d1f",transition:"background 0.15s" }}>
+                Cancel
+              </button>
+              <button onClick={async () => {
+                  const ids = repairDeleteConfirm.ids;
+                  setRepairDeleteConfirm(null);
+                  await supabase.from("unit_repairs").delete().in("id", ids);
+                  setRepairs(prev => prev.filter(r => !ids.includes(r.id)));
+                  setRepairSelected(new Set());
+                  showToast(`Deleted ${ids.length} ticket${ids.length>1?"s":""}`, "#ff3b30");
+                }}
+                onMouseEnter={e=>e.currentTarget.style.background="#d70015"} onMouseLeave={e=>e.currentTarget.style.background="#ff3b30"}
+                style={{ padding:"9px 22px",borderRadius:980,border:"none",background:"#ff3b30",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",transition:"background 0.15s" }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Gmail Support Inbox Scan Modal ── */}
       {gmailScanModal && (
         <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9997,display:"flex",alignItems:"center",justifyContent:"center" }}
@@ -20122,8 +20148,44 @@ function BOMManager({ user }) {
             )}
             {gmailScanModal.status === "done" && gmailScanModal.messages.length > 0 && (
               <div>
-                <div style={{ fontSize:13,color:"#86868b",marginBottom:14 }}>
-                  {gmailScanModal.messages.length} emails · {gmailScanModal.messages.filter(m=>m.isUnread).length} unread · click an email to expand · click "→ Ticket" to create a repair
+                <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,gap:10,flexWrap:"wrap" }}>
+                  <div style={{ fontSize:13,color:"#86868b" }}>
+                    {gmailScanModal.messages.length} emails · {gmailScanModal.messages.filter(m=>m.isUnread).length} unread · click an email to expand
+                  </div>
+                  {(() => {
+                    const newMsgs = gmailScanModal.messages.filter(m => !gmailScanModal.ticketed.has(m.id) && !repairs.find(r => r.gmail_thread_id === m.threadId));
+                    if (newMsgs.length === 0) return null;
+                    return (
+                      <button disabled={gmailAddAllBusy} onClick={async () => {
+                        setGmailAddAllBusy(true);
+                        const decodeHtml = s => (s||"").replace(/&#(\d+);/g,(_,c)=>String.fromCharCode(c)).replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+                        const created = [];
+                        for (const msg of newMsgs) {
+                          try {
+                            const sn = msg.detectedSerials[0] || "";
+                            const pu = pedalUnits.find(u => u.serial_number?.toLowerCase() === sn.toLowerCase());
+                            let fullBody = "";
+                            try {
+                              const br = await fetch("/api/notifications?type=gmail-read", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ client_id:apiKeys.gmail_client_id, client_secret:apiKeys.gmail_client_secret, refresh_token:apiKeys.gmail_refresh_token, messageId:msg.id }) });
+                              const bd = await br.json().catch(()=>({}));
+                              if (br.ok && bd.body) fullBody = decodeHtml(bd.body);
+                            } catch {}
+                            const fault = decodeHtml(msg.subject) + (fullBody ? `\n\n${fullBody.slice(0,2000)}` : msg.snippet ? ` — ${decodeHtml(msg.snippet)}` : "");
+                            const repair = await createUnitRepair({ serial_number: sn || msg.fromEmail, pedal_unit_id: pu?.id||null, fault_description: fault.slice(0,3000), status:"intake", created_by: user?.id||null, customer_email: msg.fromEmail, gmail_thread_id: msg.threadId, gmail_subject: msg.subject });
+                            created.push(repair);
+                            setGmailScanModal(prev => prev ? { ...prev, ticketed: new Set([...prev.ticketed, msg.id]) } : null);
+                          } catch {}
+                        }
+                        setRepairs(prev => [...created, ...prev]);
+                        setGmailAddAllBusy(false);
+                        showToast(`${created.length} ticket${created.length!==1?"s":""} created`, "#34c759");
+                      }}
+                      onMouseEnter={e=>{ if(!gmailAddAllBusy) e.currentTarget.style.background="#005bbf"; }} onMouseLeave={e=>e.currentTarget.style.background="#0071e3"}
+                      style={{ padding:"6px 18px",borderRadius:980,background:"#0071e3",color:"#fff",border:"none",fontSize:12,fontWeight:600,cursor:gmailAddAllBusy?"default":"pointer",whiteSpace:"nowrap",transition:"background 0.15s" }}>
+                        {gmailAddAllBusy ? "Creating…" : `+ Add All (${newMsgs.length})`}
+                      </button>
+                    );
+                  })()}
                 </div>
                 {gmailScanModal.messages.map((msg, i) => {
                   const isExpanded = gmailScanModal.expanded === msg.id;
