@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.26";
-const BUILD_TIME   = "2026-03-30T01:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.27";
+const BUILD_TIME   = "2026-03-30T02:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -17137,12 +17137,13 @@ function BOMManager({ user }) {
                   <button onClick={async () => {
                     setGmailScanModal({ status:"loading", messages:[], error:null, ticketed:new Set(), expanded:null, expandedBody:"", expandedLoading:false });
                     try {
-                      const res = await fetch("/api/gmail-support", {
+                      const res = await fetch("/api/notifications?type=gmail-scan", {
                         method:"POST",
                         headers:{"Content-Type":"application/json"},
-                        body:JSON.stringify({ action:"scan", client_id:apiKeys.gmail_client_id, client_secret:apiKeys.gmail_client_secret, refresh_token:apiKeys.gmail_refresh_token }),
+                        body:JSON.stringify({ client_id:apiKeys.gmail_client_id, client_secret:apiKeys.gmail_client_secret, refresh_token:apiKeys.gmail_refresh_token }),
                       });
-                      const data = await res.json();
+                      const text = await res.text();
+                      const data = text ? JSON.parse(text) : { error: `HTTP ${res.status} — empty response` };
                       if (!res.ok) throw new Error(data.error || "Scan failed");
                       setGmailScanModal(prev => prev ? { ...prev, status:"done", messages: data.messages || [] } : null);
                     } catch(e) {
@@ -20102,8 +20103,8 @@ function BOMManager({ user }) {
                           if (isExpanded) { setGmailScanModal(prev => prev ? { ...prev, expanded:null } : null); return; }
                           setGmailScanModal(prev => prev ? { ...prev, expanded:msg.id, expandedBody:"", expandedLoading:true } : null);
                           try {
-                            const r = await fetch("/api/gmail-support", { method:"POST", headers:{"Content-Type":"application/json"},
-                              body:JSON.stringify({ action:"read", messageId:msg.id, client_id:apiKeys.gmail_client_id, client_secret:apiKeys.gmail_client_secret, refresh_token:apiKeys.gmail_refresh_token }) });
+                            const r = await fetch("/api/notifications?type=gmail-read", { method:"POST", headers:{"Content-Type":"application/json"},
+                              body:JSON.stringify({ messageId:msg.id, client_id:apiKeys.gmail_client_id, client_secret:apiKeys.gmail_client_secret, refresh_token:apiKeys.gmail_refresh_token }) });
                             const d = await r.json();
                             setGmailScanModal(prev => prev ? { ...prev, expandedBody:d.body||d.snippet||"", expandedLoading:false } : null);
                           } catch { setGmailScanModal(prev => prev ? { ...prev, expandedBody:"Failed to load email body.", expandedLoading:false } : null); }

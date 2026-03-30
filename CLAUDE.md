@@ -1,5 +1,12 @@
 # CLAUDE.md — Rules for this project
 
+## MANDATORY: Maximum 12 Serverless Functions
+
+Vercel Hobby plan hard-limits to **12 serverless functions** in `api/`. Current 12:
+`backup`, `lcsc-search`, `low-stock-alert`, `mouser-cart`, `notifications`, `parse-invoice`, `register`, `search-components`, `shipstation`, `shopify`, `ti-search`, `zoho`
+
+**Never add a 13th file to `api/`.** Instead, add new functionality as a new `type` inside `notifications.js` (or another existing file). The build will fail and the site will go down if this limit is exceeded.
+
 ## MANDATORY: Version bump on every push
 
 **Every single time you push code to any branch, you MUST:**
