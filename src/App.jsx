@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.44";
-const BUILD_TIME   = "2026-03-30T16:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.45";
+const BUILD_TIME   = "2026-03-30T16:20:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -218,6 +218,18 @@ const LOCKED_SUPPLIERS = new Set([
   "ce dist","cedist","ce-dist","bolt depot","boltdepot",
 ]);
 const isLockedSupplier = (supplier) => supplier && LOCKED_SUPPLIERS.has(supplier.toLowerCase().trim());
+
+// Derive where a part's data came from based on which pricing keys are populated
+function getPartDataSource(part) {
+  const p = part.pricing || {};
+  if (p.mouser?.mouserPartNumber) return { label:"Mouser", color:"#e8251a" };
+  if (p.digikey?.digiKeyPartNumber || p.digikey?.url) return { label:"DigiKey", color:"#c41230" };
+  if (p.lcsc?.lcscPartNumber || p.lcsc?.url) return { label:"LCSC", color:"#2cb5ea" };
+  if (p.ti?.url) return { label:"TI", color:"#1d6fa4" };
+  if (p._custom) return { label:"Custom", color:"#86868b" };
+  if (part.addedVia) return { label: part.addedVia.replace(/-/g," "), color:"#86868b" };
+  return null;
+}
 
 // Build direct search/product URLs for manual (locked) suppliers
 const getSupplierWebsite = (supplier, mpn) => {
@@ -7390,6 +7402,17 @@ function BOMManager({ user }) {
                               onChange={(e)=>updatePart(part.id,"mpn",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,width:"100%",color:"#0071e3",fontWeight:600 }} placeholder="—" />
+                            {(() => {
+                              const src = getPartDataSource(part);
+                              const lockedVendor = part.pricing?._lockedVendor;
+                              if (!src && !lockedVendor) return null;
+                              return (
+                                <div style={{ display:"flex", gap:3, marginTop:2, flexWrap:"wrap" }}>
+                                  {src && <span style={{ fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:3, background:src.color+"18", color:src.color, letterSpacing:"0.04em", textTransform:"uppercase" }}>{src.label}</span>}
+                                  {lockedVendor && <span style={{ fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:3, background:"#ff9f0a18", color:"#a05000", letterSpacing:"0.04em" }}>🔒 {lockedVendor}</span>}
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td style={{ padding:"6px 8px",overflow:"hidden" }}>
                             <input type="text" value={part.value||""}
@@ -7449,6 +7472,30 @@ function BOMManager({ user }) {
                                     <div>Footprint: {part.footprint || "—"}</div>
                                     <div>Voltage Rating: {part.voltage_rating || "—"}</div>
                                     <div>Order URL: {part.url ? <a href={part.url} target="_blank" rel="noopener noreferrer" style={{color:"#0071e3"}}>{part.url.length > 60 ? part.url.slice(0,60)+"…" : part.url}</a> : "—"}</div>
+                                    <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e5e5ea" }}>
+                                      <div style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Locked Vendor</div>
+                                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                                        <input type="text"
+                                          placeholder="e.g. Rita, CE Dist, McMaster"
+                                          defaultValue={part.pricing?._lockedVendor || ""}
+                                          onBlur={async (e) => {
+                                            const val = e.target.value.trim();
+                                            const newPricing = { ...(part.pricing||{}), _lockedVendor: val || undefined };
+                                            if (!val) delete newPricing._lockedVendor;
+                                            await updatePart(part.id, "pricing", newPricing);
+                                          }}
+                                          style={{ ...inputStyle, flex:1, fontSize:11, color:"#a05000", fontWeight:600 }} />
+                                        {part.pricing?._lockedVendor && (
+                                          <button onClick={async () => {
+                                            const newPricing = { ...(part.pricing||{}) };
+                                            delete newPricing._lockedVendor;
+                                            await updatePart(part.id, "pricing", newPricing);
+                                          }}
+                                          style={{ padding:"3px 8px", borderRadius:6, fontSize:11, border:"1px solid #ffd0cc", background:"#fff5f5", color:"#ff3b30", cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>Clear</button>
+                                        )}
+                                      </div>
+                                      <div style={{ fontSize:10, color:"#aeaeb2", marginTop:3 }}>Leave blank if part can be sourced from multiple vendors</div>
+                                    </div>
                                   </div>
                                 </div>
                                 <div>
