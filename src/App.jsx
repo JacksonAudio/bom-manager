@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.37";
-const BUILD_TIME   = "2026-03-30T14:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.38";
+const BUILD_TIME   = "2026-03-30T14:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -592,17 +592,11 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
   if (voltAttr?.AttributeValue) result.voltageRating = voltAttr.AttributeValue;
   // Packaging type (Tape & Reel, Cut Tape, Ammo Pack, Bulk)
   if (part.Packaging) result.packagingType = part.Packaging;
-  // Factory pack qty — the actual reel/tube/tray quantity
-  // Mouser often omits FactoryPackQty but encodes it in the description as "T/R-5000" or "TR5000"
+  // Factory pack qty — use FactoryPackQty/MultPackQty if returned, else fall back to MOQ (Min)
+  // For tape & reel parts, MOQ is the reel quantity — no description parsing needed
   let fPackQty = parseInt(part.FactoryPackQty || part.MultPackQty || 0);
-  if (!fPackQty) {
-    const desc = part.Description || part.ManufacturerPartNumber || "";
-    const trMatch = desc.match(/T[\/ ]?R[- ]?(\d{2,6})/i) || desc.match(/TAPE.*REEL.*?(\d{3,6})/i);
-    if (trMatch) fPackQty = parseInt(trMatch[1]);
-  }
-  // Final fallback: if packaging is Tape & Reel and MOQ looks like a reel size (≥100), use MOQ
-  if (!fPackQty && /tape.*reel|T\/R/i.test(part.Packaging || "") && parseInt(part.Min || 0) >= 100) {
-    fPackQty = parseInt(part.Min);
+  if (!fPackQty && parseInt(part.Min || 0) >= 100) {
+    fPackQty = parseInt(part.Min); // MOQ is the reel qty for T&R parts
   }
   if (fPackQty > 0) result.factoryPackQty = fPackQty;
   // Value from ProductAttributes (Capacitance, Resistance, Inductance)
