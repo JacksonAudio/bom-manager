@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.28";
-const BUILD_TIME   = "2026-03-30T09:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.29";
+const BUILD_TIME   = "2026-03-30T10:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -17099,9 +17099,10 @@ function BOMManager({ user }) {
           };
 
           const openRepairDetail = (r) => {
+            const _dh = s => (s||"").replace(/&#(\d+);/g,(_,c)=>String.fromCharCode(c)).replace(/&#39;/g,"'").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"');
             setRepairModal(r);
             setRepairModalEdits({
-              fault_description: r.fault_description || "",
+              fault_description: _dh(r.fault_description),
               diagnosis: r.diagnosis || "",
               repair_notes: r.repair_notes || "",
               labor_hours: r.labor_hours != null ? String(r.labor_hours) : "",
@@ -20123,7 +20124,7 @@ function BOMManager({ user }) {
                             <span style={{ fontSize:11,color:"#aeaeb2",whiteSpace:"nowrap" }}>{age}</span>
                           </div>
                           <div style={{ fontSize:12,color:"#3c3c43",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{msg.subject}</div>
-                          {!isExpanded && <div style={{ fontSize:11,color:"#86868b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1 }}>{msg.snippet}</div>}
+                          {!isExpanded && <div style={{ fontSize:11,color:"#86868b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1 }}>{msg.snippet.replace(/&#(\d+);/g,(_,c)=>String.fromCharCode(c)).replace(/&#39;/g,"'").replace(/&amp;/g,"&")}</div>}
                         </div>
                         {msg.detectedSerials.length > 0 && (
                           <div style={{ display:"flex",gap:4,flexShrink:0 }}>
@@ -20139,7 +20140,8 @@ function BOMManager({ user }) {
                               e.stopPropagation();
                               // Pre-fill intake form and create ticket
                               const sn = msg.detectedSerials[0] || "";
-                              const fault = msg.subject + (msg.snippet ? ` — ${msg.snippet.slice(0,120)}` : "");
+                              const decodeHtml = s => s.replace(/&#(\d+);/g,(_,c)=>String.fromCharCode(c)).replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+                              const fault = decodeHtml(msg.subject + (msg.snippet ? ` — ${msg.snippet.slice(0,400)}` : ""));
                               const pu = pedalUnits.find(u => u.serial_number?.toLowerCase() === sn.toLowerCase());
                               try {
                                 const repair = await createUnitRepair({
@@ -20332,7 +20334,7 @@ function BOMManager({ user }) {
                 </div>
 
                 {repairModalEdits.gmail_thread_id && (
-                  <div style={{ marginTop:20,paddingTop:20,borderTop:"1px solid #f0f0f2" }}>
+                  <div style={{ gridColumn:"1/-1",marginTop:20,paddingTop:20,borderTop:"1px solid #f0f0f2" }}>
                     <div style={{ fontSize:13,fontWeight:600,color:"#1d1d1f",marginBottom:8 }}>📧 Reply to Customer</div>
                     <div style={{ fontSize:12,color:"#86868b",marginBottom:6 }}>{repairModalEdits.customer_email}</div>
                     <textarea
