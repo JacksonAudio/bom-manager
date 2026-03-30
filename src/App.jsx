@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.34";
-const BUILD_TIME   = "2026-03-30T12:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.35";
+const BUILD_TIME   = "2026-03-30T13:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -413,6 +413,28 @@ function buildNexarQuery(mpn) {
 function buildNexarReelQuery(mpn) {
   const safe = mpn.replace(/"/g, '\\"');
   return `{ supSearchMpn(q: "${safe}", limit: 5) { hits results { part { mpn sellers { company { name } offers { factoryPackQuantity multipackQuantity moq packaging } } } } } }`;
+}
+
+// Fetch just the factory pack qty from Nexar — used by Auto-Fill Reel Quantities
+async function fetchNexarReelQty(mpn, token) {
+  const res = await fetch("https://api.nexar.com/graphql", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+    body: JSON.stringify({ query: buildNexarReelQuery(mpn) }),
+  });
+  if (!res.ok) throw new Error(`Nexar ${res.status}`);
+  const data = await res.json();
+  if (data.errors) throw new Error(data.errors[0]?.message || "Nexar error");
+  let best = 0;
+  for (const result of (data?.data?.supSearchMpn?.results || [])) {
+    for (const seller of (result?.part?.sellers || [])) {
+      for (const offer of (seller?.offers || [])) {
+        const fq = parseInt(offer.factoryPackQuantity || offer.multipackQuantity || 0);
+        if (fq > best) best = fq;
+      }
+    }
+  }
+  return best > 0 ? best : null;
 }
 
 async function fetchNexarPricing(mpn, quantity, token) {
@@ -6035,6 +6057,9 @@ function BOMManager({ user }) {
                         if (fq && parseInt(fq) > 0) { detected = parseInt(fq); source = "Cache (raw)"; }
                       }
                     }
+                    if (!detected && pr._reelQty && parseInt(pr._reelQty) > 0) {
+                      detected = parseInt(pr._reelQty); source = "Cache (Nexar)";
+                    }
                     if (!detected) {
                       // Check any supplier entry
                       for (const [k, v] of Object.entries(pr)) {
@@ -6050,42 +6075,32 @@ function BOMManager({ user }) {
                 const checkedIds = new Set(rows.filter(r => r.checked).map(r => r.part.id));
                 setReelFillModal({ phase:"fetching", rows, checkedIds, apiCount:0, cacheCount });
 
-                // Phase 2: call fetchMouserPricing directly (same function used for live pricing)
-                // This extracts FactoryPackQty from the Mouser Search API response and caches it.
-                // Rate limit: 2100ms between calls (Mouser allows 30/min).
-                if (apiKeys.mouser_api_key) {
-                  const needApi = rows.filter(r => {
-                    if (r.detected) return false;
-                    if (!r.part.mpn || !/[a-zA-Z]/.test(r.part.mpn)) return false;
-                    const sup = (r.part.preferredSupplier || "").toLowerCase().trim();
-                    if (sup && sup !== "mouser") return false;
-                    return true;
-                  });
+                // Phase 2: fetch live factory pack qty via Nexar (covers Mouser, DigiKey, Arrow, etc.)
+                const canUseNexar = !!(apiKeys.nexar_client_id && apiKeys.nexar_client_secret);
+                if (canUseNexar) {
+                  const needApi = rows.filter(r => !r.detected && r.part.mpn && /[a-zA-Z]/.test(r.part.mpn));
                   let apiCount = 0;
-                  for (const row of needApi) {
-                    try {
-                      const md = await fetchMouserPricing(row.part.mpn, 1, apiKeys.mouser_api_key);
-                      const fq = md?.factoryPackQty || 0;
-                      if (fq > 0) {
-                        row.detected = fq;
-                        row.source = "Mouser";
-                        row.checked = true;
-                        checkedIds.add(row.part.id);
-                        apiCount++;
-                        // Persist to Supabase
-                        const mergedPricing = { ...(row.part.pricing||{}), mouser: { ...(row.part.pricing?.mouser||{}), ...md, factoryPackQty: fq } };
-                        await supabase.from("parts").update({ pricing: mergedPricing }).eq("id", row.part.id);
-                        setParts(prev => prev.map(p => p.id === row.part.id ? {
-                          ...p,
-                          ...(md.caseCode && !p.footprint ? { footprint: md.caseCode } : {}),
-                          ...(md.voltageRating && !p.voltage_rating ? { voltage_rating: md.voltageRating } : {}),
-                          ...(md.url && !p.url ? { url: md.url } : {}),
-                          pricing: mergedPricing,
-                        } : p));
-                      }
-                    } catch(e) { console.warn("[reel-fill]", row.part.mpn, e.message); }
-                    await new Promise(r => setTimeout(r, 2100)); // 30 calls/min
-                    setReelFillModal(prev => prev ? { ...prev, rows: [...rows], checkedIds: new Set(checkedIds), apiCount } : null);
+                  // Get or reuse token
+                  let tok = nexarToken;
+                  if (!tok) { try { tok = await fetchNexarToken(apiKeys.nexar_client_id, apiKeys.nexar_client_secret); setNexarToken(tok); } catch(e) { console.warn("[reel-fill] Nexar token failed:", e.message); } }
+                  if (tok) {
+                    for (const row of needApi) {
+                      try {
+                        const fq = await fetchNexarReelQty(row.part.mpn, tok);
+                        if (fq) {
+                          row.detected = fq;
+                          row.source = "Nexar";
+                          row.checked = true;
+                          checkedIds.add(row.part.id);
+                          apiCount++;
+                          const mergedPricing = { ...(row.part.pricing||{}), _reelQty: fq };
+                          await supabase.from("parts").update({ pricing: mergedPricing }).eq("id", row.part.id);
+                          setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, pricing: mergedPricing } : p));
+                        }
+                      } catch(e) { console.warn("[reel-fill]", row.part.mpn, e.message); }
+                      await new Promise(r => setTimeout(r, 400)); // ~150/min comfortable for Nexar
+                      setReelFillModal(prev => prev ? { ...prev, rows: [...rows], checkedIds: new Set(checkedIds), apiCount } : null);
+                    }
                   }
                   setReelFillModal(prev => prev ? { ...prev, phase:"preview", rows: [...rows], checkedIds: new Set(checkedIds), apiCount, cacheCount } : null);
                 } else {
