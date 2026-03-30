@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.15";
-const BUILD_TIME   = "2026-03-29T20:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.16";
+const BUILD_TIME   = "2026-03-29T20:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7231,9 +7231,8 @@ function BOMManager({ user }) {
                         />
                       </th>
                       {[
-                        {label:"MPN",field:"mpn",w:"16%"},{label:"Value",field:"value",w:"8%"},{label:"Voltage",field:"voltage_rating",w:"6%"},{label:"Description",field:"description"},
-                        {label:"Manufacturer",field:"manufacturer",w:"12%"},{label:"Stock",field:"stockQty",w:"5%"},
-                        {label:"Added",field:"createdAt",w:"8%"},{label:"",field:null,w:"4%"}
+                        {label:"MPN",field:"mpn",w:"20%"},{label:"Value",field:"value",w:"10%"},{label:"Voltage",field:"voltage_rating",w:"8%"},{label:"Package",field:"footprint",w:"8%"},{label:"Description",field:"description",w:"37%"},
+                        {label:"Manufacturer",field:"manufacturer",w:"15%"}
                       ].map((h,hi,arr)=>(
                         <th key={hi} onClick={h.field ? ()=>setPartSort(prev=>({field:h.field,asc:prev.field===h.field?!prev.asc:true})) : undefined}
                           style={{ textAlign:"left",padding:"12px 14px",
@@ -7290,6 +7289,12 @@ function BOMManager({ user }) {
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,width:"100%",color:"#ff9f0a",fontSize:12 }} />
                           </td>
+                          <td style={{ padding:"6px 8px",overflow:"hidden" }}>
+                            <input type="text" placeholder="—" value={part.footprint||""}
+                              onChange={(e)=>updatePart(part.id,"footprint",e.target.value)}
+                              onFocus={focusIn} onBlur={focusOut}
+                              style={{ ...inputStyle,width:"100%",fontSize:12,color:"#636366" }} />
+                          </td>
                           <td style={{ padding:"6px 8px" }}>
                             <input type="text" value={part.description||""}
                               onChange={(e)=>updatePart(part.id,"description",e.target.value)}
@@ -7302,33 +7307,19 @@ function BOMManager({ user }) {
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,width:"100%",color:"#86868b" }} placeholder="" />
                           </td>
-                          <td style={{ padding:"6px 8px",overflow:"hidden" }}>
-                            <input type="text" inputMode="numeric" placeholder="0" value={part.stockQty}
-                              onChange={(e)=>updatePart(part.id,"stockQty",e.target.value)}
-                              onFocus={focusIn} onBlur={focusOut}
-                              style={{ ...inputStyle,width:"100%",fontWeight:600,color:isLow?"#ff3b30":"#1d1d1f" }} />
-                            {totalPartReserved > 0 && (
-                              <div style={{ fontSize:9,fontWeight:700,color:"#ff9500",marginTop:1,lineHeight:1 }} title={`${totalPartReserved} reserved — ${partAvailable} available`}>
-                                {totalPartReserved} rsv
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ padding:"6px 8px",fontSize:11,color:"#86868b",whiteSpace:"nowrap" }}>
-                            {part.createdAt ? new Date(part.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}
-                          </td>
-                          <td style={{ padding:"6px 4px",width:56,whiteSpace:"nowrap" }}>
-                            <button onClick={()=>{console.log("[QR] Opening label for",part.mpn);setQrModalParts([part]);}} title="QR Label"
-                              style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:13,padding:"2px 4px",borderRadius:4,transition:"color 0.15s" }}
-                              onMouseOver={(e)=>e.target.style.color="#0071e3"}
-                              onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>⊞</button>
-                            {isAdmin && <button onClick={()=>deletePart(part.id)}
-                              style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:14,padding:"2px 4px",borderRadius:4,transition:"color 0.15s" }}
-                              onMouseOver={(e)=>e.target.style.color="#ff3b30"}
-                              onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>✕</button>}
-                          </td>
                         </tr>
                         {expandedPartRow === part.id && <tr>
-                            <td colSpan={9} style={{ padding:"12px 20px",background:darkMode?"#1c1c1e":"#f9f9fb",borderBottom:"2px solid #0071e3" }}>
+                            <td colSpan={8} style={{ padding:"12px 20px",background:darkMode?"#1c1c1e":"#f9f9fb",borderBottom:"2px solid #0071e3" }}>
+                              <div style={{ display:"flex",gap:8,marginBottom:12 }}>
+                                <button onClick={(e)=>{e.stopPropagation();setQrModalParts([part]);}}
+                                  style={{ padding:"5px 14px",borderRadius:980,fontSize:12,fontWeight:600,border:"1px solid #d2d2d7",background:"#f5f5f7",cursor:"pointer",color:"#1d1d1f" }}
+                                  onMouseEnter={(e)=>e.currentTarget.style.background="#e8e8ed"}
+                                  onMouseLeave={(e)=>e.currentTarget.style.background="#f5f5f7"}>⊞ QR Label</button>
+                                {isAdmin && <button onClick={(e)=>{e.stopPropagation();deletePart(part.id);}}
+                                  style={{ padding:"5px 14px",borderRadius:980,fontSize:12,fontWeight:600,border:"1px solid #ffd0cc",background:"#fff5f5",cursor:"pointer",color:"#ff3b30" }}
+                                  onMouseEnter={(e)=>e.currentTarget.style.background="#ffe0dd"}
+                                  onMouseLeave={(e)=>e.currentTarget.style.background="#fff5f5"}>✕ Delete</button>}
+                              </div>
                               <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,fontSize:12 }}>
                                 <div>
                                   <div style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Full Description</div>
@@ -7405,6 +7396,7 @@ function BOMManager({ user }) {
                                       "invoice-import":"Invoice Scanner", "mouser-history":"Mouser Order History",
                                       "component-library":"Component Library",
                                     }[part.addedVia] || part.addedVia}</span></div>}
+                                    {part.createdAt && <div>Added: {new Date(part.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>}
                                   </div>
                                 </div>
                               </div>
