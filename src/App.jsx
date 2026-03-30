@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.24";
-const BUILD_TIME   = "2026-03-29T23:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.25";
+const BUILD_TIME   = "2026-03-30T00:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -1476,7 +1476,7 @@ function BOMManager({ user }) {
   const [activeView,  setActiveViewRaw]  = useState(() => {
     const hash = window.location.hash.replace("#","");
     if (hash === "products") return "projects";
-    const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","shelf","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin","pipeline"];
+    const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","shelf","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin","pipeline","repairs"];
     return validTabs.includes(hash) ? hash : "dashboard";
   });
   const setActiveView = (view) => {
@@ -1672,6 +1672,18 @@ function BOMManager({ user }) {
   const [editingPlayTest, setEditingPlayTest] = useState(null); // play_test id being edited for feedback
   const [playTestFeedback, setPlayTestFeedback] = useState({ rating: 0, passed: null, feedback:"" });
   const [playTestFilter, setPlayTestFilter] = useState("active"); // "active" | "all" | "returned"
+
+  // ── Repair Workflow state
+  const [repairs, setRepairs] = useState([]);
+  const [repairModal, setRepairModal] = useState(null); // null | repair object being viewed/edited
+  const [repairModalEdits, setRepairModalEdits] = useState({}); // local edits before save
+  const [repairModalBusy, setRepairModalBusy] = useState(false);
+  const [repairIntakeSerial, setRepairIntakeSerial] = useState("");
+  const [repairIntakeBusy, setRepairIntakeBusy] = useState(false);
+  const [repairIntakeFault, setRepairIntakeFault] = useState("");
+  const [repairIntakeUnit, setRepairIntakeUnit] = useState(null); // matched pedal_unit or null
+  const [repairFilter, setRepairFilter] = useState("open");
+  const [repairSearch, setRepairSearch] = useState("");
 
   // ── Boxing state
   const [boxingTasks, setBoxingTasks] = useState([]);
@@ -2068,6 +2080,7 @@ function BOMManager({ user }) {
         // Load component reservations, finished goods from DB
         fetchAllComponentReservations().then(rows => setComponentReservations(rows || [])).catch(() => {});
         fetchFinishedGoods().then(rows => setFinishedGoods(rows || [])).catch(() => {});
+        fetchUnitRepairs().then(rows => setRepairs(rows || [])).catch(() => {});
 
         // Load pedal units and registrations from DB
         fetchPedalUnits().then(rows => setPedalUnits(rows || [])).catch(() => {});
@@ -2168,7 +2181,7 @@ function BOMManager({ user }) {
     const onPopState = () => {
       const hash = window.location.hash.replace("#","");
       if (hash === "products") { setActiveViewRaw("projects"); return; }
-      const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","shelf","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin","pipeline"];
+      const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","shelf","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin","pipeline","repairs"];
       if (validTabs.includes(hash)) setActiveViewRaw(hash);
     };
     window.addEventListener("popstate", onPopState);
@@ -4994,6 +5007,7 @@ function BOMManager({ user }) {
           { id:"production",label:`Production${(()=>{ const c=buildOrders.filter(b=>b.status!=="completed").length+playTests.filter(t=>t.status!=="returned").length+boxingTasks.filter(t=>t.status!=="completed").length; return c>0?` (${c})`:""; })()}`, step:null, color:null },
           { id:"shelf",     label:`Shelf${finishedGoods.length>0?` (${finishedGoods.reduce((s,r)=>s+(r.quantity_on_hand||0),0)})`:""}`, step:null, color:null },
           { id:"pipeline",label:`Pipeline${pedalUnits.filter(u=>u.status!=="shipped"&&u.status!=="boxed").length>0?` (${pedalUnits.filter(u=>u.status!=="shipped"&&u.status!=="boxed").length})`:""}`, step:null, color:null },
+          { id:"repairs", label:`Repairs${repairs.filter(r=>!["shipped_back","scrapped"].includes(r.status)).length>0?` (${repairs.filter(r=>!["shipped_back","scrapped"].includes(r.status)).length})`:""}`, step:null, color:null },
           { id:"suppliers", label:"Suppliers",   step:null, color:null },
           { id:"dealers",   label:`Dealers${dealers.length>0?` (${dealers.length})`:""}`, step:null, color:null },
           { id:"shops",     label:`Shops${shopOrders.filter(o=>o.status!=="completed"&&o.status!=="cancelled").length>0?` (${shopOrders.filter(o=>o.status!=="completed"&&o.status!=="cancelled").length})`:""}`, step:null, color:null },
@@ -17026,6 +17040,213 @@ function BOMManager({ user }) {
         })()}
 
         {/* ══════════════════════════════════════
+            REPAIRS — Repair Workflow
+        ══════════════════════════════════════ */}
+        {activeView === "repairs" && (() => {
+          const STATUS_CFG = {
+            intake:      { label:"Intake",       color:"#8e8e93", bg:"#f2f2f7" },
+            diagnosing:  { label:"Diagnosing",   color:"#0071e3", bg:"#e8f0fb" },
+            repairing:   { label:"Repairing",    color:"#ff9500", bg:"#fff3e0" },
+            testing:     { label:"Testing",      color:"#5856d6", bg:"#f0eeff" },
+            repaired:    { label:"Repaired",     color:"#34c759", bg:"#e8faed" },
+            shipped_back:{ label:"Shipped Back", color:"#00c7be", bg:"#e0f8f7" },
+            scrapped:    { label:"Scrapped",     color:"#ff3b30", bg:"#ffe5e5" },
+          };
+          const STATUS_FLOW = ["intake","diagnosing","repairing","testing","repaired","shipped_back"];
+
+          const openRepairs = repairs.filter(r => !["shipped_back","scrapped"].includes(r.status));
+
+          const filteredRepairs = repairs.filter(r => {
+            if (repairFilter === "open") return !["shipped_back","scrapped"].includes(r.status);
+            if (repairFilter === "closed") return ["shipped_back","scrapped"].includes(r.status);
+            return true;
+          }).filter(r => {
+            if (!repairSearch) return true;
+            const q = repairSearch.toLowerCase();
+            return (r.serial_number||"").toLowerCase().includes(q) || (r.fault_description||"").toLowerCase().includes(q) || (r.diagnosis||"").toLowerCase().includes(q);
+          }).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+
+          // Match serial to a pedal unit as user types
+          const matchedUnit = repairIntakeSerial.trim()
+            ? pedalUnits.find(u => u.serial_number?.toLowerCase() === repairIntakeSerial.trim().toLowerCase())
+            : null;
+          const matchedProduct = matchedUnit ? products.find(p => p.id === matchedUnit.product_id) : null;
+
+          const handleOpenRepair = async () => {
+            const sn = repairIntakeSerial.trim();
+            if (!sn) return;
+            setRepairIntakeBusy(true);
+            try {
+              const repair = await createUnitRepair({
+                serial_number: sn,
+                pedal_unit_id: matchedUnit?.id || null,
+                fault_description: repairIntakeFault.trim(),
+                status: "intake",
+                created_by: user?.id || null,
+              });
+              setRepairs(prev => [repair, ...prev]);
+              setRepairIntakeSerial("");
+              setRepairIntakeFault("");
+              showToast(`Repair ticket #${repair.id.slice(0,6)} opened for ${sn}`, "#34c759");
+            } catch(e) { alert("Failed to open repair: " + e.message); }
+            setRepairIntakeBusy(false);
+          };
+
+          const openRepairDetail = (r) => {
+            setRepairModal(r);
+            setRepairModalEdits({
+              fault_description: r.fault_description || "",
+              diagnosis: r.diagnosis || "",
+              repair_notes: r.repair_notes || "",
+              labor_hours: r.labor_hours != null ? String(r.labor_hours) : "",
+              repair_cost: r.repair_cost != null ? String(r.repair_cost) : "",
+              customer_notified: r.customer_notified || false,
+              status: r.status || "intake",
+            });
+          };
+
+          const ageDays = (iso) => {
+            const d = Math.floor((Date.now() - new Date(iso)) / 86400000);
+            if (d === 0) return "Today";
+            if (d === 1) return "1d";
+            return `${d}d`;
+          };
+
+          return (
+            <div style={{ padding:"24px 32px", maxWidth:1100, margin:"0 auto" }}>
+              {/* ── Header */}
+              <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:24 }}>
+                <div>
+                  <h2 style={{ margin:0, fontSize:22, fontWeight:700, color:"#1d1d1f" }}>Repair Workflow</h2>
+                  <div style={{ fontSize:13, color:"#86868b", marginTop:3 }}>
+                    {openRepairs.length} open · {repairs.filter(r=>r.status==="shipped_back").length} shipped back · {repairs.length} total
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Intake Card */}
+              <div style={{ background:"#fff", borderRadius:16, border:"1px solid #e5e5ea", padding:"20px 24px", marginBottom:20, boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                <div style={{ fontSize:13, fontWeight:600, color:"#1d1d1f", marginBottom:14, textTransform:"uppercase", letterSpacing:"0.05em" }}>Open a Repair Ticket</div>
+                <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"flex-start" }}>
+                  <div style={{ flex:"0 0 220px" }}>
+                    <div style={{ fontSize:11, color:"#86868b", marginBottom:4 }}>Serial Number</div>
+                    <input
+                      type="text"
+                      placeholder="e.g. PRISM-0042"
+                      value={repairIntakeSerial}
+                      onChange={e => setRepairIntakeSerial(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && repairIntakeFault && handleOpenRepair()}
+                      style={{ padding:"8px 12px", borderRadius:8, border:"1px solid #d2d2d7", fontSize:13, width:"100%", boxSizing:"border-box", fontFamily:"monospace" }}
+                    />
+                    {matchedUnit && (
+                      <div style={{ marginTop:5, fontSize:11, color:"#34c759", fontWeight:600 }}>
+                        ✓ {matchedProduct?.name || "Unknown product"} · {matchedUnit.status}
+                      </div>
+                    )}
+                    {repairIntakeSerial.trim() && !matchedUnit && (
+                      <div style={{ marginTop:5, fontSize:11, color:"#ff9500" }}>Serial not found in system — will still create ticket</div>
+                    )}
+                  </div>
+                  <div style={{ flex:"1 1 300px" }}>
+                    <div style={{ fontSize:11, color:"#86868b", marginBottom:4 }}>Fault Description</div>
+                    <input
+                      type="text"
+                      placeholder="What's wrong with this unit?"
+                      value={repairIntakeFault}
+                      onChange={e => setRepairIntakeFault(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && repairIntakeSerial.trim() && handleOpenRepair()}
+                      style={{ padding:"8px 12px", borderRadius:8, border:"1px solid #d2d2d7", fontSize:13, width:"100%", boxSizing:"border-box" }}
+                    />
+                  </div>
+                  <div style={{ flex:"0 0 auto", paddingTop:19 }}>
+                    <button
+                      disabled={!repairIntakeSerial.trim() || repairIntakeBusy}
+                      onClick={handleOpenRepair}
+                      style={{ padding:"8px 20px", borderRadius:980, background: repairIntakeSerial.trim() ? "#ff3b30" : "#c7c7cc", color:"#fff", border:"none", cursor: repairIntakeSerial.trim() ? "pointer" : "not-allowed", fontSize:13, fontWeight:600 }}
+                    >
+                      {repairIntakeBusy ? "Opening…" : "Open Ticket"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Filter + Search */}
+              <div style={{ display:"flex", gap:8, marginBottom:14, alignItems:"center", flexWrap:"wrap" }}>
+                {[["open","Open"], ["closed","Shipped / Scrapped"], ["all","All"]].map(([val, label]) => (
+                  <button key={val} onClick={() => setRepairFilter(val)}
+                    style={{ padding:"5px 14px", borderRadius:980, border:"1px solid", fontSize:12, cursor:"pointer", fontWeight: repairFilter===val ? 600 : 400, background: repairFilter===val ? "#1d1d1f" : "#fff", color: repairFilter===val ? "#fff" : "#1d1d1f", borderColor: repairFilter===val ? "#1d1d1f" : "#d2d2d7" }}>
+                    {label}{val==="open" ? ` (${openRepairs.length})` : val==="all" ? ` (${repairs.length})` : ""}
+                  </button>
+                ))}
+                <input type="text" placeholder="Search serial, fault…" value={repairSearch} onChange={e => setRepairSearch(e.target.value)}
+                  style={{ padding:"5px 12px", borderRadius:8, border:"1px solid #d2d2d7", fontSize:12, marginLeft:"auto", width:200 }} />
+              </div>
+
+              {/* ── Repairs Table */}
+              {filteredRepairs.length === 0 ? (
+                <div style={{ textAlign:"center", padding:"48px 0", color:"#aeaeb2", fontSize:14 }}>
+                  {repairFilter === "open" ? "No open repairs 🎉" : "No repairs found"}
+                </div>
+              ) : (
+                <div style={{ background:"#fff", borderRadius:16, border:"1px solid #e5e5ea", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                    <thead>
+                      <tr style={{ background:"#f9f9fb", borderBottom:"1px solid #f0f0f2" }}>
+                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#86868b", fontWeight:600 }}>Serial</th>
+                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#86868b", fontWeight:600 }}>Product</th>
+                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#86868b", fontWeight:600 }}>Status</th>
+                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#86868b", fontWeight:600 }}>Fault</th>
+                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#86868b", fontWeight:600 }}>Age</th>
+                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#86868b", fontWeight:600 }}>History</th>
+                        <th style={{ padding:"10px 14px" }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRepairs.map((r, i) => {
+                        const pu = pedalUnits.find(u => u.serial_number === r.serial_number);
+                        const prod = pu ? products.find(p => p.id === pu.product_id) : null;
+                        const sc = STATUS_CFG[r.status] || { label: r.status, color:"#8e8e93", bg:"#f2f2f7" };
+                        // count other repairs for same serial
+                        const historyCount = repairs.filter(x => x.serial_number === r.serial_number && x.id !== r.id).length;
+                        return (
+                          <tr key={r.id}
+                            style={{ borderBottom:"1px solid #f0f0f2", background: i%2===0?"#fff":"#fafafa", cursor:"pointer" }}
+                            onClick={() => openRepairDetail(r)}
+                            onMouseEnter={e => e.currentTarget.style.background="#f0f6ff"}
+                            onMouseLeave={e => e.currentTarget.style.background=i%2===0?"#fff":"#fafafa"}
+                          >
+                            <td style={{ padding:"10px 14px", fontFamily:"monospace", fontWeight:600, color:"#1d1d1f", fontSize:12 }}>{r.serial_number}</td>
+                            <td style={{ padding:"10px 14px", color:"#1d1d1f" }}>{prod?.name || <span style={{color:"#aeaeb2"}}>Unknown</span>}</td>
+                            <td style={{ padding:"10px 14px" }}>
+                              <span style={{ background:sc.bg, color:sc.color, borderRadius:980, padding:"3px 10px", fontSize:11, fontWeight:600, whiteSpace:"nowrap" }}>{sc.label}</span>
+                            </td>
+                            <td style={{ padding:"10px 14px", color:"#3c3c43", maxWidth:260, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                              {r.fault_description || <span style={{color:"#aeaeb2"}}>—</span>}
+                            </td>
+                            <td style={{ padding:"10px 14px", color:"#86868b", whiteSpace:"nowrap" }}>{ageDays(r.created_at)}</td>
+                            <td style={{ padding:"10px 14px" }}>
+                              {historyCount > 0 && (
+                                <span style={{ background:"#ffe5e5", color:"#ff3b30", borderRadius:980, padding:"2px 8px", fontSize:11, fontWeight:600 }}>⚠ {historyCount} prior</span>
+                              )}
+                            </td>
+                            <td style={{ padding:"10px 14px", textAlign:"right" }}>
+                              <button onClick={e => { e.stopPropagation(); openRepairDetail(r); }}
+                                style={{ padding:"4px 12px", borderRadius:980, background:"#f5f5f7", border:"1px solid #e5e5ea", fontSize:12, cursor:"pointer", color:"#1d1d1f" }}>
+                                Open →
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ══════════════════════════════════════
             DEALERS — Dealer Directory
         ══════════════════════════════════════ */}
         {activeView === "dealers" && (() => {
@@ -19765,6 +19986,187 @@ function BOMManager({ user }) {
       {qrModalParts && qrModalParts.length > 0 && (
         <QRLabelModal parts={qrModalParts} products={products} onClose={() => setQrModalParts(null)} />
       )}
+
+      {/* ── Repair Detail Modal ── */}
+      {repairModal && (() => {
+        const STATUS_CFG = {
+          intake:      { label:"Intake",       color:"#8e8e93", bg:"#f2f2f7" },
+          diagnosing:  { label:"Diagnosing",   color:"#0071e3", bg:"#e8f0fb" },
+          repairing:   { label:"Repairing",    color:"#ff9500", bg:"#fff3e0" },
+          testing:     { label:"Testing",      color:"#5856d6", bg:"#f0eeff" },
+          repaired:    { label:"Repaired",     color:"#34c759", bg:"#e8faed" },
+          shipped_back:{ label:"Shipped Back", color:"#00c7be", bg:"#e0f8f7" },
+          scrapped:    { label:"Scrapped",     color:"#ff3b30", bg:"#ffe5e5" },
+        };
+        const STATUS_FLOW = ["intake","diagnosing","repairing","testing","repaired","shipped_back"];
+
+        const pu = pedalUnits.find(u => u.serial_number === repairModal.serial_number);
+        const prod = pu ? products.find(p => p.id === pu.product_id) : null;
+        const priorRepairs = repairs.filter(r => r.serial_number === repairModal.serial_number && r.id !== repairModal.id).sort((a,b) => new Date(b.created_at)-new Date(a.created_at));
+
+        const curSc = STATUS_CFG[repairModalEdits.status] || STATUS_CFG.intake;
+
+        const saveRepair = async () => {
+          setRepairModalBusy(true);
+          try {
+            const fields = {
+              fault_description: repairModalEdits.fault_description,
+              diagnosis: repairModalEdits.diagnosis,
+              repair_notes: repairModalEdits.repair_notes,
+              status: repairModalEdits.status,
+              labor_hours: repairModalEdits.labor_hours ? parseFloat(repairModalEdits.labor_hours) : null,
+              repair_cost: repairModalEdits.repair_cost ? parseFloat(repairModalEdits.repair_cost) : null,
+              customer_notified: repairModalEdits.customer_notified,
+            };
+            await updateUnitRepair(repairModal.id, fields);
+            setRepairs(prev => prev.map(r => r.id === repairModal.id ? { ...r, ...fields } : r));
+            setRepairModal(prev => ({ ...prev, ...fields }));
+            showToast("Repair saved", "#34c759");
+          } catch(e) { alert("Save failed: " + e.message); }
+          setRepairModalBusy(false);
+        };
+
+        const advanceStatus = async (newStatus) => {
+          setRepairModalEdits(prev => ({ ...prev, status: newStatus }));
+        };
+
+        const openShipBackModal = async () => {
+          // Build a pseudo-order object for the existing Ship It modal
+          const order = {
+            orderName: `REPAIR-${repairModal.serial_number}`,
+            customer: repairModal.serial_number,
+            shipTo: { name:"", street1:"", city:"", state:"", postalCode:"", country:"US" },
+            lineItems: [{ title: `${prod?.name || "Pedal"} Repair Return`, quantity:1, rate:0 }],
+            shippingMethod: "",
+          };
+          // Open the existing ship modal
+          setShipModal({ order, step:"loading", carriers:[], services:[], rates:[],
+            form:{ carrierCode:"", serviceCode:"", weightOz:16, length:"", width:"", height:"" },
+            creating:false, result:null, error:null });
+          try {
+            const cRes = await fetch(`/api/shipstation?action=carriers&${ssApiParams()}`);
+            const cData = cRes.ok ? await cRes.json() : { carriers:[] };
+            setShipModal(prev => ({ ...prev, step:"form", carriers: cData.carriers || [] }));
+          } catch(e) { setShipModal(prev => ({ ...prev, step:"form", error:e.message })); }
+        };
+
+        return (
+          <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center" }}
+            onClick={e => { if (e.target===e.currentTarget) setRepairModal(null); }}>
+            <div style={{ background:"#fff",borderRadius:20,padding:"32px 36px",width:680,maxWidth:"95vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)",display:"flex",flexDirection:"column",gap:0 }}>
+
+              {/* Header */}
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20 }}>
+                <div>
+                  <div style={{ fontSize:20,fontWeight:700,color:"#1d1d1f",fontFamily:"monospace" }}>{repairModal.serial_number}</div>
+                  <div style={{ fontSize:13,color:"#86868b",marginTop:2 }}>
+                    {prod?.name || "Unknown product"} · Opened {new Date(repairModal.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+                  </div>
+                </div>
+                <button onClick={() => setRepairModal(null)}
+                  style={{ width:30,height:30,borderRadius:"50%",border:"none",background:"#f5f5f7",cursor:"pointer",fontSize:17,display:"flex",alignItems:"center",justifyContent:"center" }}>×</button>
+              </div>
+
+              {/* Status stepper */}
+              <div style={{ display:"flex",gap:4,marginBottom:20,flexWrap:"wrap" }}>
+                {STATUS_FLOW.map((s,i) => {
+                  const sc = STATUS_CFG[s];
+                  const isCurrent = repairModalEdits.status === s;
+                  const isPast = STATUS_FLOW.indexOf(repairModalEdits.status) > i;
+                  return (
+                    <button key={s} onClick={() => advanceStatus(s)}
+                      style={{ flex:"1 1 auto",padding:"6px 4px",borderRadius:8,border:`1.5px solid ${isCurrent?sc.color:isPast?"#c7c7cc":"#e5e5ea"}`,background:isCurrent?sc.bg:isPast?"#f9f9fb":"#fff",color:isCurrent?sc.color:isPast?"#8e8e93":"#aeaeb2",fontSize:11,fontWeight:isCurrent?700:400,cursor:"pointer",transition:"all 0.15s",whiteSpace:"nowrap" }}>
+                      {i>0 && <span style={{ marginRight:3, opacity:0.5 }}>›</span>}{sc.label}
+                    </button>
+                  );
+                })}
+                <button onClick={() => advanceStatus("scrapped")}
+                  style={{ padding:"6px 10px",borderRadius:8,border:`1.5px solid ${repairModalEdits.status==="scrapped"?"#ff3b30":"#e5e5ea"}`,background:repairModalEdits.status==="scrapped"?"#ffe5e5":"#fff",color:repairModalEdits.status==="scrapped"?"#ff3b30":"#aeaeb2",fontSize:11,fontWeight:repairModalEdits.status==="scrapped"?700:400,cursor:"pointer" }}>
+                  Scrapped
+                </button>
+              </div>
+
+              {/* Form fields */}
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16 }}>
+                <div style={{ gridColumn:"1/-1" }}>
+                  <div style={{ fontSize:11,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Fault Description</div>
+                  <textarea value={repairModalEdits.fault_description}
+                    onChange={e => setRepairModalEdits(prev => ({ ...prev, fault_description: e.target.value }))}
+                    rows={2} style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:13,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit" }}
+                    placeholder="What was reported / what came in" />
+                </div>
+                <div style={{ gridColumn:"1/-1" }}>
+                  <div style={{ fontSize:11,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Diagnosis</div>
+                  <textarea value={repairModalEdits.diagnosis}
+                    onChange={e => setRepairModalEdits(prev => ({ ...prev, diagnosis: e.target.value }))}
+                    rows={2} style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:13,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit" }}
+                    placeholder="Root cause identified" />
+                </div>
+                <div style={{ gridColumn:"1/-1" }}>
+                  <div style={{ fontSize:11,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Repair Notes</div>
+                  <textarea value={repairModalEdits.repair_notes}
+                    onChange={e => setRepairModalEdits(prev => ({ ...prev, repair_notes: e.target.value }))}
+                    rows={3} style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:13,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit" }}
+                    placeholder="Work performed, parts replaced, etc." />
+                </div>
+                <div>
+                  <div style={{ fontSize:11,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Labor Hours</div>
+                  <input type="number" min="0" step="0.25" value={repairModalEdits.labor_hours}
+                    onChange={e => setRepairModalEdits(prev => ({ ...prev, labor_hours: e.target.value }))}
+                    style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:13,boxSizing:"border-box" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize:11,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Repair Cost ($)</div>
+                  <input type="number" min="0" step="0.01" value={repairModalEdits.repair_cost}
+                    onChange={e => setRepairModalEdits(prev => ({ ...prev, repair_cost: e.target.value }))}
+                    style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:13,boxSizing:"border-box" }} />
+                </div>
+                <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                  <input type="checkbox" id="custNotified" checked={repairModalEdits.customer_notified}
+                    onChange={e => setRepairModalEdits(prev => ({ ...prev, customer_notified: e.target.checked }))}
+                    style={{ width:16,height:16 }} />
+                  <label htmlFor="custNotified" style={{ fontSize:13,color:"#1d1d1f",cursor:"pointer" }}>Customer notified</label>
+                </div>
+              </div>
+
+              {/* Serial number repair history */}
+              {priorRepairs.length > 0 && (
+                <div style={{ background:"#fff8e6",border:"1px solid #ffe0a0",borderRadius:12,padding:"14px 16px",marginBottom:16 }}>
+                  <div style={{ fontSize:12,fontWeight:600,color:"#a05000",marginBottom:8 }}>⚠ Repeat Repair History for {repairModal.serial_number}</div>
+                  {priorRepairs.map(r => {
+                    const sc = STATUS_CFG[r.status] || { label:r.status, color:"#8e8e93" };
+                    return (
+                      <div key={r.id} style={{ fontSize:12,color:"#3c3c43",marginBottom:4,display:"flex",gap:10,alignItems:"baseline" }}>
+                        <span style={{ color:"#86868b",whiteSpace:"nowrap" }}>{new Date(r.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>
+                        <span style={{ color:sc.color,fontWeight:600 }}>{sc.label}</span>
+                        <span>{r.fault_description || "—"}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div style={{ display:"flex",gap:10,marginTop:4 }}>
+                <button onClick={saveRepair} disabled={repairModalBusy}
+                  style={{ flex:1,padding:"10px 0",borderRadius:980,background:"#0071e3",color:"#fff",border:"none",fontSize:14,fontWeight:600,cursor:"pointer" }}>
+                  {repairModalBusy ? "Saving…" : "Save Changes"}
+                </button>
+                {["repaired","shipped_back"].includes(repairModalEdits.status) && (
+                  <button onClick={openShipBackModal}
+                    style={{ padding:"10px 20px",borderRadius:980,background:"#00c7be",color:"#fff",border:"none",fontSize:14,fontWeight:600,cursor:"pointer" }}>
+                    🚚 Ship It Back
+                  </button>
+                )}
+                <button onClick={() => setRepairModal(null)}
+                  style={{ padding:"10px 20px",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",fontSize:14,cursor:"pointer",color:"#1d1d1f" }}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Mouser API Test Modal ── */}
       {reelTestModal && (
