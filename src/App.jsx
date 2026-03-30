@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.11";
-const BUILD_TIME   = "2026-03-29T19:55:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.12";
+const BUILD_TIME   = "2026-03-29T20:05:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7276,7 +7276,7 @@ function BOMManager({ user }) {
                             <input type="text" value={part.mpn||""}
                               onChange={(e)=>updatePart(part.id,"mpn",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
-                              size={Math.max((part.mpn||"").length,3)+1}
+                              size={Math.max((part.mpn||"").length,3)+2}
                               style={{ ...inputStyle,width:"auto",color:"#0071e3",fontWeight:600 }} placeholder="—" />
                           </td>
                           <td style={{ padding:"6px 8px",whiteSpace:"nowrap" }}>
