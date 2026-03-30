@@ -26,6 +26,9 @@
     },
     "api/backup.js": {
       "maxDuration": 60
+    },
+    "api/gmail-support.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
