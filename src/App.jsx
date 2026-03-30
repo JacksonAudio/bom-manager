@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.29";
-const BUILD_TIME   = "2026-03-30T10:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.30";
+const BUILD_TIME   = "2026-03-30T10:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -20138,16 +20138,26 @@ function BOMManager({ user }) {
                           : (
                             <button onClick={async e => {
                               e.stopPropagation();
-                              // Pre-fill intake form and create ticket
                               const sn = msg.detectedSerials[0] || "";
-                              const decodeHtml = s => s.replace(/&#(\d+);/g,(_,c)=>String.fromCharCode(c)).replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#39;/g,"'");
-                              const fault = decodeHtml(msg.subject + (msg.snippet ? ` — ${msg.snippet.slice(0,400)}` : ""));
+                              const decodeHtml = s => (s||"").replace(/&#(\d+);/g,(_,c)=>String.fromCharCode(c)).replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#39;/g,"'");
                               const pu = pedalUnits.find(u => u.serial_number?.toLowerCase() === sn.toLowerCase());
+                              // Fetch full email body before creating ticket
+                              setGmailScanModal(prev => prev ? { ...prev, ticketing: msg.id } : null);
+                              let fullBody = "";
+                              try {
+                                const br = await fetch("/api/notifications?type=gmail-read", {
+                                  method:"POST", headers:{"Content-Type":"application/json"},
+                                  body:JSON.stringify({ client_id:apiKeys.gmail_client_id, client_secret:apiKeys.gmail_client_secret, refresh_token:apiKeys.gmail_refresh_token, messageId:msg.id }),
+                                });
+                                const bd = await br.json().catch(()=>({}));
+                                if (br.ok && bd.body) fullBody = decodeHtml(bd.body);
+                              } catch { /* fall through to snippet */ }
+                              const fault = decodeHtml(msg.subject) + (fullBody ? `\n\n${fullBody.slice(0,2000)}` : msg.snippet ? ` — ${decodeHtml(msg.snippet)}` : "");
                               try {
                                 const repair = await createUnitRepair({
                                   serial_number: sn || msg.fromEmail,
                                   pedal_unit_id: pu?.id || null,
-                                  fault_description: fault.slice(0,500),
+                                  fault_description: fault.slice(0,3000),
                                   status:"intake",
                                   created_by: user?.id || null,
                                   customer_email: msg.fromEmail,
@@ -20155,11 +20165,11 @@ function BOMManager({ user }) {
                                   gmail_subject: msg.subject,
                                 });
                                 setRepairs(prev => [repair, ...prev]);
-                                setGmailScanModal(prev => prev ? { ...prev, ticketed: new Set([...prev.ticketed, msg.id]) } : null);
+                                setGmailScanModal(prev => prev ? { ...prev, ticketed: new Set([...prev.ticketed, msg.id]), ticketing: null } : null);
                                 showToast(`Repair ticket opened for ${sn || msg.fromName}`, "#34c759");
-                              } catch(err) { alert("Failed: " + err.message); }
-                            }} style={{ padding:"5px 12px",borderRadius:980,background:"#ff3b30",color:"#fff",border:"none",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0 }}>
-                              → Ticket
+                              } catch(err) { setGmailScanModal(prev => prev ? { ...prev, ticketing: null } : null); alert("Failed: " + err.message); }
+                            }} disabled={gmailScanModal?.ticketing === msg.id} style={{ padding:"5px 12px",borderRadius:980,background: gmailScanModal?.ticketing === msg.id ? "#c7c7cc" : "#ff3b30",color:"#fff",border:"none",fontSize:11,fontWeight:600,cursor: gmailScanModal?.ticketing === msg.id ? "default" : "pointer",whiteSpace:"nowrap",flexShrink:0 }}>
+                              {gmailScanModal?.ticketing === msg.id ? "Fetching…" : "→ Ticket"}
                             </button>
                           )
                         }
