@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.27";
-const BUILD_TIME   = "2026-03-30T02:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.28";
+const BUILD_TIME   = "2026-03-30T09:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -1681,6 +1681,7 @@ function BOMManager({ user }) {
   const [repairModal, setRepairModal] = useState(null); // null | repair object being viewed/edited
   const [repairModalEdits, setRepairModalEdits] = useState({}); // local edits before save
   const [repairModalBusy, setRepairModalBusy] = useState(false);
+  const [repairReplyBody, setRepairReplyBody] = useState("");
   const [repairIntakeSerial, setRepairIntakeSerial] = useState("");
   const [repairIntakeBusy, setRepairIntakeBusy] = useState(false);
   const [repairIntakeFault, setRepairIntakeFault] = useState("");
@@ -17107,6 +17108,9 @@ function BOMManager({ user }) {
               repair_cost: r.repair_cost != null ? String(r.repair_cost) : "",
               customer_notified: r.customer_notified || false,
               status: r.status || "intake",
+              customer_email: r.customer_email || "",
+              gmail_thread_id: r.gmail_thread_id || "",
+              gmail_subject: r.gmail_subject || "",
             });
           };
 
@@ -20144,6 +20148,9 @@ function BOMManager({ user }) {
                                   fault_description: fault.slice(0,500),
                                   status:"intake",
                                   created_by: user?.id || null,
+                                  customer_email: msg.fromEmail,
+                                  gmail_thread_id: msg.threadId,
+                                  gmail_subject: msg.subject,
                                 });
                                 setRepairs(prev => [repair, ...prev]);
                                 setGmailScanModal(prev => prev ? { ...prev, ticketed: new Set([...prev.ticketed, msg.id]) } : null);
@@ -20210,6 +20217,9 @@ function BOMManager({ user }) {
               labor_hours: repairModalEdits.labor_hours ? parseFloat(repairModalEdits.labor_hours) : null,
               repair_cost: repairModalEdits.repair_cost ? parseFloat(repairModalEdits.repair_cost) : null,
               customer_notified: repairModalEdits.customer_notified,
+              ...(repairModalEdits.customer_email !== undefined && { customer_email: repairModalEdits.customer_email }),
+              ...(repairModalEdits.gmail_thread_id !== undefined && { gmail_thread_id: repairModalEdits.gmail_thread_id }),
+              ...(repairModalEdits.gmail_subject !== undefined && { gmail_subject: repairModalEdits.gmail_subject }),
             };
             await updateUnitRepair(repairModal.id, fields);
             setRepairs(prev => prev.map(r => r.id === repairModal.id ? { ...r, ...fields } : r));
@@ -20320,6 +20330,69 @@ function BOMManager({ user }) {
                     style={{ width:16,height:16 }} />
                   <label htmlFor="custNotified" style={{ fontSize:13,color:"#1d1d1f",cursor:"pointer" }}>Customer notified</label>
                 </div>
+
+                {repairModalEdits.gmail_thread_id && (
+                  <div style={{ marginTop:20,paddingTop:20,borderTop:"1px solid #f0f0f2" }}>
+                    <div style={{ fontSize:13,fontWeight:600,color:"#1d1d1f",marginBottom:8 }}>📧 Reply to Customer</div>
+                    <div style={{ fontSize:12,color:"#86868b",marginBottom:6 }}>{repairModalEdits.customer_email}</div>
+                    <textarea
+                      value={repairReplyBody}
+                      onChange={e => setRepairReplyBody(e.target.value)}
+                      placeholder="Type your reply…"
+                      style={{ width:"100%",minHeight:80,padding:"8px 12px",borderRadius:10,border:"1px solid #d2d2d7",fontSize:13,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit" }}
+                    />
+                    <div style={{ display:"flex",gap:8,marginTop:8 }}>
+                      <button
+                        onClick={async () => {
+                          if (!repairReplyBody.trim()) return;
+                          try {
+                            const res = await fetch("/api/notifications?type=gmail-reply", {
+                              method:"POST",
+                              headers:{"Content-Type":"application/json"},
+                              body:JSON.stringify({
+                                client_id: apiKeys.gmail_client_id,
+                                client_secret: apiKeys.gmail_client_secret,
+                                refresh_token: apiKeys.gmail_refresh_token,
+                                threadId: repairModalEdits.gmail_thread_id,
+                                to: repairModalEdits.customer_email,
+                                subject: "Re: " + repairModalEdits.gmail_subject,
+                                body: repairReplyBody,
+                              }),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error || "Send failed");
+                            setRepairReplyBody("");
+                            setRepairModalEdits(prev => ({ ...prev, customer_notified: true }));
+                            showToast("Reply sent", "#34c759");
+                          } catch(e) { alert("Failed to send reply: " + e.message); }
+                        }}
+                        style={{ padding:"7px 18px",borderRadius:980,background:"#0071e3",color:"#fff",border:"none",fontSize:13,fontWeight:600,cursor:"pointer" }}>
+                        Send Reply
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/notifications?type=gmail-mark-done", {
+                              method:"POST",
+                              headers:{"Content-Type":"application/json"},
+                              body:JSON.stringify({
+                                client_id: apiKeys.gmail_client_id,
+                                client_secret: apiKeys.gmail_client_secret,
+                                refresh_token: apiKeys.gmail_refresh_token,
+                                threadId: repairModalEdits.gmail_thread_id,
+                              }),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error || "Archive failed");
+                            showToast("Thread archived", "#34c759");
+                          } catch(e) { alert("Failed to archive thread: " + e.message); }
+                        }}
+                        style={{ padding:"7px 18px",borderRadius:980,background:"transparent",color:"#1d1d1f",border:"1px solid #d2d2d7",fontSize:13,fontWeight:500,cursor:"pointer" }}>
+                        ✓ Archive Thread
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Serial number repair history */}

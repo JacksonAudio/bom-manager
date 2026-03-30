@@ -29,6 +29,10 @@ export default async function handler(req, res) {
       return await handleGmailScan(req, res);
     case "gmail-read":
       return await handleGmailRead(req, res);
+    case "gmail-reply":
+      return await handleGmailReply(req, res);
+    case "gmail-mark-done":
+      return await handleGmailMarkDone(req, res);
     default:
       return res.status(400).json({ error: `Unknown type: ${type}` });
   }
@@ -448,6 +452,61 @@ async function handleGmailRead(req, res) {
     const mh = {};
     (d.payload?.headers||[]).forEach(h => { mh[h.name.toLowerCase()]=h.value; });
     return res.status(200).json({ id:d.id, from:mh.from||"", subject:mh.subject||"", date:mh.date||"", body:dec(d.payload||{}).replace(/\r\n/g,"\n").trim().slice(0,5000), snippet:d.snippet||"" });
+  } catch(e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+async function handleGmailReply(req, res) {
+  try {
+    const b = req.body || {};
+    if (!b.client_id || !b.refresh_token || !b.threadId || !b.to || !b.subject || !b.body) {
+      return res.status(400).json({ error: "Missing required params: client_id, refresh_token, threadId, to, subject, body" });
+    }
+    const token = await gmailAccessToken(b);
+
+    let raw = `From: me\r\nTo: ${b.to}\r\nSubject: ${b.subject}\r\nContent-Type: text/plain; charset=UTF-8\r\n`;
+    if (b.inReplyTo) {
+      raw += `In-Reply-To: ${b.inReplyTo}\r\nReferences: ${b.references || b.inReplyTo}\r\n`;
+    }
+    raw += `\r\n${b.body}`;
+
+    const encoded = Buffer.from(raw).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+
+    const r = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ raw: encoded, threadId: b.threadId }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      return res.status(500).json({ error: "Failed to send reply: " + (err.error?.message || r.status) });
+    }
+    const d = await r.json();
+    return res.status(200).json({ success: true, messageId: d.id });
+  } catch(e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+async function handleGmailMarkDone(req, res) {
+  try {
+    const b = req.body || {};
+    if (!b.client_id || !b.refresh_token || !b.threadId) {
+      return res.status(400).json({ error: "Missing required params: client_id, refresh_token, threadId" });
+    }
+    const token = await gmailAccessToken(b);
+
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${b.threadId}/modify`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ removeLabelIds: ["INBOX"], addLabelIds: [] }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      return res.status(500).json({ error: "Failed to archive thread: " + (err.error?.message || r.status) });
+    }
+    return res.status(200).json({ success: true });
   } catch(e) {
     return res.status(500).json({ error: e.message });
   }
