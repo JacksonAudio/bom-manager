@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.19";
-const BUILD_TIME   = "2026-03-29T21:12:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.20";
+const BUILD_TIME   = "2026-03-29T21:20:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7253,7 +7253,12 @@ function BOMManager({ user }) {
                             else selectNone();
                           }}
                         />
-                        <div onMouseDown={(e)=>startColDrag(e,0)} style={{ position:"absolute",right:0,top:0,bottom:0,width:6,cursor:"col-resize",zIndex:2 }} />
+                        <div onMouseDown={(e)=>startColDrag(e,0)}
+                          style={{ position:"absolute",right:0,top:0,bottom:0,width:8,cursor:"col-resize",zIndex:2,display:"flex",alignItems:"center",justifyContent:"center" }}
+                          onMouseEnter={(e)=>e.currentTarget.querySelector("span").style.color="#0071e3"}
+                          onMouseLeave={(e)=>e.currentTarget.querySelector("span").style.color="#c7c7cc"}>
+                          <span style={{ color:"#c7c7cc",fontSize:10,lineHeight:1,pointerEvents:"none",userSelect:"none" }}>⋮</span>
+                        </div>
                       </th>
                       {[
                         {label:"MPN",field:"mpn"},{label:"Value",field:"value"},{label:"Voltage",field:"voltage_rating"},{label:"Package",field:"footprint"},{label:"Description",field:"description"},
@@ -7272,10 +7277,12 @@ function BOMManager({ user }) {
                           {h.label}{partSort.field===h.field ? (partSort.asc?" ▲":" ▼") : ""}
                           {hi < arr.length-1 && (
                             <div onMouseDown={(e)=>startColDrag(e,wIdx)}
-                              style={{ position:"absolute",right:0,top:0,bottom:0,width:6,cursor:"col-resize",zIndex:2,
-                                background:"transparent" }}
-                              onMouseEnter={(e)=>e.currentTarget.style.background="rgba(0,113,227,0.25)"}
-                              onMouseLeave={(e)=>e.currentTarget.style.background="transparent"} />
+                              style={{ position:"absolute",right:0,top:0,bottom:0,width:8,cursor:"col-resize",zIndex:2,
+                                display:"flex",alignItems:"center",justifyContent:"center" }}
+                              onMouseEnter={(e)=>e.currentTarget.querySelector("span").style.color="#0071e3"}
+                              onMouseLeave={(e)=>e.currentTarget.querySelector("span").style.color="#c7c7cc"}>
+                              <span style={{ color:"#c7c7cc",fontSize:10,lineHeight:1,pointerEvents:"none",userSelect:"none" }}>⋮</span>
+                            </div>
                           )}
                         </th>
                         );
