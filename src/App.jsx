@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.17";
-const BUILD_TIME   = "2026-03-29T20:52:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.18";
+const BUILD_TIME   = "2026-03-29T20:58:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7231,7 +7231,7 @@ function BOMManager({ user }) {
                         />
                       </th>
                       {[
-                        {label:"MPN",field:"mpn",w:"20%"},{label:"Value",field:"value",w:"10%"},{label:"Voltage",field:"voltage_rating",w:"4%"},{label:"Package",field:"footprint",w:"6%"},{label:"Description",field:"description",w:"43%"},
+                        {label:"MPN",field:"mpn",w:"18%"},{label:"Value",field:"value",w:"10%"},{label:"Voltage",field:"voltage_rating",w:"6%"},{label:"Package",field:"footprint",w:"6%"},{label:"Description",field:"description",w:"43%"},
                         {label:"Manufacturer",field:"manufacturer",w:"15%"}
                       ].map((h,hi,arr)=>(
                         <th key={hi} onClick={h.field ? ()=>setPartSort(prev=>({field:h.field,asc:prev.field===h.field?!prev.asc:true})) : undefined}
