@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.08";
-const BUILD_TIME   = "2026-03-29T19:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.09";
+const BUILD_TIME   = "2026-03-29T19:38:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7307,12 +7307,11 @@ function BOMManager({ user }) {
                               style={{ ...inputStyle,width:"auto",color:"#86868b" }} placeholder="" />
                           </td>
                           <td style={{ padding:"6px 8px",whiteSpace:"nowrap" }}>
-                            <input type="number" placeholder="0" value={part.stockQty}
+                            <input type="text" inputMode="numeric" placeholder="0" value={part.stockQty}
                               onChange={(e)=>updatePart(part.id,"stockQty",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
-                              style={{ ...inputStyle,width:`${Math.max(String(part.stockQty||0).length,3)}ch`,
-                                fontWeight:600,color:isLow?"#ff3b30":"#1d1d1f",
-                                WebkitAppearance:"none",MozAppearance:"textfield" }} min="0" />
+                              size={Math.max(String(part.stockQty||0).length,3)}
+                              style={{ ...inputStyle,width:"auto",fontWeight:600,color:isLow?"#ff3b30":"#1d1d1f" }} />
                             {totalPartReserved > 0 && (
                               <div style={{ fontSize:9,fontWeight:700,color:"#ff9500",marginTop:1,lineHeight:1 }} title={`${totalPartReserved} reserved — ${partAvailable} available`}>
                                 {totalPartReserved} rsv
