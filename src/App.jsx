@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.30";
-const BUILD_TIME   = "2026-03-30T10:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.31";
+const BUILD_TIME   = "2026-03-30T11:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -20094,6 +20094,7 @@ function BOMManager({ user }) {
                 {gmailScanModal.messages.map((msg, i) => {
                   const isExpanded = gmailScanModal.expanded === msg.id;
                   const isTicketed = gmailScanModal.ticketed.has(msg.id);
+                  const existingRepair = repairs.find(r => r.gmail_thread_id && r.gmail_thread_id === msg.threadId);
                   const age = (() => {
                     const d = Math.floor((Date.now() - msg.internalDate) / 86400000);
                     if (d === 0) return "Today";
@@ -20135,6 +20136,11 @@ function BOMManager({ user }) {
                         )}
                         {isTicketed
                           ? <span style={{ fontSize:11,color:"#34c759",fontWeight:700,whiteSpace:"nowrap",flexShrink:0 }}>✓ Ticketed</span>
+                          : existingRepair
+                          ? <button onClick={e => { e.stopPropagation(); setGmailScanModal(null); openRepairDetail(existingRepair); }}
+                              style={{ padding:"5px 12px",borderRadius:980,background:"#e8f0fb",color:"#0071e3",border:"1px solid #cce0ff",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0 }}>
+                              📋 Open Ticket
+                            </button>
                           : (
                             <button onClick={async e => {
                               e.stopPropagation();
@@ -20307,7 +20313,7 @@ function BOMManager({ user }) {
                   <div style={{ fontSize:11,color:"#86868b",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Fault Description</div>
                   <textarea value={repairModalEdits.fault_description}
                     onChange={e => setRepairModalEdits(prev => ({ ...prev, fault_description: e.target.value }))}
-                    rows={2} style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:13,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit" }}
+                    style={{ width:"100%",height:"min(500px, 60vw)",padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:13,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit" }}
                     placeholder="What was reported / what came in" />
                 </div>
                 <div style={{ gridColumn:"1/-1" }}>
