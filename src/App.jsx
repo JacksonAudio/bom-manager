@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.23";
-const BUILD_TIME   = "2026-03-29T21:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.24";
+const BUILD_TIME   = "2026-03-29T23:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -567,6 +567,9 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
   if (voltAttr?.AttributeValue) result.voltageRating = voltAttr.AttributeValue;
   // Packaging type (Tape & Reel, Cut Tape, Ammo Pack, Bulk)
   if (part.Packaging) result.packagingType = part.Packaging;
+  // Factory pack qty — the actual reel/tube/tray quantity
+  const fPackQty = parseInt(part.FactoryPackQty || part.MultPackQty || 0);
+  if (fPackQty > 0) result.factoryPackQty = fPackQty;
   // Value from ProductAttributes (Capacitance, Resistance, Inductance)
   const valAttr = attrs.find(a => /^(capacitance|resistance|inductance)$/i.test(a.AttributeName || ""));
   if (valAttr?.AttributeValue) result.partValue = valAttr.AttributeValue;
@@ -1615,6 +1618,7 @@ function BOMManager({ user }) {
   const [vendorDraft, setVendorDraft] = useState({});
   const [fullReelParts, setFullReelParts] = useState(new Set()); // part IDs where full reel is toggled
   const [reelFillModal, setReelFillModal] = useState(null); // null | { phase: 'scanning'|'fetching'|'preview', rows: [...], checkedIds: Set, apiCount, cacheCount }
+  const [reelTestModal, setReelTestModal] = useState(null); // null | { status: 'loading'|'done'|'error', mpn, result, error }
   const [valueFillModal, setValueFillModal] = useState(null); // null | { rows: [...], checkedIds: Set }
   const [reelDecisions, setReelDecisions] = useState({}); // { [partId]: 'reel' | 'cut' }
   const [settingsSaving, setSettingsSaving] = useState(""); // which section is saving
@@ -6023,55 +6027,41 @@ function BOMManager({ user }) {
                 const checkedIds = new Set(rows.filter(r => r.checked).map(r => r.part.id));
                 setReelFillModal({ phase:"fetching", rows, checkedIds, apiCount:0, cacheCount });
 
-                // Phase 2: serverless proxy (/api/mouser-pack-qty) → Mouser
-                // Results are written to parts.pricing.mouser.factoryPackQty in Supabase
-                // so Phase 1 finds them instantly on every future run — zero API calls after first pass.
+                // Phase 2: call fetchMouserPricing directly (same function used for live pricing)
+                // This extracts FactoryPackQty from the Mouser Search API response and caches it.
                 // Rate limit: 2100ms between calls (Mouser allows 30/min).
                 if (apiKeys.mouser_api_key) {
                   const needApi = rows.filter(r => {
                     if (r.detected) return false;
                     if (!r.part.mpn || !/[a-zA-Z]/.test(r.part.mpn)) return false;
                     const sup = (r.part.preferredSupplier || "").toLowerCase().trim();
-                    // Only query Mouser if supplier is explicitly Mouser or unset
                     if (sup && sup !== "mouser") return false;
                     return true;
                   });
                   let apiCount = 0;
                   for (const row of needApi) {
                     try {
-                      const apiRes = await fetch("/api/mouser-cart", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          action: "pack-qty",
-                          mpn: row.part.mpn,
-                          partId: row.part.id,
-                          apiKey: apiKeys.mouser_api_key,
-                          supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
-                          supabaseKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-                        }),
-                      });
-                      await new Promise(r => setTimeout(r, 2100)); // Mouser: 30 calls/min max
-                      if (apiRes.ok) {
-                        const result = await apiRes.json();
-                        const fq = result.packQty || 0;
-                        if (fq > 0) {
-                          row.detected = fq;
-                          row.source = result.source || "Mouser";
-                          row.checked = true;
-                          checkedIds.add(row.part.id);
-                          apiCount++;
-                          // Update local state — pricing cache, footprint, voltage_rating, url
-                          setParts(prev => prev.map(p => p.id === row.part.id ? {
-                            ...p,
-                            ...(result.caseCode && !p.footprint ? { footprint: result.caseCode } : {}),
-                            ...(result.voltageRating && !p.voltage_rating ? { voltage_rating: result.voltageRating } : {}),
-                            ...(result.orderUrl && !p.url ? { url: result.orderUrl } : {}),
-                            pricing: { ...(p.pricing||{}), mouser: { ...(p.pricing?.mouser||{}), factoryPackQty: fq } }
-                          } : p));
-                        }
+                      const md = await fetchMouserPricing(row.part.mpn, 1, apiKeys.mouser_api_key);
+                      const fq = md?.factoryPackQty || 0;
+                      if (fq > 0) {
+                        row.detected = fq;
+                        row.source = "Mouser";
+                        row.checked = true;
+                        checkedIds.add(row.part.id);
+                        apiCount++;
+                        // Persist to Supabase
+                        const mergedPricing = { ...(row.part.pricing||{}), mouser: { ...(row.part.pricing?.mouser||{}), ...md, factoryPackQty: fq } };
+                        await supabase.from("parts").update({ pricing: mergedPricing }).eq("id", row.part.id);
+                        setParts(prev => prev.map(p => p.id === row.part.id ? {
+                          ...p,
+                          ...(md.caseCode && !p.footprint ? { footprint: md.caseCode } : {}),
+                          ...(md.voltageRating && !p.voltage_rating ? { voltage_rating: md.voltageRating } : {}),
+                          ...(md.url && !p.url ? { url: md.url } : {}),
+                          pricing: mergedPricing,
+                        } : p));
                       }
-                    } catch(_) {}
+                    } catch(e) { console.warn("[reel-fill]", row.part.mpn, e.message); }
+                    await new Promise(r => setTimeout(r, 2100)); // 30 calls/min
                     setReelFillModal(prev => prev ? { ...prev, rows: [...rows], checkedIds: new Set(checkedIds), apiCount } : null);
                   }
                   setReelFillModal(prev => prev ? { ...prev, phase:"preview", rows: [...rows], checkedIds: new Set(checkedIds), apiCount, cacheCount } : null);
@@ -6079,6 +6069,20 @@ function BOMManager({ user }) {
                   setReelFillModal(prev => prev ? { ...prev, phase:"preview" } : null);
                 }
               }}>Auto-Fill Reel Quantities</button>
+              <button className="btn-ghost btn-sm" style={{ color:"#ff9500" }} onClick={async () => {
+                const TEST_MPN = "0603WAF2204T5E";
+                if (!apiKeys.mouser_api_key) {
+                  setReelTestModal({ status:"error", mpn: TEST_MPN, result: null, error: "No Mouser API key configured. Add mouser_api_key in Settings → API Keys." });
+                  return;
+                }
+                setReelTestModal({ status:"loading", mpn: TEST_MPN, result: null, error: null });
+                try {
+                  const result = await fetchMouserPricing(TEST_MPN, 1, apiKeys.mouser_api_key);
+                  setReelTestModal({ status:"done", mpn: TEST_MPN, result, error: null });
+                } catch(e) {
+                  setReelTestModal({ status:"error", mpn: TEST_MPN, result: null, error: e.message });
+                }
+              }}>🧪 Test Mouser API</button>
               <button className="btn-ghost btn-sm" style={{ color:"#5856d6" }} onClick={() => {
                 // ── Value formatting rules ──────────────────────────────
                 // Capacitance : always uF/nF/pF (no µ symbol, must be searchable)
@@ -19760,6 +19764,92 @@ function BOMManager({ user }) {
       {/* QR Label Modal */}
       {qrModalParts && qrModalParts.length > 0 && (
         <QRLabelModal parts={qrModalParts} products={products} onClose={() => setQrModalParts(null)} />
+      )}
+
+      {/* ── Mouser API Test Modal ── */}
+      {reelTestModal && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setReelTestModal(null); }}>
+          <div style={{ background:"#fff",borderRadius:20,padding:"32px 36px",width:560,maxWidth:"95vw",maxHeight:"85vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20 }}>
+              <div>
+                <h3 style={{ margin:0,fontSize:20,fontWeight:700,color:"#1d1d1f" }}>Mouser API Test</h3>
+                <div style={{ fontSize:13,color:"#86868b",marginTop:4 }}>Fetching: <code style={{ fontFamily:"monospace",background:"#f5f5f7",padding:"1px 6px",borderRadius:4 }}>{reelTestModal.mpn}</code></div>
+              </div>
+              <button onClick={()=>setReelTestModal(null)} style={{ width:28,height:28,borderRadius:"50%",border:"none",background:"#f5f5f7",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center" }}>×</button>
+            </div>
+
+            {reelTestModal.status === "loading" && (
+              <div style={{ textAlign:"center",padding:"32px 0",color:"#86868b",fontSize:14 }}>
+                Querying Mouser Search API…
+              </div>
+            )}
+
+            {reelTestModal.status === "error" && (
+              <div style={{ background:"#fff2f2",border:"1px solid #ffd0d0",borderRadius:10,padding:"16px 20px",color:"#c0392b",fontSize:13,lineHeight:"20px" }}>
+                <strong>Error:</strong> {reelTestModal.error}
+              </div>
+            )}
+
+            {reelTestModal.status === "done" && !reelTestModal.result && (
+              <div style={{ background:"#fff8e6",border:"1px solid #ffe0a0",borderRadius:10,padding:"16px 20px",color:"#a05000",fontSize:13 }}>
+                Mouser returned no results for <strong>{reelTestModal.mpn}</strong>. The part may not be in Mouser's catalog or the MPN didn't match.
+              </div>
+            )}
+
+            {reelTestModal.status === "done" && reelTestModal.result && (() => {
+              const r = reelTestModal.result;
+              const rows = [
+                { label:"Factory Pack Qty", value: r.factoryPackQty != null ? String(r.factoryPackQty) : "❌ NOT RETURNED", highlight: r.factoryPackQty != null },
+                { label:"Packaging Type",   value: r.packagingType  || "—" },
+                { label:"Mouser Part #",    value: r.mouserPartNumber || "—" },
+                { label:"Stock",            value: r.stock != null ? r.stock.toLocaleString() : "—" },
+                { label:"Unit Price",       value: r.unitPrice ? `$${r.unitPrice.toFixed(4)}` : "—" },
+                { label:"MOQ",              value: r.moq != null ? String(r.moq) : "—" },
+                { label:"Manufacturer",     value: r.manufacturer || "—" },
+                { label:"Description",      value: r.partDescription || "—" },
+                { label:"Case Code",        value: r.caseCode || "—" },
+                { label:"Country of Origin",value: r.countryOfOrigin || "—" },
+                { label:"RoHS",             value: r.rohsStatus || "—" },
+                { label:"Lifecycle",        value: r.lifecycleStatus || "—" },
+                { label:"Lead Time",        value: r.leadTime || "—" },
+              ];
+              return (
+                <div>
+                  <div style={{ background: r.factoryPackQty != null ? "#f0fff4" : "#fff8e6", border:`1px solid ${r.factoryPackQty != null ? "#a3e6b8":"#ffe0a0"}`, borderRadius:12, padding:"14px 18px", marginBottom:16, fontSize:15, fontWeight:600, color: r.factoryPackQty != null ? "#1a7a3a":"#a05000" }}>
+                    {r.factoryPackQty != null
+                      ? `✅ Factory Pack Qty = ${r.factoryPackQty} — API is working!`
+                      : `⚠️ factoryPackQty not returned by Mouser for this part`}
+                  </div>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                    <tbody>
+                      {rows.map(row => (
+                        <tr key={row.label} style={{ borderBottom:"1px solid #f0f0f2" }}>
+                          <td style={{ padding:"7px 10px",color:"#86868b",whiteSpace:"nowrap",width:"40%" }}>{row.label}</td>
+                          <td style={{ padding:"7px 10px",fontWeight: row.highlight ? 700 : 400, color: row.highlight ? "#1a7a3a" : "#1d1d1f", fontFamily: row.label==="Factory Pack Qty" ? "monospace" : "inherit" }}>{row.value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {r.priceBreaks && r.priceBreaks.length > 0 && (
+                    <div style={{ marginTop:14 }}>
+                      <div style={{ fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",color:"#86868b",marginBottom:6 }}>Price Breaks</div>
+                      <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                        {r.priceBreaks.map(pb => (
+                          <div key={pb.qty} style={{ background:"#f5f5f7",borderRadius:8,padding:"5px 10px",fontSize:12 }}>
+                            {pb.qty.toLocaleString()} @ ${pb.price.toFixed(4)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            <button onClick={()=>setReelTestModal(null)} style={{ marginTop:24,width:"100%",padding:"10px 0",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",fontSize:14,cursor:"pointer",color:"#1d1d1f" }}>Close</button>
+          </div>
+        </div>
       )}
 
       {/* ── Auto-Fill Reel Quantities Modal ── */}
