@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.22";
-const BUILD_TIME   = "2026-03-29T21:35:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.23";
+const BUILD_TIME   = "2026-03-29T21:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6028,7 +6028,14 @@ function BOMManager({ user }) {
                 // so Phase 1 finds them instantly on every future run — zero API calls after first pass.
                 // Rate limit: 2100ms between calls (Mouser allows 30/min).
                 if (apiKeys.mouser_api_key) {
-                  const needApi = rows.filter(r => !r.detected && r.part.mpn && /[a-zA-Z]/.test(r.part.mpn));
+                  const needApi = rows.filter(r => {
+                    if (r.detected) return false;
+                    if (!r.part.mpn || !/[a-zA-Z]/.test(r.part.mpn)) return false;
+                    const sup = (r.part.preferredSupplier || "").toLowerCase().trim();
+                    // Only query Mouser if supplier is explicitly Mouser or unset
+                    if (sup && sup !== "mouser") return false;
+                    return true;
+                  });
                   let apiCount = 0;
                   for (const row of needApi) {
                     try {
