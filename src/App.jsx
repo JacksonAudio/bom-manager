@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.39";
-const BUILD_TIME   = "2026-03-30T15:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.40";
+const BUILD_TIME   = "2026-03-30T15:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -602,7 +602,11 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
   // Value from ProductAttributes (Capacitance, Resistance, Inductance)
   const valAttr = attrs.find(a => /^(capacitance|resistance|inductance)$/i.test(a.AttributeName || ""));
   if (valAttr?.AttributeValue) result.partValue = valAttr.AttributeValue;
-  if (part.LeadTime) result.leadTime = part.LeadTime;
+  if (part.LeadTime) {
+    result.leadTime = part.LeadTime;
+    const days = parseInt(part.LeadTime);
+    if (days > 0) result.leadTimeDays = days;
+  }
   if (part.SuggestedReplacement) result.suggestedReplacement = part.SuggestedReplacement;
   if (part.ImagePath) result.imagePath = part.ImagePath;
   if (part.ProductCompliance) {
@@ -2228,6 +2232,24 @@ function BOMManager({ user }) {
     try { localStorage.setItem("bom_dark_mode", darkMode); } catch {}
     document.body.style.background = darkMode ? "#000000" : "#f5f5f7";
   }, [darkMode]);
+
+  // Auto-refresh Mouser data when a part row is expanded
+  const mouserRefreshSessionCache = React.useRef(new Set());
+  useEffect(() => {
+    if (!expandedPartRow || !apiKeys?.mouser_api_key) return;
+    if (mouserRefreshSessionCache.current.has(expandedPartRow)) return;
+    const part = parts.find(p => p.id === expandedPartRow);
+    if (!part?.mpn) return;
+    mouserRefreshSessionCache.current.add(expandedPartRow);
+    fetchMouserPricing(part.mpn, 1, apiKeys.mouser_api_key)
+      .then(md => {
+        if (!md) return;
+        const mergedPricing = { ...(part.pricing||{}), mouser: { ...(part.pricing?.mouser||{}), ...md, lastFetched: Date.now() } };
+        supabase.from("parts").update({ pricing: mergedPricing }).eq("id", part.id).then(() => {});
+        setParts(prev => prev.map(p => p.id === part.id ? { ...p, pricing: mergedPricing } : p));
+      })
+      .catch(() => {});
+  }, [expandedPartRow]);
 
   // ─────────────────────────────────────────────
   // REALTIME SUBSCRIPTIONS
@@ -6043,7 +6065,7 @@ function BOMManager({ user }) {
                 const rows = [];
                 for (const p of parts) {
                   if (!p.mpn) continue;
-                  if (p.reelQty && parseInt(p.reelQty) > 0) continue; // already set
+                  // Process ALL parts — update reel_qty AND full Mouser data in one pass
                   let detected = null; let source = "";
                   const pr = p.pricing && typeof p.pricing === "object" ? p.pricing : null;
                   if (pr) {
@@ -6105,18 +6127,20 @@ function BOMManager({ user }) {
                         try { fq = await fetchNexarReelQty(row.part.mpn, tok); src = "Nexar"; }
                         catch(e) { if (/exceeded|limit|403/i.test(e.message)) nexarWorking = false; }
                       }
-                      // Fall back to Mouser
+                      // Fall back to Mouser — fetch full data (stock, lead time, RoHS, lifecycle, packaging, etc.)
+                      let fullMouserData = null;
                       if (!fq && canUseMouser) {
                         try {
-                          const md = await fetchMouserPricing(row.part.mpn, 1, apiKeys.mouser_api_key);
-                          if (md?.factoryPackQty) { fq = md.factoryPackQty; src = "Mouser"; usedMouser = true; }
+                          fullMouserData = await fetchMouserPricing(row.part.mpn, 1, apiKeys.mouser_api_key);
+                          if (fullMouserData?.factoryPackQty) { fq = fullMouserData.factoryPackQty; src = "Mouser"; usedMouser = true; }
                         } catch {}
                       }
-                      if (fq) {
-                        row.detected = fq; row.source = src; row.checked = true; checkedIds.add(row.part.id); apiCount++;
-                        const mergedPricing = { ...(row.part.pricing||{}), _reelQty: fq };
+                      // Store full Mouser data regardless of whether reel qty was found
+                      if (fullMouserData) {
+                        const mergedPricing = { ...(row.part.pricing||{}), mouser: { ...(row.part.pricing?.mouser||{}), ...fullMouserData, lastFetched: Date.now() } };
                         await supabase.from("parts").update({ pricing: mergedPricing }).eq("id", row.part.id);
                         setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, pricing: mergedPricing } : p));
+                        if (fq) { row.detected = fq; row.source = src; row.checked = true; checkedIds.add(row.part.id); apiCount++; }
                       }
                     } catch(e) { console.warn("[reel-fill]", row.part.mpn, e.message); }
                     // Rate limit: 450ms for Nexar, 2100ms if falling back to Mouser exclusively
@@ -7499,6 +7523,39 @@ function BOMManager({ user }) {
                                     ))}
                                   </div>
                                 ) : null;
+                              })()}
+                              {/* Sourcing & Compliance — Mouser live data */}
+                              {(() => {
+                                const m = part.pricing?.mouser;
+                                if (!m) return null;
+                                const lifecycleColor = m.lifecycleStatus?.toLowerCase().includes("active") ? "#34c759" : m.lifecycleStatus?.toLowerCase().includes("nrnd") ? "#ff9500" : m.lifecycleStatus?.toLowerCase().includes("eol") || m.lifecycleStatus?.toLowerCase().includes("obsolete") ? "#ff3b30" : "#86868b";
+                                return (
+                                  <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"), display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                                    {/* Sourcing */}
+                                    <div>
+                                      <div style={{ fontSize:10, fontWeight:700, color:"#86868b", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>Sourcing</div>
+                                      <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                                        {m.mouserPartNumber && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Mouser #</span><span style={{ fontFamily:"monospace", fontWeight:600, color:"#1d1d1f" }}>{m.mouserPartNumber}</span></div>}
+                                        {m.stock != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>In Stock</span><span style={{ fontWeight:600, color: m.stock > 1000 ? "#34c759" : m.stock > 0 ? "#ff9500" : "#ff3b30" }}>{m.stock?.toLocaleString()}</span></div>}
+                                        {m.moq != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>MOQ</span><span style={{ fontWeight:600 }}>{m.moq?.toLocaleString()}</span></div>}
+                                        {m.leadTimeDays != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Lead Time</span><span style={{ fontWeight:600 }}>{m.leadTimeDays} days</span></div>}
+                                        {m.packagingType && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Packaging</span><span style={{ fontWeight:600 }}>{m.packagingType}</span></div>}
+                                        {m.url && <div style={{ marginTop:4 }}><a href={m.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#0071e3", textDecoration:"none", fontWeight:600 }}>View on Mouser →</a></div>}
+                                        {m.lastFetched && <div style={{ fontSize:10, color:"#aeaeb2", marginTop:2 }}>Updated {new Date(m.lastFetched).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>}
+                                      </div>
+                                    </div>
+                                    {/* Compliance */}
+                                    <div>
+                                      <div style={{ fontSize:10, fontWeight:700, color:"#86868b", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>Compliance</div>
+                                      <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                                        {m.rohsStatus && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, gap:8 }}><span style={{ color:"#86868b", flexShrink:0 }}>RoHS</span><span style={{ fontWeight:600, textAlign:"right" }}>{m.rohsStatus}</span></div>}
+                                        {m.lifecycleStatus && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Lifecycle</span><span style={{ fontWeight:700, color:lifecycleColor }}>{m.lifecycleStatus}</span></div>}
+                                        {m.countryOfOrigin && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Origin</span><span style={{ fontWeight:600 }}>{m.countryOfOrigin}</span></div>}
+                                        {m.manufacturer && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Manufacturer</span><span style={{ fontWeight:600 }}>{m.manufacturer}</span></div>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
                               })()}
                               {/* Transaction History (collapsible) */}
                               <div style={{ marginTop:10,paddingTop:10,borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
