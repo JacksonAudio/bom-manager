@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.35";
-const BUILD_TIME   = "2026-03-30T13:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.37";
+const BUILD_TIME   = "2026-03-30T14:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -593,7 +593,17 @@ async function fetchMouserPricing(mpn, quantity, apiKey) {
   // Packaging type (Tape & Reel, Cut Tape, Ammo Pack, Bulk)
   if (part.Packaging) result.packagingType = part.Packaging;
   // Factory pack qty — the actual reel/tube/tray quantity
-  const fPackQty = parseInt(part.FactoryPackQty || part.MultPackQty || 0);
+  // Mouser often omits FactoryPackQty but encodes it in the description as "T/R-5000" or "TR5000"
+  let fPackQty = parseInt(part.FactoryPackQty || part.MultPackQty || 0);
+  if (!fPackQty) {
+    const desc = part.Description || part.ManufacturerPartNumber || "";
+    const trMatch = desc.match(/T[\/ ]?R[- ]?(\d{2,6})/i) || desc.match(/TAPE.*REEL.*?(\d{3,6})/i);
+    if (trMatch) fPackQty = parseInt(trMatch[1]);
+  }
+  // Final fallback: if packaging is Tape & Reel and MOQ looks like a reel size (≥100), use MOQ
+  if (!fPackQty && /tape.*reel|T\/R/i.test(part.Packaging || "") && parseInt(part.Min || 0) >= 100) {
+    fPackQty = parseInt(part.Min);
+  }
   if (fPackQty > 0) result.factoryPackQty = fPackQty;
   // Value from ProductAttributes (Capacitance, Resistance, Inductance)
   const valAttr = attrs.find(a => /^(capacitance|resistance|inductance)$/i.test(a.AttributeName || ""));
@@ -6075,32 +6085,35 @@ function BOMManager({ user }) {
                 const checkedIds = new Set(rows.filter(r => r.checked).map(r => r.part.id));
                 setReelFillModal({ phase:"fetching", rows, checkedIds, apiCount:0, cacheCount });
 
-                // Phase 2: fetch live factory pack qty via Nexar (covers Mouser, DigiKey, Arrow, etc.)
+                // Phase 2: fetch live factory pack qty — try Nexar first (multi-supplier), then Mouser
                 const canUseNexar = !!(apiKeys.nexar_client_id && apiKeys.nexar_client_secret);
-                if (canUseNexar) {
+                const canUseMouser = !!(apiKeys.mouser_api_key);
+                if (canUseNexar || canUseMouser) {
                   const needApi = rows.filter(r => !r.detected && r.part.mpn && /[a-zA-Z]/.test(r.part.mpn));
                   let apiCount = 0;
-                  // Get or reuse token
                   let tok = nexarToken;
-                  if (!tok) { try { tok = await fetchNexarToken(apiKeys.nexar_client_id, apiKeys.nexar_client_secret); setNexarToken(tok); } catch(e) { console.warn("[reel-fill] Nexar token failed:", e.message); } }
-                  if (tok) {
-                    for (const row of needApi) {
-                      try {
-                        const fq = await fetchNexarReelQty(row.part.mpn, tok);
-                        if (fq) {
-                          row.detected = fq;
-                          row.source = "Nexar";
-                          row.checked = true;
-                          checkedIds.add(row.part.id);
-                          apiCount++;
-                          const mergedPricing = { ...(row.part.pricing||{}), _reelQty: fq };
-                          await supabase.from("parts").update({ pricing: mergedPricing }).eq("id", row.part.id);
-                          setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, pricing: mergedPricing } : p));
-                        }
-                      } catch(e) { console.warn("[reel-fill]", row.part.mpn, e.message); }
-                      await new Promise(r => setTimeout(r, 400)); // ~150/min comfortable for Nexar
-                      setReelFillModal(prev => prev ? { ...prev, rows: [...rows], checkedIds: new Set(checkedIds), apiCount } : null);
-                    }
+                  if (canUseNexar && !tok) { try { tok = await fetchNexarToken(apiKeys.nexar_client_id, apiKeys.nexar_client_secret); setNexarToken(tok); } catch(e) { console.warn("[reel-fill] Nexar token:", e.message); } }
+                  for (const row of needApi) {
+                    try {
+                      let fq = null; let src = "";
+                      // Try Nexar first
+                      if (tok) { try { fq = await fetchNexarReelQty(row.part.mpn, tok); src = "Nexar"; } catch {} }
+                      // Fall back to Mouser (now parses T/R description + MOQ)
+                      if (!fq && canUseMouser) {
+                        try {
+                          const md = await fetchMouserPricing(row.part.mpn, 1, apiKeys.mouser_api_key);
+                          if (md?.factoryPackQty) { fq = md.factoryPackQty; src = "Mouser"; }
+                        } catch {}
+                      }
+                      if (fq) {
+                        row.detected = fq; row.source = src; row.checked = true; checkedIds.add(row.part.id); apiCount++;
+                        const mergedPricing = { ...(row.part.pricing||{}), _reelQty: fq };
+                        await supabase.from("parts").update({ pricing: mergedPricing }).eq("id", row.part.id);
+                        setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, pricing: mergedPricing } : p));
+                      }
+                    } catch(e) { console.warn("[reel-fill]", row.part.mpn, e.message); }
+                    await new Promise(r => setTimeout(r, 450));
+                    setReelFillModal(prev => prev ? { ...prev, rows: [...rows], checkedIds: new Set(checkedIds), apiCount } : null);
                   }
                   setReelFillModal(prev => prev ? { ...prev, phase:"preview", rows: [...rows], checkedIds: new Set(checkedIds), apiCount, cacheCount } : null);
                 } else {
@@ -6110,17 +6123,33 @@ function BOMManager({ user }) {
               <button className="btn-ghost btn-sm" style={{ color:"#ff9500" }} onClick={async () => {
                 const TEST_MPN = "0603WAF2204T5E";
                 if (!apiKeys.mouser_api_key) {
-                  setReelTestModal({ status:"error", mpn: TEST_MPN, result: null, error: "No Mouser API key configured. Add mouser_api_key in Settings → API Keys." });
+                  setReelTestModal({ status:"error", mpn: TEST_MPN, result: null, error: "No Mouser API key configured. Add mouser_api_key in Settings → API Keys.", source:"Mouser" });
                   return;
                 }
-                setReelTestModal({ status:"loading", mpn: TEST_MPN, result: null, error: null });
+                setReelTestModal({ status:"loading", mpn: TEST_MPN, result: null, error: null, source:"Mouser" });
                 try {
                   const result = await fetchMouserPricing(TEST_MPN, 1, apiKeys.mouser_api_key);
-                  setReelTestModal({ status:"done", mpn: TEST_MPN, result, error: null });
+                  setReelTestModal({ status:"done", mpn: TEST_MPN, result, error: null, source:"Mouser" });
                 } catch(e) {
-                  setReelTestModal({ status:"error", mpn: TEST_MPN, result: null, error: e.message });
+                  setReelTestModal({ status:"error", mpn: TEST_MPN, result: null, error: e.message, source:"Mouser" });
                 }
               }}>🧪 Test Mouser API</button>
+              <button className="btn-ghost btn-sm" style={{ color:"#5856d6" }} onClick={async () => {
+                const TEST_MPN = "0603WAF2204T5E";
+                if (!apiKeys.nexar_client_id || !apiKeys.nexar_client_secret) {
+                  setReelTestModal({ status:"error", mpn: TEST_MPN, result: null, error: "No Nexar credentials configured. Add nexar_client_id and nexar_client_secret in Settings.", source:"Nexar" });
+                  return;
+                }
+                setReelTestModal({ status:"loading", mpn: TEST_MPN, result: null, error: null, source:"Nexar" });
+                try {
+                  let tok = nexarToken;
+                  if (!tok) { tok = await fetchNexarToken(apiKeys.nexar_client_id, apiKeys.nexar_client_secret); setNexarToken(tok); }
+                  const fq = await fetchNexarReelQty(TEST_MPN, tok);
+                  setReelTestModal({ status:"done", mpn: TEST_MPN, result: { factoryPackQty: fq, _nexarRaw: true }, error: null, source:"Nexar" });
+                } catch(e) {
+                  setReelTestModal({ status:"error", mpn: TEST_MPN, result: null, error: e.message, source:"Nexar" });
+                }
+              }}>🧪 Test Nexar API</button>
               <button className="btn-ghost btn-sm" style={{ color:"#5856d6" }} onClick={() => {
                 // ── Value formatting rules ──────────────────────────────
                 // Capacitance : always uF/nF/pF (no µ symbol, must be searchable)
@@ -20565,18 +20594,27 @@ function BOMManager({ user }) {
         );
       })()}
 
-      {/* ── Mouser API Test Modal ── */}
+      {/* ── API Test Modal (Mouser or Nexar) ── */}
       {reelTestModal && (
         <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
           onClick={(e) => { if (e.target === e.currentTarget) setReelTestModal(null); }}>
           <div style={{ background:"#fff",borderRadius:20,padding:"32px 36px",width:560,maxWidth:"95vw",maxHeight:"85vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20 }}>
               <div>
-                <h3 style={{ margin:0,fontSize:20,fontWeight:700,color:"#1d1d1f" }}>Mouser API Test</h3>
+                <h3 style={{ margin:0,fontSize:20,fontWeight:700,color:"#1d1d1f" }}>{reelTestModal.source || "Mouser"} API Test</h3>
                 <div style={{ fontSize:13,color:"#86868b",marginTop:4 }}>Fetching: <code style={{ fontFamily:"monospace",background:"#f5f5f7",padding:"1px 6px",borderRadius:4 }}>{reelTestModal.mpn}</code></div>
               </div>
-              <button onClick={()=>setReelTestModal(null)} style={{ width:28,height:28,borderRadius:"50%",border:"none",background:"#f5f5f7",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center" }}>×</button>
+              <button onClick={()=>setReelTestModal(null)}
+                onMouseEnter={e=>e.currentTarget.style.background="#e8e8ed"} onMouseLeave={e=>e.currentTarget.style.background="#f5f5f7"}
+                style={{ width:32,height:32,borderRadius:"50%",border:"none",background:"#f5f5f7",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.15s" }}>×</button>
             </div>
+            {reelTestModal.status === "done" && reelTestModal.result?._nexarRaw && (
+              <div style={{ background: reelTestModal.result.factoryPackQty ? "#f0fff4" : "#fff8e6", border:`1px solid ${reelTestModal.result.factoryPackQty ? "#a3e6b8" : "#ffe0a0"}`, borderRadius:10, padding:"16px 20px", marginBottom:20 }}>
+                <div style={{ fontSize:15, fontWeight:700, color: reelTestModal.result.factoryPackQty ? "#1a7a40" : "#a05000" }}>
+                  {reelTestModal.result.factoryPackQty ? `✅ Factory Pack Qty: ${reelTestModal.result.factoryPackQty}` : "⚠️ No factory pack qty found via Nexar for this part"}
+                </div>
+              </div>
+            )}
 
             {reelTestModal.status === "loading" && (
               <div style={{ textAlign:"center",padding:"32px 0",color:"#86868b",fontSize:14 }}>
