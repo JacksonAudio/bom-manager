@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.06";
-const BUILD_TIME   = "2026-03-29T19:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.07";
+const BUILD_TIME   = "2026-03-29T19:20:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7239,8 +7239,8 @@ function BOMManager({ user }) {
                           style={{ textAlign:"left",padding:"12px 14px",
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                           fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",
-                          width: h.wide ? "100%" : "1px",
                           whiteSpace:"nowrap",
+                          width: h.wide ? "99%" : undefined,
                           cursor:h.field?"pointer":"default",userSelect:"none",
                           borderRadius:hi===arr.length-1?"0 8px 0 0":undefined }}>
                           {h.label}{partSort.field===h.field ? (partSort.asc?" ▲":" ▼") : ""}
@@ -7272,41 +7272,46 @@ function BOMManager({ user }) {
                               checked={selectedParts.has(part.id)}
                               onChange={() => toggleSelect(part.id)} />
                           </td>
-                          <td style={{ padding:"6px 8px",width:"1px",whiteSpace:"nowrap" }}>
+                          <td style={{ padding:"6px 8px",whiteSpace:"nowrap" }}>
                             <input type="text" value={part.mpn||""}
                               onChange={(e)=>updatePart(part.id,"mpn",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
-                              style={{ ...inputStyle,width:"100%",color:"#0071e3",fontWeight:600 }} placeholder="—" />
+                              size={Math.max((part.mpn||"").length,3)}
+                              style={{ ...inputStyle,width:"auto",color:"#0071e3",fontWeight:600 }} placeholder="—" />
                           </td>
-                          <td style={{ padding:"6px 8px",width:"1px",whiteSpace:"nowrap" }}>
+                          <td style={{ padding:"6px 8px",whiteSpace:"nowrap" }}>
                             <input type="text" value={part.value||""}
                               onChange={(e)=>updatePart(part.id,"value",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
-                              style={{ ...inputStyle,width:"100%" }} placeholder="" />
+                              size={Math.max((part.value||"").length,4)}
+                              style={{ ...inputStyle,width:"auto" }} placeholder="" />
                           </td>
-                          <td style={{ padding:"6px 8px",width:"1px",whiteSpace:"nowrap" }}>
+                          <td style={{ padding:"6px 8px",whiteSpace:"nowrap" }}>
                             <input type="text" placeholder="—" value={part.voltage_rating||""}
                               onChange={(e)=>updatePart(part.id,"voltage_rating",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
-                              style={{ ...inputStyle,width:"100%",color:"#ff9f0a",fontSize:12 }} />
+                              size={Math.max((part.voltage_rating||"—").length,3)}
+                              style={{ ...inputStyle,width:"auto",color:"#ff9f0a",fontSize:12 }} />
                           </td>
-                          <td style={{ padding:"6px 8px",width:"100%" }}>
+                          <td style={{ padding:"6px 8px",width:"99%" }}>
                             <input type="text" value={part.description||""}
                               onChange={(e)=>updatePart(part.id,"description",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,color:"#6e6e73",width:"100%" }} placeholder="" />
                           </td>
-                          <td style={{ padding:"6px 8px",width:"1px",whiteSpace:"nowrap" }}>
+                          <td style={{ padding:"6px 8px",whiteSpace:"nowrap" }}>
                             <input type="text" value={part.manufacturer||""}
                               onChange={(e)=>updatePart(part.id,"manufacturer",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
-                              style={{ ...inputStyle,width:"100%",color:"#86868b" }} placeholder="" />
+                              size={Math.max((part.manufacturer||"").length,4)}
+                              style={{ ...inputStyle,width:"auto",color:"#86868b" }} placeholder="" />
                           </td>
-                          <td style={{ padding:"6px 8px",width:"1px",whiteSpace:"nowrap" }}>
+                          <td style={{ padding:"6px 8px",whiteSpace:"nowrap" }}>
                             <input type="number" placeholder="0" value={part.stockQty}
                               onChange={(e)=>updatePart(part.id,"stockQty",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
-                              style={{ ...inputStyle,width:"100%",fontWeight:600,
+                              size={Math.max(String(part.stockQty||0).length,3)}
+                              style={{ ...inputStyle,width:"auto",fontWeight:600,
                                 color:isLow?"#ff3b30":"#1d1d1f" }} min="0" />
                             {totalPartReserved > 0 && (
                               <div style={{ fontSize:9,fontWeight:700,color:"#ff9500",marginTop:1,lineHeight:1 }} title={`${totalPartReserved} reserved — ${partAvailable} available`}>
