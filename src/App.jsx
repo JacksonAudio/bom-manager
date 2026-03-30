@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.41";
-const BUILD_TIME   = "2026-03-30T15:40:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.42";
+const BUILD_TIME   = "2026-03-30T15:50:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7530,29 +7530,46 @@ function BOMManager({ user }) {
                                 if (!m) return null;
                                 const lifecycleColor = m.lifecycleStatus?.toLowerCase().includes("active") ? "#34c759" : m.lifecycleStatus?.toLowerCase().includes("nrnd") ? "#ff9500" : m.lifecycleStatus?.toLowerCase().includes("eol") || m.lifecycleStatus?.toLowerCase().includes("obsolete") ? "#ff3b30" : "#86868b";
                                 return (
-                                  <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"), display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                                    {/* Sourcing */}
-                                    <div>
-                                      <div style={{ fontSize:10, fontWeight:700, color:"#86868b", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>Sourcing</div>
-                                      <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                                        {m.mouserPartNumber && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Mouser #</span><span style={{ fontFamily:"monospace", fontWeight:600, color:"#1d1d1f" }}>{m.mouserPartNumber}</span></div>}
-                                        {m.stock != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>In Stock</span><span style={{ fontWeight:600, color: m.stock > 1000 ? "#34c759" : m.stock > 0 ? "#ff9500" : "#ff3b30" }}>{m.stock?.toLocaleString()}</span></div>}
-                                        {m.moq != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>MOQ</span><span style={{ fontWeight:600 }}>{m.moq?.toLocaleString()}</span></div>}
-                                        {m.leadTimeDays != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Lead Time</span><span style={{ fontWeight:600 }}>{m.leadTimeDays} days</span></div>}
-                                        {m.packagingType && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Packaging</span><span style={{ fontWeight:600 }}>{m.packagingType}</span></div>}
-                                        {m.url && <div style={{ marginTop:4 }}><a href={m.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#0071e3", textDecoration:"none", fontWeight:600 }}>View on Mouser →</a></div>}
-                                        {m.datasheetUrl && <div style={{ marginTop:2 }}><a href={m.datasheetUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#0071e3", textDecoration:"none", fontWeight:600 }}>Datasheet →</a></div>}
-                                        {m.lastFetched && <div style={{ fontSize:10, color:"#aeaeb2", marginTop:2 }}>Updated {new Date(m.lastFetched).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>}
+                                  <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                                    {/* Part image — small square thumbnail */}
+                                    {m.imagePath && (
+                                      <div style={{ marginBottom:10 }}>
+                                        <img src={m.imagePath} alt={part.mpn} style={{ width:96, height:96, objectFit:"contain", borderRadius:8, background:"#fff", border:"1px solid #e5e5ea", display:"block" }} />
                                       </div>
-                                    </div>
-                                    {/* Compliance */}
-                                    <div>
-                                      <div style={{ fontSize:10, fontWeight:700, color:"#86868b", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>Compliance</div>
-                                      <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                                        {m.rohsStatus && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, gap:8 }}><span style={{ color:"#86868b", flexShrink:0 }}>RoHS</span><span style={{ fontWeight:600, textAlign:"right" }}>{m.rohsStatus}</span></div>}
-                                        {m.lifecycleStatus && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Lifecycle</span><span style={{ fontWeight:700, color:lifecycleColor }}>{m.lifecycleStatus}</span></div>}
-                                        {m.countryOfOrigin && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Origin</span><span style={{ fontWeight:600 }}>{m.countryOfOrigin}</span></div>}
-                                        {m.manufacturer && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Manufacturer</span><span style={{ fontWeight:600 }}>{m.manufacturer}</span></div>}
+                                    )}
+                                    {/* Suggested replacement warning */}
+                                    {m.suggestedReplacement && (
+                                      <div style={{ marginBottom:10, padding:"8px 12px", background:"#fff8e6", borderRadius:8, border:"1px solid #ffe0a0", fontSize:12 }}>
+                                        <span style={{ fontWeight:700, color:"#a05000" }}>⚠ Suggested Replacement: </span>
+                                        <span style={{ fontWeight:600, color:"#1d1d1f", fontFamily:"monospace" }}>{m.suggestedReplacement}</span>
+                                      </div>
+                                    )}
+                                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                                      {/* Sourcing */}
+                                      <div>
+                                        <div style={{ fontSize:10, fontWeight:700, color:"#86868b", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>Sourcing</div>
+                                        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                                          {m.mouserPartNumber && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Mouser #</span><span style={{ fontFamily:"monospace", fontWeight:600, color:"#1d1d1f" }}>{m.mouserPartNumber}</span></div>}
+                                          {m.stock != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>In Stock</span><span style={{ fontWeight:600, color: m.stock > 1000 ? "#34c759" : m.stock > 0 ? "#ff9500" : "#ff3b30" }}>{m.stock?.toLocaleString()}</span></div>}
+                                          {m.moq != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>MOQ</span><span style={{ fontWeight:600 }}>{m.moq?.toLocaleString()}</span></div>}
+                                          {m.leadTimeDays != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Lead Time</span><span style={{ fontWeight:600 }}>{m.leadTimeDays} days</span></div>}
+                                          {m.packagingType && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Packaging</span><span style={{ fontWeight:600 }}>{m.packagingType}</span></div>}
+                                          {m.url && <div style={{ marginTop:4 }}><a href={m.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#0071e3", textDecoration:"none", fontWeight:600 }}>View on Mouser →</a></div>}
+                                          {m.datasheetUrl && <div style={{ marginTop:2 }}><a href={m.datasheetUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#0071e3", textDecoration:"none", fontWeight:600 }}>Datasheet →</a></div>}
+                                          {m.lastFetched && <div style={{ fontSize:10, color:"#aeaeb2", marginTop:2 }}>Updated {new Date(m.lastFetched).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>}
+                                        </div>
+                                      </div>
+                                      {/* Compliance */}
+                                      <div>
+                                        <div style={{ fontSize:10, fontWeight:700, color:"#86868b", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>Compliance</div>
+                                        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                                          {m.rohsStatus && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, gap:8 }}><span style={{ color:"#86868b", flexShrink:0 }}>RoHS</span><span style={{ fontWeight:600, textAlign:"right" }}>{m.rohsStatus}</span></div>}
+                                          {m.lifecycleStatus && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Lifecycle</span><span style={{ fontWeight:700, color:lifecycleColor }}>{m.lifecycleStatus}</span></div>}
+                                          {m.countryOfOrigin && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Origin</span><span style={{ fontWeight:600 }}>{m.countryOfOrigin}</span></div>}
+                                          {m.manufacturer && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Manufacturer</span><span style={{ fontWeight:600 }}>{m.manufacturer}</span></div>}
+                                          {m.voltageRating && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Voltage</span><span style={{ fontWeight:600 }}>{m.voltageRating}</span></div>}
+                                          {m.category && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Category</span><span style={{ fontWeight:600, textAlign:"right" }}>{m.category}</span></div>}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
