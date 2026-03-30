@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.21";
-const BUILD_TIME   = "2026-03-29T21:26:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.22";
+const BUILD_TIME   = "2026-03-29T21:35:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -1496,11 +1496,6 @@ function BOMManager({ user }) {
   const [bulkValue,   setBulkValue]   = useState("");
   const [bulkLockVendor, setBulkLockVendor] = useState(false);
   const [partSort,    setPartSort]    = useState({ field: "createdAt", asc: false });
-  const [colWidths,   setColWidths]   = useState(() => {
-    try { return JSON.parse(localStorage.getItem("partColWidths")) || [2,18,10,6,6,43,15]; } catch { return [2,18,10,6,6,43,15]; }
-  });
-  const partsTableRef = useRef(null);
-  const colDragRef    = useRef(null);
   const [showResGen,  setShowResGen]  = useState(false);
   const [showQuickUrl, setShowQuickUrl] = useState(false);
   const [quickUrlInput, setQuickUrlInput] = useState("");
@@ -3960,25 +3955,6 @@ function BOMManager({ user }) {
 
     setBomSim(prev => ({ ...prev, [productId]: { ...prev[productId], results, loading: false } }));
   }
-
-  // ── Column resize handlers
-  const startColDrag = (e, idx) => {
-    e.preventDefault();
-    e.stopPropagation();
-    colDragRef.current = { idx, startX: e.clientX, w0: colWidths[idx], w1: colWidths[idx+1], tableW: partsTableRef.current?.offsetWidth || 1000 };
-    const onMove = (ev) => {
-      const { idx, startX, w0, w1, tableW } = colDragRef.current;
-      const dpct = ((ev.clientX - startX) / tableW) * 100;
-      const nw0 = Math.max(2, w0 + dpct);
-      const nw1 = Math.max(2, w1 - dpct);
-      if (nw0 >= 2 && nw1 >= 2) {
-        setColWidths(prev => { const n=[...prev]; n[idx]=parseFloat(nw0.toFixed(2)); n[idx+1]=parseFloat(nw1.toFixed(2)); localStorage.setItem("partColWidths",JSON.stringify(n)); return n; });
-      }
-    };
-    const onUp = () => { colDragRef.current=null; document.removeEventListener("mousemove",onMove); document.removeEventListener("mouseup",onUp); };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  };
 
   // ── Derived state
   const visibleParts = parts.filter((p) => {
@@ -7236,10 +7212,10 @@ function BOMManager({ user }) {
               </div>
             ) : (
               <div style={{ overflowX:"auto",maxHeight:"75vh",overflowY:"auto",background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-                <table ref={partsTableRef} style={{ width:"100%",borderCollapse:"collapse",fontSize:13,tableLayout:"fixed" }}>
+                <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13,tableLayout:"fixed" }}>
                   <thead style={{ position:"sticky",top:0,zIndex:10 }}>
                     <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
-                      <th style={{ padding:"12px 10px",width:`${colWidths[0]}%`,position:"relative",borderRadius:"8px 0 0 0" }}>
+                      <th style={{ padding:"12px 10px",width:"2%",borderRadius:"8px 0 0 0" }}>
                         <input
                           type="checkbox"
                           title={selectedParts.size === visibleParts.length && visibleParts.length > 0 ? "Deselect all" : "Select all visible"}
@@ -7253,40 +7229,22 @@ function BOMManager({ user }) {
                             else selectNone();
                           }}
                         />
-                        <div onMouseDown={(e)=>startColDrag(e,0)}
-                          style={{ position:"absolute",right:0,top:0,bottom:0,width:8,cursor:"col-resize",zIndex:2,display:"flex",alignItems:"center",justifyContent:"center" }}
-                          onMouseEnter={(e)=>e.currentTarget.querySelector("span").style.color="#0071e3"}
-                          onMouseLeave={(e)=>e.currentTarget.querySelector("span").style.color="#4a5068"}>
-                          <span style={{ color:"#4a5068",fontSize:20,lineHeight:1,pointerEvents:"none",userSelect:"none",letterSpacing:"-2px" }}>⋮</span>
-                        </div>
                       </th>
                       {[
-                        {label:"MPN",field:"mpn"},{label:"Value",field:"value"},{label:"Voltage",field:"voltage_rating"},{label:"Package",field:"footprint"},{label:"Description",field:"description"},
-                        {label:"Manufacturer",field:"manufacturer"}
-                      ].map((h,hi,arr)=>{
-                        const wIdx = hi+1;
-                        return (
+                        {label:"MPN",field:"mpn",w:"18%"},{label:"Value",field:"value",w:"10%"},{label:"Voltage",field:"voltage_rating",w:"6%"},{label:"Package",field:"footprint",w:"6%"},{label:"Description",field:"description",w:"43%"},
+                        {label:"Manufacturer",field:"manufacturer",w:"15%"}
+                      ].map((h,hi,arr)=>(
                         <th key={hi} onClick={h.field ? ()=>setPartSort(prev=>({field:h.field,asc:prev.field===h.field?!prev.asc:true})) : undefined}
-                          style={{ textAlign:"left",padding:"12px 14px",position:"relative",
+                          style={{ textAlign:"left",padding:"12px 14px",
                           fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                           fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",
                           whiteSpace:"nowrap",overflow:"hidden",
-                          width:`${colWidths[wIdx]}%`,
+                          width: h.w || undefined,
                           cursor:h.field?"pointer":"default",userSelect:"none",
                           borderRadius:hi===arr.length-1?"0 8px 0 0":undefined }}>
                           {h.label}{partSort.field===h.field ? (partSort.asc?" ▲":" ▼") : ""}
-                          {hi < arr.length-1 && (
-                            <div onMouseDown={(e)=>startColDrag(e,wIdx)}
-                              style={{ position:"absolute",right:0,top:0,bottom:0,width:8,cursor:"col-resize",zIndex:2,
-                                display:"flex",alignItems:"center",justifyContent:"center" }}
-                              onMouseEnter={(e)=>e.currentTarget.querySelector("span").style.color="#0071e3"}
-                              onMouseLeave={(e)=>e.currentTarget.querySelector("span").style.color="#4a5068"}>
-                              <span style={{ color:"#4a5068",fontSize:20,lineHeight:1,pointerEvents:"none",userSelect:"none",letterSpacing:"-2px" }}>⋮</span>
-                            </div>
-                          )}
                         </th>
-                        );
-                      })}
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
