@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.20";
-const BUILD_TIME   = "2026-03-29T21:20:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.21";
+const BUILD_TIME   = "2026-03-29T21:26:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7256,8 +7256,8 @@ function BOMManager({ user }) {
                         <div onMouseDown={(e)=>startColDrag(e,0)}
                           style={{ position:"absolute",right:0,top:0,bottom:0,width:8,cursor:"col-resize",zIndex:2,display:"flex",alignItems:"center",justifyContent:"center" }}
                           onMouseEnter={(e)=>e.currentTarget.querySelector("span").style.color="#0071e3"}
-                          onMouseLeave={(e)=>e.currentTarget.querySelector("span").style.color="#c7c7cc"}>
-                          <span style={{ color:"#c7c7cc",fontSize:10,lineHeight:1,pointerEvents:"none",userSelect:"none" }}>⋮</span>
+                          onMouseLeave={(e)=>e.currentTarget.querySelector("span").style.color="#4a5068"}>
+                          <span style={{ color:"#4a5068",fontSize:20,lineHeight:1,pointerEvents:"none",userSelect:"none",letterSpacing:"-2px" }}>⋮</span>
                         </div>
                       </th>
                       {[
@@ -7280,8 +7280,8 @@ function BOMManager({ user }) {
                               style={{ position:"absolute",right:0,top:0,bottom:0,width:8,cursor:"col-resize",zIndex:2,
                                 display:"flex",alignItems:"center",justifyContent:"center" }}
                               onMouseEnter={(e)=>e.currentTarget.querySelector("span").style.color="#0071e3"}
-                              onMouseLeave={(e)=>e.currentTarget.querySelector("span").style.color="#c7c7cc"}>
-                              <span style={{ color:"#c7c7cc",fontSize:10,lineHeight:1,pointerEvents:"none",userSelect:"none" }}>⋮</span>
+                              onMouseLeave={(e)=>e.currentTarget.querySelector("span").style.color="#4a5068"}>
+                              <span style={{ color:"#4a5068",fontSize:20,lineHeight:1,pointerEvents:"none",userSelect:"none",letterSpacing:"-2px" }}>⋮</span>
                             </div>
                           )}
                         </th>
