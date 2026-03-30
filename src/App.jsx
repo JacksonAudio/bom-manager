@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.31";
-const BUILD_TIME   = "2026-03-30T11:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.32";
+const BUILD_TIME   = "2026-03-30T11:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -1688,6 +1688,7 @@ function BOMManager({ user }) {
   const [repairIntakeUnit, setRepairIntakeUnit] = useState(null); // matched pedal_unit or null
   const [repairFilter, setRepairFilter] = useState("open");
   const [repairSearch, setRepairSearch] = useState("");
+  const [repairSelected, setRepairSelected] = useState(new Set());
   const [gmailScanModal, setGmailScanModal] = useState(null);
   // null | { status:'loading'|'done'|'error', messages:[], error, ticketed: Set<id>, expanded: id|null, expandedBody:string, expandedLoading:bool }
 
@@ -17069,7 +17070,7 @@ function BOMManager({ user }) {
           }).filter(r => {
             if (!repairSearch) return true;
             const q = repairSearch.toLowerCase();
-            return (r.serial_number||"").toLowerCase().includes(q) || (r.fault_description||"").toLowerCase().includes(q) || (r.diagnosis||"").toLowerCase().includes(q);
+            return (r.serial_number||"").toLowerCase().includes(q) || (r.fault_description||"").toLowerCase().includes(q) || (r.diagnosis||"").toLowerCase().includes(q) || (r.customer_email||"").toLowerCase().includes(q) || (r.gmail_subject||"").toLowerCase().includes(q);
           }).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 
           // Match serial to a pedal unit as user types
@@ -17202,16 +17203,45 @@ function BOMManager({ user }) {
                 </div>
               </div>
 
-              {/* ── Filter + Search */}
+              {/* ── Filter + Search + Bulk Actions */}
               <div style={{ display:"flex", gap:8, marginBottom:14, alignItems:"center", flexWrap:"wrap" }}>
                 {[["open","Open"], ["closed","Shipped / Scrapped"], ["all","All"]].map(([val, label]) => (
-                  <button key={val} onClick={() => setRepairFilter(val)}
+                  <button key={val} onClick={() => { setRepairFilter(val); setRepairSelected(new Set()); }}
                     style={{ padding:"5px 14px", borderRadius:980, border:"1px solid", fontSize:12, cursor:"pointer", fontWeight: repairFilter===val ? 600 : 400, background: repairFilter===val ? "#1d1d1f" : "#fff", color: repairFilter===val ? "#fff" : "#1d1d1f", borderColor: repairFilter===val ? "#1d1d1f" : "#d2d2d7" }}>
                     {label}{val==="open" ? ` (${openRepairs.length})` : val==="all" ? ` (${repairs.length})` : ""}
                   </button>
                 ))}
-                <input type="text" placeholder="Search serial, fault…" value={repairSearch} onChange={e => setRepairSearch(e.target.value)}
-                  style={{ padding:"5px 12px", borderRadius:8, border:"1px solid #d2d2d7", fontSize:12, marginLeft:"auto", width:200 }} />
+                {/* Search with X */}
+                <div style={{ position:"relative", marginLeft:"auto" }}>
+                  <input type="text" placeholder="Search serial, fault, customer…" value={repairSearch}
+                    onChange={e => setRepairSearch(e.target.value)}
+                    style={{ padding:"5px 30px 5px 12px", borderRadius:8, border:"1px solid #d2d2d7", fontSize:12, width:230 }} />
+                  {repairSearch && (
+                    <button onClick={() => setRepairSearch("")}
+                      style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:"#86868b", fontSize:14, padding:0, lineHeight:1 }}>×</button>
+                  )}
+                </div>
+                {/* Select All / Delete */}
+                {filteredRepairs.length > 0 && (
+                  <button onClick={() => {
+                    if (repairSelected.size === filteredRepairs.length) { setRepairSelected(new Set()); }
+                    else { setRepairSelected(new Set(filteredRepairs.map(r => r.id))); }
+                  }} style={{ padding:"5px 14px", borderRadius:980, border:"1px solid #d2d2d7", fontSize:12, cursor:"pointer", background:"#fff", color:"#1d1d1f", whiteSpace:"nowrap" }}>
+                    {repairSelected.size === filteredRepairs.length && filteredRepairs.length > 0 ? "✓ All Selected" : "Select All"}
+                  </button>
+                )}
+                {repairSelected.size > 0 && (
+                  <button onClick={async () => {
+                    if (!confirm(`Delete ${repairSelected.size} repair ticket${repairSelected.size>1?"s":""}? This does not delete any emails.`)) return;
+                    const ids = [...repairSelected];
+                    await supabase.from("unit_repairs").delete().in("id", ids);
+                    setRepairs(prev => prev.filter(r => !repairSelected.has(r.id)));
+                    setRepairSelected(new Set());
+                    showToast(`Deleted ${ids.length} ticket${ids.length>1?"s":""}`, "#ff3b30");
+                  }} style={{ padding:"5px 14px", borderRadius:980, border:"1px solid #ff3b30", fontSize:12, cursor:"pointer", background:"#fff5f5", color:"#ff3b30", fontWeight:600, whiteSpace:"nowrap" }}>
+                    🗑 Delete {repairSelected.size}
+                  </button>
+                )}
               </div>
 
               {/* ── Repairs Table */}
@@ -17224,6 +17254,7 @@ function BOMManager({ user }) {
                   <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                     <thead>
                       <tr style={{ background:"#f9f9fb", borderBottom:"1px solid #f0f0f2" }}>
+                        <th style={{ padding:"10px 14px", width:32 }}></th>
                         <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#86868b", fontWeight:600 }}>Serial</th>
                         <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#86868b", fontWeight:600 }}>Product</th>
                         <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#86868b", fontWeight:600 }}>Status</th>
@@ -17242,11 +17273,14 @@ function BOMManager({ user }) {
                         const historyCount = repairs.filter(x => x.serial_number === r.serial_number && x.id !== r.id).length;
                         return (
                           <tr key={r.id}
-                            style={{ borderBottom:"1px solid #f0f0f2", background: i%2===0?"#fff":"#fafafa", cursor:"pointer" }}
+                            style={{ borderBottom:"1px solid #f0f0f2", background: repairSelected.has(r.id) ? "#f0f6ff" : i%2===0?"#fff":"#fafafa", cursor:"pointer" }}
                             onClick={() => openRepairDetail(r)}
                             onMouseEnter={e => e.currentTarget.style.background="#f0f6ff"}
-                            onMouseLeave={e => e.currentTarget.style.background=i%2===0?"#fff":"#fafafa"}
+                            onMouseLeave={e => e.currentTarget.style.background=repairSelected.has(r.id)?"#f0f6ff":i%2===0?"#fff":"#fafafa"}
                           >
+                            <td style={{ padding:"10px 14px", width:32 }} onClick={e => { e.stopPropagation(); setRepairSelected(prev => { const n = new Set(prev); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n; }); }}>
+                              <input type="checkbox" checked={repairSelected.has(r.id)} onChange={()=>{}} style={{ cursor:"pointer", width:14, height:14 }} />
+                            </td>
                             <td style={{ padding:"10px 14px", fontFamily:"monospace", fontWeight:600, color:"#1d1d1f", fontSize:12 }}>{r.serial_number}</td>
                             <td style={{ padding:"10px 14px", color:"#1d1d1f" }}>{prod?.name || <span style={{color:"#aeaeb2"}}>Unknown</span>}</td>
                             <td style={{ padding:"10px 14px" }}>
