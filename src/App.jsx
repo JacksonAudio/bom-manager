@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.49";
-const BUILD_TIME   = "2026-03-30T17:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.50";
+const BUILD_TIME   = "2026-03-30T17:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6123,11 +6123,10 @@ function BOMManager({ user }) {
                   // Skip hardware/non-electronic parts — screws, washers, nuts, etc. won't be on Mouser/Nexar
                   const hardwarePattern = /screw|washer|nut|bolt|standoff|insert|bit|rivet|clip|bracket|spring|pin|post|spacer|grommet|bushing|sleeve|cap|plug|foot|feet|pad|foam|tape|label|bag|tray|box/i;
                   const needApi = rows.filter(r => {
-                    if (r.detected) return false;
                     if (!r.part.mpn || !/[a-zA-Z]/.test(r.part.mpn)) return false;
                     if (hardwarePattern.test(r.part.description || r.part.name || "")) return false;
-                    const sup = (r.part.preferredSupplier || "").toLowerCase();
-                    if (sup && !["mouser","digikey","arrow","lcsc","nexar",""].includes(sup)) return false;
+                    // Skip only if Mouser has already enriched this part
+                    if (r.part.pricing?.mouser?.mouserPartNumber) return false;
                     return true;
                   });
                   let apiCount = 0;
