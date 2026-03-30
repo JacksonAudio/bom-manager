@@ -25,6 +25,10 @@ export default async function handler(req, res) {
       return await handleBuildAssigned(req, res);
     case "test":
       return await handleTest(req, res);
+    case "gmail-scan":
+      return await handleGmailScan(req, res);
+    case "gmail-read":
+      return await handleGmailRead(req, res);
     default:
       return res.status(400).json({ error: `Unknown type: ${type}` });
   }
@@ -368,4 +372,83 @@ async function handleTest(req, res) {
   }
 
   return res.status(200).json({ message: "Notification test complete", results });
+}
+
+// ── Gmail Support Inbox ───────────────────────────────────────────────────────
+
+async function gmailAccessToken(body) {
+  const { client_id, client_secret, refresh_token } = body;
+  const r = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `client_id=${encodeURIComponent(client_id)}&client_secret=${encodeURIComponent(client_secret)}&refresh_token=${encodeURIComponent(refresh_token)}&grant_type=refresh_token`,
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error("Gmail auth failed: " + (d.error_description || d.error || "bad credentials"));
+  if (!d.access_token) throw new Error("No access_token returned");
+  return d.access_token;
+}
+
+async function handleGmailScan(req, res) {
+  try {
+    const b = req.body || {};
+    if (!b.client_id || !b.refresh_token) return res.status(400).json({ error: "Missing Gmail credentials" });
+    const token = await gmailAccessToken(b);
+    const hdrs = { Authorization: `Bearer ${token}` };
+
+    const since = new Date(Date.now() - 180 * 86400000);
+    const ds = `${since.getFullYear()}/${since.getMonth()+1}/${since.getDate()}`;
+    const q = encodeURIComponent(`to:support@jacksonaudio.net after:${ds} -from:noreply -from:instagram`);
+    const lr = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${q}&maxResults=20`, { headers: hdrs });
+    const ld = await lr.json().catch(() => ({}));
+    if (!lr.ok) return res.status(500).json({ error: "Gmail list failed: " + (ld.error?.message || lr.status) });
+
+    const messages = [];
+    for (const msg of (ld.messages || []).slice(0, 15)) {
+      try {
+        const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`, { headers: hdrs });
+        if (!r.ok) continue;
+        const d = await r.json();
+        const mh = {};
+        (d.payload?.headers || []).forEach(h => { mh[h.name.toLowerCase()] = h.value; });
+        const hay = (d.snippet || "") + " " + (mh.subject || "");
+        const detectedSerials = [...new Set([...(hay.match(/\b[A-Z]{2,}-\d{3,}\b/g)||[]), ...[...hay.matchAll(/(?:serial|s\/n)[:\s#]+([A-Z0-9-]{4,})/gi)].map(m=>m[1])])];
+        const fr = mh.from || "";
+        messages.push({
+          id: d.id, threadId: d.threadId,
+          fromName: fr.match(/^"?([^"<]+)"?\s*</)?.[1]?.trim() || fr.split("@")[0],
+          fromEmail: fr.match(/<([^>]+)>/)?.[1] || fr,
+          subject: mh.subject || "(no subject)",
+          date: mh.date || "", internalDate: parseInt(d.internalDate||"0"),
+          snippet: d.snippet || "", isUnread: (d.labelIds||[]).includes("UNREAD"),
+          detectedSerials,
+        });
+      } catch { /* skip */ }
+    }
+    return res.status(200).json({ messages: messages.sort((a,b) => b.internalDate-a.internalDate) });
+  } catch(e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+async function handleGmailRead(req, res) {
+  try {
+    const b = req.body || {};
+    if (!b.client_id || !b.refresh_token || !b.messageId) return res.status(400).json({ error: "Missing params" });
+    const token = await gmailAccessToken(b);
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${b.messageId}?format=full`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!r.ok) return res.status(500).json({ error: "Failed to fetch message" });
+    const d = await r.json();
+    const dec = (p) => {
+      if (!p) return "";
+      if (p.body?.data) { try { return Buffer.from(p.body.data,"base64").toString("utf-8"); } catch { return ""; } }
+      if (p.parts?.length) { const pl = p.parts.find(x=>x.mimeType==="text/plain"); if (pl) return dec(pl); for (const pt of p.parts) { const t=dec(pt); if(t) return t; } }
+      return "";
+    };
+    const mh = {};
+    (d.payload?.headers||[]).forEach(h => { mh[h.name.toLowerCase()]=h.value; });
+    return res.status(200).json({ id:d.id, from:mh.from||"", subject:mh.subject||"", date:mh.date||"", body:dec(d.payload||{}).replace(/\r\n/g,"\n").trim().slice(0,5000), snippet:d.snippet||"" });
+  } catch(e) {
+    return res.status(500).json({ error: e.message });
+  }
 }
