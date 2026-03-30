@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.42";
-const BUILD_TIME   = "2026-03-30T15:50:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.43";
+const BUILD_TIME   = "2026-03-30T16:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -2245,8 +2245,10 @@ function BOMManager({ user }) {
       .then(md => {
         if (!md) return;
         const mergedPricing = { ...(part.pricing||{}), mouser: { ...(part.pricing?.mouser||{}), ...md, lastFetched: Date.now() } };
-        supabase.from("parts").update({ pricing: mergedPricing }).eq("id", part.id).then(() => {});
-        setParts(prev => prev.map(p => p.id === part.id ? { ...p, pricing: mergedPricing } : p));
+        const colUpdates = { pricing: mergedPricing };
+        if (md.voltageRating && !part.voltage_rating) colUpdates.voltage_rating = md.voltageRating;
+        supabase.from("parts").update(colUpdates).eq("id", part.id).then(() => {});
+        setParts(prev => prev.map(p => p.id === part.id ? { ...p, pricing: mergedPricing, ...(colUpdates.voltage_rating ? { voltage_rating: colUpdates.voltage_rating } : {}) } : p));
       })
       .catch(() => {});
   }, [expandedPartRow]);
@@ -6138,8 +6140,10 @@ function BOMManager({ user }) {
                       // Store full Mouser data regardless of whether reel qty was found
                       if (fullMouserData) {
                         const mergedPricing = { ...(row.part.pricing||{}), mouser: { ...(row.part.pricing?.mouser||{}), ...fullMouserData, lastFetched: Date.now() } };
-                        await supabase.from("parts").update({ pricing: mergedPricing }).eq("id", row.part.id);
-                        setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, pricing: mergedPricing } : p));
+                        const colUpdates = { pricing: mergedPricing };
+                        if (fullMouserData.voltageRating && !row.part.voltage_rating) colUpdates.voltage_rating = fullMouserData.voltageRating;
+                        await supabase.from("parts").update(colUpdates).eq("id", row.part.id);
+                        setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, pricing: mergedPricing, ...(colUpdates.voltage_rating ? { voltage_rating: colUpdates.voltage_rating } : {}) } : p));
                         if (fq) { row.detected = fq; row.source = src; row.checked = true; checkedIds.add(row.part.id); apiCount++; }
                       }
                     } catch(e) { console.warn("[reel-fill]", row.part.mpn, e.message); }
