@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.14";
-const BUILD_TIME   = "2026-03-29T20:22:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.15";
+const BUILD_TIME   = "2026-03-29T20:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7215,7 +7215,7 @@ function BOMManager({ user }) {
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13,tableLayout:"fixed" }}>
                   <thead style={{ position:"sticky",top:0,zIndex:10 }}>
                     <tr style={{ background:"#b8bdd1",color:"#3a3f51" }}>
-                      <th style={{ padding:"12px 10px",width:32,borderRadius:"8px 0 0 0" }}>
+                      <th style={{ padding:"12px 10px",width:"2%",borderRadius:"8px 0 0 0" }}>
                         <input
                           type="checkbox"
                           title={selectedParts.size === visibleParts.length && visibleParts.length > 0 ? "Deselect all" : "Select all visible"}
@@ -7231,9 +7231,9 @@ function BOMManager({ user }) {
                         />
                       </th>
                       {[
-                        {label:"MPN",field:"mpn",w:165},{label:"Value",field:"value",w:75},{label:"Voltage",field:"voltage_rating",w:72},{label:"Description",field:"description"},
-                        {label:"Manufacturer",field:"manufacturer",w:130},{label:"Stock",field:"stockQty",w:52},
-                        {label:"Added",field:"createdAt",w:95},{label:"",field:null,w:52}
+                        {label:"MPN",field:"mpn",w:"16%"},{label:"Value",field:"value",w:"8%"},{label:"Voltage",field:"voltage_rating",w:"6%"},{label:"Description",field:"description"},
+                        {label:"Manufacturer",field:"manufacturer",w:"12%"},{label:"Stock",field:"stockQty",w:"5%"},
+                        {label:"Added",field:"createdAt",w:"8%"},{label:"",field:null,w:"4%"}
                       ].map((h,hi,arr)=>(
                         <th key={hi} onClick={h.field ? ()=>setPartSort(prev=>({field:h.field,asc:prev.field===h.field?!prev.asc:true})) : undefined}
                           style={{ textAlign:"left",padding:"12px 14px",
