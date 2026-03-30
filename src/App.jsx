@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.13";
-const BUILD_TIME   = "2026-03-29T20:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.14";
+const BUILD_TIME   = "2026-03-29T20:22:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7328,7 +7328,7 @@ function BOMManager({ user }) {
                           </td>
                         </tr>
                         {expandedPartRow === part.id && <tr>
-                            <td colSpan={11} style={{ padding:"12px 20px",background:darkMode?"#1c1c1e":"#f9f9fb",borderBottom:"2px solid #0071e3" }}>
+                            <td colSpan={9} style={{ padding:"12px 20px",background:darkMode?"#1c1c1e":"#f9f9fb",borderBottom:"2px solid #0071e3" }}>
                               <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,fontSize:12 }}>
                                 <div>
                                   <div style={{ fontSize:10,color:"#86868b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Full Description</div>
