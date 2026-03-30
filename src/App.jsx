@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.40";
-const BUILD_TIME   = "2026-03-30T15:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.41";
+const BUILD_TIME   = "2026-03-30T15:40:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7541,6 +7541,7 @@ function BOMManager({ user }) {
                                         {m.leadTimeDays != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Lead Time</span><span style={{ fontWeight:600 }}>{m.leadTimeDays} days</span></div>}
                                         {m.packagingType && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Packaging</span><span style={{ fontWeight:600 }}>{m.packagingType}</span></div>}
                                         {m.url && <div style={{ marginTop:4 }}><a href={m.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#0071e3", textDecoration:"none", fontWeight:600 }}>View on Mouser →</a></div>}
+                                        {m.datasheetUrl && <div style={{ marginTop:2 }}><a href={m.datasheetUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#0071e3", textDecoration:"none", fontWeight:600 }}>Datasheet →</a></div>}
                                         {m.lastFetched && <div style={{ fontSize:10, color:"#aeaeb2", marginTop:2 }}>Updated {new Date(m.lastFetched).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>}
                                       </div>
                                     </div>
