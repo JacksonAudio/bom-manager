@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.47";
-const BUILD_TIME   = "2026-03-30T16:35:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.49";
+const BUILD_TIME   = "2026-03-30T17:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -222,12 +222,12 @@ const isLockedSupplier = (supplier) => supplier && LOCKED_SUPPLIERS.has(supplier
 // Derive where a part's data came from based on which pricing keys are populated
 function getPartDataSource(part) {
   const p = part.pricing || {};
-  if (p.mouser?.mouserPartNumber) return { label:"Mouser", color:"#e8251a" };
-  if (p.digikey?.digiKeyPartNumber || p.digikey?.url) return { label:"DigiKey", color:"#c41230" };
-  if (p.lcsc?.lcscPartNumber || p.lcsc?.url) return { label:"LCSC", color:"#2cb5ea" };
-  if (p.ti?.url) return { label:"TI", color:"#1d6fa4" };
+  if (p.mouser?.mouserPartNumber) return { label:"Mouser API", color:"#e8251a" };
+  if (p.digikey?.digiKeyPartNumber || p.digikey?.url) return { label:"DigiKey API", color:"#c41230" };
+  if (p.lcsc?.lcscPartNumber || p.lcsc?.url) return { label:"LCSC API", color:"#2cb5ea" };
+  if (p.ti?.url) return { label:"TI API", color:"#1d6fa4" };
   if (p._custom) return { label:"Custom", color:"#86868b" };
-  if (part.addedVia) return { label: part.addedVia.replace(/-/g," "), color:"#86868b" };
+  if (part.addedVia) return { label: part.addedVia.replace(/-/g," ").replace(/\b\w/g,c=>c.toUpperCase()), color:"#86868b" };
   return null;
 }
 
@@ -2050,6 +2050,7 @@ function BOMManager({ user }) {
           fetchBuildOrders().catch(() => []),
           fetchBuildAssignments().catch(() => []),
         ]);
+        loadVendors().catch(() => {});
         setTeamMembers(tms || []);
         setBuildOrders(bos || []);
         setBuildAssignments(bas || []);
@@ -7408,7 +7409,7 @@ function BOMManager({ user }) {
                               if (!src && !lockedVendor) return null;
                               return (
                                 <div style={{ display:"flex", gap:3, marginTop:2, flexWrap:"wrap", paddingLeft:10 }}>
-                                  {src && <span style={{ fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:3, background:src.color+"18", color:src.color, letterSpacing:"0.04em", textTransform:"uppercase" }}>{src.label}</span>}
+                                  {src && <span style={{ fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:3, background:src.color+"18", color:src.color, letterSpacing:"0.04em", textTransform:"uppercase" }}>DATA: {src.label}</span>}
                                   {lockedVendor && <span style={{ fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:3, background:"#ff9f0a18", color:"#a05000", letterSpacing:"0.04em" }}>🔒 {lockedVendor}</span>}
                                 </div>
                               );
