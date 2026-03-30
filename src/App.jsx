@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.25";
-const BUILD_TIME   = "2026-03-30T00:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.26";
+const BUILD_TIME   = "2026-03-30T01:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -127,6 +127,9 @@ const DEFAULT_KEYS = {
   admin_emails: "brad@jacksonaudio.net",
   timezone: "America/Chicago",  // Central Time default // comma-separated list of admin email addresses
   reel_order_threshold: "1.00", // $/pc — parts at or above this price prompt reel vs. cut tape in Purchasing
+  gmail_client_id:     "",   // console.cloud.google.com — OAuth 2.0 Client ID
+  gmail_client_secret: "",   // console.cloud.google.com — OAuth 2.0 Client Secret
+  gmail_refresh_token: "",   // OAuth refresh token for brad@jacksonaudio.net
 };
 
 // Default tariff rates by country (% of goods value), updated March 2026
@@ -1540,7 +1543,7 @@ function BOMManager({ user }) {
   const [bulkRenameBrand, setBulkRenameBrand] = useState("all");
   const [bulkRenameFilter, setBulkRenameFilter] = useState("all"); // "all" | "changed" | "unchanged"
   const [selectedProductIds, setSelectedProductIds] = useState(new Set());
-  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","lcsc","shopify","zoho","shipstation","shipping","tariffs","email","ai","sms","facebook","admin_access","guide"]));
+  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","lcsc","shopify","zoho","shipstation","shipping","tariffs","email","ai","sms","facebook","admin_access","guide","gmail"]));
   const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
@@ -1684,6 +1687,8 @@ function BOMManager({ user }) {
   const [repairIntakeUnit, setRepairIntakeUnit] = useState(null); // matched pedal_unit or null
   const [repairFilter, setRepairFilter] = useState("open");
   const [repairSearch, setRepairSearch] = useState("");
+  const [gmailScanModal, setGmailScanModal] = useState(null);
+  // null | { status:'loading'|'done'|'error', messages:[], error, ticketed: Set<id>, expanded: id|null, expandedBody:string, expandedLoading:bool }
 
   // ── Boxing state
   const [boxingTasks, setBoxingTasks] = useState([]);
@@ -17126,7 +17131,28 @@ function BOMManager({ user }) {
 
               {/* ── Intake Card */}
               <div style={{ background:"#fff", borderRadius:16, border:"1px solid #e5e5ea", padding:"20px 24px", marginBottom:20, boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                <div style={{ fontSize:13, fontWeight:600, color:"#1d1d1f", marginBottom:14, textTransform:"uppercase", letterSpacing:"0.05em" }}>Open a Repair Ticket</div>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:"#1d1d1f", textTransform:"uppercase", letterSpacing:"0.05em" }}>Open a Repair Ticket</div>
+                {(apiKeys.gmail_client_id && apiKeys.gmail_refresh_token) && (
+                  <button onClick={async () => {
+                    setGmailScanModal({ status:"loading", messages:[], error:null, ticketed:new Set(), expanded:null, expandedBody:"", expandedLoading:false });
+                    try {
+                      const res = await fetch("/api/gmail-support", {
+                        method:"POST",
+                        headers:{"Content-Type":"application/json"},
+                        body:JSON.stringify({ action:"scan", client_id:apiKeys.gmail_client_id, client_secret:apiKeys.gmail_client_secret, refresh_token:apiKeys.gmail_refresh_token }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || "Scan failed");
+                      setGmailScanModal(prev => prev ? { ...prev, status:"done", messages: data.messages || [] } : null);
+                    } catch(e) {
+                      setGmailScanModal(prev => prev ? { ...prev, status:"error", error:e.message } : null);
+                    }
+                  }} style={{ padding:"6px 16px", borderRadius:980, background:"#0071e3", color:"#fff", border:"none", fontSize:12, fontWeight:600, cursor:"pointer" }}>
+                    📬 Scan Support Inbox
+                  </button>
+                )}
+              </div>
                 <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"flex-start" }}>
                   <div style={{ flex:"0 0 220px" }}>
                     <div style={{ fontSize:11, color:"#86868b", marginBottom:4 }}>Serial Number</div>
@@ -18678,6 +18704,49 @@ function BOMManager({ user }) {
               </div>}
             </div>
 
+            {/* ── Gmail Support Inbox */}
+            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#ea4335",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("gmail") ? s.delete("gmail") : s.add("gmail"); return s; })}>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("gmail") ? "▶" : "▼"}</span>
+                  Gmail — Support Inbox
+                </div>
+                {apiKeys.gmail_refresh_token && <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>Configured</span>}
+              </div>
+              {!collapsedSettings.has("gmail") && <div style={{ padding:"16px 20px" }}>
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
+                  Connects to <strong>support@jacksonaudio.net</strong> so you can scan incoming emails and create repair tickets directly.<br />
+                  Get credentials from{" "}
+                  <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}>Google Cloud Console</a>
+                  {" "}— create an OAuth 2.0 Client ID (Web Application type). Then get your refresh token via{" "}
+                  <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}>OAuth Playground</a>
+                  {" "}(scope: <code style={{ fontSize:11 }}>https://www.googleapis.com/auth/gmail.readonly</code>).
+                </div>
+                <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+                  <div>
+                    <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"#86868b",marginBottom:4 }}>Client ID</div>
+                    <input type="text" placeholder="xxxx.apps.googleusercontent.com" value={apiKeys.gmail_client_id||""}
+                      onChange={e => setApiKeys(prev => ({ ...prev, gmail_client_id:e.target.value }))}
+                      style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:12,boxSizing:"border-box" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"#86868b",marginBottom:4 }}>Client Secret</div>
+                    <input type="password" placeholder="GOCSPX-…" value={apiKeys.gmail_client_secret||""}
+                      onChange={e => setApiKeys(prev => ({ ...prev, gmail_client_secret:e.target.value }))}
+                      style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:12,boxSizing:"border-box" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"#86868b",marginBottom:4 }}>Refresh Token</div>
+                    <input type="password" placeholder="1//0g…" value={apiKeys.gmail_refresh_token||""}
+                      onChange={e => setApiKeys(prev => ({ ...prev, gmail_refresh_token:e.target.value }))}
+                      style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #d2d2d7",fontSize:12,boxSizing:"border-box" }} />
+                  </div>
+                </div>
+                {sectionSaveBtn("gmail", "Gmail")}
+              </div>}
+            </div>
+
             {/* ── Shipping Costs */}
             <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
@@ -19985,6 +20054,129 @@ function BOMManager({ user }) {
       {/* QR Label Modal */}
       {qrModalParts && qrModalParts.length > 0 && (
         <QRLabelModal parts={qrModalParts} products={products} onClose={() => setQrModalParts(null)} />
+      )}
+
+      {/* ── Gmail Support Inbox Scan Modal ── */}
+      {gmailScanModal && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9997,display:"flex",alignItems:"center",justifyContent:"center" }}
+          onClick={e => { if (e.target===e.currentTarget) setGmailScanModal(null); }}>
+          <div style={{ background:"#fff",borderRadius:20,padding:"32px 36px",width:760,maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20 }}>
+              <div>
+                <h3 style={{ margin:0,fontSize:20,fontWeight:700,color:"#1d1d1f" }}>📬 Support Inbox</h3>
+                <div style={{ fontSize:13,color:"#86868b",marginTop:3 }}>support@jacksonaudio.net — last 180 days</div>
+              </div>
+              <button onClick={() => setGmailScanModal(null)} style={{ width:30,height:30,borderRadius:"50%",border:"none",background:"#f5f5f7",cursor:"pointer",fontSize:17,display:"flex",alignItems:"center",justifyContent:"center" }}>×</button>
+            </div>
+
+            {gmailScanModal.status === "loading" && (
+              <div style={{ textAlign:"center",padding:"40px 0",color:"#86868b",fontSize:14 }}>Scanning support inbox…</div>
+            )}
+            {gmailScanModal.status === "error" && (
+              <div style={{ background:"#fff2f2",border:"1px solid #ffd0d0",borderRadius:10,padding:"16px 20px",color:"#c0392b",fontSize:13 }}>
+                <strong>Error:</strong> {gmailScanModal.error}
+              </div>
+            )}
+            {gmailScanModal.status === "done" && gmailScanModal.messages.length === 0 && (
+              <div style={{ textAlign:"center",padding:"40px 0",color:"#aeaeb2",fontSize:14 }}>No support emails found in the last 180 days.</div>
+            )}
+            {gmailScanModal.status === "done" && gmailScanModal.messages.length > 0 && (
+              <div>
+                <div style={{ fontSize:13,color:"#86868b",marginBottom:14 }}>
+                  {gmailScanModal.messages.length} emails · {gmailScanModal.messages.filter(m=>m.isUnread).length} unread · click an email to expand · click "→ Ticket" to create a repair
+                </div>
+                {gmailScanModal.messages.map((msg, i) => {
+                  const isExpanded = gmailScanModal.expanded === msg.id;
+                  const isTicketed = gmailScanModal.ticketed.has(msg.id);
+                  const age = (() => {
+                    const d = Math.floor((Date.now() - msg.internalDate) / 86400000);
+                    if (d === 0) return "Today";
+                    if (d === 1) return "Yesterday";
+                    return `${d}d ago`;
+                  })();
+                  return (
+                    <div key={msg.id} style={{ marginBottom:8, borderRadius:10, border:`1px solid ${isExpanded?"#0071e3":"#e5e5ea"}`, overflow:"hidden" }}>
+                      {/* Email row */}
+                      <div style={{ padding:"12px 16px", display:"flex", gap:12, alignItems:"center", cursor:"pointer", background:isExpanded?"#f0f6ff":"#fff" }}
+                        onClick={async () => {
+                          if (isExpanded) { setGmailScanModal(prev => prev ? { ...prev, expanded:null } : null); return; }
+                          setGmailScanModal(prev => prev ? { ...prev, expanded:msg.id, expandedBody:"", expandedLoading:true } : null);
+                          try {
+                            const r = await fetch("/api/gmail-support", { method:"POST", headers:{"Content-Type":"application/json"},
+                              body:JSON.stringify({ action:"read", messageId:msg.id, client_id:apiKeys.gmail_client_id, client_secret:apiKeys.gmail_client_secret, refresh_token:apiKeys.gmail_refresh_token }) });
+                            const d = await r.json();
+                            setGmailScanModal(prev => prev ? { ...prev, expandedBody:d.body||d.snippet||"", expandedLoading:false } : null);
+                          } catch { setGmailScanModal(prev => prev ? { ...prev, expandedBody:"Failed to load email body.", expandedLoading:false } : null); }
+                        }}>
+                        {msg.isUnread && <span style={{ width:8,height:8,borderRadius:"50%",background:"#0071e3",flexShrink:0 }}></span>}
+                        {!msg.isUnread && <span style={{ width:8,flexShrink:0 }}></span>}
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:"flex", gap:8, alignItems:"baseline" }}>
+                            <span style={{ fontSize:13,fontWeight:msg.isUnread?700:500,color:"#1d1d1f",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                              {msg.fromName || msg.fromEmail}
+                            </span>
+                            <span style={{ fontSize:11,color:"#aeaeb2",whiteSpace:"nowrap" }}>{age}</span>
+                          </div>
+                          <div style={{ fontSize:12,color:"#3c3c43",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{msg.subject}</div>
+                          {!isExpanded && <div style={{ fontSize:11,color:"#86868b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1 }}>{msg.snippet}</div>}
+                        </div>
+                        {msg.detectedSerials.length > 0 && (
+                          <div style={{ display:"flex",gap:4,flexShrink:0 }}>
+                            {msg.detectedSerials.slice(0,2).map(s => (
+                              <span key={s} style={{ background:"#e8f0fb",color:"#0071e3",borderRadius:6,padding:"2px 7px",fontSize:10,fontWeight:700,fontFamily:"monospace",whiteSpace:"nowrap" }}>{s}</span>
+                            ))}
+                          </div>
+                        )}
+                        {isTicketed
+                          ? <span style={{ fontSize:11,color:"#34c759",fontWeight:700,whiteSpace:"nowrap",flexShrink:0 }}>✓ Ticketed</span>
+                          : (
+                            <button onClick={async e => {
+                              e.stopPropagation();
+                              // Pre-fill intake form and create ticket
+                              const sn = msg.detectedSerials[0] || "";
+                              const fault = msg.subject + (msg.snippet ? ` — ${msg.snippet.slice(0,120)}` : "");
+                              const pu = pedalUnits.find(u => u.serial_number?.toLowerCase() === sn.toLowerCase());
+                              try {
+                                const repair = await createUnitRepair({
+                                  serial_number: sn || msg.fromEmail,
+                                  pedal_unit_id: pu?.id || null,
+                                  fault_description: fault.slice(0,500),
+                                  status:"intake",
+                                  created_by: user?.id || null,
+                                });
+                                setRepairs(prev => [repair, ...prev]);
+                                setGmailScanModal(prev => prev ? { ...prev, ticketed: new Set([...prev.ticketed, msg.id]) } : null);
+                                showToast(`Repair ticket opened for ${sn || msg.fromName}`, "#34c759");
+                              } catch(err) { alert("Failed: " + err.message); }
+                            }} style={{ padding:"5px 12px",borderRadius:980,background:"#ff3b30",color:"#fff",border:"none",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0 }}>
+                              → Ticket
+                            </button>
+                          )
+                        }
+                      </div>
+                      {/* Expanded body */}
+                      {isExpanded && (
+                        <div style={{ padding:"12px 16px",borderTop:"1px solid #e5e5ea",background:"#f9f9fb" }}>
+                          {gmailScanModal.expandedLoading
+                            ? <div style={{ color:"#86868b",fontSize:13 }}>Loading…</div>
+                            : <pre style={{ margin:0,fontSize:12,fontFamily:"inherit",whiteSpace:"pre-wrap",wordBreak:"break-word",color:"#1d1d1f",lineHeight:"18px",maxHeight:300,overflowY:"auto" }}>{gmailScanModal.expandedBody}</pre>
+                          }
+                          <div style={{ marginTop:12,display:"flex",gap:8,alignItems:"center" }}>
+                            <span style={{ fontSize:11,color:"#86868b" }}>From: {msg.fromEmail}</span>
+                            {msg.detectedSerials.length > 0 && (
+                              <span style={{ fontSize:11,color:"#0071e3" }}>Serials detected: {msg.detectedSerials.join(", ")}</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <button onClick={() => setGmailScanModal(null)} style={{ marginTop:20,width:"100%",padding:"10px 0",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",fontSize:14,cursor:"pointer",color:"#1d1d1f" }}>Close</button>
+          </div>
+        </div>
       )}
 
       {/* ── Repair Detail Modal ── */}
