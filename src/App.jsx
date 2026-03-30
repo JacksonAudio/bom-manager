@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.46";
-const BUILD_TIME   = "2026-03-30T16:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.47";
+const BUILD_TIME   = "2026-03-30T16:35:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -7407,7 +7407,7 @@ function BOMManager({ user }) {
                               const lockedVendor = part.pricing?._lockedVendor;
                               if (!src && !lockedVendor) return null;
                               return (
-                                <div style={{ display:"flex", gap:3, marginTop:2, flexWrap:"wrap", paddingLeft:2 }}>
+                                <div style={{ display:"flex", gap:3, marginTop:2, flexWrap:"wrap", paddingLeft:10 }}>
                                   {src && <span style={{ fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:3, background:src.color+"18", color:src.color, letterSpacing:"0.04em", textTransform:"uppercase" }}>{src.label}</span>}
                                   {lockedVendor && <span style={{ fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:3, background:"#ff9f0a18", color:"#a05000", letterSpacing:"0.04em" }}>🔒 {lockedVendor}</span>}
                                 </div>
