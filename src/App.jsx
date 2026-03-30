@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.38";
-const BUILD_TIME   = "2026-03-30T14:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.39";
+const BUILD_TIME   = "2026-03-30T15:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6083,20 +6083,33 @@ function BOMManager({ user }) {
                 const canUseNexar = !!(apiKeys.nexar_client_id && apiKeys.nexar_client_secret);
                 const canUseMouser = !!(apiKeys.mouser_api_key);
                 if (canUseNexar || canUseMouser) {
-                  const needApi = rows.filter(r => !r.detected && r.part.mpn && /[a-zA-Z]/.test(r.part.mpn));
+                  // Skip hardware/non-electronic parts — screws, washers, nuts, etc. won't be on Mouser/Nexar
+                  const hardwarePattern = /screw|washer|nut|bolt|standoff|insert|bit|rivet|clip|bracket|spring|pin|post|spacer|grommet|bushing|sleeve|cap|plug|foot|feet|pad|foam|tape|label|bag|tray|box/i;
+                  const needApi = rows.filter(r => {
+                    if (r.detected) return false;
+                    if (!r.part.mpn || !/[a-zA-Z]/.test(r.part.mpn)) return false;
+                    if (hardwarePattern.test(r.part.description || r.part.name || "")) return false;
+                    const sup = (r.part.preferredSupplier || "").toLowerCase();
+                    if (sup && !["mouser","digikey","arrow","lcsc","nexar",""].includes(sup)) return false;
+                    return true;
+                  });
                   let apiCount = 0;
                   let tok = nexarToken;
-                  if (canUseNexar && !tok) { try { tok = await fetchNexarToken(apiKeys.nexar_client_id, apiKeys.nexar_client_secret); setNexarToken(tok); } catch(e) { console.warn("[reel-fill] Nexar token:", e.message); } }
+                  let nexarWorking = canUseNexar;
+                  if (canUseNexar && !tok) { try { tok = await fetchNexarToken(apiKeys.nexar_client_id, apiKeys.nexar_client_secret); setNexarToken(tok); } catch(e) { console.warn("[reel-fill] Nexar token:", e.message); nexarWorking = false; } }
                   for (const row of needApi) {
                     try {
-                      let fq = null; let src = "";
-                      // Try Nexar first
-                      if (tok) { try { fq = await fetchNexarReelQty(row.part.mpn, tok); src = "Nexar"; } catch {} }
-                      // Fall back to Mouser (now parses T/R description + MOQ)
+                      let fq = null; let src = ""; let usedMouser = false;
+                      // Try Nexar first (fast) — skip if known over-limit
+                      if (tok && nexarWorking) {
+                        try { fq = await fetchNexarReelQty(row.part.mpn, tok); src = "Nexar"; }
+                        catch(e) { if (/exceeded|limit|403/i.test(e.message)) nexarWorking = false; }
+                      }
+                      // Fall back to Mouser
                       if (!fq && canUseMouser) {
                         try {
                           const md = await fetchMouserPricing(row.part.mpn, 1, apiKeys.mouser_api_key);
-                          if (md?.factoryPackQty) { fq = md.factoryPackQty; src = "Mouser"; }
+                          if (md?.factoryPackQty) { fq = md.factoryPackQty; src = "Mouser"; usedMouser = true; }
                         } catch {}
                       }
                       if (fq) {
@@ -6106,7 +6119,8 @@ function BOMManager({ user }) {
                         setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, pricing: mergedPricing } : p));
                       }
                     } catch(e) { console.warn("[reel-fill]", row.part.mpn, e.message); }
-                    await new Promise(r => setTimeout(r, 450));
+                    // Rate limit: 450ms for Nexar, 2100ms if falling back to Mouser exclusively
+                    await new Promise(r => setTimeout(r, nexarWorking ? 450 : 2100));
                     setReelFillModal(prev => prev ? { ...prev, rows: [...rows], checkedIds: new Set(checkedIds), apiCount } : null);
                   }
                   setReelFillModal(prev => prev ? { ...prev, phase:"preview", rows: [...rows], checkedIds: new Set(checkedIds), apiCount, cacheCount } : null);
