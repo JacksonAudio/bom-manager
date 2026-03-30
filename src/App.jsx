@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.33";
-const BUILD_TIME   = "2026-03-30T12:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.34";
+const BUILD_TIME   = "2026-03-30T12:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -20132,7 +20132,9 @@ function BOMManager({ user }) {
                 <h3 style={{ margin:0,fontSize:20,fontWeight:700,color:"#1d1d1f" }}>📬 Support Inbox</h3>
                 <div style={{ fontSize:13,color:"#86868b",marginTop:3 }}>support@jacksonaudio.net — last 180 days</div>
               </div>
-              <button onClick={() => setGmailScanModal(null)} style={{ width:30,height:30,borderRadius:"50%",border:"none",background:"#f5f5f7",cursor:"pointer",fontSize:17,display:"flex",alignItems:"center",justifyContent:"center" }}>×</button>
+              <button onClick={() => setGmailScanModal(null)}
+                onMouseEnter={e=>e.currentTarget.style.background="#e8e8ed"} onMouseLeave={e=>e.currentTarget.style.background="#f5f5f7"}
+                style={{ width:32,height:32,borderRadius:"50%",border:"none",background:"#f5f5f7",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background 0.15s",color:"#3c3c43",fontWeight:400,lineHeight:1 }}>×</button>
             </div>
 
             {gmailScanModal.status === "loading" && (
@@ -20516,10 +20518,10 @@ function BOMManager({ user }) {
                   {priorRepairs.map(r => {
                     const sc = STATUS_CFG[r.status] || { label:r.status, color:"#8e8e93" };
                     return (
-                      <div key={r.id} style={{ fontSize:12,color:"#3c3c43",marginBottom:4,display:"flex",gap:10,alignItems:"baseline" }}>
-                        <span style={{ color:"#86868b",whiteSpace:"nowrap" }}>{new Date(r.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>
-                        <span style={{ color:sc.color,fontWeight:600 }}>{sc.label}</span>
-                        <span>{r.fault_description || "—"}</span>
+                      <div key={r.id} style={{ fontSize:12,color:"#3c3c43",marginBottom:4,display:"flex",gap:10,alignItems:"baseline",minWidth:0 }}>
+                        <span style={{ color:"#86868b",whiteSpace:"nowrap",flexShrink:0 }}>{new Date(r.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>
+                        <span style={{ color:sc.color,fontWeight:600,whiteSpace:"nowrap",flexShrink:0 }}>{sc.label}</span>
+                        <span style={{ wordBreak:"break-word",overflowWrap:"anywhere",minWidth:0 }}>{r.fault_description || "—"}</span>
                       </div>
                     );
                   })}
