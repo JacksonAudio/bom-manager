@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.50";
-const BUILD_TIME   = "2026-03-30T17:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.51";
+const BUILD_TIME   = "2026-03-30T17:20:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6125,8 +6125,6 @@ function BOMManager({ user }) {
                   const needApi = rows.filter(r => {
                     if (!r.part.mpn || !/[a-zA-Z]/.test(r.part.mpn)) return false;
                     if (hardwarePattern.test(r.part.description || r.part.name || "")) return false;
-                    // Skip only if Mouser has already enriched this part
-                    if (r.part.pricing?.mouser?.mouserPartNumber) return false;
                     return true;
                   });
                   let apiCount = 0;
