@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.43";
-const BUILD_TIME   = "2026-03-30T16:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.44";
+const BUILD_TIME   = "2026-03-30T16:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -2234,7 +2234,7 @@ function BOMManager({ user }) {
   }, [darkMode]);
 
   // Auto-refresh Mouser data when a part row is expanded
-  const mouserRefreshSessionCache = React.useRef(new Set());
+  const mouserRefreshSessionCache = useRef(new Set());
   useEffect(() => {
     if (!expandedPartRow || !apiKeys?.mouser_api_key) return;
     if (mouserRefreshSessionCache.current.has(expandedPartRow)) return;
