@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.56";
-const BUILD_TIME   = "2026-03-30T18:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.58";
+const BUILD_TIME   = "2026-03-30T18:35:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -222,11 +222,12 @@ const isLockedSupplier = (supplier) => supplier && LOCKED_SUPPLIERS.has(supplier
 // Derive where a part's data came from based on which pricing keys are populated
 function getPartDataSource(part) {
   const p = part.pricing || {};
-  if (p.mouser?.mouserPartNumber) return { label:"Mouser API", color:"#e8251a" };
+  if (p.nexar?.lastFetched)              return { label:"Nexar API", color:"#5856d6" };
+  if (p.mouser?.mouserPartNumber)        return { label:"Mouser API", color:"#e8251a" };
   if (p.digikey?.digiKeyPartNumber || p.digikey?.url) return { label:"DigiKey API", color:"#c41230" };
   if (p.lcsc?.lcscPartNumber || p.lcsc?.url) return { label:"LCSC API", color:"#2cb5ea" };
-  if (p.ti?.url) return { label:"TI API", color:"#1d6fa4" };
-  if (p._custom) return { label:"Custom", color:"#86868b" };
+  if (p.ti?.url)                         return { label:"TI API", color:"#1d6fa4" };
+  if (p._custom)                         return { label:"Custom", color:"#86868b" };
   if (part.addedVia) return { label: part.addedVia.replace(/-/g," ").replace(/\b\w/g,c=>c.toUpperCase()), color:"#86868b" };
   return null;
 }
@@ -421,10 +422,50 @@ function buildNexarQuery(mpn) {
   const safe = mpn.replace(/"/g, '\\"');
   return `{ supSearchMpn(q: "${safe}", limit: 1) { hits results { part { mpn manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
 }
+// Parse a single Nexar part result into our standard enrichment shape
+function parseNexarPartData(part) {
+  if (!part) return null;
+  const out = { lastFetched: Date.now() };
+  if (part.manufacturer?.name) out.manufacturer = part.manufacturer.name;
+  if (part.shortDescription)    out.partDescription = part.shortDescription;
+  if (part.category?.name)      out.category = part.category.name;
+  if (part.estimatedFactoryLeadDays) out.leadTimeDays = part.estimatedFactoryLeadDays;
+  if (part.images?.[0]?.url)    out.imagePath = part.images[0].url;
+  if (part.datasheets?.[0]?.url) out.datasheetUrl = part.datasheets[0].url;
+  // Specs — voltage rating, package/case, RoHS
+  for (const spec of (part.specs || [])) {
+    const n = (spec.attribute?.name || "").toLowerCase();
+    const v = spec.displayValue;
+    if (!v) continue;
+    if (/supply voltage.*max|voltage.*rat|rated.*volt/i.test(n)) out.voltageRating = v;
+    else if (/package.*case|case.*package|case.*code/i.test(n)) out.caseCode = v;
+    else if (/rohs/i.test(n)) out.rohsStatus = v;
+    else if (/lifecycle|product.*status/i.test(n)) out.lifecycleStatus = v;
+    else if (/country.*origin/i.test(n)) out.countryOfOrigin = v.toUpperCase();
+  }
+  // Sellers — prefer Mouser, else best available
+  const sellers = part.sellers || [];
+  const preferred = sellers.find(s => /mouser/i.test(s.company?.name || "")) || sellers[0];
+  if (preferred) {
+    out.mouserPartNumber = preferred.company?.name ? `(${preferred.company.name})` : "";
+    const offer = preferred.offers?.[0];
+    if (offer) {
+      if (offer.inventoryLevel != null) out.stock = offer.inventoryLevel;
+      if (offer.moq)                    out.moq = offer.moq;
+      if (offer.packaging)              out.packagingType = offer.packaging;
+      if (offer.clickUrl)               out.url = offer.clickUrl;
+      const fq = parseInt(offer.factoryPackQuantity || offer.multipackQuantity || 0);
+      if (fq > 0) out.factoryPackQty = fq;
+      if (offer.prices?.length) out.priceBreaks = offer.prices.map(p => ({ qty: p.quantity, price: parseFloat(p.price) }));
+    }
+  }
+  return out;
+}
+
 // Batch Nexar query — sends up to 30 MPNs in one request using GraphQL aliases
-// Each alias costs 1 part from quota (limit:1). Returns { mpn: reelQty|null } map.
+// Pulls full enrichment data: stock, lead time, pricing, specs, image, datasheet, package, RoHS, etc.
 async function fetchNexarBatch(mpns, token) {
-  const frag = `{ results { part { sellers { offers { factoryPackQuantity multipackQuantity } } } } }`;
+  const frag = `{ results { part { mpn manufacturer { name } shortDescription category { name } estimatedFactoryLeadDays images { url } datasheets { url } specs { attribute { name } displayValue } sellers { company { name } offers { clickUrl inventoryLevel moq factoryPackQuantity multipackQuantity packaging prices { quantity price currency } } } } } }`;
   const query = `{ ${mpns.map((mpn, i) => `q${i}: supSearchMpn(q: "${mpn.replace(/"/g,'\\"')}", limit: 1) ${frag}`).join(' ')} }`;
   const res = await fetch("https://api.nexar.com/graphql", {
     method: "POST",
@@ -433,20 +474,11 @@ async function fetchNexarBatch(mpns, token) {
   });
   if (!res.ok) throw new Error(`Nexar ${res.status}`);
   const data = await res.json();
-  if (data.errors) {
-    const msg = data.errors[0]?.message || "Nexar error";
-    throw new Error(msg);
-  }
+  if (data.errors) throw new Error(data.errors[0]?.message || "Nexar error");
   const out = {};
   mpns.forEach((mpn, i) => {
-    let best = 0;
-    for (const r of (data?.data?.[`q${i}`]?.results || []))
-      for (const s of (r?.part?.sellers || []))
-        for (const o of (s?.offers || [])) {
-          const fq = parseInt(o.factoryPackQuantity || o.multipackQuantity || 0);
-          if (fq > best) best = fq;
-        }
-    out[mpn] = best > 0 ? best : null;
+    const part = data?.data?.[`q${i}`]?.results?.[0]?.part;
+    out[mpn] = parseNexarPartData(part);
   });
   return out;
 }
@@ -6135,7 +6167,8 @@ function BOMManager({ user }) {
                   let tok = nexarToken;
                   let nexarWorking = canUseNexar;
                   if (canUseNexar && !tok) { try { tok = await fetchNexarToken(apiKeys.nexar_client_id, apiKeys.nexar_client_secret); setNexarToken(tok); } catch(e) { console.warn("[reel-fill] Nexar token:", e.message); nexarWorking = false; } }
-                  // Phase A: Nexar batch — 30 MPNs per request, no per-call rate limit
+                  // Phase A: Nexar batch — 30 MPNs per request, full enrichment data in seconds
+                  const nexarMissed = []; // parts Nexar returned no data for
                   if (tok && nexarWorking) {
                     const BATCH = 30;
                     for (let b = 0; b < needApi.length && nexarWorking; b += BATCH) {
@@ -6143,36 +6176,32 @@ function BOMManager({ user }) {
                       try {
                         const results = await fetchNexarBatch(batch.map(r => r.part.mpn), tok);
                         for (const row of batch) {
-                          const fq = results[row.part.mpn];
-                          if (fq) { row.detected = fq; row.source = "Nexar"; row.checked = true; checkedIds.add(row.part.id); apiCount++; }
+                          const nd = results[row.part.mpn];
+                          if (nd) {
+                            // Store full Nexar enrichment data
+                            const mergedPricing = { ...(row.part.pricing||{}), nexar: { ...(row.part.pricing?.nexar||{}), ...nd } };
+                            const colUpdates = { pricing: mergedPricing };
+                            if (nd.voltageRating && !row.part.voltage_rating) colUpdates.voltage_rating = nd.voltageRating;
+                            if (nd.caseCode && !row.part.footprint) colUpdates.footprint = nd.caseCode;
+                            await supabase.from("parts").update(colUpdates).eq("id", row.part.id);
+                            setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, pricing: mergedPricing, ...(colUpdates.voltage_rating ? { voltage_rating: colUpdates.voltage_rating } : {}), ...(colUpdates.footprint ? { footprint: colUpdates.footprint } : {}) } : p));
+                            row.part = { ...row.part, pricing: mergedPricing };
+                            if (nd.factoryPackQty) { row.detected = nd.factoryPackQty; row.source = "Nexar"; row.checked = true; checkedIds.add(row.part.id); apiCount++; }
+                          } else {
+                            nexarMissed.push(row); // queue for Mouser fallback
+                          }
                         }
                       } catch(e) {
-                        if (/exceeded|limit|403/i.test(e.message)) nexarWorking = false;
-                        else console.warn("[nexar-batch]", e.message);
+                        if (/exceeded|limit|403/i.test(e.message)) { nexarWorking = false; batch.forEach(r => nexarMissed.push(r)); }
+                        else { console.warn("[nexar-batch]", e.message); batch.forEach(r => nexarMissed.push(r)); }
                       }
                       await new Promise(r => setTimeout(r, 200));
                       setReelFillModal(prev => prev ? { ...prev, rows: [...rows], checkedIds: new Set(checkedIds), apiCount } : null);
                     }
+                  } else {
+                    needApi.forEach(r => nexarMissed.push(r));
                   }
-                  // Phase B: Mouser — full enrichment for all parts (stock, lead time, datasheet, package, voltage, etc.)
-                  if (canUseMouser) {
-                    for (const row of needApi) {
-                      try {
-                        const fullMouserData = await fetchMouserPricing(row.part.mpn, 1, apiKeys.mouser_api_key);
-                        if (fullMouserData) {
-                          const mergedPricing = { ...(row.part.pricing||{}), mouser: { ...(row.part.pricing?.mouser||{}), ...fullMouserData, lastFetched: Date.now() } };
-                          const colUpdates = { pricing: mergedPricing };
-                          if (fullMouserData.voltageRating && !row.part.voltage_rating) colUpdates.voltage_rating = fullMouserData.voltageRating;
-                          if (fullMouserData.caseCode && !row.part.footprint) colUpdates.footprint = fullMouserData.caseCode;
-                          await supabase.from("parts").update(colUpdates).eq("id", row.part.id);
-                          setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, pricing: mergedPricing, ...(colUpdates.voltage_rating ? { voltage_rating: colUpdates.voltage_rating } : {}), ...(colUpdates.footprint ? { footprint: colUpdates.footprint } : {}) } : p));
-                          if (!row.detected && fullMouserData.factoryPackQty) { row.detected = fullMouserData.factoryPackQty; row.source = "Mouser"; row.checked = true; checkedIds.add(row.part.id); apiCount++; }
-                        }
-                      } catch(e) { console.warn("[mouser-enrich]", row.part.mpn, e.message); }
-                      await new Promise(r => setTimeout(r, 2100));
-                      setReelFillModal(prev => prev ? { ...prev, rows: [...rows], checkedIds: new Set(checkedIds), apiCount } : null);
-                    }
-                  }
+                  // Note: Mouser fallback removed — Nexar batch covers all parts. Mouser still used for individual row auto-refresh.
                   setReelFillModal(prev => prev ? { ...prev, phase:"preview", rows: [...rows], checkedIds: new Set(checkedIds), apiCount, cacheCount } : null);
                 } else {
                   setReelFillModal(prev => prev ? { ...prev, phase:"preview" } : null);
@@ -6239,8 +6268,9 @@ function BOMManager({ user }) {
                 try {
                   let tok = nexarToken;
                   if (!tok) { tok = await fetchNexarToken(apiKeys.nexar_client_id, apiKeys.nexar_client_secret); setNexarToken(tok); }
-                  const fq = await fetchNexarReelQty(TEST_MPN, tok);
-                  setReelTestModal({ status:"done", mpn: TEST_MPN, result: { factoryPackQty: fq, _nexarRaw: true }, error: null, source:"Nexar" });
+                  const batchResult = await fetchNexarBatch([TEST_MPN], tok);
+                  const nd = batchResult[TEST_MPN];
+                  setReelTestModal({ status:"done", mpn: TEST_MPN, result: { factoryPackQty: nd?.factoryPackQty, _nexarRaw: true, ...nd }, error: null, source:"Nexar" });
                 } catch(e) {
                   setReelTestModal({ status:"error", mpn: TEST_MPN, result: null, error: e.message, source:"Nexar" });
                 }
@@ -7617,9 +7647,9 @@ function BOMManager({ user }) {
                                   </div>
                                 ) : null;
                               })()}
-                              {/* Sourcing & Compliance — Mouser live data */}
+                              {/* Sourcing & Compliance — Nexar (preferred) or Mouser data */}
                               {(() => {
-                                const m = part.pricing?.mouser;
+                                const m = part.pricing?.nexar || part.pricing?.mouser;
                                 if (!m) return null;
                                 const lifecycleColor = m.lifecycleStatus?.toLowerCase().includes("active") ? "#34c759" : m.lifecycleStatus?.toLowerCase().includes("nrnd") ? "#ff9500" : m.lifecycleStatus?.toLowerCase().includes("eol") || m.lifecycleStatus?.toLowerCase().includes("obsolete") ? "#ff3b30" : "#86868b";
                                 return (
