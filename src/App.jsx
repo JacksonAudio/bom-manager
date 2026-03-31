@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.66";
-const BUILD_TIME   = "2026-03-30T21:48:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.67";
+const BUILD_TIME   = "2026-03-30T21:52:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -3043,6 +3043,7 @@ function BOMManager({ user }) {
       notes:             row.notes || "",
       voltage_rating:    row.voltage_rating || "",
       url:               row.url || "",
+      alternateOf:       row.alternate_of || null,
     };
   }
 
@@ -3077,6 +3078,7 @@ function BOMManager({ user }) {
     if (part.countryOfOrigin) row.country_of_origin = part.countryOfOrigin.toUpperCase();
     if (part.htsCode) row.hts_code = part.htsCode;
     row.notes = part.notes || "";
+    if (part.alternateOf) row.alternate_of = part.alternateOf;
     return row;
   }
 
@@ -3137,7 +3139,7 @@ function BOMManager({ user }) {
       unitCost: "unit_cost", projectId: "product_id", reorderQty: "reorder_qty",
       stockQty: "stock_qty", preferredSupplier: "preferred_supplier", orderQty: "order_qty", reelQty: "reel_qty",
       flaggedForOrder: "flagged_for_order", pricingStatus: "pricing_status",
-      pricingError: "pricing_error", bestSupplier: "best_supplier",
+      pricingError: "pricing_error", bestSupplier: "best_supplier", alternateOf: "alternate_of",
     };
     const dbField = dbFieldMap[field] || field;
     let dbValue = value;
@@ -3300,12 +3302,15 @@ function BOMManager({ user }) {
     const qty  = parseInt(form.qty) || 1;
     if (!pn) return;
 
+    const altFor = form._altFor || null;
+
     // Clear the form immediately
     setQAField(productId, "pn", "");
     setQAField(productId, "qty", "");
     if (form.desc) setQAField(productId, "desc", "");
     if (form.value) setQAField(productId, "value", "");
     if (form.mfr) setQAField(productId, "mfr", "");
+    if (altFor) { setQAField(productId, "_altFor", null); setQAField(productId, "_altForMpn", null); }
 
     const uiPart = {
       reference: pn, refs: [pn], value: form.value || "", mpn: pn,
@@ -3315,6 +3320,7 @@ function BOMManager({ user }) {
       orderQty: "", flaggedForOrder: false, isInternal: form.isInternal || false,
       pricing: null, pricingStatus: "idle", pricingError: "", bestSupplier: null,
       addedVia: "manual",
+      alternateOf: altFor,
     };
 
     // Optimistic UI — add the part immediately with a temp ID
@@ -4051,7 +4057,7 @@ function BOMManager({ user }) {
 
   async function runBomSimulation(productId, usOnlyOverride) {
     const useUsOnly = usOnlyOverride !== undefined ? usOnlyOverride : simUsOnly;
-    const prodParts = parts.filter((p) => p.projectId === productId);
+    const prodParts = parts.filter((p) => p.projectId === productId && !p.alternateOf);
     if (!prodParts.length) return;
     // Read qty from latest state using Promise to handle React 18 batching
     const baseQty = await new Promise(resolve => {
@@ -5006,8 +5012,9 @@ function BOMManager({ user }) {
 
   const productCosts = products.map((prod) => {
     const pp = parts.filter((p) => p.projectId === prod.id);
-    const total = pp.reduce((s,p) => s + priceAtQty(p) * p.quantity, 0);
-    return { ...prod, total, partCount: pp.length, costedCount: pp.filter((p)=>p.unitCost || p.pricing).length };
+    const primaryPp = pp.filter(p => !p.alternateOf);
+    const total = primaryPp.reduce((s,p) => s + priceAtQty(p) * p.quantity, 0);
+    return { ...prod, total, partCount: pp.length, costedCount: primaryPp.filter((p)=>p.unitCost || p.pricing).length };
   });
 
   // Show loading screen while initial DB fetch completes
@@ -11092,6 +11099,13 @@ function BOMManager({ user }) {
           const prod = productCosts.find(p => p.id === selectedProduct);
           if (!prod) { setSelectedProduct(null); return null; }
           const prodParts = parts.filter(p => p.projectId === prod.id);
+          // Group primary parts with their alternates
+          const primaryParts = prodParts.filter(p => !p.alternateOf);
+          const alternateMap = {};
+          prodParts.filter(p => p.alternateOf).forEach(p => {
+            if (!alternateMap[p.alternateOf]) alternateMap[p.alternateOf] = [];
+            alternateMap[p.alternateOf].push(p);
+          });
           const qa = quickAdd[prod.id] || {};
           const showOpt = qa.showOptional || false;
           const prodSelectedParts = [...selectedParts].filter(id => prodParts.some(p => p.id === id));
@@ -11131,8 +11145,20 @@ function BOMManager({ user }) {
                         const created = await createProduct({ name, color: prod.color, userId: user.id, brand: prod.brand || "Jackson Audio" });
                         const srcParts = parts.filter(p => p.projectId === prod.id);
                         if (srcParts.length > 0) {
-                          const dbRows = srcParts.map(p => { const row = uiPartToDB(p); row.product_id = created.id; delete row.pricing; delete row.best_supplier; return row; });
-                          await upsertParts(dbRows, user.id);
+                          const dbRows = srcParts.map(p => { const row = uiPartToDB(p); row.product_id = created.id; delete row.pricing; delete row.best_supplier; delete row.alternate_of; return row; });
+                          const inserted = await upsertParts(dbRows, user.id);
+                          // Remap alternate_of references from old IDs to new IDs
+                          if (inserted && inserted.length > 0) {
+                            const oldIds = srcParts.map(p => p.id);
+                            const idMap = {};
+                            oldIds.forEach((oldId, i) => { if (inserted[i]) idMap[oldId] = inserted[i].id; });
+                            for (const src of srcParts) {
+                              if (src.alternateOf && idMap[src.alternateOf]) {
+                                const newPart = inserted.find((ins, i) => oldIds[i] === src.id);
+                                if (newPart) await dbUpdatePart(newPart.id, { alternate_of: idMap[src.alternateOf] }, user.id);
+                              }
+                            }
+                          }
                         }
                         setSelectedProduct(created.id);
                       } catch (e) { alert("Duplicate failed: " + e.message); }
@@ -11391,20 +11417,32 @@ function BOMManager({ user }) {
               </div>
 
               {/* Quick-add form */}
+              {qa._altFor && (
+                <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"6px 12px",
+                  background:"rgba(88,86,214,0.08)",border:"1px solid rgba(88,86,214,0.25)",borderRadius:8 }}>
+                  <span style={{ fontSize:9,fontWeight:800,color:"#fff",background:"#5856d6",padding:"1px 5px",borderRadius:3,letterSpacing:"0.04em" }}>ALT</span>
+                  <span style={{ fontSize:12,color:"#5856d6",fontWeight:600 }}>Adding alternate for: {qa._altForMpn}</span>
+                  <button onClick={() => { setQAField(prod.id, "_altFor", null); setQAField(prod.id, "_altForMpn", null); }}
+                    style={{ marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"#86868b",fontSize:11,fontWeight:600 }}
+                    onMouseOver={e=>e.currentTarget.style.color="#ff3b30"} onMouseOut={e=>e.currentTarget.style.color="#86868b"}>
+                    Cancel
+                  </button>
+                </div>
+              )}
               {qa._error && (
                 <div style={{ background:"#fff2f2",border:"1px solid #ffccc7",borderRadius:8,padding:"8px 12px",
                   marginBottom:10,fontSize:12,color:"#ff3b30" }}>{qa._error}</div>
               )}
               <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:16 }}>
                 <div style={{ flex:"1 1 200px",position:"relative" }}>
-                  <div style={{ fontSize:10,color:"#86868b",marginBottom:3 }}>Part Number <span style={{ color:"#ff3b30" }}>*</span></div>
-                  <input type="text" placeholder="e.g. LOP-300-24"
+                  <div style={{ fontSize:10,color:qa._altFor?"#5856d6":"#86868b",marginBottom:3 }}>{qa._altFor ? "Alternate Part Number" : "Part Number"} <span style={{ color:"#ff3b30" }}>*</span></div>
+                  <input type="text" placeholder={qa._altFor ? "Alternate MPN..." : "e.g. LOP-300-24"} data-qa-pn="true"
                     value={qa.pn || ""}
                     onChange={(e) => setQAField(prod.id, "pn", e.target.value)}
                     onKeyDown={(e) => { if(e.key==="Enter") quickAddPart(prod.id); }}
                     onFocus={() => setQAField(prod.id, "_focused", true)}
                     onBlur={() => setTimeout(() => setQAField(prod.id, "_focused", false), 200)}
-                    style={{ padding:"8px 12px",borderRadius:6,width:"100%",fontSize:13,fontWeight:600,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",border:"1px solid "+(darkMode?"#48484a":"#d2d2d7") }} />
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%",fontSize:13,fontWeight:600,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",border:"1px solid "+(qa._altFor?"#5856d6":darkMode?"#48484a":"#d2d2d7") }} />
                   {/* Autocomplete dropdown */}
                   {qa._focused && qa.pn && qa.pn.trim().length >= 2 && (() => {
                     const q = qa.pn.trim().toLowerCase();
@@ -11603,10 +11641,13 @@ function BOMManager({ user }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {prodParts.map((part) => {
+                      {primaryParts.map((part) => {
                         const stockVal = (parseInt(part.stockQty)||0) * priceAtQty(part);
+                        const alts = alternateMap[part.id] || [];
+                        const hasAlts = alts.length > 0;
                         return (
-                          <tr key={part.id} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#ededf0"),
+                          <React.Fragment key={part.id}>
+                          <tr style={{ borderBottom:hasAlts?"none":"1px solid "+(darkMode?"#3a3a3e":"#ededf0"),
                             background:selectedParts.has(part.id)?(darkMode?"rgba(0,113,227,0.15)":"rgba(0,113,227,0.04)"):"transparent" }}>
                             <td style={{ padding:"10px 10px" }}>
                               <input type="checkbox" checked={selectedParts.has(part.id)} onChange={()=>toggleSelect(part.id)}
@@ -11651,14 +11692,99 @@ function BOMManager({ user }) {
                             <td style={{ padding:"10px 10px",textAlign:"right",fontSize:12,color:stockVal>0?(darkMode?"#f5f5f7":"#1d1d1f"):"#c7c7cc" }}>
                               {stockVal > 0 ? `$${fmtDollar(stockVal)}` : "--"}
                             </td>
-                            <td style={{ padding:"10px 10px",textAlign:"right" }}>
-                              <button onClick={async ()=>{ if(await showConfirm("Remove Part", `Remove "${part.mpn||part.reference}" from this product?`, "Remove", "#ff3b30")) updatePart(part.id,"projectId",null); }}
+                            <td style={{ padding:"10px 10px",textAlign:"right",whiteSpace:"nowrap" }}>
+                              <button onClick={() => {
+                                  setQAField(prod.id, "pn", "");
+                                  setQAField(prod.id, "_altFor", part.id);
+                                  setQAField(prod.id, "_altForMpn", part.mpn || part.reference || "part");
+                                  setTimeout(() => document.querySelector('[data-qa-pn]')?.focus(), 100);
+                                }}
+                                title="Add alternate part"
+                                style={{ background:"none",border:"1px solid "+(darkMode?"#48484a":"#d2d2d7"),cursor:"pointer",color:"#5856d6",fontSize:10,fontWeight:700,
+                                  padding:"2px 7px",borderRadius:4,transition:"all 0.15s",marginRight:4 }}
+                                onMouseOver={e=>{e.currentTarget.style.background="#5856d6";e.currentTarget.style.color="#fff";e.currentTarget.style.borderColor="#5856d6";}}
+                                onMouseOut={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color="#5856d6";e.currentTarget.style.borderColor=darkMode?"#48484a":"#d2d2d7";}}>
+                                + Alt
+                              </button>
+                              <button onClick={async ()=>{ if(await showConfirm("Remove Part", `Remove "${part.mpn||part.reference}" from this product?`, "Remove", "#ff3b30")) { updatePart(part.id,"projectId",null); alts.forEach(a => updatePart(a.id,"alternateOf",null)); } }}
                                 title="Remove from product"
                                 style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:13,padding:"2px 6px",borderRadius:4,transition:"color 0.15s" }}
-                                onMouseOver={(e)=>e.target.style.color="#ff9500"}
-                                onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>remove</button>
+                                onMouseOver={(e)=>e.currentTarget.style.color="#ff9500"}
+                                onMouseOut={(e)=>e.currentTarget.style.color="#c7c7cc"}>remove</button>
                             </td>
                           </tr>
+                          {/* Alternate part rows */}
+                          {alts.map((alt, altIdx) => {
+                            const altStockVal = (parseInt(alt.stockQty)||0) * priceAtQty(alt);
+                            return (
+                              <tr key={alt.id} style={{ borderBottom:altIdx===alts.length-1?"1px solid "+(darkMode?"#3a3a3e":"#ededf0"):"none",
+                                background:selectedParts.has(alt.id)?(darkMode?"rgba(88,86,214,0.15)":"rgba(88,86,214,0.04)"):(darkMode?"rgba(88,86,214,0.06)":"rgba(88,86,214,0.02)") }}>
+                                <td style={{ padding:"8px 10px" }}>
+                                  <input type="checkbox" checked={selectedParts.has(alt.id)} onChange={()=>toggleSelect(alt.id)}
+                                    style={{ width:15,height:15,cursor:"pointer",accentColor:"#5856d6" }} />
+                                </td>
+                                <td style={{ padding:"8px 10px" }}>
+                                  <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                                    <span style={{ color:"#5856d6",fontSize:13,flexShrink:0 }}>&#8627;</span>
+                                    <span style={{ fontSize:9,fontWeight:800,color:"#fff",background:"#5856d6",padding:"1px 5px",borderRadius:3,flexShrink:0,letterSpacing:"0.04em" }}>ALT</span>
+                                    <input type="text" value={alt.mpn||""} onChange={e=>updatePart(alt.id,"mpn",e.target.value)}
+                                      style={{ border:"none",background:"transparent",fontWeight:700,fontSize:13,width:"100%",color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"inherit",outline:"none" }}
+                                      onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";e.target.style.padding="2px 4px";}}
+                                      onBlur={e=>{e.target.style.background="transparent";e.target.style.padding="0";}} />
+                                  </div>
+                                </td>
+                                <td style={{ padding:"8px 10px" }}>
+                                  <input type="text" value={alt.value||""} onChange={e=>updatePart(alt.id,"value",e.target.value)}
+                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#6e6e73",fontFamily:"inherit",outline:"none" }}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                    onBlur={e=>{e.target.style.background="transparent";}} />
+                                </td>
+                                <td style={{ padding:"8px 10px" }}>
+                                  <input type="text" value={alt.description||""} onChange={e=>updatePart(alt.id,"description",e.target.value)}
+                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#6e6e73",fontFamily:"inherit",outline:"none" }}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                    onBlur={e=>{e.target.style.background="transparent";}} />
+                                </td>
+                                <td style={{ padding:"8px 10px" }}>
+                                  <input type="text" value={alt.manufacturer||""} onChange={e=>updatePart(alt.id,"manufacturer",e.target.value)}
+                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#6e6e73",fontFamily:"inherit",outline:"none" }}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                    onBlur={e=>{e.target.style.background="transparent";}} />
+                                </td>
+                                <td style={{ padding:"8px 10px",textAlign:"right" }}>
+                                  <input type="number" min="1" value={alt.quantity||""} onChange={e=>updatePart(alt.id,"quantity",parseInt(e.target.value)||1)}
+                                    style={{ border:"none",background:"transparent",fontSize:13,fontWeight:700,width:50,textAlign:"right",color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"inherit",outline:"none" }}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                    onBlur={e=>{e.target.style.background="transparent";}} />
+                                </td>
+                                <td style={{ padding:"8px 10px",textAlign:"right" }}>
+                                  <input type="number" min="0" value={alt.stockQty||""} onChange={e=>updatePart(alt.id,"stockQty",e.target.value)}
+                                    style={{ border:"none",background:"transparent",fontSize:13,width:50,textAlign:"right",color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"inherit",outline:"none" }}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                    onBlur={e=>{e.target.style.background="transparent";}} />
+                                </td>
+                                <td style={{ padding:"8px 10px",textAlign:"right",fontSize:12,color:altStockVal>0?(darkMode?"#f5f5f7":"#1d1d1f"):"#c7c7cc" }}>
+                                  {altStockVal > 0 ? `$${fmtDollar(altStockVal)}` : "--"}
+                                </td>
+                                <td style={{ padding:"8px 10px",textAlign:"right",whiteSpace:"nowrap" }}>
+                                  <button onClick={()=>updatePart(alt.id,"alternateOf",null)}
+                                    title="Unlink — make this a standalone primary part"
+                                    style={{ background:"none",border:"1px solid "+(darkMode?"#48484a":"#d2d2d7"),cursor:"pointer",color:"#86868b",fontSize:10,fontWeight:600,
+                                      padding:"2px 7px",borderRadius:4,transition:"all 0.15s",marginRight:4 }}
+                                    onMouseOver={e=>{e.currentTarget.style.borderColor="#5856d6";e.currentTarget.style.color="#5856d6";}}
+                                    onMouseOut={e=>{e.currentTarget.style.borderColor=darkMode?"#48484a":"#d2d2d7";e.currentTarget.style.color="#86868b";}}>
+                                    unlink
+                                  </button>
+                                  <button onClick={async ()=>{ if(await showConfirm("Remove Part", `Remove alternate "${alt.mpn||alt.reference}" from this product?`, "Remove", "#ff3b30")) updatePart(alt.id,"projectId",null); }}
+                                    title="Remove from product"
+                                    style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:13,padding:"2px 6px",borderRadius:4,transition:"color 0.15s" }}
+                                    onMouseOver={(e)=>e.currentTarget.style.color="#ff9500"}
+                                    onMouseOut={(e)=>e.currentTarget.style.color="#c7c7cc"}>remove</button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
