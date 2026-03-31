@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.51";
-const BUILD_TIME   = "2026-03-30T17:20:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.52";
+const BUILD_TIME   = "2026-03-30T17:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -2260,8 +2260,9 @@ function BOMManager({ user }) {
         const mergedPricing = { ...(part.pricing||{}), mouser: { ...(part.pricing?.mouser||{}), ...md, lastFetched: Date.now() } };
         const colUpdates = { pricing: mergedPricing };
         if (md.voltageRating && !part.voltage_rating) colUpdates.voltage_rating = md.voltageRating;
+        if (md.caseCode && !part.footprint) colUpdates.footprint = md.caseCode;
         supabase.from("parts").update(colUpdates).eq("id", part.id).then(() => {});
-        setParts(prev => prev.map(p => p.id === part.id ? { ...p, pricing: mergedPricing, ...(colUpdates.voltage_rating ? { voltage_rating: colUpdates.voltage_rating } : {}) } : p));
+        setParts(prev => prev.map(p => p.id === part.id ? { ...p, pricing: mergedPricing, ...(colUpdates.voltage_rating ? { voltage_rating: colUpdates.voltage_rating } : {}), ...(colUpdates.footprint ? { footprint: colUpdates.footprint } : {}) } : p));
       })
       .catch(() => {});
   }, [expandedPartRow]);
@@ -6152,8 +6153,9 @@ function BOMManager({ user }) {
                         const mergedPricing = { ...(row.part.pricing||{}), mouser: { ...(row.part.pricing?.mouser||{}), ...fullMouserData, lastFetched: Date.now() } };
                         const colUpdates = { pricing: mergedPricing };
                         if (fullMouserData.voltageRating && !row.part.voltage_rating) colUpdates.voltage_rating = fullMouserData.voltageRating;
+                        if (fullMouserData.caseCode && !row.part.footprint) colUpdates.footprint = fullMouserData.caseCode;
                         await supabase.from("parts").update(colUpdates).eq("id", row.part.id);
-                        setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, pricing: mergedPricing, ...(colUpdates.voltage_rating ? { voltage_rating: colUpdates.voltage_rating } : {}) } : p));
+                        setParts(prev => prev.map(p => p.id === row.part.id ? { ...p, pricing: mergedPricing, ...(colUpdates.voltage_rating ? { voltage_rating: colUpdates.voltage_rating } : {}), ...(colUpdates.footprint ? { footprint: colUpdates.footprint } : {}) } : p));
                         if (fq) { row.detected = fq; row.source = src; row.checked = true; checkedIds.add(row.part.id); apiCount++; }
                       }
                     } catch(e) { console.warn("[reel-fill]", row.part.mpn, e.message); }
@@ -7597,7 +7599,8 @@ function BOMManager({ user }) {
                                           {m.stock != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>In Stock</span><span style={{ fontWeight:600, color: m.stock > 1000 ? "#34c759" : m.stock > 0 ? "#ff9500" : "#ff3b30" }}>{m.stock?.toLocaleString()}</span></div>}
                                           {m.moq != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>MOQ</span><span style={{ fontWeight:600 }}>{m.moq?.toLocaleString()}</span></div>}
                                           {m.leadTimeDays != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Lead Time</span><span style={{ fontWeight:600 }}>{m.leadTimeDays} days</span></div>}
-                                          {m.packagingType && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Packaging</span><span style={{ fontWeight:600 }}>{m.packagingType}</span></div>}
+                                          {m.caseCode && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Package</span><span style={{ fontWeight:600 }}>{m.caseCode}</span></div>}
+                                          {m.packagingType && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#86868b" }}>Tape/Reel</span><span style={{ fontWeight:600 }}>{m.packagingType}</span></div>}
                                           {m.url && <div style={{ marginTop:4 }}><a href={m.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#0071e3", textDecoration:"none", fontWeight:600 }}>View on Mouser →</a></div>}
                                           {m.datasheetUrl && <div style={{ marginTop:2 }}><a href={m.datasheetUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#0071e3", textDecoration:"none", fontWeight:600 }}>Datasheet →</a></div>}
                                           {m.lastFetched && <div style={{ fontSize:10, color:"#aeaeb2", marginTop:2 }}>Updated {new Date(m.lastFetched).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>}
