@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.52";
-const BUILD_TIME   = "2026-03-30T17:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.53";
+const BUILD_TIME   = "2026-03-30T17:40:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -1663,6 +1663,7 @@ function BOMManager({ user }) {
   const [vendorDraft, setVendorDraft] = useState({});
   const [fullReelParts, setFullReelParts] = useState(new Set()); // part IDs where full reel is toggled
   const [reelFillModal, setReelFillModal] = useState(null); // null | { phase: 'scanning'|'fetching'|'preview', rows: [...], checkedIds: Set, apiCount, cacheCount }
+  const [mouserBackfill, setMouserBackfill] = useState(null); // null | { done, total, updated, phase }
   const [reelTestModal, setReelTestModal] = useState(null); // null | { status: 'loading'|'done'|'error', mpn, result, error }
   const [valueFillModal, setValueFillModal] = useState(null); // null | { rows: [...], checkedIds: Set }
   const [reelDecisions, setReelDecisions] = useState({}); // { [partId]: 'reel' | 'cut' }
@@ -6168,6 +6169,36 @@ function BOMManager({ user }) {
                   setReelFillModal(prev => prev ? { ...prev, phase:"preview" } : null);
                 }
               }}>Auto-Fill Reel Quantities</button>
+              <button className="btn-ghost btn-sm" style={{ color:"#5856d6" }} onClick={async () => {
+                // Backfill footprint + voltage_rating from already-stored pricing.mouser data — no API calls
+                const toUpdate = parts.filter(p => p.pricing?.mouser && (
+                  (p.pricing.mouser.caseCode && !p.footprint) ||
+                  (p.pricing.mouser.voltageRating && !p.voltage_rating)
+                ));
+                setMouserBackfill({ done: 0, total: toUpdate.length, updated: 0, phase: "running" });
+                let updated = 0;
+                for (let i = 0; i < toUpdate.length; i++) {
+                  const p = toUpdate[i];
+                  const m = p.pricing.mouser;
+                  const colUpdates = {};
+                  if (m.caseCode && !p.footprint) colUpdates.footprint = m.caseCode;
+                  if (m.voltageRating && !p.voltage_rating) colUpdates.voltage_rating = m.voltageRating;
+                  if (Object.keys(colUpdates).length > 0) {
+                    await supabase.from("parts").update(colUpdates).eq("id", p.id);
+                    setParts(prev => prev.map(x => x.id === p.id ? { ...x, ...colUpdates } : x));
+                    updated++;
+                  }
+                  setMouserBackfill({ done: i + 1, total: toUpdate.length, updated, phase: "running" });
+                }
+                setMouserBackfill({ done: toUpdate.length, total: toUpdate.length, updated, phase: "done" });
+                setTimeout(() => setMouserBackfill(null), 4000);
+              }}>
+                {mouserBackfill?.phase === "running"
+                  ? `Backfilling… ${mouserBackfill.done}/${mouserBackfill.total}`
+                  : mouserBackfill?.phase === "done"
+                  ? `✓ Updated ${mouserBackfill.updated} parts`
+                  : "Backfill Package & Voltage"}
+              </button>
               <button className="btn-ghost btn-sm" style={{ color:"#ff9500" }} onClick={async () => {
                 const TEST_MPN = "0603WAF2204T5E";
                 if (!apiKeys.mouser_api_key) {
