@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.64";
-const BUILD_TIME   = "2026-03-30T21:35:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.65";
+const BUILD_TIME   = "2026-03-30T21:42:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -460,8 +460,8 @@ function parseNexarPartData(part) {
   return out;
 }
 
-// Batch Nexar query — sends up to 30 MPNs in one request using GraphQL aliases
-// Pulls full enrichment data: stock, lead time, pricing, specs, image, datasheet, package, RoHS, etc.
+// Batch Nexar query — sends up to 3 MPNs per request using GraphQL aliases (Nexar standard tier limit)
+// Pulls enrichment data available without paid add-ons: manufacturer, description, category, image, Mouser offers/pricing
 async function fetchNexarBatch(mpns, token) {
   // Only fields available on standard Nexar tier (no paid add-ons):
   // specs = TECH_SPECS add-on, bestDatasheet = Datasheets add-on, estimatedFactoryLeadDays = Lead Time add-on
@@ -6180,7 +6180,7 @@ function BOMManager({ user }) {
                   const nexarMissed = []; // parts Nexar returned no data for
                   let enrichedCount = 0, pricingCount = 0, stockCount = 0, imageCount = 0, notFoundCount = 0;
                   if (tok && nexarWorking) {
-                    const BATCH = 30;
+                    const BATCH = 3; // Nexar standard tier: max 3 aliases (MPNs) per GraphQL request
                     for (let b = 0; b < needApi.length && nexarWorking; b += BATCH) {
                       const batch = needApi.slice(b, b + BATCH);
                       try {
