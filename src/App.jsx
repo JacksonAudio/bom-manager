@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.63";
-const BUILD_TIME   = "2026-03-30T21:22:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.64";
+const BUILD_TIME   = "2026-03-30T21:35:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6178,6 +6178,7 @@ function BOMManager({ user }) {
                   if (canUseNexar && !tok) { try { tok = await fetchNexarToken(apiKeys.nexar_client_id, apiKeys.nexar_client_secret); setNexarToken(tok); } catch(e) { console.warn("[reel-fill] Nexar token:", e.message); nexarWorking = false; } }
                   // Phase A: Nexar batch — 30 MPNs per request, full enrichment data in seconds
                   const nexarMissed = []; // parts Nexar returned no data for
+                  let enrichedCount = 0, pricingCount = 0, stockCount = 0, imageCount = 0, notFoundCount = 0;
                   if (tok && nexarWorking) {
                     const BATCH = 30;
                     for (let b = 0; b < needApi.length && nexarWorking; b += BATCH) {
@@ -6187,6 +6188,10 @@ function BOMManager({ user }) {
                         for (const row of batch) {
                           const nd = results[row.part.mpn];
                           if (nd) {
+                            enrichedCount++;
+                            if (nd.priceBreaks?.length) pricingCount++;
+                            if (nd.stock > 0) stockCount++;
+                            if (nd.imagePath) imageCount++;
                             // Store full Nexar enrichment data
                             const mergedPricing = { ...(row.part.pricing||{}), nexar: { ...(row.part.pricing?.nexar||{}), ...nd } };
                             const colUpdates = { pricing: mergedPricing };
@@ -6197,7 +6202,8 @@ function BOMManager({ user }) {
                             row.part = { ...row.part, pricing: mergedPricing };
                             if (nd.factoryPackQty) { row.detected = nd.factoryPackQty; row.source = "Nexar"; row.checked = true; checkedIds.add(row.part.id); apiCount++; }
                           } else {
-                            nexarMissed.push(row); // queue for Mouser fallback
+                            notFoundCount++;
+                            nexarMissed.push(row);
                           }
                         }
                       } catch(e) {
@@ -6205,13 +6211,13 @@ function BOMManager({ user }) {
                         else { console.warn("[nexar-batch]", e.message); batch.forEach(r => nexarMissed.push(r)); }
                       }
                       await new Promise(r => setTimeout(r, 200));
-                      setReelFillModal(prev => prev ? { ...prev, rows: [...rows], checkedIds: new Set(checkedIds), apiCount } : null);
+                      setReelFillModal(prev => prev ? { ...prev, rows: [...rows], checkedIds: new Set(checkedIds), apiCount, enrichedCount, pricingCount, stockCount, imageCount, notFoundCount, totalQueried: needApi.length } : null);
                     }
                   } else {
                     needApi.forEach(r => nexarMissed.push(r));
                   }
                   // Note: Mouser fallback removed — Nexar batch covers all parts. Mouser still used for individual row auto-refresh.
-                  setReelFillModal(prev => prev ? { ...prev, phase:"preview", rows: [...rows], checkedIds: new Set(checkedIds), apiCount, cacheCount } : null);
+                  setReelFillModal(prev => prev ? { ...prev, phase:"preview", rows: [...rows], checkedIds: new Set(checkedIds), apiCount, cacheCount, enrichedCount, pricingCount, stockCount, imageCount, notFoundCount, totalQueried: needApi.length } : null);
                 } else {
                   setReelFillModal(prev => prev ? { ...prev, phase:"preview" } : null);
                 }
@@ -20938,7 +20944,7 @@ function BOMManager({ user }) {
                 {reelFillModal.phase === "fetching" && <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>Fetching pack quantities from Nexar…</div>}
                 {reelFillModal.phase === "preview" && (
                   <div style={{ fontSize:12,color:"#86868b",marginTop:4 }}>
-                    {reelFillModal.cacheCount} found in cache · {reelFillModal.apiCount} fetched from Mouser/Nexar
+                    Nexar enriched {reelFillModal.enrichedCount || 0} of {reelFillModal.totalQueried || 0} parts · {reelFillModal.apiCount} reel qtys found
                   </div>
                 )}
               </div>
@@ -20946,6 +20952,23 @@ function BOMManager({ user }) {
                 style={{ background:"none",border:"none",fontSize:20,color:"#86868b",cursor:"pointer",lineHeight:1,padding:4 }}>×</button>
             </div>
             <div style={{ overflowY:"auto",flex:1,marginBottom:16 }}>
+              {reelFillModal.phase === "preview" && reelFillModal.totalQueried > 0 && (
+                <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:14 }}>
+                  {[
+                    { label:"Matched", val: reelFillModal.enrichedCount || 0, color:"#34c759" },
+                    { label:"Not Found", val: reelFillModal.notFoundCount || 0, color:"#ff3b30" },
+                    { label:"Pricing", val: reelFillModal.pricingCount || 0, color:"#0071e3" },
+                    { label:"In Stock", val: reelFillModal.stockCount || 0, color:"#5856d6" },
+                    { label:"Images", val: reelFillModal.imageCount || 0, color:"#ff9500" },
+                    { label:"Reel Qtys", val: reelFillModal.apiCount || 0, color:"#1d1d1f" },
+                  ].map(s => (
+                    <div key={s.label} style={{ background:"#f5f5f7",borderRadius:8,padding:"6px 12px",fontSize:12,display:"flex",flexDirection:"column",alignItems:"center",gap:1,minWidth:70 }}>
+                      <span style={{ fontSize:18,fontWeight:700,color:s.color,fontVariantNumeric:"tabular-nums" }}>{s.val.toLocaleString()}</span>
+                      <span style={{ fontSize:10,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.04em" }}>{s.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {reelFillModal.rows.length === 0 && reelFillModal.phase !== "scanning" && (
                 <div style={{ textAlign:"center",padding:"40px 0",color:"#86868b",fontSize:13 }}>No parts with empty reel quantities found.</div>
               )}
