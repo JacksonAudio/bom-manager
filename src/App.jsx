@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.60";
-const BUILD_TIME   = "2026-03-30T20:54:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.61";
+const BUILD_TIME   = "2026-03-30T20:58:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -432,7 +432,7 @@ function parseNexarPartData(part) {
   if (part.category?.name)      out.category = part.category.name;
   if (part.estimatedFactoryLeadDays) out.leadTimeDays = part.estimatedFactoryLeadDays;
   if (part.images?.[0]?.url)    out.imagePath = part.images[0].url;
-  if (part.datasheets?.[0]?.url) out.datasheetUrl = part.datasheets[0].url;
+  if (part.bestDatasheet?.url) out.datasheetUrl = part.bestDatasheet.url;
   // Specs — voltage rating, package/case, RoHS
   for (const spec of (part.specs || [])) {
     const n = (spec.attribute?.name || "").toLowerCase();
@@ -474,7 +474,7 @@ function parseNexarPartData(part) {
 // Batch Nexar query — sends up to 30 MPNs in one request using GraphQL aliases
 // Pulls full enrichment data: stock, lead time, pricing, specs, image, datasheet, package, RoHS, etc.
 async function fetchNexarBatch(mpns, token) {
-  const frag = `{ results { part { mpn manufacturer { name } shortDescription category { name } estimatedFactoryLeadDays images { url } datasheets { url } specs { attribute { name } displayValue } sellers { company { name } offers { sku clickUrl inventoryLevel moq factoryPackQuantity packaging prices { quantity price currency } } } } } }`;
+  const frag = `{ results { part { mpn manufacturer { name } shortDescription category { name } estimatedFactoryLeadDays images { url } bestDatasheet { url } specs { attribute { name } displayValue } sellers { company { name } offers { sku clickUrl inventoryLevel moq factoryPackQuantity packaging prices { quantity price currency } } } } } }`;
   const safeMpn = (mpn) => mpn.replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/[\n\r\t]/g,' ').trim();
   const query = `{ ${mpns.map((mpn, i) => `q${i}: supSearchMpn(q: "${safeMpn(mpn)}", limit: 1) ${frag}`).join(' ')} }`;
   const res = await fetch("https://api.nexar.com/graphql", {
