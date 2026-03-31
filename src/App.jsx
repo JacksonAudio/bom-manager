@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.58";
-const BUILD_TIME   = "2026-03-30T18:35:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.59";
+const BUILD_TIME   = "2026-03-30T18:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -443,20 +443,28 @@ function parseNexarPartData(part) {
     else if (/lifecycle|product.*status/i.test(n)) out.lifecycleStatus = v;
     else if (/country.*origin/i.test(n)) out.countryOfOrigin = v.toUpperCase();
   }
-  // Sellers — prefer Mouser, else best available
+  // Sellers — Mouser only. If Mouser not in list, skip seller data entirely.
   const sellers = part.sellers || [];
-  const preferred = sellers.find(s => /mouser/i.test(s.company?.name || "")) || sellers[0];
-  if (preferred) {
-    out.mouserPartNumber = preferred.company?.name ? `(${preferred.company.name})` : "";
-    const offer = preferred.offers?.[0];
-    if (offer) {
-      if (offer.inventoryLevel != null) out.stock = offer.inventoryLevel;
-      if (offer.moq)                    out.moq = offer.moq;
-      if (offer.packaging)              out.packagingType = offer.packaging;
-      if (offer.clickUrl)               out.url = offer.clickUrl;
-      const fq = parseInt(offer.factoryPackQuantity || offer.multipackQuantity || 0);
-      if (fq > 0) out.factoryPackQty = fq;
-      if (offer.prices?.length) out.priceBreaks = offer.prices.map(p => ({ qty: p.quantity, price: parseFloat(p.price) }));
+  const mouser = sellers.find(s => /mouser/i.test(s.company?.name || ""));
+  if (mouser) {
+    const offers = mouser.offers || [];
+    // Prefer Tape & Reel offer; fall back to any offer
+    const reelOffer = offers.find(o => /tape.*reel|t.*r/i.test(o.packaging || "")) || offers[0];
+    if (reelOffer) {
+      if (reelOffer.sku)                   out.mouserPartNumber = reelOffer.sku;
+      if (reelOffer.inventoryLevel != null) out.stock = reelOffer.inventoryLevel;
+      if (reelOffer.packaging)              out.packagingType = reelOffer.packaging;
+      if (reelOffer.clickUrl)               out.url = reelOffer.clickUrl;
+      const fq = parseInt(reelOffer.factoryPackQuantity || reelOffer.multipackQuantity || 0);
+      if (fq > 0) { out.factoryPackQty = fq; out.moq = fq; } // reel qty = purchase unit
+      // Price breaks filtered to reel-quantity tiers only
+      if (reelOffer.prices?.length) {
+        const reelQty = out.factoryPackQty || 1;
+        out.priceBreaks = reelOffer.prices
+          .filter(p => p.quantity >= reelQty)
+          .map(p => ({ qty: p.quantity, price: parseFloat(p.price) }));
+        if (!out.priceBreaks.length) out.priceBreaks = reelOffer.prices.map(p => ({ qty: p.quantity, price: parseFloat(p.price) }));
+      }
     }
   }
   return out;
@@ -465,7 +473,7 @@ function parseNexarPartData(part) {
 // Batch Nexar query — sends up to 30 MPNs in one request using GraphQL aliases
 // Pulls full enrichment data: stock, lead time, pricing, specs, image, datasheet, package, RoHS, etc.
 async function fetchNexarBatch(mpns, token) {
-  const frag = `{ results { part { mpn manufacturer { name } shortDescription category { name } estimatedFactoryLeadDays images { url } datasheets { url } specs { attribute { name } displayValue } sellers { company { name } offers { clickUrl inventoryLevel moq factoryPackQuantity multipackQuantity packaging prices { quantity price currency } } } } } }`;
+  const frag = `{ results { part { mpn manufacturer { name } shortDescription category { name } estimatedFactoryLeadDays images { url } datasheets { url } specs { attribute { name } displayValue } sellers { company { name } offers { sku clickUrl inventoryLevel moq factoryPackQuantity multipackQuantity packaging prices { quantity price currency } } } } } }`;
   const query = `{ ${mpns.map((mpn, i) => `q${i}: supSearchMpn(q: "${mpn.replace(/"/g,'\\"')}", limit: 1) ${frag}`).join(' ')} }`;
   const res = await fetch("https://api.nexar.com/graphql", {
     method: "POST",
