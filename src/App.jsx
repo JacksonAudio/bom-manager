@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.59";
-const BUILD_TIME   = "2026-03-30T18:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.60";
+const BUILD_TIME   = "2026-03-30T20:54:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -99,6 +99,7 @@ const DEFAULT_KEYS = {
   aws_sns_region: "us-east-1",   // AWS region
   labor_rate_hourly: "25", // $/hr labor rate for profit analysis
   ad_spend_pct: "35",     // % of sales price spent on ads (Facebook, Google, etc.)
+  bom_multiplier: "5",    // BOM cost × this = suggested retail price (admin only)
   preferred_distributors: '["mouser"]', // JSON array of preferred supplier IDs — get priority in pricing
   preferred_supplier: "mouser",  // Supplier ID to prefer when prices are close
   preferred_margin:   "5",       // % margin — prefer this supplier if within this % of cheapest
@@ -455,7 +456,7 @@ function parseNexarPartData(part) {
       if (reelOffer.inventoryLevel != null) out.stock = reelOffer.inventoryLevel;
       if (reelOffer.packaging)              out.packagingType = reelOffer.packaging;
       if (reelOffer.clickUrl)               out.url = reelOffer.clickUrl;
-      const fq = parseInt(reelOffer.factoryPackQuantity || reelOffer.multipackQuantity || 0);
+      const fq = parseInt(reelOffer.factoryPackQuantity || reelOffer.moq || 0);
       if (fq > 0) { out.factoryPackQty = fq; out.moq = fq; } // reel qty = purchase unit
       // Price breaks filtered to reel-quantity tiers only
       if (reelOffer.prices?.length) {
@@ -473,14 +474,19 @@ function parseNexarPartData(part) {
 // Batch Nexar query — sends up to 30 MPNs in one request using GraphQL aliases
 // Pulls full enrichment data: stock, lead time, pricing, specs, image, datasheet, package, RoHS, etc.
 async function fetchNexarBatch(mpns, token) {
-  const frag = `{ results { part { mpn manufacturer { name } shortDescription category { name } estimatedFactoryLeadDays images { url } datasheets { url } specs { attribute { name } displayValue } sellers { company { name } offers { sku clickUrl inventoryLevel moq factoryPackQuantity multipackQuantity packaging prices { quantity price currency } } } } } }`;
-  const query = `{ ${mpns.map((mpn, i) => `q${i}: supSearchMpn(q: "${mpn.replace(/"/g,'\\"')}", limit: 1) ${frag}`).join(' ')} }`;
+  const frag = `{ results { part { mpn manufacturer { name } shortDescription category { name } estimatedFactoryLeadDays images { url } datasheets { url } specs { attribute { name } displayValue } sellers { company { name } offers { sku clickUrl inventoryLevel moq factoryPackQuantity packaging prices { quantity price currency } } } } } }`;
+  const safeMpn = (mpn) => mpn.replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/[\n\r\t]/g,' ').trim();
+  const query = `{ ${mpns.map((mpn, i) => `q${i}: supSearchMpn(q: "${safeMpn(mpn)}", limit: 1) ${frag}`).join(' ')} }`;
   const res = await fetch("https://api.nexar.com/graphql", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
     body: JSON.stringify({ query }),
   });
-  if (!res.ok) throw new Error(`Nexar ${res.status}`);
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => "");
+    console.error("[nexar-batch] HTTP", res.status, "body:", errBody.slice(0, 800));
+    throw new Error(`Nexar ${res.status}`);
+  }
   const data = await res.json();
   if (data.errors) throw new Error(data.errors[0]?.message || "Nexar error");
   const out = {};
@@ -11186,6 +11192,15 @@ function BOMManager({ user }) {
                 </div>
                 <div style={{ display:"flex",gap:20,fontSize:13,color:"#86868b",flexWrap:"wrap",alignItems:"center" }}>
                   <span><strong style={{ color:darkMode?"#f5f5f7":"#1d1d1f" }}>{"$"}{fmtDollar(prod.total)}</strong> BOM cost/unit</span>
+                  {isAdmin && prod.total > 0 && (() => {
+                    const mult = parseFloat(apiKeys.bom_multiplier) || 5;
+                    const srp = prod.total * mult;
+                    return (
+                      <span style={{ background:"#34c75918",color:"#1a7a3a",fontWeight:700,padding:"2px 8px",borderRadius:6,fontSize:12 }}>
+                        SRP: ${fmtDollar(srp)} <span style={{ fontWeight:400,fontSize:11,color:"#86868b" }}>(BOM ×{mult})</span>
+                      </span>
+                    );
+                  })()}
                   <span>{prod.partCount} part{prod.partCount!==1?"s":""}</span>
                   {prod.buildMinutes && (
                     <span>{prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h ${prod.buildMinutes%60}m`} build time</span>
@@ -20056,6 +20071,18 @@ function BOMManager({ user }) {
                   style={{ width:60,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
                     fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
                 <span style={{ fontSize:12,color:"#86868b" }}>% of sale</span>
+              </div>
+              {/* BOM Multiplier */}
+              <div style={{ display:"flex",alignItems:"center",gap:8,background:darkMode?"#1c1c1e":"#fff",
+                border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
+                <label style={{ fontSize:13,fontWeight:600 }}>SRP Multiplier:</label>
+                <span style={{ fontSize:13,color:"#86868b" }}>BOM ×</span>
+                <input type="number" step="0.1" min="1"
+                  value={apiKeys.bom_multiplier || "5"}
+                  onChange={(e) => setApiKeys(k => ({ ...k, bom_multiplier: e.target.value }))}
+                  style={{ width:60,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",
+                    fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f" }} />
+                <span style={{ fontSize:12,color:"#86868b" }}>= suggested retail</span>
               </div>
               {/* Shipping Cost */}
               <div style={{ display:"flex",alignItems:"center",gap:8,background:darkMode?"#1c1c1e":"#fff",
