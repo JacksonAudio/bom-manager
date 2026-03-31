@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.62";
-const BUILD_TIME   = "2026-03-30T21:03:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.63";
+const BUILD_TIME   = "2026-03-30T21:22:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -430,20 +430,9 @@ function parseNexarPartData(part) {
   if (part.manufacturer?.name) out.manufacturer = part.manufacturer.name;
   if (part.shortDescription)    out.partDescription = part.shortDescription;
   if (part.category?.name)      out.category = part.category.name;
-  // estimatedFactoryLeadDays requires LEAD_TIME subscription — omitted
-  if (part.images?.[0]?.url)    out.imagePath = part.images[0].url;
-  if (part.bestDatasheet?.url) out.datasheetUrl = part.bestDatasheet.url;
-  // Specs — voltage rating, package/case, RoHS
-  for (const spec of (part.specs || [])) {
-    const n = (spec.attribute?.name || "").toLowerCase();
-    const v = spec.displayValue;
-    if (!v) continue;
-    if (/supply voltage.*max|voltage.*rat|rated.*volt/i.test(n)) out.voltageRating = v;
-    else if (/package.*case|case.*package|case.*code/i.test(n)) out.caseCode = v;
-    else if (/rohs/i.test(n)) out.rohsStatus = v;
-    else if (/lifecycle|product.*status/i.test(n)) out.lifecycleStatus = v;
-    else if (/country.*origin/i.test(n)) out.countryOfOrigin = v.toUpperCase();
-  }
+  // specs = TECH_SPECS add-on | bestDatasheet = Datasheets add-on | estimatedFactoryLeadDays = Lead Time add-on
+  // None of these are available on our current Nexar subscription — do not query them
+  if (part.bestImage?.url) out.imagePath = part.bestImage.url;
   // Sellers — Mouser only. If Mouser not in list, skip seller data entirely.
   const sellers = part.sellers || [];
   const mouser = sellers.find(s => /mouser/i.test(s.company?.name || ""));
@@ -456,7 +445,7 @@ function parseNexarPartData(part) {
       if (reelOffer.inventoryLevel != null) out.stock = reelOffer.inventoryLevel;
       if (reelOffer.packaging)              out.packagingType = reelOffer.packaging;
       if (reelOffer.clickUrl)               out.url = reelOffer.clickUrl;
-      const fq = parseInt(reelOffer.factoryPackQuantity || reelOffer.moq || 0);
+      const fq = parseInt(reelOffer.factoryPackQuantity || reelOffer.multipackQuantity || reelOffer.moq || 0);
       if (fq > 0) { out.factoryPackQty = fq; out.moq = fq; } // reel qty = purchase unit
       // Price breaks filtered to reel-quantity tiers only
       if (reelOffer.prices?.length) {
@@ -474,7 +463,9 @@ function parseNexarPartData(part) {
 // Batch Nexar query — sends up to 30 MPNs in one request using GraphQL aliases
 // Pulls full enrichment data: stock, lead time, pricing, specs, image, datasheet, package, RoHS, etc.
 async function fetchNexarBatch(mpns, token) {
-  const frag = `{ results { part { mpn manufacturer { name } shortDescription category { name } images { url } bestDatasheet { url } specs { attribute { name } displayValue } sellers { company { name } offers { sku clickUrl inventoryLevel moq factoryPackQuantity packaging prices { quantity price currency } } } } } }`;
+  // Only fields available on standard Nexar tier (no paid add-ons):
+  // specs = TECH_SPECS add-on, bestDatasheet = Datasheets add-on, estimatedFactoryLeadDays = Lead Time add-on
+  const frag = `{ results { part { mpn manufacturer { name } shortDescription category { name } bestImage { url } sellers { company { name } offers { sku clickUrl inventoryLevel moq factoryPackQuantity orderMultiple multipackQuantity packaging prices { quantity price currency } } } } } }`;
   const safeMpn = (mpn) => mpn.replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/[\n\r\t]/g,' ').trim();
   const query = `{ ${mpns.map((mpn, i) => `q${i}: supSearchMpn(q: "${safeMpn(mpn)}", limit: 1) ${frag}`).join(' ')} }`;
   const res = await fetch("https://api.nexar.com/graphql", {
