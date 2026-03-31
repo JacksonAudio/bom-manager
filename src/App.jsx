@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.53";
-const BUILD_TIME   = "2026-03-30T17:40:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.54";
+const BUILD_TIME   = "2026-03-30T17:50:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -419,12 +419,12 @@ async function fetchNexarToken(clientId, clientSecret) {
 function buildNexarQuery(mpn) {
   // Escape any quotes in the MPN just in case
   const safe = mpn.replace(/"/g, '\\"');
-  return `{ supSearchMpn(q: "${safe}", limit: 10) { hits results { part { mpn manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
+  return `{ supSearchMpn(q: "${safe}", limit: 1) { hits results { part { mpn manufacturer { name } sellers { country company { name } offers { clickUrl inventoryLevel moq prices { quantity price currency } } } } } } }`;
 }
 // Lightweight Nexar query for reel-qty auto-fill — factoryPackQuantity is the correct field name
 function buildNexarReelQuery(mpn) {
   const safe = mpn.replace(/"/g, '\\"');
-  return `{ supSearchMpn(q: "${safe}", limit: 5) { hits results { part { mpn sellers { company { name } offers { factoryPackQuantity multipackQuantity moq packaging } } } } } }`;
+  return `{ supSearchMpn(q: "${safe}", limit: 1) { hits results { part { mpn sellers { company { name } offers { factoryPackQuantity multipackQuantity moq packaging } } } } } }`;
 }
 
 // Fetch just the factory pack qty from Nexar — used by Auto-Fill Reel Quantities
