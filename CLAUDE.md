@@ -36,6 +36,21 @@ git add <files> && git commit -m "..." # in worktree
 cd /Users/BradJackson/Downloads/jackson-bom && git merge <worktree-branch> && git push origin master
 ```
 
+## MANDATORY: Never use React.Fragment or React.anything
+
+React is NOT default-imported in this project. There is no `import React from "react"`.
+
+**Always use named imports only:**
+```js
+import { useState, useRef, useEffect, Fragment, ... } from "react";
+```
+
+- **Never** write `React.Fragment` — use `<Fragment key={...}>` or `<>...</>` (but `<>` can't take a key)
+- **Never** write `React.useRef`, `React.useState`, etc.
+- **Never** write `React.createElement`
+
+Using `React.anything` in production will throw `ReferenceError: React is not defined` and crash the entire app with a blank white page. This has happened twice. Never again.
+
 ## React 18: Reading state inside async functions
 
 Never use side-effect variables inside setState updaters — React 18 batching defers execution:

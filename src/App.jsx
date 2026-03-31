@@ -9,11 +9,11 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.67";
+const APP_VERSION  = "v9.68";
 const BUILD_TIME   = "2026-03-30T21:52:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
 import QRCode from "qrcode";
 import AuthScreen from "./components/AuthScreen.jsx";
 import QRLabelModal from "./components/QRLabelModal.jsx";
@@ -11646,7 +11646,7 @@ function BOMManager({ user }) {
                         const alts = alternateMap[part.id] || [];
                         const hasAlts = alts.length > 0;
                         return (
-                          <React.Fragment key={part.id}>
+                          <Fragment key={part.id}>
                           <tr style={{ borderBottom:hasAlts?"none":"1px solid "+(darkMode?"#3a3a3e":"#ededf0"),
                             background:selectedParts.has(part.id)?(darkMode?"rgba(0,113,227,0.15)":"rgba(0,113,227,0.04)"):"transparent" }}>
                             <td style={{ padding:"10px 10px" }}>
@@ -11784,7 +11784,7 @@ function BOMManager({ user }) {
                               </tr>
                             );
                           })}
-                          </React.Fragment>
+                          </Fragment>
                         );
                       })}
                     </tbody>
