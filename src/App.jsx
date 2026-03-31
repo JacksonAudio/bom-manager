@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.54";
-const BUILD_TIME   = "2026-03-30T17:50:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.55";
+const BUILD_TIME   = "2026-03-30T18:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -6171,17 +6171,24 @@ function BOMManager({ user }) {
               }}>Auto-Fill Reel Quantities</button>
               <button className="btn-ghost btn-sm" style={{ color:"#5856d6" }} onClick={async () => {
                 // Backfill footprint + voltage_rating from already-stored pricing.mouser data — no API calls
-                const toUpdate = parts.filter(p => p.pricing?.mouser && (
-                  (p.pricing.mouser.caseCode && !p.footprint) ||
-                  (p.pricing.mouser.voltageRating && !p.voltage_rating)
-                ));
+                // Also derive caseCode via extractPackageCode if not stored (older cached data)
+                const toUpdate = parts.filter(p => {
+                  if (!p.footprint) {
+                    const m = p.pricing?.mouser;
+                    const desc = m?.partDescription || p.description || "";
+                    if (m?.caseCode || extractPackageCode(p.mpn || "", desc)) return true;
+                  }
+                  if (!p.voltage_rating && p.pricing?.mouser?.voltageRating) return true;
+                  return false;
+                });
                 setMouserBackfill({ done: 0, total: toUpdate.length, updated: 0, phase: "running" });
                 let updated = 0;
                 for (let i = 0; i < toUpdate.length; i++) {
                   const p = toUpdate[i];
-                  const m = p.pricing.mouser;
+                  const m = p.pricing?.mouser || {};
                   const colUpdates = {};
-                  if (m.caseCode && !p.footprint) colUpdates.footprint = m.caseCode;
+                  const derivedCase = m.caseCode || extractPackageCode(p.mpn || "", m.partDescription || p.description || "");
+                  if (derivedCase && !p.footprint) colUpdates.footprint = derivedCase;
                   if (m.voltageRating && !p.voltage_rating) colUpdates.voltage_rating = m.voltageRating;
                   if (Object.keys(colUpdates).length > 0) {
                     await supabase.from("parts").update(colUpdates).eq("id", p.id);
