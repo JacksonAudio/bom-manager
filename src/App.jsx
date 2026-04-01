@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.85";
-const BUILD_TIME   = "2026-04-01T18:20:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.86";
+const BUILD_TIME   = "2026-04-01T18:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -18564,9 +18564,15 @@ function BOMManager({ user }) {
                                         <AddrFields label="Shipping Address" prefix="shipping_address" />
                                         <AddrFields label="Billing Address (if different)" prefix="billing_address" />
                                       </div>
-                                      <div style={{ display:"flex", gap:6 }}>
+                                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                                         <button className="btn-primary btn-sm" onClick={saveDealer}>Save</button>
                                         <button className="btn-ghost btn-sm" onClick={() => setDealerForm(null)}>Cancel</button>
+                                        {isAdmin && (
+                                          <button onClick={e => { e.stopPropagation(); removeDealer(d.id); setDealerForm(null); }}
+                                            style={{ marginLeft:"auto", padding:"5px 14px", borderRadius:980, border:"none", background:"#ff3b30", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
+                                            Delete Dealer
+                                          </button>
+                                        )}
                                       </div>
                                     </div>
                                   ) : (
@@ -18607,14 +18613,6 @@ function BOMManager({ user }) {
                                         ) : <div style={{ color:textSecondary }}>Same as ship-to</div>}
                                         {d.zoho_customer_name && <div style={{ marginTop:8, color:textSecondary }}>Zoho: <strong style={{ color:textPrimary }}>{d.zoho_customer_name}</strong></div>}
                                       </div>
-                                    </div>
-                                  )}
-                                  {!isEditing && isAdmin && (
-                                    <div style={{ display:"flex", gap:8, marginTop:14, paddingTop:12, borderTop:`1px solid ${darkMode?"#3a3a3e":"#e5e5ea"}` }}>
-                                      <button onClick={e => { e.stopPropagation(); removeDealer(d.id); }}
-                                        style={{ padding:"6px 16px", borderRadius:980, border:"none", background:"#ff3b30", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
-                                        Delete
-                                      </button>
                                     </div>
                                   )}
                                 </td>
