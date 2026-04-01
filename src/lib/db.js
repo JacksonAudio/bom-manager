@@ -1383,3 +1383,78 @@ export async function fetchAllPriceHistory() {
   }
   return all;
 }
+
+// ─────────────────────────────────────────────
+// PART IMPORTS (import history)
+// ─────────────────────────────────────────────
+
+export async function fetchPartImports() {
+  const { data, error } = await supabase
+    .from('part_imports')
+    .select('*')
+    .order('imported_at', { ascending: false })
+    .limit(10);
+  check(error, 'fetchPartImports');
+  return data || [];
+}
+
+export async function createPartImport({ filename, importType, partIds, importedBy }) {
+  const { data, error } = await supabase
+    .from('part_imports')
+    .insert({
+      filename: filename || '',
+      import_type: importType || 'csv-import',
+      part_ids: partIds || [],
+      part_count: (partIds || []).length,
+      imported_by: importedBy || null,
+    })
+    .select()
+    .single();
+  check(error, 'createPartImport');
+  return data;
+}
+
+export async function deletePartImport(id) {
+  const { error } = await supabase.from('part_imports').delete().eq('id', id);
+  check(error, 'deletePartImport');
+}
+
+// Soft-delete parts by setting deleted_at (keeps them visible as BOM placeholders)
+export async function softDeleteParts(partIds, userId) {
+  if (!partIds?.length) return;
+  const { error } = await supabase
+    .from('parts')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: userId || null })
+    .in('id', partIds);
+  check(error, 'softDeleteParts');
+}
+
+// ─────────────────────────────────────────────
+// PROFILES (user directory)
+// ─────────────────────────────────────────────
+
+export async function fetchProfiles() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('full_name', { ascending: true });
+  check(error, 'fetchProfiles');
+  return data || [];
+}
+
+export async function upsertProfile({ id, fullName, email, phone, role }) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .upsert({
+      id,
+      full_name: fullName || '',
+      email: email || '',
+      phone: phone || '',
+      role: role || 'employee',
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' })
+    .select()
+    .single();
+  check(error, 'upsertProfile');
+  return data;
+}

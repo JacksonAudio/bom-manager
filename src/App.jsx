@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.71";
-const BUILD_TIME   = "2026-04-01T13:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.72";
+const BUILD_TIME   = "2026-04-01T14:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -60,6 +60,8 @@ import {
   createComponentReservations, releaseComponentReservations, consumeComponentReservations,
   fetchFinishedGoods, upsertFinishedGoods, updateFinishedGoodsTargets,
   fetchUnitRepairs, createUnitRepair, updateUnitRepair,
+  fetchPartImports, createPartImport, deletePartImport, softDeleteParts,
+  fetchProfiles, upsertProfile,
 } from "./lib/db.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -1616,6 +1618,10 @@ function BOMManager({ user }) {
   const [lastImportBatch, setLastImportBatch] = useState(() => {
     try { const s = localStorage.getItem("bom_last_import"); return s ? JSON.parse(s) : null; } catch { return null; }
   });
+  const [partImports, setPartImports] = useState([]);
+  const [expandedImport, setExpandedImport] = useState(null);
+  const [profiles, setProfiles] = useState([]);
+  const [profileForm, setProfileForm] = useState(null); // { id, fullName, email, phone, role } | null
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -2231,6 +2237,10 @@ function BOMManager({ user }) {
         // Load dealers and shop orders
         fetchDealers().then(rows => setDealers(rows || [])).catch(() => {});
         fetchShopOrders().then(rows => setShopOrders(rows || [])).catch(() => {});
+
+        // Load import history and user profiles
+        fetchPartImports().then(rows => setPartImports(rows || [])).catch(() => {});
+        fetchProfiles().then(rows => setProfiles(rows || [])).catch(() => {});
 
         // Load BOM snapshots from DB
         fetchBomSnapshots().then(snaps => setBomSnapshots(snaps || [])).catch(() => {});
@@ -2980,9 +2990,15 @@ function BOMManager({ user }) {
       if (!fresh.length) { setImportError("No parts selected for import."); return; }
       const dbRows = fresh.map((p) => uiPartToDB({ ...p, addedVia: "csv-import" }));
       const inserted = await upsertParts(dbRows, user.id);
-      const batch = { ids: (inserted || []).map(r => r.id).filter(Boolean), count: fresh.length, filename: filename || null, importedAt: new Date().toISOString() };
+      const insertedIds = (inserted || []).map(r => r.id).filter(Boolean);
+      const batch = { ids: insertedIds, count: fresh.length, filename: filename || null, importedAt: new Date().toISOString() };
       setLastImportBatch(batch);
       try { localStorage.setItem("bom_last_import", JSON.stringify(batch)); } catch {}
+      // Record to import history table
+      try {
+        const imp = await createPartImport({ filename: filename || "", importType: "csv-import", partIds: insertedIds, importedBy: user?.id });
+        if (imp) setPartImports(prev => [imp, ...prev].slice(0, 10));
+      } catch (e) { console.warn("[import history]", e); }
       setImportPreview(null);
       setImportOk(`✓ Imported ${fresh.length} parts${filename ? ` from "${filename}"` : ""}. Use "Undo Last Import" below to reverse.`);
       setActiveView("bom");
@@ -3104,6 +3120,8 @@ function BOMManager({ user }) {
       voltage_rating:    row.voltage_rating || "",
       url:               row.url || "",
       alternateOf:       row.alternate_of || null,
+      deletedAt:         row.deleted_at   || null,
+      deletedBy:         row.deleted_by   || null,
     };
   }
 
@@ -3890,6 +3908,7 @@ function BOMManager({ user }) {
     if (!invoiceResult) return;
     const toApply = invoiceResult.items.filter(i => i.apply);
     let created = 0, updated = 0;
+    const newPartIds = [];
     for (const item of toApply) {
       if (item.matchedPart) {
         // Update existing part — add to stock and update cost
@@ -3922,8 +3941,11 @@ function BOMManager({ user }) {
         try {
           const createdPart = await createPart(newPart, user.id);
           created++;
-          if (item.unitPrice > 0 && createdPart?.id) {
-            recordPrice(createdPart.id, item.unitPrice, item.supplier || "", "invoice").catch(e => console.error("[recordPrice:invoice-new]", e));
+          if (createdPart?.id) {
+            newPartIds.push(createdPart.id);
+            if (item.unitPrice > 0) {
+              recordPrice(createdPart.id, item.unitPrice, item.supplier || "", "invoice").catch(e => console.error("[recordPrice:invoice-new]", e));
+            }
           }
         } catch (e) { console.error("Create part from invoice failed:", e); }
       }
@@ -3946,6 +3968,13 @@ function BOMManager({ user }) {
     if (updated) msg.push(`${updated} part${updated!==1?"s":""} updated`);
     if (created) msg.push(`${created} new part${created!==1?"s":""} created`);
     if (poClosed) msg.push(`PO #${poClosed} marked as received`);
+    // Record to import history if new parts were created
+    if (newPartIds.length > 0) {
+      try {
+        const imp = await createPartImport({ filename: invoiceResult?._filename || "", importType: "invoice-import", partIds: newPartIds, importedBy: user?.id });
+        if (imp) setPartImports(prev => [imp, ...prev].slice(0, 10));
+      } catch (e) { console.warn("[invoice import history]", e); }
+    }
     setInvoiceResult(null);
     if (msg.length) setInvoiceError("✓ " + msg.join(", "));
     else setInvoiceError("");
@@ -4158,6 +4187,7 @@ function BOMManager({ user }) {
 
   // ── Derived state
   const visibleParts = parts.filter((p) => {
+    if (p.deletedAt) return false;  // hide soft-deleted parts from library
     const mP = selProject === "all" || p.projectId === selProject || (selProject === "unassigned" && !p.projectId);
     if (!search.trim()) return mP;
     const words = search.toLowerCase().split(/\s+/).filter(Boolean);
@@ -5982,6 +6012,65 @@ function BOMManager({ user }) {
                   }}>
                   Undo Last Import
                 </button>
+              </div>
+            )}
+
+            {/* ── Import History */}
+            {partImports.length > 0 && (
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:13,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:8 }}>Import History</div>
+                <div style={{ border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10,overflow:"hidden" }}>
+                  {partImports.map((imp, idx) => {
+                    const isExpanded = expandedImport === imp.id;
+                    const importerProfile = profiles.find(p => p.id === imp.imported_by);
+                    const importerName = importerProfile?.full_name || importerProfile?.email || (imp.imported_by ? "User" : "Unknown");
+                    const when = imp.imported_at ? new Date(imp.imported_at).toLocaleString() : "";
+                    const typeLabel = imp.import_type === "invoice-import" ? "Invoice" : "CSV";
+                    return (
+                      <div key={imp.id}>
+                        <div style={{ display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:idx%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafafa"),cursor:"pointer",borderBottom:isExpanded?"none":(darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2") }}
+                          onClick={() => setExpandedImport(isExpanded ? null : imp.id)}>
+                          <span style={{ fontSize:11,color:"#86868b",flexShrink:0 }}>{isExpanded?"▾":"▸"}</span>
+                          <span style={{ fontSize:12,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                            {imp.filename || "(pasted)"} · {imp.part_count} part{imp.part_count!==1?"s":""}
+                          </span>
+                          <span style={{ fontSize:11,color:"#86868b",background:typeLabel==="Invoice"?"rgba(52,199,89,0.12)":"rgba(0,122,255,0.1)",padding:"2px 7px",borderRadius:5,flexShrink:0 }}>{typeLabel}</span>
+                          <span style={{ fontSize:11,color:"#86868b",flexShrink:0,whiteSpace:"nowrap" }}>{importerName}</span>
+                          <span style={{ fontSize:11,color:"#aeaeb2",flexShrink:0,whiteSpace:"nowrap" }}>{when}</span>
+                          <button style={{ background:"transparent",border:"none",color:"#ff3b30",fontSize:16,cursor:"pointer",padding:"0 4px",flexShrink:0,lineHeight:1 }}
+                            title="Delete batch (soft-deletes all parts from this import)"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!await showConfirm("Delete Import Batch", `Soft-delete all ${imp.part_count} part${imp.part_count!==1?"s":""} from this import? They will appear as red placeholders in any BOM they belong to.`, "Delete", "#ff3b30")) return;
+                              await softDeleteParts(imp.part_ids || [], user?.id);
+                              await deletePartImport(imp.id);
+                              setPartImports(prev => prev.filter(x => x.id !== imp.id));
+                              if (expandedImport === imp.id) setExpandedImport(null);
+                              showToast(`Soft-deleted ${imp.part_count} parts from import`, "#ff3b30");
+                            }}>×</button>
+                        </div>
+                        {isExpanded && (
+                          <div style={{ padding:"10px 14px",background:darkMode?"#161618":"#f9f9fb",borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2" }}>
+                            {(imp.part_ids || []).length === 0 ? (
+                              <span style={{ fontSize:12,color:"#86868b" }}>No part IDs recorded for this import.</span>
+                            ) : (
+                              <div style={{ display:"flex",flexWrap:"wrap",gap:4 }}>
+                                {(imp.part_ids || []).map(pid => {
+                                  const p = parts.find(x => x.id === pid);
+                                  return (
+                                    <span key={pid} style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:p?.deletedAt?(darkMode?"#3d0a0a":"rgba(255,59,48,0.08)"):(darkMode?"#2c2c2e":"#f0f0f2"),color:p?.deletedAt?"#ff3b30":(darkMode?"#f5f5f7":"#1d1d1f"),border:p?.deletedAt?"1px solid rgba(255,59,48,0.3)":"none",textDecoration:p?.deletedAt?"line-through":"none" }}>
+                                      {p?.mpn || pid.slice(0,8)}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -11174,7 +11263,8 @@ function BOMManager({ user }) {
         {activeView === "projects" && selectedProduct && (() => {
           const prod = productCosts.find(p => p.id === selectedProduct);
           if (!prod) { setSelectedProduct(null); return null; }
-          const prodParts = parts.filter(p => p.projectId === prod.id);
+          const prodParts = parts.filter(p => p.projectId === prod.id && !p.deletedAt);
+          const deletedProdParts = parts.filter(p => p.projectId === prod.id && p.deletedAt);
           // Group primary parts with their alternates
           const primaryParts = prodParts.filter(p => !p.alternateOf);
           const alternateMap = {};
@@ -11863,9 +11953,39 @@ function BOMManager({ user }) {
                           </Fragment>
                         );
                       })}
+                      {/* ── Soft-deleted part placeholders */}
+                      {deletedProdParts.map(part => (
+                        <tr key={`deleted-${part.id}`} style={{ background:darkMode?"rgba(255,59,48,0.08)":"rgba(255,59,48,0.04)",borderBottom:"1px solid "+(darkMode?"rgba(255,59,48,0.2)":"rgba(255,59,48,0.15)") }}>
+                          <td style={{ padding:"8px 10px" }} />
+                          <td style={{ padding:"8px 10px" }}>
+                            <span style={{ fontWeight:700,fontSize:13,color:"#ff3b30",textDecoration:"line-through",opacity:0.7 }}>{part.mpn || "(no MPN)"}</span>
+                          </td>
+                          <td style={{ padding:"8px 10px" }}>
+                            <span style={{ fontSize:12,color:"#ff3b30",opacity:0.6 }}>{part.value}</span>
+                          </td>
+                          <td style={{ padding:"8px 10px" }}>
+                            <span style={{ fontSize:12,color:"#ff3b30",opacity:0.7,fontStyle:"italic" }}>
+                              Removed {part.deletedAt ? new Date(part.deletedAt).toLocaleDateString() : ""}
+                            </span>
+                          </td>
+                          <td style={{ padding:"8px 10px" }}>
+                            <span style={{ fontSize:12,color:"#ff3b30",opacity:0.5 }}>{part.manufacturer}</span>
+                          </td>
+                          <td colSpan={4} style={{ padding:"8px 10px",textAlign:"right" }}>
+                            <span style={{ fontSize:11,color:"#ff3b30",opacity:0.6 }}>⚠ Deleted from library</span>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
+              </div>
+            ) : deletedProdParts.length > 0 ? (
+              <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:14,padding:"16px 20px",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:"1px solid rgba(255,59,48,0.2)" }}>
+                <div style={{ fontSize:13,color:"#ff3b30",fontWeight:600,marginBottom:8 }}>⚠ {deletedProdParts.length} deleted part{deletedProdParts.length!==1?"s":""} were assigned to this product</div>
+                {deletedProdParts.map(p => (
+                  <div key={p.id} style={{ fontSize:12,color:"#ff3b30",opacity:0.7,textDecoration:"line-through",marginBottom:2 }}>{p.mpn || "(no MPN)"} — {p.description}</div>
+                ))}
               </div>
             ) : (
               <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:14,padding:"40px 20px",textAlign:"center",color:"#86868b",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
@@ -20523,6 +20643,102 @@ function BOMManager({ user }) {
                 </table>
               </div>
             </div>
+            {/* ── Users / Profiles ── */}
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14 }}>
+                <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>Team Directory</div>
+                <button style={{ background:"#0071e3",color:"#fff",border:"none",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer" }}
+                  onClick={() => setProfileForm({ id:"", full_name:"", email:"", phone:"", role:"employee" })}>
+                  + Add Member
+                </button>
+              </div>
+              <p style={{ fontSize:12,color:"#86868b",marginBottom:14,marginTop:-8 }}>
+                Contact info for each team member. Used to show names in import history and build logs.
+              </p>
+              {profiles.length === 0 ? (
+                <p style={{ fontSize:13,color:"#86868b" }}>No profiles yet — add team members above.</p>
+              ) : (
+                <div style={{ border:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2",borderRadius:10,overflow:"hidden" }}>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                    <thead>
+                      <tr style={{ background:darkMode?"#2c2c2e":"#f9f9fb" }}>
+                        {["Name","Email","Phone","Role",""].map((h,i) => (
+                          <th key={i} style={{ padding:"9px 14px",textAlign:"left",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"#86868b",borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {profiles.map((p, idx) => (
+                        <tr key={p.id} style={{ background:idx%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafafa"),borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2" }}>
+                          <td style={{ padding:"10px 14px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{p.full_name || "—"}</td>
+                          <td style={{ padding:"10px 14px",color:darkMode?"#c7c7cc":"#6e6e73" }}>{p.email || "—"}</td>
+                          <td style={{ padding:"10px 14px",color:darkMode?"#c7c7cc":"#6e6e73" }}>{p.phone || "—"}</td>
+                          <td style={{ padding:"10px 14px" }}>
+                            <span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:p.role==="admin"?"rgba(255,59,48,0.1)":p.role==="editor"?"rgba(0,113,227,0.1)":"rgba(52,199,89,0.1)",color:p.role==="admin"?"#ff3b30":p.role==="editor"?"#0071e3":"#34c759",fontWeight:600 }}>
+                              {p.role || "employee"}
+                            </span>
+                          </td>
+                          <td style={{ padding:"10px 14px",textAlign:"right" }}>
+                            <button onClick={() => setProfileForm({ id: p.id, full_name: p.full_name, email: p.email, phone: p.phone, role: p.role })}
+                              style={{ background:"none",border:"none",cursor:"pointer",color:"#0071e3",fontSize:12,fontWeight:600,padding:"2px 6px" }}>Edit</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {/* Profile edit form */}
+              {profileForm !== null && (
+                <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center" }}
+                  onClick={(e) => { if (e.target === e.currentTarget) setProfileForm(null); }}>
+                  <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"32px 36px",width:420,maxWidth:"90vw",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
+                    <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20 }}>
+                      <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{profileForm.id ? "Edit Team Member" : "Add Team Member"}</div>
+                      <button onClick={() => setProfileForm(null)} style={{ background:"#f5f5f7",border:"none",borderRadius:980,width:28,height:28,cursor:"pointer",fontSize:16,color:"#86868b" }}>×</button>
+                    </div>
+                    {[
+                      { label:"Full Name", key:"full_name", placeholder:"Jane Smith" },
+                      { label:"Email", key:"email", placeholder:"jane@jacksonaudio.com" },
+                      { label:"Phone", key:"phone", placeholder:"555-123-4567" },
+                    ].map(f => (
+                      <div key={f.key} style={{ marginBottom:14 }}>
+                        <label style={{ fontSize:12,fontWeight:600,color:darkMode?"#aeaeb2":"#6e6e73",display:"block",marginBottom:4 }}>{f.label}</label>
+                        <input type="text" value={profileForm[f.key] || ""} placeholder={f.placeholder}
+                          onChange={e => setProfileForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                          style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#48484a":"#d2d2d7"),background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",fontSize:13,boxSizing:"border-box" }} />
+                      </div>
+                    ))}
+                    <div style={{ marginBottom:20 }}>
+                      <label style={{ fontSize:12,fontWeight:600,color:darkMode?"#aeaeb2":"#6e6e73",display:"block",marginBottom:4 }}>Role</label>
+                      <select value={profileForm.role || "employee"} onChange={e => setProfileForm(prev => ({ ...prev, role: e.target.value }))}
+                        style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#48484a":"#d2d2d7"),background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",fontSize:13 }}>
+                        <option value="employee">Employee</option>
+                        <option value="editor">Editor</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                    <div style={{ display:"flex",gap:10 }}>
+                      <button onClick={() => setProfileForm(null)}
+                        style={{ flex:1,padding:"10px",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",fontSize:13,fontWeight:600,cursor:"pointer",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                        Cancel
+                      </button>
+                      <button onClick={async () => {
+                        if (!profileForm.full_name?.trim() && !profileForm.email?.trim()) return;
+                        const saved = await upsertProfile({ id: profileForm.id || user?.id, fullName: profileForm.full_name, email: profileForm.email, phone: profileForm.phone, role: profileForm.role });
+                        if (saved) setProfiles(prev => { const idx2 = prev.findIndex(x => x.id === saved.id); return idx2 >= 0 ? prev.map(x => x.id === saved.id ? saved : x) : [...prev, saved]; });
+                        setProfileForm(null);
+                        showToast("Profile saved", "#34c759");
+                      }}
+                        style={{ flex:2,padding:"10px",borderRadius:980,border:"none",background:"#0071e3",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer" }}>
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* ── Database Backup — Export All Data ── */}
             <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
               <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",marginBottom:6 }}>Database Backup</div>
