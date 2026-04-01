@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.91";
-const BUILD_TIME   = "2026-04-01T19:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.00";
+const BUILD_TIME   = "2026-04-01T20:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -333,6 +333,42 @@ function splitCSVLine(line, delim) {
   cells.push(cur.trim());
   return cells;
 }
+// Normalize component value strings from Eagle/KiCad BOMs
+function normalizeBOMValue(raw) {
+  if (!raw) return raw;
+  let v = raw.trim();
+  // Strip Eagle-style type prefix from values: R4.7K → 4.7K, C100nF → 100nF, L10uH → 10uH
+  v = v.replace(/^[RCLUD](?=[\d.])/i, (m) => m.toUpperCase() === m ? "" : m);
+  // Normalize uppercase K to lowercase k for resistance: 4.7K → 4.7k, 680K → 680k
+  v = v.replace(/(\d)(K)\b/g, (_, n, k) => `${n}k`);
+  // Normalize µ/μ to u: 100µF → 100uF, 10µH → 10uH
+  v = v.replace(/[µμ]/g, "u");
+  // Extract value+voltage from slash notation: 220uF/25V → normalize to "220uF 25V"
+  v = v.replace(/^(\d[\d.]*\s*[a-zA-Z]+)\s*\/\s*(\d[\d.]*\s*[Vv])/, "$1 $2");
+  // Normalize OHM/ohm/Ω → R: 470OHM → 470R, 470ohm → 470R
+  v = v.replace(/(\d)\s*(?:OHM|ohm|Ω)s?/g, "$1R");
+  // Normalize R suffix numbers: 1200R → 1.2k
+  v = v.replace(/^(\d+(?:\.\d+)?)R$/, (_, n) => {
+    const num = parseFloat(n);
+    if (num >= 1000000) return `${parseFloat((num/1000000).toPrecision(3))}M`;
+    if (num >= 1000) return `${parseFloat((num/1000).toPrecision(3))}k`;
+    return `${num}R`;
+  });
+  return v;
+}
+
+// Auto-skip rows that are DNI, fiducials, or mechanical (not real components)
+function isDNIRow(cells, valueCol, refCol, descCol) {
+  const val = (cells[valueCol] || "").trim().toUpperCase();
+  const ref = (cells[refCol] || "").trim().toUpperCase();
+  const desc = (cells[descCol] || "").trim().toUpperCase();
+  if (/^DNI$|^DO\s*NOT\s*(?:INSTALL|POPULATE|STUFF)|^DNP$|^NI$/.test(val)) return true;
+  if (/FIDUCIAL|TESTPOINT|TEST_PT|TP\d/i.test(val) || /^FID\d*$/.test(ref)) return true;
+  if (/FIDUCIAL|TEST\s*POINT/i.test(desc)) return true;
+  if (/^MOUNT|^HOLE|^VIA|^PAD/i.test(val)) return true;
+  return false;
+}
+
 function parseBOM(raw) {
   const lines = raw.trim().split(/\r?\n/).filter(Boolean);
   if (lines.length < 1) return [];
@@ -367,17 +403,22 @@ function parseBOM(raw) {
     idx.description = lines[0].split(delim).length > 2 ? 2 : -1;
   }
   const parts = [];
+  let skippedDNI = 0;
   for (let i = startIdx; i < lines.length; i++) {
     const cells = splitCSVLine(lines[i], delim).map((c) => c.replace(/^"|"$/g, "").trim());
     if (cells.every((c) => !c)) continue;
+    // Skip DNI / fiducial / mechanical rows
+    if (isDNIRow(cells, idx.value ?? -1, idx.reference ?? -1, idx.description ?? -1)) { skippedDNI++; continue; }
     const get = (key) => (idx[key] >= 0 ? cells[idx[key]] || "" : "");
     const refRaw = get("reference");
     const refs = refRaw.split(/[\s,;]+/).filter(Boolean);
     const mpn = get("mpn");
+    const rawValue = get("value");
+    const value = normalizeBOMValue(rawValue);
     const qty = parseInt(get("quantity")) || refs.length || 1;
     parts.push({
       id: `part-${Date.now()}-${i}`,
-      reference: refRaw || mpn, refs, value: get("value"), mpn,
+      reference: refRaw || mpn, refs, value, mpn,
       description: get("description"), footprint: get("footprint"),
       manufacturer: get("manufacturer"), quantity: qty,
       unitCost: get("unitCost") || "", projectId: null, reorderQty: "",
@@ -386,6 +427,7 @@ function parseBOM(raw) {
       addedDate: get("addedDate") || "",
       notes: get("notes") || "",
       orderQty: "", flaggedForOrder: false,
+      _skippedDNI: false,
       // Pricing data — populated by API
       pricing: null,      // { [supplierId]: { unitPrice, stock, moq, priceBreaks: [{qty, price}], url } }
       pricingStatus: "idle",  // idle | loading | done | error | no-mpn
@@ -393,6 +435,7 @@ function parseBOM(raw) {
       bestSupplier: null, // supplierId with best price for qty
     });
   }
+  if (skippedDNI > 0) parts._skippedDNI = skippedDNI;
   return parts;
 }
 
@@ -1608,6 +1651,8 @@ function BOMManager({ user }) {
   const [importOk,      setImportOk]      = useState("");
   const [importPreview, setImportPreview] = useState(null); // { parts, filename } — awaiting user confirm
   const [importExcluded, setImportExcluded] = useState(new Set()); // indices of unchecked rows in import preview
+  const [importMatchModal, setImportMatchModal] = useState(null); // { partIdx, part } — Match? search for unmatched import row
+  const [importMatchSearch, setImportMatchSearch] = useState("");
   const [dragOver,      setDragOver]      = useState(false);
   const [lastImportBatch, setLastImportBatch] = useState(() => {
     try { const s = localStorage.getItem("bom_last_import"); return s ? JSON.parse(s) : null; } catch { return null; }
@@ -1634,6 +1679,8 @@ function BOMManager({ user }) {
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
   const isAdmin = user && (apiKeys.admin_emails || "").split(",").map(e=>e.trim().toLowerCase()).includes(user.email?.toLowerCase());
+  const currentUserProfile = profiles.find(p => p.email?.toLowerCase() === user?.email?.toLowerCase());
+  const isManager = !isAdmin && currentUserProfile?.role === 'manager';
   const [keySaved,    setKeySaved]    = useState(false);
   const [nexarToken,  setNexarToken]  = useState(null);
   const [dkToken,     setDkToken]     = useState(null);
@@ -3009,11 +3056,12 @@ function BOMManager({ user }) {
     try {
       const parsed = parseBOM(rawText);
       if (!parsed.length) { setImportError("No parts found. Check header row."); return; }
+      const skippedDNI = parsed._skippedDNI || 0;
       const existingMPNs = new Set(parts.map((p) => p.mpn).filter(Boolean));
       const fresh = parsed.filter((p) => !p.mpn || !existingMPNs.has(p.mpn));
       if (!fresh.length) { setImportError("All parts already exist in the library (matched by MPN)."); return; }
       const skipped = parsed.length - fresh.length;
-      setImportPreview({ parts: fresh, filename: filename || null, skipped });
+      setImportPreview({ parts: fresh, filename: filename || null, skipped, skippedDNI });
     } catch (e) { setImportError("Import error: " + e.message); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parts]);
@@ -6183,6 +6231,7 @@ function BOMManager({ user }) {
                   <div>
                     <span style={{ fontWeight:700,fontSize:14,color:"#007aff" }}>Preview — {selectedCount} of {importPreview.parts.length} parts selected</span>
                     {importPreview.skipped > 0 && <span style={{ fontSize:12,color:"#6e6e73",marginLeft:10 }}>{importPreview.skipped} duplicate{importPreview.skipped>1?"s":""} skipped</span>}
+                    {importPreview.skippedDNI > 0 && <span style={{ fontSize:12,color:"#ff9500",marginLeft:10 }}>{importPreview.skippedDNI} DNI/fiducial auto-skipped</span>}
                     {importPreview.filename && <span style={{ fontSize:12,color:"#6e6e73",marginLeft:10 }}>from "{importPreview.filename}"</span>}
                   </div>
                   <div style={{ display:"flex",gap:8 }}>
@@ -6200,7 +6249,7 @@ function BOMManager({ user }) {
                             else setImportExcluded(new Set(importPreview.parts.map((_,i)=>i)));
                           }} />
                         </th>
-                        {["MPN","Value","Description","Supplier","Date"].map(h=>(
+                        {["MPN","Value","Description","Supplier","Status"].map(h=>(
                           <th key={h} style={{ textAlign:"left",padding:"7px 12px",fontWeight:700,color:"#1d1d1f",borderBottom:"1px solid #e5e5ea",whiteSpace:"nowrap" }}>{h}</th>
                         ))}
                         {importPreview.parts.some(p=>p.notes) && (
@@ -6218,9 +6267,17 @@ function BOMManager({ user }) {
                           </td>
                           <td style={{ padding:"6px 12px",fontFamily:"monospace",whiteSpace:"nowrap" }}>{p.mpn||"—"}</td>
                           <td style={{ padding:"6px 12px",whiteSpace:"nowrap" }}>{p.value||"—"}</td>
-                          <td style={{ padding:"6px 12px",color:"#6e6e73",maxWidth:320,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
+                          <td style={{ padding:"6px 12px",color:"#6e6e73",maxWidth:280,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
                           <td style={{ padding:"6px 12px",whiteSpace:"nowrap" }}>{p.preferredSupplier||"—"}</td>
-                          <td style={{ padding:"6px 12px",whiteSpace:"nowrap",color:"#6e6e73" }}>{p.addedDate||"—"}</td>
+                          <td style={{ padding:"6px 12px",whiteSpace:"nowrap" }}>
+                            {p.mpn
+                              ? <span style={{ fontSize:11,padding:"2px 7px",borderRadius:5,background:"rgba(52,199,89,0.12)",color:"#34c759",fontWeight:600 }}>✓ Has MPN</span>
+                              : <button onClick={() => { setImportMatchModal({ partIdx: i, part: p }); setImportMatchSearch((p.value||"") + (p.footprint ? " " + p.footprint : "")); }}
+                                  style={{ fontSize:11,padding:"3px 10px",borderRadius:980,border:"none",background:"rgba(255,149,0,0.15)",color:"#ff9500",fontWeight:700,cursor:"pointer",fontFamily:"inherit" }}>
+                                  ⚠ Match?
+                                </button>
+                            }
+                          </td>
                           {importPreview.parts.some(q=>q.notes) && (
                             <td style={{ padding:"6px 12px",whiteSpace:"nowrap" }}>
                               {p.notes ? <a href={p.notes} target="_blank" rel="noopener noreferrer" style={{ fontSize:11,color:"#e8500a" }}>View Order ↗</a> : "—"}
@@ -6985,6 +7042,7 @@ function BOMManager({ user }) {
                       <div style={{ fontSize:12 }}>
                         <span style={{ fontWeight:700,color:"#007aff" }}>{selectedCount} of {importPreview.parts.length} parts selected</span>
                         {importPreview.skipped > 0 && <span style={{ color:"#6e6e73",marginLeft:8 }}>{importPreview.skipped} duplicate{importPreview.skipped>1?"s":""} skipped</span>}
+                        {importPreview.skippedDNI > 0 && <span style={{ color:"#ff9500",marginLeft:8 }}>{importPreview.skippedDNI} DNI/fiducial skipped</span>}
                       </div>
                       <div style={{ display:"flex",gap:6 }}>
                         <button className="btn-ghost" style={{ fontSize:11,padding:"4px 10px" }} onClick={()=>setImportPreview(null)}>Cancel</button>
@@ -7001,7 +7059,7 @@ function BOMManager({ user }) {
                                 else setImportExcluded(new Set(importPreview.parts.map((_,i)=>i)));
                               }} />
                             </th>
-                            {["MPN","Value","Description","Supplier","Date"].map(h=>(
+                            {["MPN","Value","Description","Supplier","Status"].map(h=>(
                               <th key={h} style={{ textAlign:"left",padding:"5px 10px",fontWeight:700,color:"#1d1d1f",borderBottom:"1px solid #e5e5ea",whiteSpace:"nowrap" }}>{h}</th>
                             ))}
                             {importPreview.parts.some(p=>p.notes) && (
@@ -7019,9 +7077,17 @@ function BOMManager({ user }) {
                               </td>
                               <td style={{ padding:"5px 10px",fontFamily:"monospace",whiteSpace:"nowrap" }}>{p.mpn||"—"}</td>
                               <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>{p.value||"—"}</td>
-                              <td style={{ padding:"5px 10px",color:"#6e6e73",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
+                              <td style={{ padding:"5px 10px",color:"#6e6e73",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
                               <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>{p.preferredSupplier||"—"}</td>
-                              <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:"#6e6e73" }}>{p.addedDate||"—"}</td>
+                              <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>
+                                {p.mpn
+                                  ? <span style={{ fontSize:10,padding:"1px 6px",borderRadius:4,background:"rgba(52,199,89,0.12)",color:"#34c759",fontWeight:600 }}>✓ MPN</span>
+                                  : <button onClick={() => { setImportMatchModal({ partIdx: i, part: p }); setImportMatchSearch((p.value||"") + (p.footprint ? " " + p.footprint : "")); }}
+                                      style={{ fontSize:10,padding:"2px 8px",borderRadius:980,border:"none",background:"rgba(255,149,0,0.15)",color:"#ff9500",fontWeight:700,cursor:"pointer",fontFamily:"inherit" }}>
+                                      ⚠ Match?
+                                    </button>
+                                }
+                              </td>
                               {importPreview.parts.some(q=>q.notes) && (
                                 <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>
                                   {p.notes ? <a href={p.notes} target="_blank" rel="noopener noreferrer" style={{ fontSize:11,color:"#e8500a" }}>View Order ↗</a> : "—"}
@@ -9011,8 +9077,13 @@ function BOMManager({ user }) {
                   {(() => {
                     const reelThreshold = parseFloat(apiKeys.reel_order_threshold) || 1.00;
                     return demandList.map((d, idx) => {
-                      // Determine if this part needs a reel decision (has reelCount AND price >= threshold)
-                      const needsDecision = d.reelCount != null && d.bestPrice >= reelThreshold;
+                      // Check if this part's packaging type is actually tape & reel (vs tube/tray/each)
+                      const partPricing = d.part.pricing && typeof d.part.pricing === "object" ? d.part.pricing : null;
+                      const detectedPkgType = partPricing ? Object.entries(partPricing).reduce((acc, [k, v]) => acc || (!k.startsWith("_") && v?.packagingType ? v.packagingType : null), null) : null;
+                      // If packaging is known and NOT tape/reel, suppress reel UI — show "Factory Pack" instead
+                      const isReelPkg = !detectedPkgType || /reel|tape/i.test(detectedPkgType);
+                      // Determine if this part needs a reel decision (has reelCount AND price >= threshold AND is actually tape & reel)
+                      const needsDecision = isReelPkg && d.reelCount != null && d.bestPrice >= reelThreshold;
                       const autoReel = d.reelCount != null && d.bestPrice < reelThreshold;
                       const decision = reelDecisions[d.part.id]; // 'reel' | 'cut' | undefined
                       // Burn time: total units needed per day across all queued products for this part
@@ -9059,7 +9130,7 @@ function BOMManager({ user }) {
                                       background: effectiveDecision === "reel" ? "#0071e3" : "#f5f5f7",
                                       color: effectiveDecision === "reel" ? "#fff" : "#3a3f51",
                                       transition:"all 0.15s" }}>
-                                    {effectiveDecision === "reel" ? "● " : "○ "}Full Reel {d.net.toLocaleString()} pcs · ${fmtDollar(d.bestPrice * d.net)}
+                                    {effectiveDecision === "reel" ? "● " : "○ "}{isReelPkg ? "Full Reel" : "Full Pack"} {d.net.toLocaleString()} pcs · ${fmtDollar(d.bestPrice * d.net)}
                                   </button>
                                   <button onClick={() => setReelDecisions(prev => ({ ...prev, [d.part.id]: "cut" }))}
                                     style={{ flex:1,padding:"6px 10px",borderRadius:980,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
@@ -9067,17 +9138,17 @@ function BOMManager({ user }) {
                                       background: effectiveDecision === "cut" ? "#0071e3" : "#f5f5f7",
                                       color: effectiveDecision === "cut" ? "#fff" : "#3a3f51",
                                       transition:"all 0.15s" }}>
-                                    {effectiveDecision === "cut" ? "● " : "○ "}Cut Tape {d.rawNet.toLocaleString()} pcs · ~${fmtDollar(d.bestPrice * d.rawNet)}
+                                    {effectiveDecision === "cut" ? "● " : "○ "}{isReelPkg ? "Cut Tape" : "Exact Qty"} {d.rawNet.toLocaleString()} pcs · ~${fmtDollar(d.bestPrice * d.rawNet)}
                                   </button>
                                 </div>
                                 {burnMonths != null && (
                                   <div style={{ fontSize:10,color:"#86868b",marginTop:4 }}>
-                                    At current velocity: ~{burnMonths < 1 ? Math.round(burnDays) + " days" : burnMonths.toFixed(1) + " months"} to consume full reel
+                                    At current velocity: ~{burnMonths < 1 ? Math.round(burnDays) + " days" : burnMonths.toFixed(1) + " months"} to consume {isReelPkg ? "full reel" : "full pack"}
                                   </div>
                                 )}
                               </div>
                             ) : d.reelCount ? (<>
-                              <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.reelCount} reel{d.reelCount!==1?"s":""}</div>
+                              <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.reelCount} {isReelPkg ? "reel" : "pack"}{d.reelCount!==1?"s":""}</div>
                               <div style={{ fontSize:10,color:"#86868b" }}>{d.net.toLocaleString()} pcs</div>
                               {d.net > d.rawNet && <div style={{ fontSize:9,color:"#34c759",fontWeight:600 }}>+{(d.net-d.rawNet).toLocaleString()} surplus</div>}
                             </>) : (
@@ -15356,7 +15427,13 @@ function BOMManager({ user }) {
             {prodSubTab === "playtesting" && (() => {
           const activeTests = playTests.filter(t => t.status !== "returned");
           const returnedTests = playTests.filter(t => t.status === "returned");
-          const activeTesters = playTesters.filter(t => t.active !== false);
+          const profileTesters = profiles
+            .filter(p => ['builder','editor','admin','manager'].includes(p.role))
+            .map(p => ({ id: p.id, name: p.full_name || p.email || 'Unknown', active: true, _fromProfile: true }));
+          const activeTesters = [
+            ...playTesters.filter(t => t.active !== false),
+            ...profileTesters.filter(pt => !playTesters.some(t => t.id === pt.id || t.name === pt.name)),
+          ];
           const statusLabels = { assigned:"Assigned", shipped:"Shipped", in_testing:"In Testing", feedback_received:"Feedback Received", returned:"Returned" };
           const statusColors = { assigned:"#0071e3", shipped:"#ff9500", in_testing:"#5856d6", feedback_received:"#34c759", returned:"#86868b" };
           const statusFlow = ["assigned","shipped","in_testing","feedback_received","returned"];
@@ -20115,7 +20192,7 @@ function BOMManager({ user }) {
             {settingsTab === "team" && (() => {
               const IS = { width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#48484a":"#d2d2d7"),background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",fontSize:13,boxSizing:"border-box",fontFamily:"inherit" };
               const LS = { fontSize:12,fontWeight:600,color:darkMode?"#aeaeb2":"#6e6e73",display:"block",marginBottom:4 };
-              const RC = { admin:["#ff3b30","rgba(255,59,48,0.1)"], editor:["#0071e3","rgba(0,113,227,0.1)"], employee:["#34c759","rgba(52,199,89,0.1)"], builder:["#ff9500","rgba(255,149,0,0.1)"] };
+              const RC = { admin:["#ff3b30","rgba(255,59,48,0.1)"], manager:["#5856d6","rgba(88,86,214,0.1)"], editor:["#0071e3","rgba(0,113,227,0.1)"], employee:["#34c759","rgba(52,199,89,0.1)"], builder:["#ff9500","rgba(255,149,0,0.1)"] };
               return (
                 <div>
                   <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16 }}>
@@ -20194,7 +20271,8 @@ function BOMManager({ user }) {
                           <label style={LS}>Role</label>
                           <select value={profileForm.role||"employee"} onChange={e=>setProfileForm(prev=>({...prev,role:e.target.value}))} style={IS}>
                             <option value="employee">Employee — read only</option>
-                            <option value="builder">Builder — can manage builds & play test</option>
+                            <option value="builder">Builder — can manage builds &amp; play test</option>
+                            <option value="manager">Manager — assign builds, no financials/pricing</option>
                             <option value="editor">Editor — can edit parts, products, orders</option>
                             <option value="admin">Admin — full access</option>
                           </select>
@@ -22021,6 +22099,71 @@ function BOMManager({ user }) {
           </div>
         </div>
       )}
+
+      {/* ── BOM Import Match? Modal — search for MPN of unmatched import row ── */}
+      {importMatchModal && (() => {
+        const { partIdx, part } = importMatchModal;
+        const q = importMatchSearch.toLowerCase().trim();
+        const matchResults = q.length >= 2 ? parts.filter(p =>
+          (p.mpn && p.mpn.toLowerCase().includes(q)) ||
+          (p.value && p.value.toLowerCase().includes(q)) ||
+          (p.description && p.description.toLowerCase().includes(q))
+        ).slice(0, 12) : [];
+        return (
+          <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
+            onClick={() => setImportMatchModal(null)}>
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"28px 32px",maxWidth:520,width:"92%",maxHeight:"80vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16 }}>
+                <div>
+                  <div style={{ fontSize:17,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>Match Part MPN</div>
+                  <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>
+                    {part.reference && <span style={{ fontFamily:"monospace",marginRight:8 }}>{part.reference}</span>}
+                    {part.value && <span>{part.value}</span>}
+                    {part.footprint && <span style={{ color:"#86868b",marginLeft:6 }}>· {part.footprint}</span>}
+                  </div>
+                </div>
+                <button onClick={() => setImportMatchModal(null)} style={{ background:darkMode?"#2c2c2e":"#f5f5f7",border:"none",borderRadius:980,width:28,height:28,cursor:"pointer",fontSize:16,color:"#86868b" }}>×</button>
+              </div>
+              <input
+                autoFocus
+                placeholder="Search value, MPN, description…"
+                value={importMatchSearch}
+                onChange={e => setImportMatchSearch(e.target.value)}
+                style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#3a3a3e":"#d2d2d7"),background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",fontSize:13,boxSizing:"border-box",fontFamily:"inherit",marginBottom:12,outline:"none" }} />
+              {matchResults.length === 0 && q.length >= 2 && (
+                <div style={{ padding:"16px 0",textAlign:"center",color:"#86868b",fontSize:13 }}>No parts found — this will be imported as a new part.</div>
+              )}
+              {matchResults.length > 0 && (
+                <div style={{ border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),borderRadius:10,overflow:"hidden" }}>
+                  {matchResults.map((r, ri) => (
+                    <div key={r.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:ri%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafafa"),cursor:"pointer",borderBottom:ri<matchResults.length-1?"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2"):"none" }}
+                      onClick={() => {
+                        setImportPreview(prev => ({
+                          ...prev,
+                          parts: prev.parts.map((p, i) => i === partIdx ? { ...p, mpn: r.mpn || p.mpn, value: r.value || p.value, description: r.description || p.description } : p)
+                        }));
+                        setImportMatchModal(null);
+                      }}>
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"monospace" }}>{r.mpn||"—"}</div>
+                        <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>{[r.value,r.description,r.footprint].filter(Boolean).join(" · ")}</div>
+                      </div>
+                      <span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:"rgba(0,113,227,0.1)",color:"#0071e3",fontWeight:600,flexShrink:0 }}>Use</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ marginTop:16,display:"flex",justifyContent:"flex-end",gap:8 }}>
+                <button onClick={() => setImportMatchModal(null)}
+                  style={{ padding:"7px 18px",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit" }}>
+                  Skip — import as-is
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Destroy Unit Confirmation Modal ── */}
       {destroyUnitModal && (() => {
