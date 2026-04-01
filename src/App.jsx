@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.83";
-const BUILD_TIME   = "2026-04-01T16:25:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.84";
+const BUILD_TIME   = "2026-04-01T18:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -1859,6 +1859,8 @@ function BOMManager({ user }) {
   const [batchStickerTab, setBatchStickerTab] = useState("pedal"); // "pedal" | "box"
   const [destroyUnitModal, setDestroyUnitModal] = useState(null); // { unit }
   const [destroyReason, setDestroyReason] = useState("");
+  const [failModal, setFailModal] = useState(null); // { unit }
+  const [failReason, setFailReason] = useState("");
   const [stickerEditorOpen, setStickerEditorOpen] = useState(false);
   const [stickerTemplate, setStickerTemplate] = useState(null); // custom sticker template from editor
   const [simMode, setSimMode] = useState(false); // pipeline simulation mode
@@ -5860,6 +5862,16 @@ function BOMManager({ user }) {
                     created_by: userId || user?.id,
                   });
                 } catch (e) { console.warn('[scanner] tx write failed:', e.message); }
+              }}
+              onReorder={async (part) => {
+                try {
+                  await dbUpdatePart(part.id, { flagged_for_order: true }, user?.id);
+                  setParts(prev => prev.map(p => p.id === part.id ? { ...p, flaggedForOrder: true } : p));
+                  showToast(`${part.mpn || part.reference || "Part"} flagged for order — opening Purchasing`, "#ff9500");
+                  setTimeout(() => setActiveView("purchasing"), 600);
+                } catch (e) {
+                  showToast("Failed to flag part: " + e.message, "#ff3b30");
+                }
               }}
               userId={user?.id} />
 
@@ -16389,7 +16401,7 @@ function BOMManager({ user }) {
                             }).sort((a, b) => b.short - a.short);
                             setRestockPreflight({ product: prod, quantity: suggested, bomRows });
                           }}
-                          style={{ width:"100%",padding:"8px 0",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:"#ff9500",color:"#3d1f00",fontFamily:"inherit" }}>
+                          style={{ width:"100%",padding:"8px 0",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:"#ff9500",color:"#fff",fontFamily:"inherit" }}>
                           Check Parts &amp; Create Build →
                         </button>
                       </div>
@@ -17086,12 +17098,12 @@ function BOMManager({ user }) {
                   Edit Sticker
                 </button>
                 <button onClick={() => { setBatchStickerModal(true); setBatchProductId(products[0]?.id || ""); setBatchFromSerial(""); setBatchToSerial(""); }}
-                  style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#c8a84e",color:"#3d1f00" }}>
+                  style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#c8a84e",color:"#fff" }}>
                   Batch Print Stickers
                 </button>
                 {filtered.length > 0 && (
                   <button onClick={() => setStickerModalUnits(filtered)}
-                    style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#c8a84e",color:"#3d1f00" }}>
+                    style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#c8a84e",color:"#fff" }}>
                     Print Stickers ({filtered.length})
                   </button>
                 )}
@@ -17299,11 +17311,8 @@ function BOMManager({ user }) {
                               style={{ fontSize:11,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#34c759",color:"#fff" }}>
                               Pass
                             </button>
-                            <button onClick={() => {
-                              const fb = prompt("What's wrong with this pedal?");
-                              if (fb === null) return;
-                              handlePlayTestResult(unit, false, 1, fb);
-                            }} style={{ fontSize:11,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#ff3b30",color:"#fff" }}>
+                            <button onClick={() => { setFailModal({ unit }); setFailReason(""); }}
+                              style={{ fontSize:11,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#ff3b30",color:"#fff" }}>
                               Fail
                             </button>
                           </>
@@ -18512,7 +18521,16 @@ function BOMManager({ user }) {
                             const isEditing  = dealerForm?.id === d.id;
                             const tdStyle    = { padding:"7px 10px", fontSize:12, borderBottom:`1px solid ${borderColor}`, verticalAlign:"middle" };
                             const mainRow = (
-                              <tr key={d.id+brand} className="table-row" onClick={() => setExpandedDealer(isExpanded ? null : d.id + brand)}
+                              <tr key={d.id+brand} className="table-row"
+                                onClick={() => {
+                                  if (dealerForm?.id === d.id) {
+                                    setDealerForm(null);
+                                    setExpandedDealer(null);
+                                  } else {
+                                    setDealerForm({ ...d, billing_address:d.billing_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"}, shipping_address:d.shipping_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"} });
+                                    setExpandedDealer(d.id + brand);
+                                  }
+                                }}
                                 style={{ cursor:"pointer", background: isEditing ? (darkMode?"#1a2a3a":"#f0f6ff") : isExpanded ? (darkMode?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.02)") : "transparent" }}>
                                 <td style={{ ...tdStyle, fontWeight:600, color:"#0071e3" }}>{d.name}</td>
                                 <td style={{ ...tdStyle, color:textSecondary }}>{d.contact_name || "—"}</td>
@@ -18591,18 +18609,12 @@ function BOMManager({ user }) {
                                       </div>
                                     </div>
                                   )}
-                                  {!isEditing && (
+                                  {!isEditing && isAdmin && (
                                     <div style={{ display:"flex", gap:8, marginTop:14, paddingTop:12, borderTop:`1px solid ${darkMode?"#3a3a3e":"#e5e5ea"}` }}>
-                                      <button onClick={e => { e.stopPropagation(); setDealerForm({ ...d, billing_address:d.billing_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"}, shipping_address:d.shipping_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"} }); }}
-                                        style={{ padding:"6px 16px", borderRadius:980, border:"1px solid #d2d2d7", background:"transparent", color:textPrimary, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
-                                        Edit Dealer
+                                      <button onClick={e => { e.stopPropagation(); removeDealer(d.id); }}
+                                        style={{ padding:"6px 16px", borderRadius:980, border:"none", background:"#ff3b30", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
+                                        Delete
                                       </button>
-                                      {isAdmin && (
-                                        <button onClick={e => { e.stopPropagation(); removeDealer(d.id); }}
-                                          style={{ padding:"6px 16px", borderRadius:980, border:"none", background:"#ff3b30", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
-                                          Delete
-                                        </button>
-                                      )}
                                     </div>
                                   )}
                                 </td>
@@ -22054,6 +22066,41 @@ function BOMManager({ user }) {
         );
       })()}
 
+      {/* ── Play Test Fail Modal ── */}
+      {failModal && (() => {
+        const { unit } = failModal;
+        const prod = products.find(p => p.id === unit.product_id);
+        return (
+          <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
+            onClick={() => setFailModal(null)}>
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"32px 36px",maxWidth:440,width:"90%",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize:20,fontWeight:700,color:"#ff3b30",marginBottom:4 }}>✗ Play Test Fail</div>
+              <div style={{ fontSize:13,color:"#86868b",marginBottom:20 }}>
+                <strong style={{ color:textPrimary }}>{unit.serial_number}</strong> — {prod?.name || "Unknown product"}<br/>
+                Describe what's wrong so it can be tracked and fixed.
+              </div>
+              <div style={{ marginBottom:20 }}>
+                <div style={{ fontSize:11,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>What's wrong with this pedal?</div>
+                <textarea value={failReason} onChange={e => setFailReason(e.target.value)} autoFocus
+                  placeholder="e.g. no output on channel 2, LED not working, noisy pots…"
+                  style={{ width:"100%",padding:"10px 12px",borderRadius:10,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#f5f5f7",color:textPrimary,fontSize:13,fontFamily:"inherit",resize:"vertical",minHeight:80,outline:"none",boxSizing:"border-box" }} />
+              </div>
+              <div style={{ display:"flex",gap:10 }}>
+                <button onClick={() => setFailModal(null)}
+                  style={{ flex:1,padding:"10px 0",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",color:textPrimary,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>
+                  Cancel
+                </button>
+                <button onClick={() => { handlePlayTestResult(unit, false, 1, failReason || "No details given"); setFailModal(null); }}
+                  style={{ flex:1,padding:"10px 0",borderRadius:980,border:"none",background:"#ff3b30",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit" }}>
+                  Mark Failed
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Batch Sticker Print Modal ── */}
       {batchStickerModal && (() => {
         const batchUnits = pedalUnits
@@ -22114,7 +22161,7 @@ function BOMManager({ user }) {
                 <button onClick={() => setBatchStickerTab("pedal")}
                   style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,fontSize:12,fontFamily:"inherit",
                     background:batchStickerTab==="pedal"?"#c8a84e":darkMode?"#2c2c2e":"#f0f0f2",
-                    color:batchStickerTab==="pedal"?"#3d1f00":textPrimary }}>
+                    color:batchStickerTab==="pedal"?"#fff":textPrimary }}>
                   Pedal Bottom Sticker
                 </button>
                 <button onClick={() => setBatchStickerTab("box")}
@@ -22148,7 +22195,7 @@ function BOMManager({ user }) {
                   }}
                   style={{ flex:2,padding:"10px 0",borderRadius:980,border:"none",
                     background:batchUnits.length===0?"#c7c7cc":batchStickerTab==="pedal"?"#c8a84e":"#0071e3",
-                    color:batchStickerTab==="pedal"&&batchUnits.length>0?"#3d1f00":"#fff",
+                    color:"#fff",
                     fontSize:13,fontWeight:700,cursor:batchUnits.length===0?"not-allowed":"pointer",fontFamily:"inherit" }}>
                   Print {batchUnits.length} {batchStickerTab==="pedal"?"Pedal Sticker":"Box Label"}{batchUnits.length!==1?"s":""}
                 </button>

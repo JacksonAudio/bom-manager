@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
-export default function ScannerView({ parts, products, updatePart, darkMode, onStockAdjust, userId }) {
+export default function ScannerView({ parts, products, updatePart, darkMode, onStockAdjust, userId, onReorder }) {
   const bg = darkMode ? '#1c1c1e' : '#fff'
   const border = darkMode ? '#3a3a3e' : '#e5e5ea'
   const borderLight = darkMode ? '#2c2c2e' : '#f0f0f2'
@@ -232,12 +232,20 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
               {getProductName(scannedPart.projectId)}
             </div>
           )}
-          <div style={{ fontSize: 14, fontWeight: 600, color: text, marginTop: 12 }}>
-            Current Stock: <span style={{ fontSize: 20, fontWeight: 800 }}>{parseInt(scannedPart.stockQty) || 0}</span>
+          <div style={{ fontSize: 14, fontWeight: 600, color: text, marginTop: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span>Current Stock: <span style={{ fontSize: 20, fontWeight: 800 }}>{parseInt(scannedPart.stockQty) || 0}</span></span>
             {scannedPart.reorderQty && (
-              <span style={{ fontSize: 12, color: textSub, marginLeft: 8 }}>
+              <span style={{ fontSize: 12, color: textSub }}>
                 (reorder at {scannedPart.reorderQty})
               </span>
+            )}
+            {onReorder && (
+              <button onClick={() => onReorder(scannedPart)}
+                style={{ padding: '6px 16px', borderRadius: 980, border: 'none', cursor: 'pointer', fontWeight: 700,
+                  fontSize: 12, background: '#ff9500', color: '#fff',
+                  fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                🛒 Place Order
+              </button>
             )}
           </div>
 
