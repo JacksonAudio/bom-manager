@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.88";
-const BUILD_TIME   = "2026-04-01T19:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.89";
+const BUILD_TIME   = "2026-04-01T19:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -1503,13 +1503,16 @@ const CSS = `
   .dark main td, .dark main th, .dark main label, .dark footer div, .dark footer span {
     color: #f5f5f7 !important;
   }
-  /* Restore subdued text for items that should be dimmer */
-  .dark main [style*="font-size: 12px"], .dark main [style*="fontSize:12"],
-  .dark main [style*="font-size: 11px"], .dark main [style*="fontSize:11"],
-  .dark main [style*="font-size: 10px"], .dark main [style*="fontSize:10"],
-  .dark main [style*="font-size: 9px"], .dark main [style*="fontSize:9"] {
+  /* Restore subdued text for items that should be dimmer — exclude buttons
+     so their explicit color:#fff isn't overridden by !important */
+  .dark main :not(button)[style*="font-size: 12px"], .dark main :not(button)[style*="fontSize:12"],
+  .dark main :not(button)[style*="font-size: 11px"], .dark main :not(button)[style*="fontSize:11"],
+  .dark main :not(button)[style*="font-size: 10px"], .dark main :not(button)[style*="fontSize:10"],
+  .dark main :not(button)[style*="font-size: 9px"],  .dark main :not(button)[style*="fontSize:9"] {
     color: #98989d !important;
   }
+  /* Buttons with a colored background always get white text */
+  .dark main button[style*="background"] { color: #fff !important; }
 
   /* Table header row */
   .dark [style*="background"][style*="b8bdd1"] { background: #2c2c2e !important; }
