@@ -1443,10 +1443,12 @@ export async function fetchProfiles() {
 }
 
 export async function upsertProfile({ id, fullName, email, phone, role, hourlyRate, approvedProducts }) {
+  // New members get a fresh UUID — not tied to auth.users
+  const resolvedId = id || crypto.randomUUID();
   const { data, error } = await supabase
     .from('profiles')
     .upsert({
-      id,
+      id: resolvedId,
       full_name: fullName || '',
       email: email || '',
       phone: phone || '',
@@ -1459,4 +1461,12 @@ export async function upsertProfile({ id, fullName, email, phone, role, hourlyRa
     .single();
   check(error, 'upsertProfile');
   return data;
+}
+
+export async function deleteProfile(id) {
+  const { error } = await supabase
+    .from('profiles')
+    .delete()
+    .eq('id', id);
+  check(error, 'deleteProfile');
 }
