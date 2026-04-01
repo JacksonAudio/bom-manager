@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.68";
-const BUILD_TIME   = "2026-03-30T21:52:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.69";
+const BUILD_TIME   = "2026-04-01T12:35:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -4210,6 +4210,7 @@ function BOMManager({ user }) {
     try {
       const allProducts = [];
       const allOrders = [];
+      const orgErrors = [];
       for (const org of zohoOrgs) {
         if (!org.org_id || !org.client_id || !org.client_secret || !org.refresh_token) continue;
         console.log("[Zoho] Syncing", org.name, "org_id:", org.org_id, "client_id:", org.client_id?.slice(0,20), "secret_len:", org.client_secret?.length, "token_len:", org.refresh_token?.length);
@@ -4218,19 +4219,31 @@ function BOMManager({ user }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ org_id: org.org_id, client_id: org.client_id, client_secret: org.client_secret, refresh_token: org.refresh_token }),
         });
-        if (!res.ok) { const e = await res.json().catch(() => ({})); console.warn(`[Zoho] ${org.name} failed:`, e.error); continue; }
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({}));
+          const errMsg = e.error || `HTTP ${res.status}`;
+          const isTokenErr = errMsg.includes("access_token") || res.status === 401;
+          console.warn(`[Zoho] ${org.name} failed:`, errMsg, e.detail || "");
+          orgErrors.push({ org: org.name, error: errMsg, isTokenErr });
+          continue;
+        }
         const data = await res.json();
         // Tag products and orders with the company name
         (data.products || []).forEach(p => { p.companyName = org.name; allProducts.push(p); });
         (data.orders || []).forEach(o => { o.companyName = org.name; allOrders.push(o); });
       }
+      const tokenExpired = orgErrors.length > 0 && orgErrors.every(e => e.isTokenErr);
+      const errorMsg = orgErrors.length === 0 ? null
+        : tokenExpired ? `TOKEN_EXPIRED:${orgErrors.map(e => e.org).join(", ")}`
+        : orgErrors.map(e => `${e.org}: ${e.error}`).join(" | ");
       const zohoResult = {
         products: allProducts,
         orders: allOrders,
         totalOrders: allOrders.length,
         syncedAt: new Date().toISOString(),
         loading: false,
-        error: null,
+        error: errorMsg,
+        orgErrors,
       };
       setZohoDemand(zohoResult);
       saveDemandCache("zoho", "zoho", zohoResult).catch(() => {});
@@ -12040,11 +12053,16 @@ function BOMManager({ user }) {
                 ) : shopifyDemand.error}
               </div>
             )}
-            {zohoDemand?.error && !zohoDemand?.products?.length && !zohoDemand?.loading && (
-              <div style={{ background:"#fff2f0",border:"1px solid #ff3b30",borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:12,color:"#ff3b30" }}>
-                {zohoDemand.error.includes("configured") || zohoDemand.error.includes("credentials") ? (
-                  <>Zoho Books not configured. <button className="btn-ghost" style={{ fontSize:11,marginLeft:8 }}
-                    onClick={() => setActiveView("settings")}>Go to Settings →</button></>
+            {zohoDemand?.error && !zohoDemand?.loading && (
+              <div style={{ background:"#fff2f0",border:"1px solid #ff3b30",borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:13,color:"#cc0000" }}>
+                {zohoDemand.error.startsWith("TOKEN_EXPIRED:") ? (
+                  <div>
+                    <div style={{ fontWeight:700,marginBottom:4 }}>⚠️ Zoho refresh token expired — {zohoDemand.error.replace("TOKEN_EXPIRED:","").trim()}</div>
+                    <div style={{ fontSize:12,color:"#86868b",marginBottom:6 }}>Your Zoho OAuth refresh token is no longer valid. This happens when the token is revoked or the OAuth app credentials change.</div>
+                    <div style={{ fontSize:12,fontWeight:600 }}>To fix: go to <strong>Zoho API Console → Self Client</strong>, generate a new refresh token with scope <code>ZohoBooks.salesorders.READ,ZohoBooks.contacts.READ</code>, then paste it in <button className="btn-ghost" style={{ fontSize:12,padding:"0 4px",display:"inline" }} onClick={() => setActiveView("settings")}>Settings → Zoho</button>.</div>
+                  </div>
+                ) : zohoDemand.error.includes("configured") || zohoDemand.error.includes("credentials") ? (
+                  <>Zoho Books not configured. <button className="btn-ghost" style={{ fontSize:11,marginLeft:8 }} onClick={() => setActiveView("settings")}>Go to Settings →</button></>
                 ) : zohoDemand.error}
               </div>
             )}
@@ -15950,13 +15968,13 @@ function BOMManager({ user }) {
               });
               if (suggestions.length === 0) return null;
               return (
-                <div style={{ background:"#fff8ee",border:"2px solid #ff9500",borderRadius:14,padding:"20px 24px",marginBottom:24 }}>
+                <div style={{ background:darkMode?"#1e1400":"#fff8ee",border:`2px solid ${darkMode?"#b86e00":"#ff9500"}`,borderRadius:14,padding:"20px 24px",marginBottom:24 }}>
                   <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:16 }}>
                     <span style={{ fontSize:20 }}>⚠️</span>
-                    <div style={{ fontSize:16,fontWeight:800,color:"#bf6800",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                    <div style={{ fontSize:16,fontWeight:800,color:darkMode?"#ffb340":"#bf6800",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
                       Restock Needed — {suggestions.length} product{suggestions.length !== 1 ? "s" : ""} at or below minimum
                     </div>
-                    <div style={{ marginLeft:"auto",fontSize:10,color:"#bf6800",fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase" }}>sorted by urgency</div>
+                    <div style={{ marginLeft:"auto",fontSize:10,color:darkMode?"#ffb340":"#bf6800",fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase" }}>sorted by urgency</div>
                   </div>
                   <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14 }}>
                     {suggestions.map(({ prod, qty, min, suggested, unitsSold30d, burnDays, vpd, partsNeeded }) => {
@@ -15965,10 +15983,10 @@ function BOMManager({ user }) {
                       const hasShortfall = top5Parts.some(p => p.shortfall > 0);
                       const rstStatus = restockStatusMap[prod.id];
                       return (
-                      <div key={prod.id} style={{ background:"#fff",borderRadius:10,padding:"16px 18px",border:"1px solid #ffd580",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                      <div key={prod.id} style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:10,padding:"16px 18px",border:darkMode?"1px solid #3a3a3e":"1px solid #ffd580",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                         <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
                           <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#ff9500",flexShrink:0 }} />
-                          <div style={{ fontSize:14,fontWeight:700,color:"#1d1d1f" }}>{prod.name}</div>
+                          <div style={{ fontSize:14,fontWeight:700,color:textPrimary }}>{prod.name}</div>
                           {prod.brand && <div style={{ fontSize:10,color:"#86868b",marginLeft:"auto",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>{prod.brand}</div>}
                         </div>
                         {/* Ordering status banners */}
@@ -16045,17 +16063,17 @@ function BOMManager({ user }) {
                           </div>
                           <div>
                             <span style={{ color:"#86868b" }}>Min threshold: </span>
-                            <span style={{ fontWeight:700 }}>{min} units</span>
+                            <span style={{ fontWeight:700,color:textPrimary }}>{min} units</span>
                           </div>
                           <div style={{ gridColumn:"1/-1" }}>
                             <span style={{ color:"#86868b" }}>Velocity: </span>
-                            <span style={{ fontWeight:600 }}>
+                            <span style={{ fontWeight:600,color:textPrimary }}>
                               {vpd > 0 ? `${vpd.toFixed(2)} units/day avg` : unitsSold30d > 0 ? `~${unitsSold30d} units/30d` : "No sales data"}
                             </span>
                           </div>
                         </div>
-                        <div style={{ background:"#fff8ee",borderRadius:8,padding:"10px 14px",marginBottom:12 }}>
-                          <div style={{ fontSize:13,fontWeight:700,color:"#bf6800" }}>
+                        <div style={{ background:darkMode?"#1e1400":"#fff8ee",borderRadius:8,padding:"10px 14px",marginBottom:12 }}>
+                          <div style={{ fontSize:13,fontWeight:700,color:darkMode?"#ffb340":"#bf6800" }}>
                             Suggested build: <span style={{ fontSize:16 }}>{suggested}</span> units
                           </div>
                           {unitsSold30d > 0 && (
@@ -16079,10 +16097,10 @@ function BOMManager({ user }) {
                                   ? `Parts needed (${top5Parts.filter(p=>p.shortfall>0).length} short)`
                                   : "Parts available ✓"}
                               </summary>
-                              <div style={{ borderRadius:8,overflow:"hidden",border:"1px solid #f0f0f2" }}>
+                              <div style={{ borderRadius:8,overflow:"hidden",border:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2" }}>
                                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
                                   <thead>
-                                    <tr style={{ background:"#f9f9fb",borderBottom:"1px solid #e5e5ea" }}>
+                                    <tr style={{ background:darkMode?"#1c1c1e":"#f9f9fb",borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
                                       <th style={{ textAlign:"left",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Part</th>
                                       <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Have</th>
                                       <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#86868b",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Need</th>
@@ -16091,8 +16109,8 @@ function BOMManager({ user }) {
                                   </thead>
                                   <tbody>
                                     {top5Parts.map((p, i) => (
-                                      <tr key={p.part.id} style={{ borderBottom: i < top5Parts.length-1 ? "1px solid #f0f0f2" : "none" }}>
-                                        <td style={{ padding:"5px 8px",fontWeight:600,color:"#1d1d1f",maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                                      <tr key={p.part.id} style={{ borderBottom: i < top5Parts.length-1 ? `1px solid ${darkMode?"#3a3a3e":"#f0f0f2"}` : "none" }}>
+                                        <td style={{ padding:"5px 8px",fontWeight:600,color:textPrimary,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
                                           {p.part.mpn || p.part.description || p.part.reference || "?"}
                                         </td>
                                         <td style={{ padding:"5px 8px",textAlign:"center",color: p.stock >= p.totalNeeded ? "#34c759" : "#ff3b30",fontWeight:600 }}>{p.stock}</td>
@@ -16123,7 +16141,7 @@ function BOMManager({ user }) {
                             }).sort((a, b) => b.short - a.short);
                             setRestockPreflight({ product: prod, quantity: suggested, bomRows });
                           }}
-                          style={{ width:"100%",padding:"8px 0",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:"#ff9500",color:"#fff",fontFamily:"inherit" }}>
+                          style={{ width:"100%",padding:"8px 0",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:"#ff9500",color:"#3d1f00",fontFamily:"inherit" }}>
                           Check Parts &amp; Create Build →
                         </button>
                       </div>
@@ -16418,17 +16436,17 @@ function BOMManager({ user }) {
                                   style={{ width:64,padding:"5px 8px",borderRadius:7,border:isDirty?"1px solid #0071e3":"1px solid #d2d2d7",fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none",fontFamily:"inherit",textAlign:"center" }} />
                               </td>
                               <td style={{ padding:"10px 14px" }}>
-                                <span style={{ display:"inline-block",padding:"3px 10px",borderRadius:980,fontSize:11,fontWeight:600,background:`${color}18`,color }}>
+                                <span style={{ display:"inline-block",padding:"3px 10px",borderRadius:980,fontSize:11,fontWeight:600,background:darkMode?`${color}35`:`${color}18`,color }}>
                                   {statusLabel}
                                 </span>
                               </td>
                               <td style={{ padding:"8px 14px" }}>
                                 <div style={{ display:"flex",gap:6,alignItems:"center" }}>
                                   <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'add' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
-                                    style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>+ Add</button>
+                                    style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:11,background:"#34c759",color:"#003d12",fontFamily:"inherit" }}>+ Add</button>
                                   <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'remove' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
                                     disabled={qty === 0}
-                                    style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:qty===0?"not-allowed":"pointer",fontWeight:600,fontSize:11,background:"#ff3b30",color:"#fff",fontFamily:"inherit",opacity:qty===0?0.4:1 }}>− Remove</button>
+                                    style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:qty===0?"not-allowed":"pointer",fontWeight:700,fontSize:11,background:"#ff3b30",color:"#fff",fontFamily:"inherit",opacity:qty===0?0.4:1 }}>− Remove</button>
                                 </div>
                               </td>
                             </tr>
