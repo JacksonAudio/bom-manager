@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.89";
-const BUILD_TIME   = "2026-04-01T19:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.90";
+const BUILD_TIME   = "2026-04-01T19:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -1511,8 +1511,9 @@ const CSS = `
   .dark main :not(button)[style*="font-size: 9px"],  .dark main :not(button)[style*="fontSize:9"] {
     color: #98989d !important;
   }
-  /* Buttons with a colored background always get white text */
-  .dark main button[style*="background"] { color: #fff !important; }
+  /* ALL buttons in dark mode get white text — .dark .btn-ghost overrides this
+     for ghost buttons because it has higher specificity (2 classes vs 1 class+1 elem) */
+  .dark main button { color: #fff !important; }
 
   /* Table header row */
   .dark [style*="background"][style*="b8bdd1"] { background: #2c2c2e !important; }
