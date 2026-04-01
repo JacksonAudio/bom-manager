@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.75";
-const BUILD_TIME   = "2026-04-01T14:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.76";
+const BUILD_TIME   = "2026-04-01T15:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -2007,22 +2007,34 @@ function BOMManager({ user }) {
           zohoOrgs = [{ name: "Jackson Audio", org_id: apiKeys.zoho_org_id, client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, refresh_token: apiKeys.zoho_refresh_token }];
         }
         if (!zohoOrgs.length || !zohoOrgs[0]?.org_id) throw new Error("Configure Zoho Books credentials first");
-        const results = [];
+        // Test every org independently — never stop at first failure
+        const orgResults = [];
         for (const org of zohoOrgs) {
-          if (!org.org_id || !org.client_id || !org.client_secret || !org.refresh_token) continue;
-          const r = await fetch(`/api/zoho?action=ping`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ org_id: org.org_id, client_id: org.client_id, client_secret: org.client_secret, refresh_token: org.refresh_token }),
-          });
-          const data = await r.json();
-          if (!r.ok || !data.ok) {
-            const detail = data.detail ? ` (Zoho says: ${data.detail})` : "";
-            throw new Error(`${org.name || org.org_id}: ${data.error || `HTTP ${r.status}`}${detail}`);
+          if (!org.org_id || !org.client_id || !org.client_secret || !org.refresh_token) {
+            orgResults.push({ name: org.name || org.org_id || "Unknown company", ok: false, msg: "Missing credentials" });
+            continue;
           }
-          results.push(org.name || org.org_id);
+          try {
+            const r = await fetch(`/api/zoho?action=ping`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ org_id: org.org_id, client_id: org.client_id, client_secret: org.client_secret, refresh_token: org.refresh_token, region: org.region || "com" }),
+            });
+            const data = await r.json();
+            if (!r.ok || !data.ok) {
+              const detail = data.detail ? ` — ${data.detail}` : "";
+              orgResults.push({ name: org.name || org.org_id, ok: false, msg: `${data.error || `HTTP ${r.status}`}${detail}` });
+            } else {
+              orgResults.push({ name: org.name || org.org_id, ok: true, msg: "Authenticated" });
+            }
+          } catch (e) {
+            orgResults.push({ name: org.name || org.org_id, ok: false, msg: e.message });
+          }
         }
-        if (!results.length) throw new Error("No valid Zoho orgs found");
-        setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Authenticated — ${results.join(", ")}` } }));
+        const allOk = orgResults.every(r => r.ok);
+        setApiTestResult(prev => ({ ...prev, [sectionId]: { status: allOk ? "ok" : "error", orgResults } }));
+        // Only auto-clear if all passed
+        if (allOk) setTimeout(() => setApiTestResult(prev => { const n = { ...prev }; if (n[sectionId]?.status === "ok") delete n[sectionId]; return n; }), 8000);
+        return; // skip the generic setTimeout below
       }
       setTimeout(() => setApiTestResult(prev => { const n = { ...prev }; if (n[sectionId]?.status === "ok") delete n[sectionId]; return n; }), 8000);
     } catch (e) {
@@ -2034,16 +2046,32 @@ function BOMManager({ user }) {
   const testBtn = (sectionId) => {
     const t = apiTestResult[sectionId];
     return (
-      <div style={{ display:"flex",alignItems:"center",gap:8,marginTop:8 }}>
-        <button className="btn-ghost btn-sm" onClick={() => testApiConnection(sectionId)}
-          disabled={t?.status === "testing"}
-          style={{ fontSize:11,padding:"5px 12px",borderRadius:6,border:"1px solid #d1d1d6" }}>
-          {t?.status === "testing" ? "Testing…" : "Test Connection"}
-        </button>
-        {t && t.status !== "testing" && (
-          <span style={{ fontSize:10, color: t.status === "ok" ? "#34c759" : "#ff3b30", fontWeight:500 }}>
-            {t.msg}
-          </span>
+      <div style={{ marginTop:8 }}>
+        <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+          <button className="btn-ghost btn-sm" onClick={() => testApiConnection(sectionId)}
+            disabled={t?.status === "testing"}
+            style={{ fontSize:11,padding:"5px 12px",borderRadius:6,border:"1px solid #d1d1d6" }}>
+            {t?.status === "testing" ? "Testing…" : "Test Connection"}
+          </button>
+          {t && t.status !== "testing" && !t.orgResults && (
+            <span style={{ fontSize:10, color: t.status === "ok" ? "#34c759" : "#ff3b30", fontWeight:500 }}>
+              {t.msg}
+            </span>
+          )}
+        </div>
+        {/* Per-org results for Zoho */}
+        {t?.orgResults && (
+          <div style={{ marginTop:6,display:"flex",flexDirection:"column",gap:3 }}>
+            {t.orgResults.map((r, i) => (
+              <div key={i} style={{ display:"flex",alignItems:"flex-start",gap:6,fontSize:11 }}>
+                <span style={{ color: r.ok ? "#34c759" : "#ff3b30", fontWeight:700, flexShrink:0 }}>
+                  {r.ok ? "✓" : "✗"}
+                </span>
+                <span style={{ fontWeight:600, color:"#1d1d1f", flexShrink:0 }}>{r.name}:</span>
+                <span style={{ color: r.ok ? "#34c759" : "#ff3b30", wordBreak:"break-word" }}>{r.msg}</span>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     );
