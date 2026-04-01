@@ -20,8 +20,19 @@ export default async function handler(req, res) {
     if (!client_id || !client_secret || !grant_code) {
       return res.status(400).json({ error: "Missing client_id, client_secret, or grant_code" });
     }
+    const { region } = params;
+    const ZOHO_ACCOUNTS = {
+      com: "https://accounts.zoho.com",
+      eu:  "https://accounts.zoho.eu",
+      in:  "https://accounts.zoho.in",
+      au:  "https://accounts.zoho.com.au",
+      jp:  "https://accounts.zoho.jp",
+      uk:  "https://accounts.zoho.uk",
+      ca:  "https://accounts.zohocloud.ca",
+    };
+    const accountsBase = ZOHO_ACCOUNTS[region] || ZOHO_ACCOUNTS.com;
     try {
-      const r = await fetch("https://accounts.zoho.com/oauth/v2/token", {
+      const r = await fetch(`${accountsBase}/oauth/v2/token`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: `grant_type=authorization_code&client_id=${encodeURIComponent(client_id)}&client_secret=${encodeURIComponent(client_secret)}&redirect_uri=&code=${encodeURIComponent(grant_code)}`,
@@ -42,7 +53,10 @@ export default async function handler(req, res) {
 
   try {
     // Exchange refresh token for access token (shared by all actions)
-    const tokenRes = await fetch("https://accounts.zoho.com/oauth/v2/token", {
+    const { region } = params;
+    const ZOHO_ACCOUNTS_REFRESH = { com:"https://accounts.zoho.com", eu:"https://accounts.zoho.eu", in:"https://accounts.zoho.in", au:"https://accounts.zoho.com.au", jp:"https://accounts.zoho.jp", uk:"https://accounts.zoho.uk", ca:"https://accounts.zohocloud.ca" };
+    const accountsBase = ZOHO_ACCOUNTS_REFRESH[region] || ZOHO_ACCOUNTS_REFRESH.com;
+    const tokenRes = await fetch(`${accountsBase}/oauth/v2/token`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: `grant_type=refresh_token&client_id=${encodeURIComponent(client_id)}&client_secret=${encodeURIComponent(client_secret)}&refresh_token=${encodeURIComponent(refresh_token)}`,
