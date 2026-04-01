@@ -1634,6 +1634,7 @@ function BOMManager({ user }) {
   const [bulkRenameBrand, setBulkRenameBrand] = useState("all");
   const [bulkRenameFilter, setBulkRenameFilter] = useState("all"); // "all" | "changed" | "unchanged"
   const [selectedProductIds, setSelectedProductIds] = useState(new Set());
+  const [settingsTab, setSettingsTab] = useState("suppliers");
   const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","lcsc","shopify","zoho","shipstation","shipping","tariffs","email","ai","sms","facebook","admin_access","guide","gmail"]));
   const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
@@ -18888,16 +18889,43 @@ function BOMManager({ user }) {
         {activeView === "settings" && (
           <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:6,color:"#1d1d1f" }}>Settings</h2>
-            <p style={{ color:"#86868b",fontSize:13,marginBottom:24 }}>
+            <p style={{ color:"#86868b",fontSize:13,marginBottom:16 }}>
               Keys are stored in the shared team database — one set for everyone.
             </p>
+            {/* ── Settings Tab Bar ── */}
+            {(() => {
+              const STABS = [
+                { id:"suppliers",     label:"Suppliers",     icon:"🔌" },
+                { id:"integrations",  label:"Integrations",  icon:"🔗" },
+                { id:"operations",    label:"Operations",    icon:"📦" },
+                { id:"notifications", label:"Notifications", icon:"🔔" },
+                { id:"admin",         label:"Admin",         icon:"🔑" },
+              ];
+              return (
+                <div style={{ display:"flex",gap:6,marginBottom:24,flexWrap:"wrap" }}>
+                  {STABS.map(t => (
+                    <button key={t.id}
+                      onClick={() => setSettingsTab(t.id)}
+                      style={{
+                        padding:"8px 18px", borderRadius:980, border:"none", cursor:"pointer",
+                        fontSize:13, fontWeight:600, fontFamily:"inherit",
+                        background: settingsTab === t.id ? "#3a3f51" : (darkMode ? "#2c2c2e" : "#f0f0f5"),
+                        color: settingsTab === t.id ? "#fff" : (darkMode ? "#aeaeb2" : "#3a3f51"),
+                        transition:"all 0.15s",
+                      }}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* ── Company Info (Ship-To for POs) */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+            {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("company") ? s.delete("company") : s.add("company"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("company") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("company") ? "▶" : "▼"}</span>
                   Company Info — Ship-To Address
                 </div>
               </div>
@@ -18949,10 +18977,10 @@ function BOMManager({ user }) {
                 </div>
                 {sectionSaveBtn("company", "Company Info")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── Distributors — names + emails */}
-            {(() => {
+            {settingsTab === "suppliers" && (() => {
               // Collect all unique distributor keys from pricing data
               const distMap = {};
               for (const p of parts) {
@@ -18979,10 +19007,10 @@ function BOMManager({ user }) {
               try { preferredDists = JSON.parse(apiKeys.preferred_distributors || '["mouser"]'); } catch { preferredDists = ["mouser"]; }
               return (
                 <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-                  <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                  <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                     onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("distributors") ? s.delete("distributors") : s.add("distributors"); return s; })}>
-                    <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                      <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("distributors") ? "▶" : "▼"}</span>
+                    <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                      <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("distributors") ? "▶" : "▼"}</span>
                       Distributors ({distKeys.length})
                     </div>
                   </div>
@@ -19065,11 +19093,11 @@ function BOMManager({ user }) {
             })()}
 
             {/* ── Nexar / Octopart — PRIMARY */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background: nexarToken ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+            {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("nexar") ? s.delete("nexar") : s.add("nexar"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: nexarToken ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("nexar") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("nexar") ? "▶" : "▼"}</span>
                   Nexar / Octopart — Primary {nexarToken ? "✓" : ""}
                 </div>
               </div>
@@ -19094,14 +19122,14 @@ function BOMManager({ user }) {
                 {sectionSaveBtn("nexar", "Nexar Keys")}
                 {testBtn("nexar")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── Mouser Direct */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background: apiKeys.mouser_api_key ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+            {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("mouser") ? s.delete("mouser") : s.add("mouser"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: apiKeys.mouser_api_key ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("mouser") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("mouser") ? "▶" : "▼"}</span>
                   Mouser Direct {apiKeys.mouser_api_key ? "✓" : ""}
                 </div>
               </div>
@@ -19126,14 +19154,14 @@ function BOMManager({ user }) {
                 {sectionSaveBtn("mouser", "Mouser Keys")}
                 {testBtn("mouser")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── DigiKey Direct */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background: dkToken ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+            {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("digikey") ? s.delete("digikey") : s.add("digikey"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: dkToken ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("digikey") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("digikey") ? "▶" : "▼"}</span>
                   Digi-Key Direct {dkToken ? "✓" : ""}
                 </div>
               </div>
@@ -19158,14 +19186,14 @@ function BOMManager({ user }) {
                 {sectionSaveBtn("digikey", "DigiKey Keys")}
                 {testBtn("digikey")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── Arrow Direct */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background: (apiKeys.arrow_api_key && apiKeys.arrow_login) ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+            {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("arrow") ? s.delete("arrow") : s.add("arrow"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: (apiKeys.arrow_api_key && apiKeys.arrow_login) ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("arrow") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("arrow") ? "▶" : "▼"}</span>
                   Arrow Direct {(apiKeys.arrow_api_key && apiKeys.arrow_login) ? "✓" : ""}
                 </div>
               </div>
@@ -19190,14 +19218,14 @@ function BOMManager({ user }) {
                 {sectionSaveBtn("arrow", "Arrow Keys")}
                 {testBtn("arrow")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── Texas Instruments Direct */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background: (apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+            {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("ti") ? s.delete("ti") : s.add("ti"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: (apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("ti") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("ti") ? "▶" : "▼"}</span>
                   Texas Instruments Direct {(apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "✓" : ""}
                 </div>
               </div>
@@ -19222,14 +19250,14 @@ function BOMManager({ user }) {
                 {sectionSaveBtn("ti", "TI Key")}
                 {testBtn("ti")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── LCSC Electronics Direct */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background: (apiKeys.lcsc_api_key && apiKeys.lcsc_api_secret) ? "#0a8f4c" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+            {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("lcsc") ? s.delete("lcsc") : s.add("lcsc"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:(apiKeys.lcsc_api_key && apiKeys.lcsc_api_secret)?"#fff":"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("lcsc") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("lcsc") ? "▶" : "▼"}</span>
                   LCSC Electronics Direct {(apiKeys.lcsc_api_key && apiKeys.lcsc_api_secret) ? "✓" : ""}
                 </div>
               </div>
@@ -19254,14 +19282,14 @@ function BOMManager({ user }) {
                 {sectionSaveBtn("lcsc", "LCSC Key")}
                 {testBtn("lcsc")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── McMaster-Carr Direct API */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#c8181e",padding:"14px 20px",cursor:"pointer" }}
+            {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("mcmaster") ? s.delete("mcmaster") : s.add("mcmaster"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("mcmaster") ? "▶" : "▼"}</span>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("mcmaster") ? "▶" : "▼"}</span>
                   McMaster-Carr Direct API
                 </div>
               </div>
@@ -19280,14 +19308,14 @@ function BOMManager({ user }) {
                 </div>
                 {testBtn("mcmaster")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── Shopify Integration (Multi-Store) */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#96bf48",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+            {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shopify") ? s.delete("shopify") : s.add("shopify"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("shopify") ? "▶" : "▼"}</span>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("shopify") ? "▶" : "▼"}</span>
                   Shopify Stores
                 </div>
                 {(() => { const s = getShopifyStores(); return s.length > 0 ? <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>{s.length} store{s.length !== 1 ? "s" : ""}</span> : null; })()}
@@ -19346,14 +19374,14 @@ function BOMManager({ user }) {
                 {sectionSaveBtn("shopify", "Shopify Stores")}
                 {testBtn("shopify")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── Zoho Books */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#4bc076",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+            {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("zoho") ? s.delete("zoho") : s.add("zoho"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("zoho") ? "▶" : "▼"}</span>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("zoho") ? "▶" : "▼"}</span>
                   Zoho Books
                 </div>
                 {apiKeys.zoho_client_id && apiKeys.zoho_refresh_token && <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>Configured</span>}
@@ -19480,14 +19508,14 @@ function BOMManager({ user }) {
                 {sectionSaveBtn("zoho", "Zoho Books")}
                 {testBtn("zoho")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── Gmail Support Inbox */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#ea4335",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+            {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("gmail") ? s.delete("gmail") : s.add("gmail"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("gmail") ? "▶" : "▼"}</span>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("gmail") ? "▶" : "▼"}</span>
                   Gmail — Support Inbox
                 </div>
                 {apiKeys.gmail_refresh_token && <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>Configured</span>}
@@ -19523,14 +19551,14 @@ function BOMManager({ user }) {
                 </div>
                 {sectionSaveBtn("gmail", "Gmail")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── Shipping Costs */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+            {settingsTab === "operations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shipping") ? s.delete("shipping") : s.add("shipping"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("shipping") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("shipping") ? "▶" : "▼"}</span>
                   Shipping Costs
                 </div>
               </div>
@@ -19561,14 +19589,14 @@ function BOMManager({ user }) {
                 </div>
                 {sectionSaveBtn("shipping", "Shipping Costs")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── ShipStation */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background: (shipstationData?.syncedAt && !shipstationData?.error) ? "#2e7d32" : "#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+            {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shipstation") ? s.delete("shipstation") : s.add("shipstation"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color: (shipstationData?.syncedAt && !shipstationData?.error) ? "#fff" : "#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("shipstation") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("shipstation") ? "▶" : "▼"}</span>
                   ShipStation (Fulfillment) {(shipstationData?.syncedAt && !shipstationData?.error) ? "✓" : ""}
                 </div>
               </div>
@@ -19624,14 +19652,14 @@ function BOMManager({ user }) {
                   )}
                 </div>
               </div>}
-            </div>
+            </div>}
 
             {/* ── Import Tariff Rates */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+            {settingsTab === "operations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("tariffs") ? s.delete("tariffs") : s.add("tariffs"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("tariffs") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("tariffs") ? "▶" : "▼"}</span>
                   Import Tariff Rates
                 </div>
               </div>
@@ -19677,14 +19705,14 @@ function BOMManager({ user }) {
               </div>
               {sectionSaveBtn("tariffs", "Tariff Rates")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── Notifications & Email */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+            {settingsTab === "notifications" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("email") ? s.delete("email") : s.add("email"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("email") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("email") ? "▶" : "▼"}</span>
                   Email Notifications & PO Drafts
                 </div>
               </div>
@@ -19727,15 +19755,15 @@ function BOMManager({ user }) {
                   </div>
                 )}
               </div>}
-            </div>
+            </div>}
 
 
             {/* ── AI / Anthropic API */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+            {settingsTab === "notifications" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("ai") ? s.delete("ai") : s.add("ai"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("ai") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("ai") ? "▶" : "▼"}</span>
                   AI — Invoice Parsing (Claude)
                 </div>
               </div>
@@ -19750,14 +19778,14 @@ function BOMManager({ user }) {
                 </div>
                 {sectionSaveBtn("ai", "AI Settings")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── SMS — Builder Notifications */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+            {settingsTab === "notifications" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("sms") ? s.delete("sms") : s.add("sms"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("sms") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("sms") ? "▶" : "▼"}</span>
                   SMS — Builder Notifications
                 </div>
               </div>
@@ -19871,11 +19899,11 @@ function BOMManager({ user }) {
                   </div>
                 )}
               </div>}
-            </div>
+            </div>}
 
             {/* ── Play Test Failure Alerts */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#ff3b30",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+            {settingsTab === "notifications" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("playtest") ? s.delete("playtest") : s.add("playtest"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("playtest") ? "▶" : "▼"}</span>
@@ -19896,11 +19924,11 @@ function BOMManager({ user }) {
                 </div>
                 {sectionSaveBtn("playtest", "Alert Settings")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── Klaviyo (Email Marketing) */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#1a1a2e",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+            {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("klaviyo") ? s.delete("klaviyo") : s.add("klaviyo"); return s; })}>
                 <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("klaviyo") ? "▶" : "▼"}</span>
@@ -19922,14 +19950,14 @@ function BOMManager({ user }) {
                 </div>
                 {sectionSaveBtn("klaviyo", "Klaviyo Settings")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── Facebook Ads */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+            {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("facebook") ? s.delete("facebook") : s.add("facebook"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("facebook") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("facebook") ? "▶" : "▼"}</span>
                   Facebook / Meta — Ad Spend Tracking
                 </div>
               </div>
@@ -19959,14 +19987,14 @@ function BOMManager({ user }) {
                 </div>
                 {sectionSaveBtn("facebook", "Facebook Settings")}
               </div>}
-            </div>
+            </div>}
 
             {/* ── Shipping Boxes Config ── */}
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
-              <div style={{ background:darkMode?"#2c2c2e":"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+            {settingsTab === "operations" && <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shipping_boxes") ? s.delete("shipping_boxes") : s.add("shipping_boxes"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:darkMode?"#f5f5f7":"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:darkMode?"#f5f5f7":"#3a3f51" }}>{collapsedSettings.has("shipping_boxes") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("shipping_boxes") ? "▶" : "▼"}</span>
                   Shipping Boxes — Sizes & Dimensions
                 </div>
                 <span style={{ fontSize:11,color:"#86868b" }}>{shippingBoxesConfig.length} box{shippingBoxesConfig.length !== 1 ? "es" : ""}</span>
@@ -20050,14 +20078,14 @@ function BOMManager({ user }) {
                   </button>
                 )}
               </div>}
-            </div>
+            </div>}
 
             {/* Admin Access */}
-            {isAdmin && <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
-              <div style={{ background:darkMode?"#2c2c2e":"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+            {settingsTab === "admin" && isAdmin && <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("admin_access") ? s.delete("admin_access") : s.add("admin_access"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:darkMode?"#f5f5f7":"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:darkMode?"#f5f5f7":"#3a3f51" }}>{collapsedSettings.has("admin_access") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("admin_access") ? "▶" : "▼"}</span>
                   Admin Access
                 </div>
               </div>
@@ -20072,11 +20100,11 @@ function BOMManager({ user }) {
             </div>}
 
             {/* Key acquisition guide */}
-            <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden" }}>
-              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
+            {settingsTab === "admin" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden" }}>
+              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("guide") ? s.delete("guide") : s.add("guide"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("guide") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("guide") ? "▶" : "▼"}</span>
                   How to Get Your API Keys
                 </div>
               </div>
@@ -20097,7 +20125,7 @@ function BOMManager({ user }) {
                   </div>
                 ))}
               </div>}
-            </div>
+            </div>}
           </div>
         )}
 
