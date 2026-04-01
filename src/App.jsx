@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.86";
-const BUILD_TIME   = "2026-04-01T18:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.87";
+const BUILD_TIME   = "2026-04-01T18:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -1510,17 +1510,18 @@ const CSS = `
   .dark main [style*="font-size: 9px"], .dark main [style*="fontSize:9"] {
     color: #98989d !important;
   }
-  /* Keep colored elements their original colors */
-  .dark main [style*="color: rgb(0, 113, 227)"],
-  .dark main [style*="color:#0071e3"] { color: #64d2ff !important; }
-  .dark main [style*="color: rgb(255, 59, 48)"],
-  .dark main [style*="color:#ff3b30"] { color: #ff453a !important; }
-  .dark main [style*="color: rgb(52, 199, 89)"],
-  .dark main [style*="color:#34c759"] { color: #30d158 !important; }
-  .dark main [style*="color: rgb(255, 149, 0)"],
-  .dark main [style*="color:#ff9500"] { color: #ff9f0a !important; }
-  .dark main [style*="color: rgb(88, 86, 214)"],
-  .dark main [style*="color:#5856d6"] { color: #bf5af2 !important; }
+  /* Keep colored text elements their original colors — :not(button) prevents
+     background-color substring from falsely matching and overriding button text */
+  .dark main :not(button)[style*="color: rgb(0, 113, 227)"],
+  .dark main :not(button)[style*="color:#0071e3"] { color: #64d2ff !important; }
+  .dark main :not(button)[style*="color: rgb(255, 59, 48)"],
+  .dark main :not(button)[style*="color:#ff3b30"] { color: #ff453a !important; }
+  .dark main :not(button)[style*="color: rgb(52, 199, 89)"],
+  .dark main :not(button)[style*="color:#34c759"] { color: #30d158 !important; }
+  .dark main :not(button)[style*="color: rgb(255, 149, 0)"],
+  .dark main :not(button)[style*="color:#ff9500"] { color: #ff9f0a !important; }
+  .dark main :not(button)[style*="color: rgb(88, 86, 214)"],
+  .dark main :not(button)[style*="color:#5856d6"] { color: #bf5af2 !important; }
 
   /* Table header row */
   .dark [style*="background"][style*="b8bdd1"] { background: #2c2c2e !important; }
