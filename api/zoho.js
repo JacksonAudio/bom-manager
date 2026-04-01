@@ -45,6 +45,8 @@ export default async function handler(req, res) {
     }
 
     switch (action) {
+      case "ping":
+        return res.status(200).json({ ok: true, msg: `Authenticated — org ${org_id}`, org_id });
       case "orders":
         return await handleOrders(req, res, org_id, access_token);
       case "history":

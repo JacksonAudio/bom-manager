@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.70";
-const BUILD_TIME   = "2026-04-01T13:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.71";
+const BUILD_TIME   = "2026-04-01T13:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -1907,6 +1907,9 @@ function BOMManager({ user }) {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   };
 
+  // APIs that support a live connection test
+  const TESTABLE_SECTIONS = new Set(["nexar","mouser","digikey","arrow","ti","lcsc","shopify","zoho","mcmaster"]);
+
   // Settings per-section save button helper
   const sectionSaveBtn = (sectionId, label) => (
     <div style={{ marginTop:14,display:"flex",alignItems:"center",gap:10 }}>
@@ -1919,12 +1922,14 @@ function BOMManager({ user }) {
             authenticateAPIs();
             setSettingsSaved(sectionId);
             setTimeout(() => setSettingsSaved(s => s === sectionId ? "" : s), 3000);
+            // Auto-run connection test for testable sections
+            if (TESTABLE_SECTIONS.has(sectionId)) testApiConnection(sectionId);
           } catch (e) { console.error("Save failed:", e); alert("Save failed: " + e.message); }
           finally { setSettingsSaving(""); }
         }}>
         {settingsSaving === sectionId ? "Saving…" : `Save ${label}`}
       </button>
-      {settingsSaved === sectionId && <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>Saved</span>}
+      {settingsSaved === sectionId && <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>✓ Saved</span>}
     </div>
   );
 
@@ -1977,6 +1982,38 @@ function BOMManager({ user }) {
         const data = await r.json();
         if (data.error) throw new Error(data.error);
         setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Connected — $${data.unitPrice?.toFixed(4) || "?"}/ea, ${data.stock || 0} in stock` } }));
+      } else if (sectionId === "shopify") {
+        let stores = [];
+        try { stores = JSON.parse(apiKeys.shopify_stores_json || "[]"); } catch {}
+        if (!stores.length || !stores[0]?.domain) throw new Error("Configure at least one Shopify store first");
+        const store = stores[0];
+        if (!store.clientId || !store.clientSecret) throw new Error(`${store.name || "Store"}: missing Client ID or Secret`);
+        const q = `domain=${encodeURIComponent(store.domain)}&client_id=${encodeURIComponent(store.clientId)}&client_secret=${encodeURIComponent(store.clientSecret)}`;
+        const r = await fetch(`/api/shopify?action=ping&${q}`);
+        const data = await r.json();
+        if (!r.ok || !data.ok) throw new Error(data.error || `Shopify returned ${r.status}`);
+        const storeLabel = stores.length > 1 ? `${stores.length} stores` : (data.shop || store.name || store.domain);
+        setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Connected — ${storeLabel}` } }));
+      } else if (sectionId === "zoho") {
+        let zohoOrgs = [];
+        try { zohoOrgs = JSON.parse(apiKeys.zoho_books_json || "[]"); } catch {}
+        if (apiKeys.zoho_org_id && apiKeys.zoho_refresh_token && (!zohoOrgs.length || !zohoOrgs.some(o => o.refresh_token?.length > 50))) {
+          zohoOrgs = [{ name: "Jackson Audio", org_id: apiKeys.zoho_org_id, client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, refresh_token: apiKeys.zoho_refresh_token }];
+        }
+        if (!zohoOrgs.length || !zohoOrgs[0]?.org_id) throw new Error("Configure Zoho Books credentials first");
+        const results = [];
+        for (const org of zohoOrgs) {
+          if (!org.org_id || !org.client_id || !org.client_secret || !org.refresh_token) continue;
+          const r = await fetch(`/api/zoho?action=ping`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ org_id: org.org_id, client_id: org.client_id, client_secret: org.client_secret, refresh_token: org.refresh_token }),
+          });
+          const data = await r.json();
+          if (!r.ok || !data.ok) throw new Error(`${org.name || org.org_id}: ${data.error || `HTTP ${r.status}`}`);
+          results.push(org.name || org.org_id);
+        }
+        if (!results.length) throw new Error("No valid Zoho orgs found");
+        setApiTestResult(prev => ({ ...prev, [sectionId]: { status: "ok", msg: `Authenticated — ${results.join(", ")}` } }));
       }
       setTimeout(() => setApiTestResult(prev => { const n = { ...prev }; if (n[sectionId]?.status === "ok") delete n[sectionId]; return n; }), 8000);
     } catch (e) {
@@ -7492,8 +7529,8 @@ function BOMManager({ user }) {
                         />
                       </th>
                       {[
-                        {label:"MPN",field:"mpn",w:"18%"},{label:"Value",field:"value",w:"10%"},{label:"Voltage",field:"voltage_rating",w:"6%"},{label:"Package",field:"footprint",w:"6%"},{label:"Description",field:"description",w:"43%"},
-                        {label:"Manufacturer",field:"manufacturer",w:"15%"}
+                        {label:"MPN",field:"mpn",w:"18%"},{label:"Value",field:"value",w:"10%"},{label:"Voltage",field:"voltage_rating",w:"6%"},{label:"Package",field:"footprint",w:"6%"},{label:"Description",field:"description",w:"37%"},
+                        {label:"Manufacturer",field:"manufacturer",w:"14%"},{label:"Added",field:"createdAt",w:"7%"}
                       ].map((h,hi,arr)=>(
                         <th key={hi} onClick={h.field ? ()=>setPartSort(prev=>({field:h.field,asc:prev.field===h.field?!prev.asc:true})) : undefined}
                           style={{ textAlign:"left",padding:"12px 14px",
@@ -7579,9 +7616,12 @@ function BOMManager({ user }) {
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,width:"100%",color:"#86868b" }} placeholder="" />
                           </td>
+                          <td style={{ padding:"6px 8px",whiteSpace:"nowrap",fontSize:11,color:"#86868b",textAlign:"center" }}>
+                            {part.createdAt ? new Date(part.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"2-digit"}) : "—"}
+                          </td>
                         </tr>
                         {expandedPartRow === part.id && <tr>
-                            <td colSpan={8} style={{ padding:"12px 20px",background:darkMode?"#1c1c1e":"#f9f9fb",borderBottom:"2px solid #0071e3" }}>
+                            <td colSpan={9} style={{ padding:"12px 20px",background:darkMode?"#1c1c1e":"#f9f9fb",borderBottom:"2px solid #0071e3" }}>
                               <div style={{ display:"flex",gap:8,marginBottom:12 }}>
                                 <button onClick={(e)=>{e.stopPropagation();setQrModalParts([part]);}}
                                   style={{ padding:"5px 14px",borderRadius:980,fontSize:12,fontWeight:600,border:"1px solid #d2d2d7",background:"#f5f5f7",cursor:"pointer",color:"#1d1d1f" }}
@@ -18261,7 +18301,6 @@ function BOMManager({ user }) {
                           <th style={thStyle}>Phone</th>
                           <th style={thStyle}>Location</th>
                           <th style={thStyle}>Brand</th>
-                          <th style={{ ...thStyle, width:56 }}></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -18273,7 +18312,7 @@ function BOMManager({ user }) {
                           const toggleBrand = () => setCollapsedBrands(prev => { const s = new Set(prev); s.has(brand) ? s.delete(brand) : s.add(brand); return s; });
                           const sectionRow = (
                             <tr key={"section-"+brand} style={{ background:darkMode?"#2a2a2e":"#dde0e8", cursor:"pointer", userSelect:"none" }} onClick={toggleBrand}>
-                              <td colSpan={7} style={{ padding:"6px 14px", borderBottom:`1px solid ${darkMode?"#3a3a3e":"#c8ccd6"}`, borderTop: brand==="Fulltone USA"?`1px solid ${darkMode?"#3a3a3e":"#c8ccd6"}`:"none" }}>
+                              <td colSpan={6} style={{ padding:"6px 14px", borderBottom:`1px solid ${darkMode?"#3a3a3e":"#c8ccd6"}`, borderTop: brand==="Fulltone USA"?`1px solid ${darkMode?"#3a3a3e":"#c8ccd6"}`:"none" }}>
                                 <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:11, fontWeight:700, color:darkMode?textPrimary:"#3a3f51", fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", letterSpacing:"0.02em" }}>
                                   <span style={{ fontSize:9, color:darkMode?textSecondary:"#5a6070", transform:isCollapsed?"rotate(-90deg)":"rotate(0deg)", transition:"transform 0.15s", display:"inline-block" }}>▼</span>
                                   <span style={{ width:7, height:7, borderRadius:"50%", background:color, display:"inline-block" }} />
@@ -18296,19 +18335,11 @@ function BOMManager({ user }) {
                                 <td style={{ ...tdStyle, color:textSecondary }}>{d.phone || "—"}</td>
                                 <td style={{ ...tdStyle, color:textSecondary }}>{fmtAddr(d.shipping_address || d.billing_address)}</td>
                                 <td style={{ ...tdStyle }}><span style={{ fontSize:10, fontWeight:700, padding:"1px 7px", borderRadius:10, background:(brandColor[d.brand]||"#8e8e93")+"22", color:brandColor[d.brand]||textSecondary }}>{d.brand==="Both"?"Both":d.brand==="Fulltone USA"?"FT":"JA"}</span></td>
-                                <td style={{ ...tdStyle, textAlign:"right", whiteSpace:"nowrap" }} onClick={e=>e.stopPropagation()}>
-                                  <button onClick={() => setDealerForm(isEditing ? null : { ...d, billing_address:d.billing_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"}, shipping_address:d.shipping_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"} })}
-                                    title="Edit" style={{ background:"none", border:"none", cursor:"pointer", color: isEditing?"#0071e3":"#c7c7cc", fontSize:13, padding:"2px 4px", borderRadius:4 }}
-                                    onMouseOver={e=>e.target.style.color="#0071e3"} onMouseOut={e=>e.target.style.color=isEditing?"#0071e3":"#c7c7cc"}>✎</button>
-                                  {isAdmin && <button onClick={() => removeDealer(d.id)} title="Delete"
-                                    style={{ background:"none", border:"none", cursor:"pointer", color:"#c7c7cc", fontSize:14, padding:"2px 4px", borderRadius:4 }}
-                                    onMouseOver={e=>e.target.style.color="#ff3b30"} onMouseOut={e=>e.target.style.color="#c7c7cc"}>✕</button>}
-                                </td>
                               </tr>
                             );
                             const expandedRow = (isExpanded || isEditing) ? (
                               <tr key={d.id+brand+"-exp"}>
-                                <td colSpan={7} style={{ padding:"14px 20px", background:darkMode?"#1c1c1e":"#f9f9fb", borderBottom: isEditing?"2px solid #0071e3":`1px solid ${borderColor}` }}>
+                                <td colSpan={6} style={{ padding:"14px 20px", background:darkMode?"#1c1c1e":"#f9f9fb", borderBottom: isEditing?"2px solid #0071e3":`1px solid ${borderColor}` }}>
                                   {isEditing ? (
                                     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                                       <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 2fr", gap:10 }}>
@@ -18373,6 +18404,20 @@ function BOMManager({ user }) {
                                         ) : <div style={{ color:textSecondary }}>Same as ship-to</div>}
                                         {d.zoho_customer_name && <div style={{ marginTop:8, color:textSecondary }}>Zoho: <strong style={{ color:textPrimary }}>{d.zoho_customer_name}</strong></div>}
                                       </div>
+                                    </div>
+                                  )}
+                                  {!isEditing && (
+                                    <div style={{ display:"flex", gap:8, marginTop:14, paddingTop:12, borderTop:`1px solid ${darkMode?"#3a3a3e":"#e5e5ea"}` }}>
+                                      <button onClick={e => { e.stopPropagation(); setDealerForm({ ...d, billing_address:d.billing_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"}, shipping_address:d.shipping_address||{attention:"",street:"",city:"",state:"",zip:"",country:"US"} }); }}
+                                        style={{ padding:"6px 16px", borderRadius:980, border:"1px solid #d2d2d7", background:"transparent", color:textPrimary, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
+                                        Edit Dealer
+                                      </button>
+                                      {isAdmin && (
+                                        <button onClick={e => { e.stopPropagation(); removeDealer(d.id); }}
+                                          style={{ padding:"6px 16px", borderRadius:980, border:"none", background:"#ff3b30", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
+                                          Delete
+                                        </button>
+                                      )}
                                     </div>
                                   )}
                                 </td>
@@ -19114,6 +19159,7 @@ function BOMManager({ user }) {
                   );
                 })()}
                 {sectionSaveBtn("shopify", "Shopify Stores")}
+                {testBtn("shopify")}
               </div>}
             </div>
 
@@ -19189,6 +19235,7 @@ function BOMManager({ user }) {
                   );
                 })()}
                 {sectionSaveBtn("zoho", "Zoho Books")}
+                {testBtn("zoho")}
               </div>}
             </div>
 

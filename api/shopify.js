@@ -60,6 +60,14 @@ export default async function handler(req, res) {
     const { access_token } = await tokenRes.json();
 
     switch (action) {
+      case "ping": {
+        const shopRes = await fetch(`https://${domain}/admin/api/2024-01/shop.json`, {
+          headers: { "X-Shopify-Access-Token": access_token },
+        });
+        if (!shopRes.ok) return res.status(shopRes.status).json({ error: `Shopify shop fetch failed: ${shopRes.status}` });
+        const shopData = await shopRes.json();
+        return res.status(200).json({ ok: true, msg: `Connected — ${shopData.shop?.name || domain}`, shop: shopData.shop?.name, domain });
+      }
       case "orders":
         return await handleOrders(req, res, domain, access_token);
       case "products":
