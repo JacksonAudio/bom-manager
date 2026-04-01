@@ -35,7 +35,7 @@ export default async function handler(req, res) {
       const r = await fetch(`${accountsBase}/oauth/v2/token`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `grant_type=authorization_code&client_id=${encodeURIComponent(client_id)}&client_secret=${encodeURIComponent(client_secret)}&redirect_uri=&code=${encodeURIComponent(grant_code)}`,
+        body: `grant_type=authorization_code&client_id=${encodeURIComponent(client_id)}&client_secret=${encodeURIComponent(client_secret)}&code=${encodeURIComponent(grant_code)}`,
       });
       const data = await r.json();
       console.log("[zoho exchange] response:", JSON.stringify(data).slice(0, 300));

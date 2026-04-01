@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.77";
-const BUILD_TIME   = "2026-04-01T15:20:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.78";
+const BUILD_TIME   = "2026-04-01T15:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -4333,12 +4333,12 @@ function BOMManager({ user }) {
     if (zohoOrgs.length === 0 && apiKeys.zoho_org_id) {
       zohoOrgs = [{ name: "Jackson Audio", org_id: apiKeys.zoho_org_id }];
     }
-    // Inject shared credentials into each org
+    // Shared credentials always win — overwrite any stale per-org tokens from old format
     zohoOrgs = zohoOrgs.map(o => ({
       ...o,
-      client_id:     o.client_id     || sharedClientId,
-      client_secret: o.client_secret || sharedClientSecret,
-      refresh_token: o.refresh_token || sharedRefreshToken,
+      client_id:     sharedClientId     || o.client_id     || "",
+      client_secret: sharedClientSecret || o.client_secret || "",
+      refresh_token: sharedRefreshToken || o.refresh_token || "",
     }));
     if (zohoOrgs.length === 0 || !zohoOrgs.some(o => o.org_id && o.refresh_token)) {
       setZohoDemand({ loading: false, error: "Zoho Books credentials not configured. Add them in Settings." });
