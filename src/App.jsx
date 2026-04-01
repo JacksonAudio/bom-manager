@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.80";
-const BUILD_TIME   = "2026-04-01T15:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.81";
+const BUILD_TIME   = "2026-04-01T15:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -1635,7 +1635,7 @@ function BOMManager({ user }) {
   const [bulkRenameFilter, setBulkRenameFilter] = useState("all"); // "all" | "changed" | "unchanged"
   const [selectedProductIds, setSelectedProductIds] = useState(new Set());
   const [settingsTab, setSettingsTab] = useState("suppliers");
-  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","lcsc","shopify","zoho","shipstation","shipping","tariffs","email","ai","sms","facebook","admin_access","guide","gmail"]));
+  const [collapsedSettings, setCollapsedSettings] = useState(new Set(["company","distributors","nexar","mouser","digikey","arrow","ti","lcsc","shopify","zoho","shipstation","shipping","tariffs","notifications","email","ai","sms","playtest","klaviyo","facebook","admin_access","guide","gmail"]));
   const [buildQueue, setBuildQueue] = useState([]);
   const [buildQtyInputs, setBuildQtyInputs] = useState({}); // { [productId]: "50" } — temp input values
   const [apiKeys,     setApiKeys]     = useState(DEFAULT_KEYS);
@@ -18893,39 +18893,47 @@ function BOMManager({ user }) {
               Keys are stored in the shared team database — one set for everyone.
             </p>
             {/* ── Settings Tab Bar ── */}
-            {(() => {
-              const STABS = [
-                { id:"suppliers",     label:"Suppliers",     icon:"🔌" },
-                { id:"integrations",  label:"Integrations",  icon:"🔗" },
-                { id:"operations",    label:"Operations",    icon:"📦" },
-                { id:"notifications", label:"Notifications", icon:"🔔" },
-                { id:"admin",         label:"Admin",         icon:"🔑" },
-              ];
-              return (
-                <div style={{ display:"flex",gap:6,marginBottom:24,flexWrap:"wrap" }}>
-                  {STABS.map(t => (
-                    <button key={t.id}
-                      onClick={() => setSettingsTab(t.id)}
-                      style={{
-                        padding:"8px 18px", borderRadius:980, border:"none", cursor:"pointer",
-                        fontSize:13, fontWeight:600, fontFamily:"inherit",
-                        background: settingsTab === t.id ? "#3a3f51" : (darkMode ? "#2c2c2e" : "#f0f0f5"),
-                        color: settingsTab === t.id ? "#fff" : (darkMode ? "#aeaeb2" : "#3a3f51"),
-                        transition:"all 0.15s",
-                      }}>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
+            <div style={{ display:"flex", borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea"), marginBottom:20 }}>
+              {[
+                { id:"suppliers",     label:"Suppliers"     },
+                { id:"integrations",  label:"Integrations"  },
+                { id:"operations",    label:"Operations"    },
+                { id:"notifications", label:"Notifications" },
+                { id:"team",          label:"Team"          },
+                { id:"admin",         label:"Admin"         },
+              ].map((t, i, arr) => {
+                const active = settingsTab === t.id;
+                return (
+                  <button key={t.id}
+                    onClick={() => setSettingsTab(t.id)}
+                    style={{
+                      background: active ? (darkMode?"rgba(100,210,255,0.08)":"rgba(0,113,227,0.06)") : "none",
+                      border: "none",
+                      borderRight: i < arr.length-1 ? "1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") : "none",
+                      borderBottom: active ? ("2px solid "+(darkMode?"#64d2ff":"#0071e3")) : "2px solid transparent",
+                      marginBottom: -2,
+                      cursor: "pointer",
+                      padding: "0 18px",
+                      height: 36,
+                      fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                      fontSize: 12,
+                      fontWeight: active ? 700 : 500,
+                      color: active ? (darkMode?"#64d2ff":"#0071e3") : (darkMode?"#98989d":"#86868b"),
+                      transition: "all 0.15s",
+                      whiteSpace: "nowrap",
+                    }}>
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
 
             {/* ── Company Info (Ship-To for POs) */}
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("company") ? s.delete("company") : s.add("company"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("company") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("company") ? "▶" : "▼"}</span>
                   Company Info — Ship-To Address
                 </div>
               </div>
@@ -19007,10 +19015,10 @@ function BOMManager({ user }) {
               try { preferredDists = JSON.parse(apiKeys.preferred_distributors || '["mouser"]'); } catch { preferredDists = ["mouser"]; }
               return (
                 <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-                  <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                  <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                     onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("distributors") ? s.delete("distributors") : s.add("distributors"); return s; })}>
-                    <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                      <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("distributors") ? "▶" : "▼"}</span>
+                    <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                      <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("distributors") ? "▶" : "▼"}</span>
                       Distributors ({distKeys.length})
                     </div>
                   </div>
@@ -19094,10 +19102,10 @@ function BOMManager({ user }) {
 
             {/* ── Nexar / Octopart — PRIMARY */}
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("nexar") ? s.delete("nexar") : s.add("nexar"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("nexar") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("nexar") ? "▶" : "▼"}</span>
                   Nexar / Octopart — Primary {nexarToken ? "✓" : ""}
                 </div>
               </div>
@@ -19126,10 +19134,10 @@ function BOMManager({ user }) {
 
             {/* ── Mouser Direct */}
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("mouser") ? s.delete("mouser") : s.add("mouser"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("mouser") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("mouser") ? "▶" : "▼"}</span>
                   Mouser Direct {apiKeys.mouser_api_key ? "✓" : ""}
                 </div>
               </div>
@@ -19158,10 +19166,10 @@ function BOMManager({ user }) {
 
             {/* ── DigiKey Direct */}
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("digikey") ? s.delete("digikey") : s.add("digikey"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("digikey") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("digikey") ? "▶" : "▼"}</span>
                   Digi-Key Direct {dkToken ? "✓" : ""}
                 </div>
               </div>
@@ -19190,10 +19198,10 @@ function BOMManager({ user }) {
 
             {/* ── Arrow Direct */}
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("arrow") ? s.delete("arrow") : s.add("arrow"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("arrow") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("arrow") ? "▶" : "▼"}</span>
                   Arrow Direct {(apiKeys.arrow_api_key && apiKeys.arrow_login) ? "✓" : ""}
                 </div>
               </div>
@@ -19222,10 +19230,10 @@ function BOMManager({ user }) {
 
             {/* ── Texas Instruments Direct */}
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("ti") ? s.delete("ti") : s.add("ti"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("ti") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("ti") ? "▶" : "▼"}</span>
                   Texas Instruments Direct {(apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "✓" : ""}
                 </div>
               </div>
@@ -19254,10 +19262,10 @@ function BOMManager({ user }) {
 
             {/* ── LCSC Electronics Direct */}
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("lcsc") ? s.delete("lcsc") : s.add("lcsc"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("lcsc") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("lcsc") ? "▶" : "▼"}</span>
                   LCSC Electronics Direct {(apiKeys.lcsc_api_key && apiKeys.lcsc_api_secret) ? "✓" : ""}
                 </div>
               </div>
@@ -19286,10 +19294,10 @@ function BOMManager({ user }) {
 
             {/* ── McMaster-Carr Direct API */}
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("mcmaster") ? s.delete("mcmaster") : s.add("mcmaster"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("mcmaster") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("mcmaster") ? "▶" : "▼"}</span>
                   McMaster-Carr Direct API
                 </div>
               </div>
@@ -19312,10 +19320,10 @@ function BOMManager({ user }) {
 
             {/* ── Shopify Integration (Multi-Store) */}
             {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shopify") ? s.delete("shopify") : s.add("shopify"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("shopify") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("shopify") ? "▶" : "▼"}</span>
                   Shopify Stores
                 </div>
                 {(() => { const s = getShopifyStores(); return s.length > 0 ? <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>{s.length} store{s.length !== 1 ? "s" : ""}</span> : null; })()}
@@ -19378,10 +19386,10 @@ function BOMManager({ user }) {
 
             {/* ── Zoho Books */}
             {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("zoho") ? s.delete("zoho") : s.add("zoho"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("zoho") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("zoho") ? "▶" : "▼"}</span>
                   Zoho Books
                 </div>
                 {apiKeys.zoho_client_id && apiKeys.zoho_refresh_token && <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>Configured</span>}
@@ -19512,10 +19520,10 @@ function BOMManager({ user }) {
 
             {/* ── Gmail Support Inbox */}
             {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("gmail") ? s.delete("gmail") : s.add("gmail"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("gmail") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("gmail") ? "▶" : "▼"}</span>
                   Gmail — Support Inbox
                 </div>
                 {apiKeys.gmail_refresh_token && <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>Configured</span>}
@@ -19555,10 +19563,10 @@ function BOMManager({ user }) {
 
             {/* ── Shipping Costs */}
             {settingsTab === "operations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shipping") ? s.delete("shipping") : s.add("shipping"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("shipping") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("shipping") ? "▶" : "▼"}</span>
                   Shipping Costs
                 </div>
               </div>
@@ -19593,10 +19601,10 @@ function BOMManager({ user }) {
 
             {/* ── ShipStation */}
             {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shipstation") ? s.delete("shipstation") : s.add("shipstation"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("shipstation") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("shipstation") ? "▶" : "▼"}</span>
                   ShipStation (Fulfillment) {(shipstationData?.syncedAt && !shipstationData?.error) ? "✓" : ""}
                 </div>
               </div>
@@ -19656,10 +19664,10 @@ function BOMManager({ user }) {
 
             {/* ── Import Tariff Rates */}
             {settingsTab === "operations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("tariffs") ? s.delete("tariffs") : s.add("tariffs"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("tariffs") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("tariffs") ? "▶" : "▼"}</span>
                   Import Tariff Rates
                 </div>
               </div>
@@ -19709,10 +19717,10 @@ function BOMManager({ user }) {
 
             {/* ── Notifications & Email */}
             {settingsTab === "notifications" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("email") ? s.delete("email") : s.add("email"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("email") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("email") ? "▶" : "▼"}</span>
                   Email Notifications & PO Drafts
                 </div>
               </div>
@@ -19760,10 +19768,10 @@ function BOMManager({ user }) {
 
             {/* ── AI / Anthropic API */}
             {settingsTab === "notifications" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("ai") ? s.delete("ai") : s.add("ai"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("ai") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("ai") ? "▶" : "▼"}</span>
                   AI — Invoice Parsing (Claude)
                 </div>
               </div>
@@ -19782,10 +19790,10 @@ function BOMManager({ user }) {
 
             {/* ── SMS — Builder Notifications */}
             {settingsTab === "notifications" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("sms") ? s.delete("sms") : s.add("sms"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("sms") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("sms") ? "▶" : "▼"}</span>
                   SMS — Builder Notifications
                 </div>
               </div>
@@ -19903,10 +19911,10 @@ function BOMManager({ user }) {
 
             {/* ── Play Test Failure Alerts */}
             {settingsTab === "notifications" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("playtest") ? s.delete("playtest") : s.add("playtest"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("playtest") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("playtest") ? "▶" : "▼"}</span>
                   Play Test Failure Alerts
                 </div>
               </div>
@@ -19928,10 +19936,10 @@ function BOMManager({ user }) {
 
             {/* ── Klaviyo (Email Marketing) */}
             {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("klaviyo") ? s.delete("klaviyo") : s.add("klaviyo"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("klaviyo") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("klaviyo") ? "▶" : "▼"}</span>
                   Klaviyo — Email Newsletter Sync
                 </div>
               </div>
@@ -19954,10 +19962,10 @@ function BOMManager({ user }) {
 
             {/* ── Facebook Ads */}
             {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("facebook") ? s.delete("facebook") : s.add("facebook"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("facebook") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("facebook") ? "▶" : "▼"}</span>
                   Facebook / Meta — Ad Spend Tracking
                 </div>
               </div>
@@ -19991,10 +19999,10 @@ function BOMManager({ user }) {
 
             {/* ── Shipping Boxes Config ── */}
             {settingsTab === "operations" && <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shipping_boxes") ? s.delete("shipping_boxes") : s.add("shipping_boxes"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("shipping_boxes") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("shipping_boxes") ? "▶" : "▼"}</span>
                   Shipping Boxes — Sizes & Dimensions
                 </div>
                 <span style={{ fontSize:11,color:"#86868b" }}>{shippingBoxesConfig.length} box{shippingBoxesConfig.length !== 1 ? "es" : ""}</span>
@@ -20082,10 +20090,10 @@ function BOMManager({ user }) {
 
             {/* Admin Access */}
             {settingsTab === "admin" && isAdmin && <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("admin_access") ? s.delete("admin_access") : s.add("admin_access"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("admin_access") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("admin_access") ? "▶" : "▼"}</span>
                   Admin Access
                 </div>
               </div>
@@ -20101,10 +20109,10 @@ function BOMManager({ user }) {
 
             {/* Key acquisition guide */}
             {settingsTab === "admin" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden" }}>
-              <div style={{ background:"#3a3f51",padding:"14px 20px",cursor:"pointer" }}
+              <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("guide") ? s.delete("guide") : s.add("guide"); return s; })}>
-                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#fff",letterSpacing:"0.04em",textTransform:"uppercase" }}>
-                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#fff" }}>{collapsedSettings.has("guide") ? "▶" : "▼"}</span>
+                <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("guide") ? "▶" : "▼"}</span>
                   How to Get Your API Keys
                 </div>
               </div>
@@ -20794,101 +20802,172 @@ function BOMManager({ user }) {
                 </table>
               </div>
             </div>
-            {/* ── Users / Profiles ── */}
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
-              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14 }}>
-                <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>Team Directory</div>
-                <button style={{ background:"#0071e3",color:"#fff",border:"none",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer" }}
-                  onClick={() => setProfileForm({ id:"", full_name:"", email:"", phone:"", role:"employee" })}>
-                  + Add Member
-                </button>
-              </div>
-              <p style={{ fontSize:12,color:"#86868b",marginBottom:14,marginTop:-8 }}>
-                Contact info for each team member. Used to show names in import history and build logs.
-              </p>
-              {profiles.length === 0 ? (
-                <p style={{ fontSize:13,color:"#86868b" }}>No profiles yet — add team members above.</p>
-              ) : (
-                <div style={{ border:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2",borderRadius:10,overflow:"hidden" }}>
-                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
-                    <thead>
-                      <tr style={{ background:darkMode?"#2c2c2e":"#f9f9fb" }}>
-                        {["Name","Email","Phone","Role",""].map((h,i) => (
-                          <th key={i} style={{ padding:"9px 14px",textAlign:"left",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"#86868b",borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2" }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {profiles.map((p, idx) => (
-                        <tr key={p.id} style={{ background:idx%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafafa"),borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2" }}>
-                          <td style={{ padding:"10px 14px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{p.full_name || "—"}</td>
-                          <td style={{ padding:"10px 14px",color:darkMode?"#c7c7cc":"#6e6e73" }}>{p.email || "—"}</td>
-                          <td style={{ padding:"10px 14px",color:darkMode?"#c7c7cc":"#6e6e73" }}>{p.phone || "—"}</td>
-                          <td style={{ padding:"10px 14px" }}>
-                            <span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:p.role==="admin"?"rgba(255,59,48,0.1)":p.role==="editor"?"rgba(0,113,227,0.1)":"rgba(52,199,89,0.1)",color:p.role==="admin"?"#ff3b30":p.role==="editor"?"#0071e3":"#34c759",fontWeight:600 }}>
-                              {p.role || "employee"}
-                            </span>
-                          </td>
-                          <td style={{ padding:"10px 14px",textAlign:"right" }}>
-                            <button onClick={() => setProfileForm({ id: p.id, full_name: p.full_name, email: p.email, phone: p.phone, role: p.role })}
-                              style={{ background:"none",border:"none",cursor:"pointer",color:"#0071e3",fontSize:12,fontWeight:600,padding:"2px 6px" }}>Edit</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              {/* Profile edit form */}
-              {profileForm !== null && (
-                <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center" }}
-                  onClick={(e) => { if (e.target === e.currentTarget) setProfileForm(null); }}>
-                  <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"32px 36px",width:420,maxWidth:"90vw",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
-                    <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20 }}>
-                      <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{profileForm.id ? "Edit Team Member" : "Add Team Member"}</div>
-                      <button onClick={() => setProfileForm(null)} style={{ background:"#f5f5f7",border:"none",borderRadius:980,width:28,height:28,cursor:"pointer",fontSize:16,color:"#86868b" }}>×</button>
+            {/* ── Team Directory Tab ── */}
+            {settingsTab === "team" && (() => {
+              const inputStyle = { width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#48484a":"#d2d2d7"),background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",fontSize:13,boxSizing:"border-box",fontFamily:"inherit" };
+              const labelStyle = { fontSize:12,fontWeight:600,color:darkMode?"#aeaeb2":"#6e6e73",display:"block",marginBottom:4 };
+              const ROLE_COLORS = { admin:["#ff3b30","rgba(255,59,48,0.1)"], editor:["#0071e3","rgba(0,113,227,0.1)"], employee:["#34c759","rgba(52,199,89,0.1)"], builder:["#ff9500","rgba(255,149,0,0.1)"] };
+              return (
+                <div>
+                  <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16 }}>
+                    <div>
+                      <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>Team Directory</div>
+                      <div style={{ fontSize:13,color:"#86868b",marginTop:2 }}>Contact info, pay rates, and product approvals for each team member.</div>
                     </div>
-                    {[
-                      { label:"Full Name", key:"full_name", placeholder:"Jane Smith" },
-                      { label:"Email", key:"email", placeholder:"jane@jacksonaudio.com" },
-                      { label:"Phone", key:"phone", placeholder:"555-123-4567" },
-                    ].map(f => (
-                      <div key={f.key} style={{ marginBottom:14 }}>
-                        <label style={{ fontSize:12,fontWeight:600,color:darkMode?"#aeaeb2":"#6e6e73",display:"block",marginBottom:4 }}>{f.label}</label>
-                        <input type="text" value={profileForm[f.key] || ""} placeholder={f.placeholder}
-                          onChange={e => setProfileForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-                          style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#48484a":"#d2d2d7"),background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",fontSize:13,boxSizing:"border-box" }} />
-                      </div>
-                    ))}
-                    <div style={{ marginBottom:20 }}>
-                      <label style={{ fontSize:12,fontWeight:600,color:darkMode?"#aeaeb2":"#6e6e73",display:"block",marginBottom:4 }}>Role</label>
-                      <select value={profileForm.role || "employee"} onChange={e => setProfileForm(prev => ({ ...prev, role: e.target.value }))}
-                        style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#48484a":"#d2d2d7"),background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",fontSize:13 }}>
-                        <option value="employee">Employee</option>
-                        <option value="editor">Editor</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </div>
-                    <div style={{ display:"flex",gap:10 }}>
-                      <button onClick={() => setProfileForm(null)}
-                        style={{ flex:1,padding:"10px",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",fontSize:13,fontWeight:600,cursor:"pointer",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
-                        Cancel
-                      </button>
-                      <button onClick={async () => {
-                        if (!profileForm.full_name?.trim() && !profileForm.email?.trim()) return;
-                        const saved = await upsertProfile({ id: profileForm.id || user?.id, fullName: profileForm.full_name, email: profileForm.email, phone: profileForm.phone, role: profileForm.role });
-                        if (saved) setProfiles(prev => { const idx2 = prev.findIndex(x => x.id === saved.id); return idx2 >= 0 ? prev.map(x => x.id === saved.id ? saved : x) : [...prev, saved]; });
-                        setProfileForm(null);
-                        showToast("Profile saved", "#34c759");
-                      }}
-                        style={{ flex:2,padding:"10px",borderRadius:980,border:"none",background:"#0071e3",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer" }}>
-                        Save
-                      </button>
-                    </div>
+                    <button style={{ background:"#0071e3",color:"#fff",border:"none",borderRadius:980,padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer" }}
+                      onClick={() => setProfileForm({ id:"", full_name:"", email:"", phone:"", role:"employee", hourly_rate:"", approved_products:[] })}>
+                      + Add Member
+                    </button>
                   </div>
+
+                  {profiles.length === 0 ? (
+                    <div style={{ padding:"40px 0",textAlign:"center",color:"#86868b",fontSize:13 }}>No team members yet — add one above.</div>
+                  ) : (
+                    <div style={{ border:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2",borderRadius:10,overflow:"hidden" }}>
+                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+                        <thead>
+                          <tr style={{ background:darkMode?"#2c2c2e":"#f9f9fb" }}>
+                            {["Name","Email","Phone","Role","$/hr","Approved Products",""].map((h,i) => (
+                              <th key={i} style={{ padding:"9px 14px",textAlign:"left",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"#86868b",borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {profiles.map((p, idx) => {
+                            const [roleColor, roleBg] = ROLE_COLORS[p.role] || ROLE_COLORS.employee;
+                            const approvedIds = p.approved_products || [];
+                            const approvedNames = products.filter(pr => approvedIds.includes(pr.id)).map(pr => pr.name);
+                            const isAdminEmail = (apiKeys.admin_emails||"").split(",").map(e=>e.trim().toLowerCase()).includes((p.email||"").toLowerCase());
+                            return (
+                              <tr key={p.id} style={{ background:idx%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafafa"),borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2",cursor:"pointer" }}
+                                onClick={() => setProfileForm({ id:p.id, full_name:p.full_name||"", email:p.email||"", phone:p.phone||"", role:p.role||"employee", hourly_rate:p.hourly_rate||"", approved_products:p.approved_products||[] })}>
+                                <td style={{ padding:"10px 14px",fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                                  {p.full_name || "—"}
+                                  {isAdminEmail && <span style={{ marginLeft:6,fontSize:10,padding:"1px 5px",borderRadius:4,background:"rgba(255,59,48,0.1)",color:"#ff3b30",fontWeight:700 }}>ADMIN</span>}
+                                </td>
+                                <td style={{ padding:"10px 14px",color:darkMode?"#c7c7cc":"#6e6e73" }}>{p.email||"—"}</td>
+                                <td style={{ padding:"10px 14px",color:darkMode?"#c7c7cc":"#6e6e73",whiteSpace:"nowrap" }}>{p.phone||"—"}</td>
+                                <td style={{ padding:"10px 14px" }}>
+                                  <span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:roleBg,color:roleColor,fontWeight:600 }}>{p.role||"employee"}</span>
+                                </td>
+                                <td style={{ padding:"10px 14px",color:darkMode?"#c7c7cc":"#6e6e73",whiteSpace:"nowrap" }}>{p.hourly_rate ? `$${p.hourly_rate}/hr` : "—"}</td>
+                                <td style={{ padding:"10px 14px" }}>
+                                  {approvedNames.length === 0
+                                    ? <span style={{ color:"#86868b",fontSize:12 }}>All products</span>
+                                    : <div style={{ display:"flex",flexWrap:"wrap",gap:4 }}>
+                                        {approvedNames.map(n => <span key={n} style={{ fontSize:11,padding:"2px 7px",borderRadius:5,background:"rgba(0,113,227,0.1)",color:"#0071e3",fontWeight:600 }}>{n}</span>)}
+                                      </div>
+                                  }
+                                </td>
+                                <td style={{ padding:"10px 14px",textAlign:"right" }}>
+                                  <span style={{ color:"#0071e3",fontSize:12,fontWeight:600 }}>Edit →</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Team Member edit modal */}
+                  {profileForm !== null && (
+                    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center" }}
+                      onClick={e => { if (e.target === e.currentTarget) setProfileForm(null); }}>
+                      <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"32px 36px",width:520,maxWidth:"92vw",maxHeight:"88vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
+                        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:22 }}>
+                          <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>{profileForm.id ? "Edit Team Member" : "Add Team Member"}</div>
+                          <button onClick={() => setProfileForm(null)} style={{ background:darkMode?"#2c2c2e":"#f5f5f7",border:"none",borderRadius:980,width:28,height:28,cursor:"pointer",fontSize:16,color:"#86868b" }}>×</button>
+                        </div>
+
+                        {/* Contact Info */}
+                        <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:10 }}>Contact Info</div>
+                        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16 }}>
+                          {[{label:"Full Name",key:"full_name",placeholder:"Jane Smith"},{label:"Email",key:"email",placeholder:"jane@jacksonaudio.com"},{label:"Phone",key:"phone",placeholder:"555-123-4567"},{label:"Hourly Rate ($)",key:"hourly_rate",placeholder:"18.00"}].map(f => (
+                            <div key={f.key}>
+                              <label style={labelStyle}>{f.label}</label>
+                              <input type={f.key==="hourly_rate"?"number":"text"} value={profileForm[f.key]||""} placeholder={f.placeholder}
+                                onChange={e => setProfileForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                                style={inputStyle} />
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Role & Permissions */}
+                        <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:10 }}>Role & Permissions</div>
+                        <div style={{ marginBottom:16 }}>
+                          <label style={labelStyle}>Role</label>
+                          <select value={profileForm.role||"employee"} onChange={e => setProfileForm(prev => ({ ...prev, role: e.target.value }))}
+                            style={inputStyle}>
+                            <option value="employee">Employee — read only</option>
+                            <option value="builder">Builder — can manage builds & play test</option>
+                            <option value="editor">Editor — can edit parts, products, orders</option>
+                            <option value="admin">Admin — full access</option>
+                          </select>
+                        </div>
+                        {profileForm.email && (
+                          <div style={{ marginBottom:16,display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,background:darkMode?"#2c2c2e":"#f5f5f7",border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                            <input type="checkbox" id="adminToggle"
+                              checked={(apiKeys.admin_emails||"").split(",").map(e=>e.trim().toLowerCase()).includes((profileForm.email||"").toLowerCase())}
+                              onChange={e => {
+                                const current = (apiKeys.admin_emails||"").split(",").map(s=>s.trim()).filter(Boolean);
+                                const em = (profileForm.email||"").toLowerCase().trim();
+                                const updated = e.target.checked
+                                  ? [...new Set([...current, em])]
+                                  : current.filter(x => x.toLowerCase() !== em);
+                                setApiKeys(k => ({ ...k, admin_emails: updated.join(",") }));
+                              }} />
+                            <label htmlFor="adminToggle" style={{ fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f",cursor:"pointer" }}>
+                              App Admin access <span style={{ fontSize:12,fontWeight:400,color:"#86868b" }}>— can delete parts, access Admin tab, change settings</span>
+                            </label>
+                          </div>
+                        )}
+
+                        {/* Approved Products */}
+                        <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#86868b",marginBottom:10 }}>Approved to Build</div>
+                        <p style={{ fontSize:12,color:"#86868b",marginBottom:10,marginTop:-4 }}>Leave all unchecked = approved for all products.</p>
+                        <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:160,overflowY:"auto",padding:"8px 10px",borderRadius:8,border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),marginBottom:20 }}>
+                          {products.map(pr => {
+                            const checked = (profileForm.approved_products||[]).includes(pr.id);
+                            return (
+                              <label key={pr.id} style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13,color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                                <input type="checkbox" checked={checked}
+                                  onChange={e => setProfileForm(prev => ({
+                                    ...prev,
+                                    approved_products: e.target.checked
+                                      ? [...(prev.approved_products||[]), pr.id]
+                                      : (prev.approved_products||[]).filter(x => x !== pr.id)
+                                  }))} />
+                                {pr.name}
+                              </label>
+                            );
+                          })}
+                        </div>
+
+                        <div style={{ display:"flex",gap:10 }}>
+                          <button onClick={() => setProfileForm(null)}
+                            style={{ flex:1,padding:"10px",borderRadius:980,border:"1px solid "+(darkMode?"#48484a":"#d2d2d7"),background:"transparent",fontSize:13,fontWeight:600,cursor:"pointer",color:darkMode?"#f5f5f7":"#1d1d1f" }}>
+                            Cancel
+                          </button>
+                          <button onClick={async () => {
+                            if (!profileForm.full_name?.trim() && !profileForm.email?.trim()) return;
+                            const saved = await upsertProfile({ id: profileForm.id || user?.id, fullName: profileForm.full_name, email: profileForm.email, phone: profileForm.phone, role: profileForm.role, hourlyRate: parseFloat(profileForm.hourly_rate)||null, approvedProducts: profileForm.approved_products||[] });
+                            if (saved) setProfiles(prev => { const i2 = prev.findIndex(x => x.id === saved.id); return i2 >= 0 ? prev.map(x => x.id === saved.id ? saved : x) : [...prev, saved]; });
+                            // If admin toggle changed, save the admin_emails key too
+                            await saveAllApiKeys(apiKeys, user.id);
+                            setProfileForm(null);
+                            showToast("Team member saved", "#34c759");
+                          }}
+                            style={{ flex:2,padding:"10px",borderRadius:980,border:"none",background:"#0071e3",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer" }}>
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* ── Database Backup — Export All Data ── */}
             <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>

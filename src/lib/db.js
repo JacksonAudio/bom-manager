@@ -1442,7 +1442,7 @@ export async function fetchProfiles() {
   return data || [];
 }
 
-export async function upsertProfile({ id, fullName, email, phone, role }) {
+export async function upsertProfile({ id, fullName, email, phone, role, hourlyRate, approvedProducts }) {
   const { data, error } = await supabase
     .from('profiles')
     .upsert({
@@ -1451,6 +1451,8 @@ export async function upsertProfile({ id, fullName, email, phone, role }) {
       email: email || '',
       phone: phone || '',
       role: role || 'employee',
+      hourly_rate: hourlyRate ?? null,
+      approved_products: approvedProducts || [],
       updated_at: new Date().toISOString(),
     }, { onConflict: 'id' })
     .select()
