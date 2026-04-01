@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.78";
-const BUILD_TIME   = "2026-04-01T15:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.79";
+const BUILD_TIME   = "2026-04-01T14:50:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -2011,9 +2011,9 @@ function BOMManager({ user }) {
         }
         zohoOrgs = zohoOrgs.map(o => ({
           ...o,
-          client_id:     o.client_id     || sharedClientId,
-          client_secret: o.client_secret || sharedClientSecret,
-          refresh_token: o.refresh_token || sharedRefreshToken,
+          client_id:     sharedClientId     || o.client_id     || "",
+          client_secret: sharedClientSecret || o.client_secret || "",
+          refresh_token: sharedRefreshToken || o.refresh_token || "",
         }));
         if (!zohoOrgs.length || !zohoOrgs[0]?.org_id) throw new Error("Configure Zoho Books credentials first");
         if (!sharedClientId || !sharedRefreshToken) throw new Error("Enter Client ID and Refresh Token in the Shared Credentials section");
@@ -4403,9 +4403,9 @@ function BOMManager({ user }) {
     }
     zohoOrgs = zohoOrgs.map(o => ({
       ...o,
-      client_id:     o.client_id     || sharedClientId,
-      client_secret: o.client_secret || sharedClientSecret,
-      refresh_token: o.refresh_token || sharedRefreshToken,
+      client_id:     sharedClientId     || o.client_id     || "",
+      client_secret: sharedClientSecret || o.client_secret || "",
+      refresh_token: sharedRefreshToken || o.refresh_token || "",
     }));
     if (!zohoOrgs.some(o => o.org_id && o.refresh_token)) {
       alert("Zoho Books credentials not configured. Add them in Settings.");
@@ -4689,10 +4689,19 @@ function BOMManager({ user }) {
       // Fetch Zoho history
       let zohoOrgs = [];
       try { zohoOrgs = JSON.parse(apiKeys.zoho_books_json || "[]"); } catch {}
-      if (apiKeys.zoho_org_id && apiKeys.zoho_refresh_token) {
-        const legacyOrg = { name: "Jackson Audio", org_id: apiKeys.zoho_org_id, client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, refresh_token: apiKeys.zoho_refresh_token };
-        if (zohoOrgs.length === 0 || !zohoOrgs.some(o => o.refresh_token?.length > 50)) zohoOrgs = [legacyOrg];
+      const _histSharedCid = apiKeys.zoho_client_id || "";
+      const _histSharedCs  = apiKeys.zoho_client_secret || "";
+      const _histSharedRt  = apiKeys.zoho_refresh_token || "";
+      if (zohoOrgs.length === 0 && apiKeys.zoho_org_id) {
+        zohoOrgs = [{ name: "Jackson Audio", org_id: apiKeys.zoho_org_id }];
       }
+      // Shared token always wins — never let stale per-org tokens override
+      zohoOrgs = zohoOrgs.map(o => ({
+        ...o,
+        client_id:     _histSharedCid || o.client_id     || "",
+        client_secret: _histSharedCs  || o.client_secret || "",
+        refresh_token: _histSharedRt  || o.refresh_token || "",
+      }));
       for (const org of zohoOrgs) {
         if (!org.org_id || !org.client_id || !org.client_secret || !org.refresh_token) continue;
         try {
