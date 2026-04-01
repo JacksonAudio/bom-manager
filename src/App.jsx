@@ -9077,14 +9077,14 @@ function BOMManager({ user }) {
                   {(() => {
                     const reelThreshold = parseFloat(apiKeys.reel_order_threshold) || 1.00;
                     return demandList.map((d, idx) => {
-                      // Check if this part's packaging type is actually tape & reel (vs tube/tray/each)
+                      // Only show reel UI if packaging type is POSITIVELY confirmed as tape & reel
+                      // Default is false — unknown packaging = treat as individual/exact qty (no reel buttons)
                       const partPricing = d.part.pricing && typeof d.part.pricing === "object" ? d.part.pricing : null;
                       const detectedPkgType = partPricing ? Object.entries(partPricing).reduce((acc, [k, v]) => acc || (!k.startsWith("_") && v?.packagingType ? v.packagingType : null), null) : null;
-                      // If packaging is known and NOT tape/reel, suppress reel UI — show "Factory Pack" instead
-                      const isReelPkg = !detectedPkgType || /reel|tape/i.test(detectedPkgType);
-                      // Determine if this part needs a reel decision (has reelCount AND price >= threshold AND is actually tape & reel)
+                      const isReelPkg = !!detectedPkgType && /reel|tape/i.test(detectedPkgType);
+                      // Determine if this part needs a reel decision (has reelCount AND price >= threshold AND is confirmed tape & reel)
                       const needsDecision = isReelPkg && d.reelCount != null && d.bestPrice >= reelThreshold;
-                      const autoReel = d.reelCount != null && d.bestPrice < reelThreshold;
+                      const autoReel = isReelPkg && d.reelCount != null && d.bestPrice < reelThreshold;
                       const decision = reelDecisions[d.part.id]; // 'reel' | 'cut' | undefined
                       // Burn time: total units needed per day across all queued products for this part
                       let unitsPerDay = 0;
@@ -9096,7 +9096,7 @@ function BOMManager({ user }) {
                       const burnDays = (d.reelQty > 0 && unitsPerDay > 0) ? d.reelQty / unitsPerDay : null;
                       const burnMonths = burnDays ? burnDays / 30.4 : null;
                       // Default decision: reel if burn < 18 months, cut if longer or no data
-                      const effectiveDecision = decision || (needsDecision ? (burnMonths == null || burnMonths > 18 ? "cut" : "reel") : (d.reelCount ? "reel" : null));
+                      const effectiveDecision = decision || (needsDecision ? (burnMonths == null || burnMonths > 18 ? "cut" : "reel") : (isReelPkg && d.reelCount ? "reel" : null));
                       // Effective qty for cost display
                       const effectiveQty = needsDecision
                         ? (effectiveDecision === "cut" ? d.rawNet : d.net)
@@ -9147,8 +9147,8 @@ function BOMManager({ user }) {
                                   </div>
                                 )}
                               </div>
-                            ) : d.reelCount ? (<>
-                              <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.reelCount} {isReelPkg ? "reel" : "pack"}{d.reelCount!==1?"s":""}</div>
+                            ) : (isReelPkg && d.reelCount) ? (<>
+                              <div style={{ fontSize:15,fontWeight:700,color:"#1d1d1f" }}>{d.reelCount} reel{d.reelCount!==1?"s":""}</div>
                               <div style={{ fontSize:10,color:"#86868b" }}>{d.net.toLocaleString()} pcs</div>
                               {d.net > d.rawNet && <div style={{ fontSize:9,color:"#34c759",fontWeight:600 }}>+{(d.net-d.rawNet).toLocaleString()} surplus</div>}
                             </>) : (
