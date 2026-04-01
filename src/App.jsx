@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.00";
-const BUILD_TIME   = "2026-04-01T20:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.02";
+const BUILD_TIME   = "2026-04-01T21:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -1916,6 +1916,8 @@ function BOMManager({ user }) {
   const [pdDragOver, setPdDragOver] = useState(false); // product detail page drag state
   const [pdImportError, setPdImportError] = useState("");
   const [pdImportOk, setPdImportOk] = useState("");
+  const [pdImportPreview, setPdImportPreview] = useState(null); // { parts, productId, filename, skipped, skippedDNI }
+  const [pdImportExcluded, setPdImportExcluded] = useState(new Set());
 
   const fileRef = useRef();
   const pdFileRef = useRef(); // product detail page file input ref
@@ -3106,23 +3108,46 @@ function BOMManager({ user }) {
     reader.readAsText(file);
   };
 
-  // ── Import into a specific product (product detail page)
-  const handleProductImport = useCallback(async (rawText, productId, filename = "") => {
-    setPdImportError(""); setPdImportOk("");
+  // ── Import into a specific product — Phase 1: parse & show preview, NEVER auto-import
+  const handleProductImport = useCallback((rawText, productId, filename = "") => {
+    setPdImportError(""); setPdImportOk(""); setPdImportPreview(null); setPdImportExcluded(new Set());
     try {
       const parsed = parseBOM(rawText);
       if (!parsed.length) { setPdImportError("No parts found. Check header row."); return; }
+      const skippedDNI = parsed._skippedDNI || 0;
       // Set product_id on all parsed parts
       const withProduct = parsed.map(p => ({ ...p, projectId: productId }));
-      // Filter duplicates by MPN against what's already in DB
-      const existingMPNs = new Set(parts.map((p) => p.mpn).filter(Boolean));
-      const fresh = withProduct.filter((p) => !p.mpn || !existingMPNs.has(p.mpn));
-      if (!fresh.length) { setPdImportError("All parts already exist in the library (matched by MPN)."); return; }
+      // Flag exact MPN matches (already in library) vs new parts
+      const existingByMPN = {};
+      parts.forEach(p => { if (p.mpn) existingByMPN[p.mpn.toLowerCase()] = p; });
+      const annotated = withProduct.map(p => ({
+        ...p,
+        _matchStatus: p.mpn && existingByMPN[p.mpn.toLowerCase()] ? "exact" : (p.mpn ? "new-mpn" : "no-mpn"),
+        _existingPart: p.mpn ? existingByMPN[p.mpn.toLowerCase()] : null,
+      }));
+      // Pre-exclude exact matches (already in library) — user can include them if they want
+      const preExcluded = new Set(annotated.map((p, i) => p._matchStatus === "exact" ? i : -1).filter(i => i >= 0));
+      const skipped = preExcluded.size;
+      if (annotated.length === 0) { setPdImportError("No parts found. Check header row."); return; }
+      setPdImportPreview({ parts: annotated, productId, filename: filename || null, skipped, skippedDNI });
+      setPdImportExcluded(preExcluded);
+    } catch (e) { setPdImportError("Import error: " + e.message); }
+  }, [parts]);
+
+  // ── Import into a specific product — Phase 2: user confirmed
+  const confirmProductImport = useCallback(async () => {
+    if (!pdImportPreview) return;
+    setPdImportError("");
+    try {
+      const { parts: allParts, productId, filename } = pdImportPreview;
+      const fresh = allParts.filter((_, i) => !pdImportExcluded.has(i));
+      if (!fresh.length) { setPdImportError("No parts selected for import."); return; }
       const dbRows = fresh.map((p) => uiPartToDB(p));
       await upsertParts(dbRows, user.id);
-      setPdImportOk(`Imported ${fresh.length} parts${filename ? ` from "${filename}"` : ""} into this product.`);
+      setPdImportPreview(null); setPdImportExcluded(new Set()); setPdPasteText("");
+      setPdImportOk(`✓ Imported ${fresh.length} parts${filename ? ` from "${filename}"` : ""} into this product.`);
     } catch (e) { setPdImportError("Import error: " + e.message); }
-  }, [parts, user?.id]);
+  }, [pdImportPreview, pdImportExcluded, user?.id]);
 
   const handleProductDrop = useCallback((e, productId) => {
     e.preventDefault(); setPdDragOver(false);
@@ -11870,6 +11895,71 @@ function BOMManager({ user }) {
                 )}
                 {pdImportError && <div style={{ marginTop:6,color:"#ff3b30",fontSize:12 }}>{pdImportError}</div>}
                 {pdImportOk && <div style={{ marginTop:6,color:"#34c759",fontSize:12 }}>{pdImportOk}</div>}
+
+                {/* ── Product Import Preview — show BEFORE writing to DB */}
+                {pdImportPreview && pdImportPreview.productId === prod.id && (() => {
+                  const selectedCount = pdImportPreview.parts.length - pdImportExcluded.size;
+                  const hasNoMPN = pdImportPreview.parts.some(p => p._matchStatus === "no-mpn");
+                  return (
+                    <div style={{ marginTop:10,border:"1px solid #0071e3",borderRadius:10,overflow:"hidden" }}>
+                      <div style={{ background:"rgba(0,113,227,0.07)",padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap" }}>
+                        <div style={{ fontSize:12 }}>
+                          <span style={{ fontWeight:700,color:"#0071e3" }}>{selectedCount} of {pdImportPreview.parts.length} parts selected to import</span>
+                          {pdImportPreview.skipped > 0 && <span style={{ color:"#86868b",marginLeft:8 }}>{pdImportPreview.skipped} exact match{pdImportPreview.skipped>1?"es":""} pre-unchecked</span>}
+                          {pdImportPreview.skippedDNI > 0 && <span style={{ color:"#ff9500",marginLeft:8 }}>{pdImportPreview.skippedDNI} DNI skipped</span>}
+                          {hasNoMPN && <span style={{ color:"#ff9500",marginLeft:8 }}>⚠ Some parts have no MPN</span>}
+                        </div>
+                        <div style={{ display:"flex",gap:6 }}>
+                          <button onClick={() => { setPdImportPreview(null); setPdImportExcluded(new Set()); }}
+                            style={{ padding:"5px 12px",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit" }}>
+                            Cancel
+                          </button>
+                          <button onClick={confirmProductImport} disabled={!selectedCount}
+                            style={{ padding:"5px 14px",borderRadius:980,border:"none",background:selectedCount?"#0071e3":"#c7c7cc",color:"#fff",fontWeight:700,fontSize:12,cursor:selectedCount?"pointer":"not-allowed",fontFamily:"inherit" }}>
+                            ✓ Confirm Import ({selectedCount})
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ overflowX:"auto",maxHeight:320,overflowY:"auto" }}>
+                        <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
+                          <thead style={{ position:"sticky",top:0,background:darkMode?"#2c2c2e":"#f5f5f7",zIndex:1 }}>
+                            <tr>
+                              <th style={{ padding:"5px 6px",borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),width:28 }}>
+                                <input type="checkbox" checked={pdImportExcluded.size === 0}
+                                  onChange={e => { if (e.target.checked) setPdImportExcluded(new Set()); else setPdImportExcluded(new Set(pdImportPreview.parts.map((_,i)=>i))); }} />
+                              </th>
+                              {["MPN","Value","Description","Status"].map(h => (
+                                <th key={h} style={{ textAlign:"left",padding:"5px 10px",fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),whiteSpace:"nowrap" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pdImportPreview.parts.map((p, i) => (
+                              <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f5f5f7"),background:pdImportExcluded.has(i)?(darkMode?"#2c2c2e":"#f8f8f8"):(i%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafafa")),opacity:pdImportExcluded.has(i)?0.45:1 }}>
+                                <td style={{ padding:"5px 6px",width:28 }}>
+                                  <input type="checkbox" checked={!pdImportExcluded.has(i)} onChange={() => {
+                                    setPdImportExcluded(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; });
+                                  }} />
+                                </td>
+                                <td style={{ padding:"5px 10px",fontFamily:"monospace",whiteSpace:"nowrap",color:darkMode?"#f5f5f7":"#1d1d1f",fontWeight:600 }}>{p.mpn||"—"}</td>
+                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#c7c7cc":"#6e6e73" }}>{p.value||"—"}</td>
+                                <td style={{ padding:"5px 10px",color:darkMode?"#aeaeb2":"#86868b",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
+                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>
+                                  {p._matchStatus === "exact"
+                                    ? <span style={{ fontSize:10,padding:"1px 6px",borderRadius:4,background:"rgba(52,199,89,0.12)",color:"#34c759",fontWeight:600 }}>✓ In library</span>
+                                    : p._matchStatus === "no-mpn"
+                                    ? <span style={{ fontSize:10,padding:"1px 6px",borderRadius:4,background:"rgba(255,149,0,0.12)",color:"#ff9500",fontWeight:600 }}>⚠ No MPN</span>
+                                    : <span style={{ fontSize:10,padding:"1px 6px",borderRadius:4,background:"rgba(0,113,227,0.1)",color:"#0071e3",fontWeight:600 }}>+ New</span>
+                                  }
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -11940,8 +12030,8 @@ function BOMManager({ user }) {
                               else selectNone();
                             }} />
                         </th>
-                        {["MPN","Value","Description","Manufacturer","Qty/Build","Stock","Stock Value","Actions"].map((h,hi,arr)=>(
-                          <th key={hi} style={{ padding:"12px 10px",textAlign:hi>=4?"right":"left",
+                        {["MPN","Value","Voltage","Package","Description","Manufacturer","Qty/Build","Stock","Stock Value","Actions"].map((h,hi,arr)=>(
+                          <th key={hi} style={{ padding:"12px 10px",textAlign:hi>=6?"right":"left",
                             fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                             fontSize:10,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
                             borderRadius:hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
@@ -11970,6 +12060,20 @@ function BOMManager({ user }) {
                             <td style={{ padding:"10px 10px" }}>
                               <input type="text" value={part.value||""} onChange={e=>updatePart(part.id,"value",e.target.value)}
                                 style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#6e6e73",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                onBlur={e=>{e.target.style.background="transparent";}} />
+                            </td>
+                            <td style={{ padding:"10px 10px" }}>
+                              <input type="text" value={part.voltage_rating||""} onChange={e=>updatePart(part.id,"voltage_rating",e.target.value)}
+                                placeholder="—"
+                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",minWidth:50,color:darkMode?"#c7c7cc":"#6e6e73",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                onBlur={e=>{e.target.style.background="transparent";}} />
+                            </td>
+                            <td style={{ padding:"10px 10px" }}>
+                              <input type="text" value={part.footprint||""} onChange={e=>updatePart(part.id,"footprint",e.target.value)}
+                                placeholder="—"
+                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",minWidth:60,color:darkMode?"#c7c7cc":"#6e6e73",fontFamily:"inherit",outline:"none" }}
                                 onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
                                 onBlur={e=>{e.target.style.background="transparent";}} />
                             </td>
@@ -12044,6 +12148,20 @@ function BOMManager({ user }) {
                                 <td style={{ padding:"8px 10px" }}>
                                   <input type="text" value={alt.value||""} onChange={e=>updatePart(alt.id,"value",e.target.value)}
                                     style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#6e6e73",fontFamily:"inherit",outline:"none" }}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                    onBlur={e=>{e.target.style.background="transparent";}} />
+                                </td>
+                                <td style={{ padding:"8px 10px" }}>
+                                  <input type="text" value={alt.voltage_rating||""} onChange={e=>updatePart(alt.id,"voltage_rating",e.target.value)}
+                                    placeholder="—"
+                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",minWidth:50,color:darkMode?"#c7c7cc":"#6e6e73",fontFamily:"inherit",outline:"none" }}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
+                                    onBlur={e=>{e.target.style.background="transparent";}} />
+                                </td>
+                                <td style={{ padding:"8px 10px" }}>
+                                  <input type="text" value={alt.footprint||""} onChange={e=>updatePart(alt.id,"footprint",e.target.value)}
+                                    placeholder="—"
+                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",minWidth:60,color:darkMode?"#c7c7cc":"#6e6e73",fontFamily:"inherit",outline:"none" }}
                                     onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f5f5f7";e.target.style.borderRadius="4px";}}
                                     onBlur={e=>{e.target.style.background="transparent";}} />
                                 </td>
