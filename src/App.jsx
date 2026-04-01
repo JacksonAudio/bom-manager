@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.84";
-const BUILD_TIME   = "2026-04-01T18:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.85";
+const BUILD_TIME   = "2026-04-01T18:20:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -16703,7 +16703,7 @@ function BOMManager({ user }) {
                               <td style={{ padding:"8px 14px" }}>
                                 <div style={{ display:"flex",gap:6,alignItems:"center" }}>
                                   <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'add' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
-                                    style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:11,background:"#34c759",color:"#003d12",fontFamily:"inherit" }}>+ Add</button>
+                                    style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>+ Add</button>
                                   <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'remove' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
                                     disabled={qty === 0}
                                     style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:qty===0?"not-allowed":"pointer",fontWeight:700,fontSize:11,background:"#ff3b30",color:"#fff",fontFamily:"inherit",opacity:qty===0?0.4:1 }}>− Remove</button>
