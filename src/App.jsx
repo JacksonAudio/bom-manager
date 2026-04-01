@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.69";
-const BUILD_TIME   = "2026-04-01T12:35:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.70";
+const BUILD_TIME   = "2026-04-01T13:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -1845,6 +1845,13 @@ function BOMManager({ user }) {
   const [pipelineSearch, setPipelineSearch] = useState("");
   const [packingListOrder, setPackingListOrder] = useState(""); // for_order reference to filter packing list
   const [stickerModalUnits, setStickerModalUnits] = useState(null); // array of pedal_units to print stickers for, or null
+  const [batchStickerModal, setBatchStickerModal] = useState(false);
+  const [batchProductId, setBatchProductId] = useState("");
+  const [batchFromSerial, setBatchFromSerial] = useState("");
+  const [batchToSerial, setBatchToSerial] = useState("");
+  const [batchStickerTab, setBatchStickerTab] = useState("pedal"); // "pedal" | "box"
+  const [destroyUnitModal, setDestroyUnitModal] = useState(null); // { unit }
+  const [destroyReason, setDestroyReason] = useState("");
   const [stickerEditorOpen, setStickerEditorOpen] = useState(false);
   const [stickerTemplate, setStickerTemplate] = useState(null); // custom sticker template from editor
   const [simMode, setSimMode] = useState(false); // pipeline simulation mode
@@ -2676,6 +2683,22 @@ function BOMManager({ user }) {
       await autoAssignBoxing(unit);
       showToast(`Unit ${unit.serial_number || ""} passed — moved to boxing queue`, "#34c759");
     }
+  };
+
+  // Destroy a serial number — marks it as permanently non-functional, excluded from royalty counts
+  const handleDestroyUnit = async (unit, reason) => {
+    const now = new Date().toISOString();
+    const updates = {
+      status: "destroyed",
+      playtest_feedback: `DESTROYED: ${reason}`,
+      playtest_completed_at: now,
+      playtest_passed: false,
+    };
+    await updatePedalUnit(unit.id, updates);
+    setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, ...updates } : u));
+    setDestroyUnitModal(null);
+    setDestroyReason("");
+    showToast(`S/N ${unit.serial_number} destroyed and recorded`, "#ff3b30");
   };
 
   // Auto-assign a passed unit to boxing (picks first available boxer or creates task)
@@ -16760,8 +16783,8 @@ function BOMManager({ user }) {
           const textPrimary = darkMode ? "#f5f5f7" : "#1d1d1f";
           const inputStyle = { fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7", outline:"none", background:darkMode?"#2c2c2e":"#fff", color:textPrimary };
 
-          const statusLabels = { built:"Built", awaiting_playtest:"Awaiting Play Test", in_playtest:"In Play Test", playtest_passed:"Play Test Passed", playtest_failed:"Play Test FAILED", boxing:"Boxing", boxed:"Boxed", shipped:"Shipped" };
-          const statusColors = { built:"#86868b", awaiting_playtest:"#ff9500", in_playtest:"#5856d6", playtest_passed:"#34c759", playtest_failed:"#ff3b30", boxing:"#0071e3", boxed:"#00c7be", shipped:"#86868b" };
+          const statusLabels = { built:"Built", awaiting_playtest:"Awaiting Play Test", in_playtest:"In Play Test", playtest_passed:"Play Test Passed", playtest_failed:"Play Test FAILED", boxing:"Boxing", boxed:"Boxed", shipped:"Shipped", destroyed:"☠ Destroyed" };
+          const statusColors = { built:"#86868b", awaiting_playtest:"#ff9500", in_playtest:"#5856d6", playtest_passed:"#34c759", playtest_failed:"#ff3b30", boxing:"#0071e3", boxed:"#00c7be", shipped:"#86868b", destroyed:"#8B0000" };
 
           // Status counts for pipeline summary
           const statusCounts = {};
@@ -16837,9 +16860,13 @@ function BOMManager({ user }) {
                   style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#5856d6",color:"#fff" }}>
                   Edit Sticker
                 </button>
+                <button onClick={() => { setBatchStickerModal(true); setBatchProductId(products[0]?.id || ""); setBatchFromSerial(""); setBatchToSerial(""); }}
+                  style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#c8a84e",color:"#3d1f00" }}>
+                  Batch Print Stickers
+                </button>
                 {filtered.length > 0 && (
                   <button onClick={() => setStickerModalUnits(filtered)}
-                    style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#c8a84e",color:"#fff" }}>
+                    style={{ fontSize:11,padding:"6px 14px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:600,background:"#c8a84e",color:"#3d1f00" }}>
                     Print Stickers ({filtered.length})
                   </button>
                 )}
@@ -17065,6 +17092,12 @@ function BOMManager({ user }) {
                             await autoAssignPlayTesters([updated]);
                           }} style={{ fontSize:11,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#ff9500",color:"#fff" }}>
                             Re-test
+                          </button>
+                        )}
+                        {unit.status !== "destroyed" && unit.status !== "shipped" && (
+                          <button onClick={() => { setDestroyUnitModal({ unit }); setDestroyReason(""); }}
+                            style={{ fontSize:11,padding:"5px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,background:"#8B0000",color:"#fff" }}>
+                            ☠ Destroy
                           </button>
                         )}
                         {unit.status === "boxing" && (
@@ -21538,6 +21571,146 @@ function BOMManager({ user }) {
           </div>
         </div>
       )}
+
+      {/* ── Destroy Unit Confirmation Modal ── */}
+      {destroyUnitModal && (() => {
+        const { unit } = destroyUnitModal;
+        const prod = products.find(p => p.id === unit.product_id);
+        return (
+          <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
+            onClick={() => setDestroyUnitModal(null)}>
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"32px 36px",maxWidth:440,width:"90%",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize:20,fontWeight:700,color:"#8B0000",marginBottom:4 }}>☠ Destroy Serial Number</div>
+              <div style={{ fontSize:13,color:"#86868b",marginBottom:20 }}>
+                <strong style={{ color:textPrimary }}>{unit.serial_number}</strong> — {prod?.name || "Unknown product"}<br/>
+                This permanently marks the unit as destroyed. It will not count toward royalties or sales totals.
+              </div>
+              <div style={{ marginBottom:20 }}>
+                <div style={{ fontSize:11,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Reason for destruction</div>
+                <textarea value={destroyReason} onChange={e => setDestroyReason(e.target.value)} autoFocus
+                  placeholder="e.g. cracked PCB, failed transformer, irreparable board damage…"
+                  style={{ width:"100%",padding:"10px 12px",borderRadius:10,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#f5f5f7",color:textPrimary,fontSize:13,fontFamily:"inherit",resize:"vertical",minHeight:80,outline:"none",boxSizing:"border-box" }} />
+              </div>
+              <div style={{ display:"flex",gap:10 }}>
+                <button onClick={() => setDestroyUnitModal(null)}
+                  style={{ flex:1,padding:"10px 0",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",color:textPrimary,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>
+                  Cancel
+                </button>
+                <button onClick={() => handleDestroyUnit(unit, destroyReason || "No reason given")}
+                  disabled={!destroyReason.trim()}
+                  style={{ flex:1,padding:"10px 0",borderRadius:980,border:"none",background:"#8B0000",color:"#fff",fontSize:13,fontWeight:700,cursor:destroyReason.trim()?"pointer":"not-allowed",fontFamily:"inherit",opacity:destroyReason.trim()?1:0.4 }}>
+                  Confirm Destroy
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Batch Sticker Print Modal ── */}
+      {batchStickerModal && (() => {
+        const batchUnits = pedalUnits
+          .filter(u => u.product_id === batchProductId && u.status !== "destroyed")
+          .filter(u => {
+            if (!batchFromSerial && !batchToSerial) return true;
+            const match = u.serial_number?.match(/-(\d+)$/);
+            if (!match) return false;
+            const num = parseInt(match[1]);
+            const from = batchFromSerial ? parseInt(batchFromSerial) : 0;
+            const to = batchToSerial ? parseInt(batchToSerial) : 999999;
+            return num >= from && num <= to;
+          })
+          .sort((a, b) => {
+            const an = parseInt(a.serial_number?.match(/-(\d+)$/)?.[1] || 0);
+            const bn = parseInt(b.serial_number?.match(/-(\d+)$/)?.[1] || 0);
+            return an - bn;
+          });
+        const selProd = products.find(p => p.id === batchProductId);
+        return (
+          <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center" }}
+            onClick={() => setBatchStickerModal(false)}>
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"32px 36px",maxWidth:520,width:"90%",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+                <div style={{ fontSize:20,fontWeight:700,color:textPrimary }}>Batch Print Stickers</div>
+                <button onClick={() => setBatchStickerModal(false)}
+                  style={{ width:30,height:30,borderRadius:"50%",border:"none",background:darkMode?"#3a3a3e":"#f5f5f7",color:textPrimary,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit" }}>×</button>
+              </div>
+
+              <div style={{ display:"flex",gap:12,marginBottom:16,flexWrap:"wrap" }}>
+                <div style={{ flex:2,minWidth:160 }}>
+                  <div style={{ fontSize:11,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>Product</div>
+                  <select value={batchProductId} onChange={e => setBatchProductId(e.target.value)}
+                    style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#fff",color:textPrimary,fontSize:13,fontFamily:"inherit" }}>
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex:1,minWidth:80 }}>
+                  <div style={{ fontSize:11,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>From S/N #</div>
+                  <input type="number" min="1" placeholder="e.g. 200" value={batchFromSerial} onChange={e => setBatchFromSerial(e.target.value)}
+                    style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#fff",color:textPrimary,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }} />
+                </div>
+                <div style={{ flex:1,minWidth:80 }}>
+                  <div style={{ fontSize:11,fontWeight:700,color:"#86868b",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>To S/N #</div>
+                  <input type="number" min="1" placeholder="e.g. 250" value={batchToSerial} onChange={e => setBatchToSerial(e.target.value)}
+                    style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:darkMode?"1px solid #3a3a3e":"1px solid #d2d2d7",background:darkMode?"#2c2c2e":"#fff",color:textPrimary,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }} />
+                </div>
+              </div>
+
+              <div style={{ fontSize:12,color:"#86868b",marginBottom:16 }}>
+                {batchUnits.length > 0
+                  ? <><strong style={{ color:textPrimary }}>{batchUnits.length} units</strong> matched — {batchUnits[0]?.serial_number} through {batchUnits[batchUnits.length-1]?.serial_number}</>
+                  : selProd ? "No units found in that range. Check serial numbers in the pipeline." : "Select a product."}
+              </div>
+
+              <div style={{ display:"flex",gap:10,marginBottom:20 }}>
+                <button onClick={() => setBatchStickerTab("pedal")}
+                  style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,fontSize:12,fontFamily:"inherit",
+                    background:batchStickerTab==="pedal"?"#c8a84e":darkMode?"#2c2c2e":"#f0f0f2",
+                    color:batchStickerTab==="pedal"?"#3d1f00":textPrimary }}>
+                  Pedal Bottom Sticker
+                </button>
+                <button onClick={() => setBatchStickerTab("box")}
+                  style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,fontSize:12,fontFamily:"inherit",
+                    background:batchStickerTab==="box"?"#0071e3":darkMode?"#2c2c2e":"#f0f0f2",
+                    color:batchStickerTab==="box"?"#fff":textPrimary }}>
+                  Box Label (UPC + QR)
+                </button>
+              </div>
+
+              <div style={{ fontSize:11,color:"#86868b",marginBottom:20 }}>
+                {batchStickerTab==="pedal"
+                  ? "Pedal bottom: brand, product name, serial number barcode + S/N — matches your sticker editor template."
+                  : "Box label (4\" × 3\"): product name, serial number, registration QR code, UPC barcode."}
+              </div>
+
+              <div style={{ display:"flex",gap:10 }}>
+                <button onClick={() => setBatchStickerModal(false)}
+                  style={{ flex:1,padding:"10px 0",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",color:textPrimary,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>
+                  Cancel
+                </button>
+                <button
+                  disabled={batchUnits.length === 0}
+                  onClick={() => {
+                    setBatchStickerModal(false);
+                    if (batchStickerTab === "pedal") {
+                      setStickerModalUnits(batchUnits);
+                    } else {
+                      printBoxLabel(batchUnits);
+                    }
+                  }}
+                  style={{ flex:2,padding:"10px 0",borderRadius:980,border:"none",
+                    background:batchUnits.length===0?"#c7c7cc":batchStickerTab==="pedal"?"#c8a84e":"#0071e3",
+                    color:batchStickerTab==="pedal"&&batchUnits.length>0?"#3d1f00":"#fff",
+                    fontSize:13,fontWeight:700,cursor:batchUnits.length===0?"not-allowed":"pointer",fontFamily:"inherit" }}>
+                  Print {batchUnits.length} {batchStickerTab==="pedal"?"Pedal Sticker":"Box Label"}{batchUnits.length!==1?"s":""}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {stickerModalUnits && (
         <StickerPrintModal
