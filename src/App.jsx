@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.76";
-const BUILD_TIME   = "2026-04-01T15:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.77";
+const BUILD_TIME   = "2026-04-01T15:20:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -2003,10 +2003,20 @@ function BOMManager({ user }) {
       } else if (sectionId === "zoho") {
         let zohoOrgs = [];
         try { zohoOrgs = JSON.parse(apiKeys.zoho_books_json || "[]"); } catch {}
-        if (apiKeys.zoho_org_id && apiKeys.zoho_refresh_token && (!zohoOrgs.length || !zohoOrgs.some(o => o.refresh_token?.length > 50))) {
-          zohoOrgs = [{ name: "Jackson Audio", org_id: apiKeys.zoho_org_id, client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, refresh_token: apiKeys.zoho_refresh_token }];
+        const sharedClientId     = apiKeys.zoho_client_id     || "";
+        const sharedClientSecret = apiKeys.zoho_client_secret || "";
+        const sharedRefreshToken = apiKeys.zoho_refresh_token || "";
+        if (zohoOrgs.length === 0 && apiKeys.zoho_org_id) {
+          zohoOrgs = [{ name: "Jackson Audio", org_id: apiKeys.zoho_org_id }];
         }
+        zohoOrgs = zohoOrgs.map(o => ({
+          ...o,
+          client_id:     o.client_id     || sharedClientId,
+          client_secret: o.client_secret || sharedClientSecret,
+          refresh_token: o.refresh_token || sharedRefreshToken,
+        }));
         if (!zohoOrgs.length || !zohoOrgs[0]?.org_id) throw new Error("Configure Zoho Books credentials first");
+        if (!sharedClientId || !sharedRefreshToken) throw new Error("Enter Client ID and Refresh Token in the Shared Credentials section");
         // Test every org independently — never stop at first failure
         const orgResults = [];
         for (const org of zohoOrgs) {
@@ -4315,14 +4325,21 @@ function BOMManager({ user }) {
   const syncZohoOrders = async () => {
     let zohoOrgs = [];
     try { zohoOrgs = JSON.parse(apiKeys.zoho_books_json || "[]"); } catch {}
-    // Always check legacy single-org fields as primary source
-    if (apiKeys.zoho_org_id && apiKeys.zoho_refresh_token) {
-      const legacyOrg = { name: "Jackson Audio", org_id: apiKeys.zoho_org_id, client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, refresh_token: apiKeys.zoho_refresh_token };
-      // Use legacy if zoho_books_json is empty or has bad data
-      if (zohoOrgs.length === 0 || !zohoOrgs.some(o => o.refresh_token?.length > 50)) {
-        zohoOrgs = [legacyOrg];
-      }
+    // Shared credentials — same client_id/secret/refresh_token for all orgs
+    const sharedClientId     = apiKeys.zoho_client_id     || "";
+    const sharedClientSecret = apiKeys.zoho_client_secret || "";
+    const sharedRefreshToken = apiKeys.zoho_refresh_token || "";
+    // Legacy single-org fallback
+    if (zohoOrgs.length === 0 && apiKeys.zoho_org_id) {
+      zohoOrgs = [{ name: "Jackson Audio", org_id: apiKeys.zoho_org_id }];
     }
+    // Inject shared credentials into each org
+    zohoOrgs = zohoOrgs.map(o => ({
+      ...o,
+      client_id:     o.client_id     || sharedClientId,
+      client_secret: o.client_secret || sharedClientSecret,
+      refresh_token: o.refresh_token || sharedRefreshToken,
+    }));
     if (zohoOrgs.length === 0 || !zohoOrgs.some(o => o.org_id && o.refresh_token)) {
       setZohoDemand({ loading: false, error: "Zoho Books credentials not configured. Add them in Settings." });
       return;
@@ -4378,10 +4395,18 @@ function BOMManager({ user }) {
   const syncZohoContacts = async () => {
     let zohoOrgs = [];
     try { zohoOrgs = JSON.parse(apiKeys.zoho_books_json || "[]"); } catch {}
-    if (apiKeys.zoho_org_id && apiKeys.zoho_refresh_token) {
-      const legacyOrg = { name: "Jackson Audio", org_id: apiKeys.zoho_org_id, client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, refresh_token: apiKeys.zoho_refresh_token };
-      if (zohoOrgs.length === 0 || !zohoOrgs.some(o => o.refresh_token?.length > 50)) zohoOrgs = [legacyOrg];
+    const sharedClientId     = apiKeys.zoho_client_id     || "";
+    const sharedClientSecret = apiKeys.zoho_client_secret || "";
+    const sharedRefreshToken = apiKeys.zoho_refresh_token || "";
+    if (zohoOrgs.length === 0 && apiKeys.zoho_org_id) {
+      zohoOrgs = [{ name: "Jackson Audio", org_id: apiKeys.zoho_org_id }];
     }
+    zohoOrgs = zohoOrgs.map(o => ({
+      ...o,
+      client_id:     o.client_id     || sharedClientId,
+      client_secret: o.client_secret || sharedClientSecret,
+      refresh_token: o.refresh_token || sharedRefreshToken,
+    }));
     if (!zohoOrgs.some(o => o.org_id && o.refresh_token)) {
       alert("Zoho Books credentials not configured. Add them in Settings.");
       return null;
@@ -19322,109 +19347,123 @@ function BOMManager({ user }) {
                   <span style={{ display:"inline-block",width:16,fontSize:11 }}>{collapsedSettings.has("zoho") ? "▶" : "▼"}</span>
                   Zoho Books
                 </div>
-                {apiKeys.zoho_org_id && apiKeys.zoho_refresh_token && <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>Configured</span>}
+                {apiKeys.zoho_client_id && apiKeys.zoho_refresh_token && <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>Configured</span>}
               </div>
               {!collapsedSettings.has("zoho") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:12 }}>
-                  Pull dealer/wholesale orders from Zoho Books. Add one entry per company. Get credentials from{" "}
+                <div style={{ fontSize:12,color:"#6e6e73",marginBottom:14 }}>
+                  Zoho only allows <strong>one Self Client</strong> per account — one set of credentials works for all your Zoho Books companies.
+                  Get credentials from{" "}
                   <a href="https://api-console.zoho.com" target="_blank" rel="noopener noreferrer" style={{ color:"#0071e3" }}>api-console.zoho.com</a>
-                  {" "}→ create a Self Client.
+                  {" "}→ Self Client.
+                </div>
+
+                {/* ── Shared credentials (one Self Client for all orgs) */}
+                <div style={{ padding:"14px 16px",border:"1px solid #e5e5ea",borderRadius:8,marginBottom:16,background:"#fafafa" }}>
+                  <div style={{ fontSize:12,fontWeight:700,color:"#1d1d1f",marginBottom:10 }}>Shared API Credentials</div>
+                  <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8 }}>
+                    <div>
+                      <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Client ID</div>
+                      <input type="text" placeholder="From API Console → Self Client" value={apiKeys.zoho_client_id||""}
+                        onChange={e=>setApiKeys(k=>({...k,zoho_client_id:e.target.value}))}
+                        style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Client Secret</div>
+                      <input type="password" placeholder="From API Console → Self Client" value={apiKeys.zoho_client_secret||""}
+                        onChange={e=>setApiKeys(k=>({...k,zoho_client_secret:e.target.value}))}
+                        style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom:8 }}>
+                    <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Refresh Token</div>
+                    <input type="password" placeholder="Long-lived refresh token (exchange a grant code below to get this)" value={apiKeys.zoho_refresh_token||""}
+                      onChange={e=>setApiKeys(k=>({...k,zoho_refresh_token:e.target.value}))}
+                      style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box",fontFamily:"monospace" }} />
+                  </div>
+                  {/* Grant code exchange */}
+                  <div style={{ padding:"10px 12px",background:"rgba(0,113,227,0.04)",border:"1px solid rgba(0,113,227,0.2)",borderRadius:6 }}>
+                    <div style={{ fontSize:10,color:"#0071e3",fontWeight:700,marginBottom:6 }}>↕ Get a fresh Refresh Token — paste your Self Client grant code here:</div>
+                    <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:4 }}>
+                      <select id="zoho_region" defaultValue="com"
+                        style={{ padding:"5px 8px",borderRadius:5,fontSize:11,border:"1px solid #d2d2d7",background:"#fff",color:"#1d1d1f" }}>
+                        <option value="com">zoho.com (US)</option>
+                        <option value="eu">zoho.eu (Europe)</option>
+                        <option value="in">zoho.in (India)</option>
+                        <option value="au">zoho.com.au (Australia)</option>
+                        <option value="jp">zoho.jp (Japan)</option>
+                        <option value="uk">zoho.uk (UK)</option>
+                        <option value="ca">zohocloud.ca (Canada)</option>
+                      </select>
+                      <input type="text" placeholder="Paste grant code (1000.xxxxx.xxxxx) — valid 10 min" id="zoho_grant_code"
+                        style={{ flex:1,padding:"5px 8px",borderRadius:5,fontSize:11,border:"1px solid #d2d2d7",fontFamily:"monospace" }} />
+                      <button id="zoho_exchange_btn"
+                        style={{ background:"#0071e3",color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap" }}
+                        onClick={async () => {
+                          const code = document.getElementById("zoho_grant_code")?.value?.trim();
+                          const region = document.getElementById("zoho_region")?.value || "com";
+                          const btn = document.getElementById("zoho_exchange_btn");
+                          if (!code) { showToast("Paste a grant code first", "#ff3b30"); return; }
+                          if (!apiKeys.zoho_client_id || !apiKeys.zoho_client_secret) { showToast("Enter Client ID and Secret first", "#ff3b30"); return; }
+                          if (btn) btn.textContent = "Exchanging…";
+                          try {
+                            const r = await fetch("/api/zoho?action=exchange", {
+                              method: "POST", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, grant_code: code, region }),
+                            });
+                            const data = await r.json();
+                            if (!r.ok || !data.ok) throw new Error(data.error + (data.detail ? ` — ${data.detail}` : ""));
+                            setApiKeys(k => ({ ...k, zoho_refresh_token: data.refresh_token }));
+                            document.getElementById("zoho_grant_code").value = "";
+                            showToast("✓ Refresh token obtained — click Save Zoho Books", "#34c759");
+                          } catch (e) {
+                            showToast("Exchange failed: " + e.message, "#ff3b30");
+                          } finally {
+                            if (btn) btn.textContent = "Exchange →";
+                          }
+                        }}>Exchange →</button>
+                    </div>
+                    <div style={{ fontSize:10,color:"#86868b" }}>
+                      API Console → Self Client → Generate Code → scope: <code style={{ background:"#f0f0f2",padding:"1px 4px",borderRadius:3 }}>ZohoBooks.salesorders.READ,ZohoBooks.contacts.READ</code>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Per-company org IDs */}
+                <div style={{ fontSize:12,fontWeight:700,color:"#1d1d1f",marginBottom:8 }}>Companies (Org IDs)</div>
+                <div style={{ fontSize:11,color:"#86868b",marginBottom:10 }}>
+                  Same credentials above are used for all companies. Just enter each company's Org ID — found in Zoho Books → Settings → Organization Profile.
                 </div>
                 {(() => {
                   let zohoOrgs = [];
                   try { zohoOrgs = JSON.parse(apiKeys.zoho_books_json || "[]"); } catch {}
-                  // Migrate legacy single-org config
+                  // Migrate legacy per-org credentials to shared model
                   if (zohoOrgs.length === 0 && apiKeys.zoho_org_id) {
-                    zohoOrgs = [{ name: "Jackson Audio", org_id: apiKeys.zoho_org_id, client_id: apiKeys.zoho_client_id, client_secret: apiKeys.zoho_client_secret, refresh_token: apiKeys.zoho_refresh_token }];
+                    zohoOrgs = [{ name: "Jackson Audio", org_id: apiKeys.zoho_org_id }];
                   }
-                  if (zohoOrgs.length === 0) zohoOrgs = [{ name: "", org_id: "", client_id: "", client_secret: "", refresh_token: "" }];
+                  // Strip old per-org credential fields down to just name + org_id
+                  zohoOrgs = zohoOrgs.map(o => ({ name: o.name || "", org_id: o.org_id || "" }));
+                  if (zohoOrgs.length === 0) zohoOrgs = [{ name: "", org_id: "" }];
                   const updateOrgs = (newOrgs) => setApiKeys(k => ({ ...k, zoho_books_json: JSON.stringify(newOrgs) }));
                   const updateOrg = (idx, field, val) => { const u = [...zohoOrgs]; u[idx] = { ...u[idx], [field]: val }; updateOrgs(u); };
                   return (
                     <>
                       {zohoOrgs.map((org, idx) => (
-                        <div key={idx} style={{ padding:"12px 16px",border:"1px solid #e5e5ea",borderRadius:8,marginBottom:12,background:"#fafafa" }}>
-                          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-                            <span style={{ fontSize:13,fontWeight:700,color:"#1d1d1f" }}>{org.name || `Company ${idx+1}`}</span>
-                            {zohoOrgs.length > 1 && <button onClick={() => { const u = zohoOrgs.filter((_,i)=>i!==idx); updateOrgs(u); }}
-                              style={{ background:"none",border:"none",color:"#ff3b30",cursor:"pointer",fontSize:12,fontWeight:600 }}>Remove</button>}
-                          </div>
-                          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8 }}>
-                            <div>
-                              <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Company Name</div>
-                              <input type="text" placeholder="e.g. Jackson Audio" value={org.name||""} onChange={e=>updateOrg(idx,"name",e.target.value)}
-                                style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
-                            </div>
-                            <div>
-                              <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Organization ID</div>
-                              <input type="text" placeholder="Zoho Books Org ID" value={org.org_id||""} onChange={e=>updateOrg(idx,"org_id",e.target.value)}
-                                style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
-                            </div>
-                            <div>
-                              <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Client ID</div>
-                              <input type="text" placeholder="From API Console" value={org.client_id||""} onChange={e=>updateOrg(idx,"client_id",e.target.value)}
-                                style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
-                            </div>
-                            <div>
-                              <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Client Secret</div>
-                              <input type="password" placeholder="From API Console" value={org.client_secret||""} onChange={e=>updateOrg(idx,"client_secret",e.target.value)}
-                                style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Refresh Token</div>
-                            <input type="password" placeholder="Self Client refresh token" value={org.refresh_token||""} onChange={e=>updateOrg(idx,"refresh_token",e.target.value)}
-                              style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
-                          </div>
-                          {/* Grant code exchange — paste the token from Self Client page, get refresh token automatically */}
-                          <div style={{ marginTop:8,padding:"10px 12px",background:"rgba(0,113,227,0.04)",border:"1px solid rgba(0,113,227,0.2)",borderRadius:6 }}>
-                            <div style={{ fontSize:10,color:"#0071e3",fontWeight:700,marginBottom:6 }}>↕ Have a Grant Token from Self Client? Exchange it here:</div>
-                            <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:6 }}>
-                              <select id={`region_${idx}`} defaultValue={org.region||"com"}
-                                onChange={e=>updateOrg(idx,"region",e.target.value)}
-                                style={{ padding:"5px 8px",borderRadius:5,fontSize:11,border:"1px solid #d2d2d7",background:"#fff",color:"#1d1d1f" }}>
-                                <option value="com">zoho.com (US)</option>
-                                <option value="eu">zoho.eu (Europe)</option>
-                                <option value="in">zoho.in (India)</option>
-                                <option value="au">zoho.com.au (Australia)</option>
-                                <option value="jp">zoho.jp (Japan)</option>
-                                <option value="uk">zoho.uk (UK)</option>
-                                <option value="ca">zohocloud.ca (Canada)</option>
-                              </select>
-                              <input type="text" placeholder="Paste grant token (1000.xxxxx.xxxxx)" id={`grant_code_${idx}`}
-                                style={{ flex:1,padding:"5px 8px",borderRadius:5,fontSize:11,border:"1px solid #d2d2d7",fontFamily:"monospace" }} />
-                              <button style={{ background:"#0071e3",color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap" }}
-                                onClick={async () => {
-                                  const code = document.getElementById(`grant_code_${idx}`)?.value?.trim();
-                                  const region = document.getElementById(`region_${idx}`)?.value || "com";
-                                  if (!code) return;
-                                  if (!org.client_id || !org.client_secret) { showToast("Enter Client ID and Secret first", "#ff3b30"); return; }
-                                  const btn = document.getElementById(`grant_code_${idx}`).nextSibling;
-                                  if (btn) btn.textContent = "Exchanging…";
-                                  try {
-                                    const r = await fetch("/api/zoho?action=exchange", {
-                                      method: "POST", headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({ client_id: org.client_id, client_secret: org.client_secret, grant_code: code, region }),
-                                    });
-                                    const data = await r.json();
-                                    if (!r.ok || !data.ok) throw new Error(data.error + (data.detail ? ` — ${data.detail}` : ""));
-                                    updateOrg(idx, "refresh_token", data.refresh_token);
-                                    document.getElementById(`grant_code_${idx}`).value = "";
-                                    showToast("✓ Refresh token obtained — click Save Zoho Books", "#34c759");
-                                  } catch (e) {
-                                    showToast("Exchange failed: " + e.message, "#ff3b30");
-                                  } finally {
-                                    if (btn) btn.textContent = "Exchange →";
-                                  }
-                                }}>Exchange →</button>
-                            </div>
-                            <div style={{ fontSize:10,color:"#86868b" }}>In API Console → Self Client → Generate Code. Paste the code here within 10 minutes. Select your region first.</div>
-                          </div>
+                        <div key={idx} style={{ display:"flex",gap:8,alignItems:"center",marginBottom:8 }}>
+                          <input type="text" placeholder="Company name (e.g. Jackson Audio)" value={org.name||""}
+                            onChange={e=>updateOrg(idx,"name",e.target.value)}
+                            style={{ flex:1,padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7" }} />
+                          <input type="text" placeholder="Org ID (e.g. 728493827)" value={org.org_id||""}
+                            onChange={e=>updateOrg(idx,"org_id",e.target.value)}
+                            style={{ flex:1,padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",fontFamily:"monospace" }} />
+                          {zohoOrgs.length > 1 &&
+                            <button onClick={() => updateOrgs(zohoOrgs.filter((_,i)=>i!==idx))}
+                              style={{ background:"none",border:"none",color:"#ff3b30",cursor:"pointer",fontSize:18,padding:"0 4px",lineHeight:1 }}>×</button>
+                          }
                         </div>
                       ))}
                       <button className="btn-ghost" style={{ fontSize:12,marginBottom:10 }}
-                        onClick={() => updateOrgs([...zohoOrgs, { name:"", org_id:"", client_id:"", client_secret:"", refresh_token:"" }])}>
-                        + Add Zoho Books Company
+                        onClick={() => updateOrgs([...zohoOrgs, { name:"", org_id:"" }])}>
+                        + Add Company
                       </button>
                     </>
                   );
