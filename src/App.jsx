@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.82";
-const BUILD_TIME   = "2026-04-01T16:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.83";
+const BUILD_TIME   = "2026-04-01T16:25:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -5305,8 +5305,7 @@ function BOMManager({ user }) {
           { id:"dealers",   label:`Dealers${dealers.length>0?` (${dealers.length})`:""}`, step:null, color:null },
           { id:"shops",     label:`Shops${shopOrders.filter(o=>o.status!=="completed"&&o.status!=="cancelled").length>0?` (${shopOrders.filter(o=>o.status!=="completed"&&o.status!=="cancelled").length})`:""}`, step:null, color:null },
           { id:"settings",  label:"Settings",   step:null, color:null },
-          { id:"admin",     label:"Admin",       step:null, color:null },
-        ].filter(tab => tab.id !== "admin" || isAdmin).map((tab) => (
+        ].map((tab) => (
           <button key={tab.id}
             className={`nav-btn ${activeView===tab.id?"active":""}`}
             onClick={() => setActiveView(tab.id)}
@@ -20263,7 +20262,7 @@ function BOMManager({ user }) {
         {/* ══════════════════════════════════════
             ADMIN — Profit Analysis
         ══════════════════════════════════════ */}
-        {activeView === "admin" && isAdmin && (() => {
+        {activeView === "settings" && settingsTab === "admin" && isAdmin && (() => {
           const laborRate = parseFloat(apiKeys.labor_rate_hourly) || 25;
           const adSpendPct = parseFloat(apiKeys.ad_spend_pct) || 0;
           const shippingPerUnit = parseFloat(apiKeys.shipping_cost_per_unit) || 0;
@@ -20359,8 +20358,6 @@ function BOMManager({ user }) {
 
           return (
           <div style={{ maxWidth:"100%" }}>
-            <h2 style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",marginBottom:4 }}>Admin</h2>
-            <p style={{ fontSize:14,color:"#86868b",marginBottom:24 }}>Manage team rates, profit analysis, and admin-only settings.</p>
 
             {/* ── Team Hourly Rates ── */}
             <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
