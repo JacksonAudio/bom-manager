@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.90";
-const BUILD_TIME   = "2026-04-01T19:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.91";
+const BUILD_TIME   = "2026-04-01T19:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -1511,9 +1511,10 @@ const CSS = `
   .dark main :not(button)[style*="font-size: 9px"],  .dark main :not(button)[style*="fontSize:9"] {
     color: #98989d !important;
   }
-  /* ALL buttons in dark mode get white text — .dark .btn-ghost overrides this
-     for ghost buttons because it has higher specificity (2 classes vs 1 class+1 elem) */
-  .dark main button { color: #fff !important; }
+  /* ALL buttons in dark mode get white text */
+  #root .dark main button { color: #fff !important; }
+  #root .dark .btn-ghost { color: #98989d !important; }
+  #root .dark .btn-ghost:hover { color: #64d2ff !important; }
 
   /* Table header row */
   .dark [style*="background"][style*="b8bdd1"] { background: #2c2c2e !important; }
@@ -16699,7 +16700,7 @@ function BOMManager({ user }) {
                                     style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:"pointer",fontWeight:700,fontSize:11,background:"#34c759",color:"#fff",fontFamily:"inherit" }}>+ Add</button>
                                   <button onClick={() => { setShelfAddModal({ productId: prod.id, action: 'remove' }); setShelfAdjQty(""); setShelfAdjNotes(""); }}
                                     disabled={qty === 0}
-                                    style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:qty===0?"not-allowed":"pointer",fontWeight:700,fontSize:11,background:"#ff3b30",color:"#fff",fontFamily:"inherit",opacity:qty===0?0.4:1 }}>− Remove</button>
+                                    style={{ padding:"4px 12px",borderRadius:980,border:"none",cursor:qty===0?"not-allowed":"pointer",fontWeight:700,fontSize:11,background:qty===0?"#5c2020":"#ff3b30",color:qty===0?"#a05050":"#fff",fontFamily:"inherit" }}>− Remove</button>
                                 </div>
                               </td>
                             </tr>
