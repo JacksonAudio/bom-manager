@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.72";
-const BUILD_TIME   = "2026-04-01T14:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.73";
+const BUILD_TIME   = "2026-04-01T14:20:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -2015,7 +2015,10 @@ function BOMManager({ user }) {
             body: JSON.stringify({ org_id: org.org_id, client_id: org.client_id, client_secret: org.client_secret, refresh_token: org.refresh_token }),
           });
           const data = await r.json();
-          if (!r.ok || !data.ok) throw new Error(`${org.name || org.org_id}: ${data.error || `HTTP ${r.status}`}`);
+          if (!r.ok || !data.ok) {
+            const detail = data.detail ? ` (Zoho says: ${data.detail})` : "";
+            throw new Error(`${org.name || org.org_id}: ${data.error || `HTTP ${r.status}`}${detail}`);
+          }
           results.push(org.name || org.org_id);
         }
         if (!results.length) throw new Error("No valid Zoho orgs found");

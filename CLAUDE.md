@@ -1,5 +1,9 @@
 # CLAUDE.md — Rules for this project
 
+## MANDATORY: Always show code inline — never make the user open a file
+
+When the user needs to run SQL, paste config, copy credentials, or use any other code output, **always paste the full content directly in the chat response**. Never say "see the file at X" or "open Y and copy it." If there's a migration to run, dump the SQL right there. If there's JSON to paste, show it. The user must never have to open a file to get something they need to use.
+
 ## MANDATORY: Maximum 12 Serverless Functions
 
 Vercel Hobby plan hard-limits to **12 serverless functions** in `api/`. Current 12:
