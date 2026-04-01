@@ -10,9 +10,32 @@ export default async function handler(req, res) {
 
   // Accept params from query string (GET) or body (POST)
   const params = req.method === "POST" ? { ...(req.body || {}), ...(req.query || {}) } : (req.query || {});
-  const { action, org_id, client_id, client_secret, refresh_token } = params;
+  const { action, org_id, client_id, client_secret, refresh_token, grant_code } = params;
 
-  if (!action) return res.status(400).json({ error: "Missing action param (orders|history)" });
+  if (!action) return res.status(400).json({ error: "Missing action param" });
+
+  // ── Grant code exchange — swap a Self Client authorization code for a refresh token
+  // This must run before the standard refresh_token check below
+  if (action === "exchange") {
+    if (!client_id || !client_secret || !grant_code) {
+      return res.status(400).json({ error: "Missing client_id, client_secret, or grant_code" });
+    }
+    try {
+      const r = await fetch("https://accounts.zoho.com/oauth/v2/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `grant_type=authorization_code&client_id=${encodeURIComponent(client_id)}&client_secret=${encodeURIComponent(client_secret)}&redirect_uri=&code=${encodeURIComponent(grant_code)}`,
+      });
+      const data = await r.json();
+      console.log("[zoho exchange] response:", JSON.stringify(data).slice(0, 300));
+      if (data.error) return res.status(400).json({ error: data.error, detail: JSON.stringify(data) });
+      if (!data.refresh_token) return res.status(400).json({ error: "No refresh_token in response", detail: JSON.stringify(data) });
+      return res.status(200).json({ ok: true, refresh_token: data.refresh_token, access_token: data.access_token });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   if (!org_id || !client_id || !client_secret || !refresh_token) {
     return res.status(400).json({ error: "Missing org_id, client_id, client_secret, or refresh_token" });
   }

@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v9.73";
-const BUILD_TIME   = "2026-04-01T14:20:00";   // local time of last push (Central)
+const APP_VERSION  = "v9.74";
+const BUILD_TIME   = "2026-04-01T14:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -19347,6 +19347,38 @@ function BOMManager({ user }) {
                             <div style={{ fontSize:10,color:"#86868b",marginBottom:2 }}>Refresh Token</div>
                             <input type="password" placeholder="Self Client refresh token" value={org.refresh_token||""} onChange={e=>updateOrg(idx,"refresh_token",e.target.value)}
                               style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #d2d2d7",boxSizing:"border-box" }} />
+                          </div>
+                          {/* Grant code exchange — paste the token from Self Client page, get refresh token automatically */}
+                          <div style={{ marginTop:8,padding:"10px 12px",background:"rgba(0,113,227,0.04)",border:"1px solid rgba(0,113,227,0.2)",borderRadius:6 }}>
+                            <div style={{ fontSize:10,color:"#0071e3",fontWeight:700,marginBottom:6 }}>↕ Have a Grant Token from Self Client? Exchange it here:</div>
+                            <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+                              <input type="text" placeholder="Paste grant token (1000.xxxxx.xxxxx)" id={`grant_code_${idx}`}
+                                style={{ flex:1,padding:"5px 8px",borderRadius:5,fontSize:11,border:"1px solid #d2d2d7",fontFamily:"monospace" }} />
+                              <button style={{ background:"#0071e3",color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap" }}
+                                onClick={async () => {
+                                  const code = document.getElementById(`grant_code_${idx}`)?.value?.trim();
+                                  if (!code) return;
+                                  if (!org.client_id || !org.client_secret) { showToast("Enter Client ID and Secret first", "#ff3b30"); return; }
+                                  const btn = document.getElementById(`grant_code_${idx}`).nextSibling;
+                                  if (btn) btn.textContent = "Exchanging…";
+                                  try {
+                                    const r = await fetch("/api/zoho?action=exchange", {
+                                      method: "POST", headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ client_id: org.client_id, client_secret: org.client_secret, grant_code: code }),
+                                    });
+                                    const data = await r.json();
+                                    if (!r.ok || !data.ok) throw new Error(data.error + (data.detail ? ` — ${data.detail}` : ""));
+                                    updateOrg(idx, "refresh_token", data.refresh_token);
+                                    document.getElementById(`grant_code_${idx}`).value = "";
+                                    showToast("✓ Refresh token obtained and saved to field — click Save Zoho Books", "#34c759");
+                                  } catch (e) {
+                                    showToast("Exchange failed: " + e.message, "#ff3b30");
+                                  } finally {
+                                    if (btn) btn.textContent = "Exchange →";
+                                  }
+                                }}>Exchange →</button>
+                            </div>
+                            <div style={{ fontSize:10,color:"#86868b",marginTop:4 }}>In API Console → Self Client → Generate Code. Paste the code here within 10 minutes.</div>
                           </div>
                         </div>
                       ))}
