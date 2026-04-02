@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.04";
-const BUILD_TIME   = "2026-04-01T21:40:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.05";
+const BUILD_TIME   = "2026-04-01T21:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -11977,7 +11977,7 @@ function BOMManager({ user }) {
                           </button>
                         </div>
                       </div>
-                      <div style={{ overflowX:"auto",maxHeight:320,overflowY:"auto" }}>
+                      <div style={{ overflowX:"auto",maxHeight:"60vh",overflowY:"auto" }}>
                         <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
                           <thead style={{ position:"sticky",top:0,background:darkMode?"#2c2c2e":"#f5f5f7",zIndex:1 }}>
                             <tr>
