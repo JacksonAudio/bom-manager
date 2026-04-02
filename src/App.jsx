@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.11";
-const BUILD_TIME   = "2026-04-01T20:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.12";
+const BUILD_TIME   = "2026-04-01T20:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -12050,11 +12050,17 @@ function BOMManager({ user }) {
                                   }} />
                                 </td>
                                 <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>
-                                  <input type="text" value={p.mpn||""} placeholder="—"
-                                    onChange={e => setPdImportPreview(prev => ({ ...prev, parts: prev.parts.map((pp, ii) => ii === i ? { ...pp, mpn: e.target.value, _matchStatus: e.target.value ? "new-mpn" : "no-mpn" } : pp) }))}
-                                    style={{ border:"none",background:"transparent",fontFamily:"monospace",fontWeight:600,fontSize:11,width:"100%",minWidth:90,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"inherit",outline:"none" }}
-                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f0f0f2";e.target.style.borderRadius="3px";}}
-                                    onBlur={e=>{e.target.style.background="transparent";}} />
+                                  {p._matchStatus === "no-mpn"
+                                    ? <button onClick={() => { setPdImportMatchModal({ partIdx: i }); setPdImportMatchSearch((p.value||"") + (p.footprint ? " " + p.footprint : "") + (p.description ? " " + p.description : "")); }}
+                                        style={{ fontSize:11,padding:"4px 12px",borderRadius:980,border:"1.5px solid #ff9500",background:"rgba(255,149,0,0.13)",color:"#c86400",fontWeight:700,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.01em",whiteSpace:"nowrap" }}>
+                                        ⚠ Match to library…
+                                      </button>
+                                    : <input type="text" value={p.mpn||""} placeholder="—"
+                                        onChange={e => setPdImportPreview(prev => ({ ...prev, parts: prev.parts.map((pp, ii) => ii === i ? { ...pp, mpn: e.target.value, _matchStatus: e.target.value ? "new-mpn" : "no-mpn" } : pp) }))}
+                                        style={{ border:"none",background:"transparent",fontFamily:"monospace",fontWeight:600,fontSize:11,width:"100%",minWidth:90,color:darkMode?"#f5f5f7":"#1d1d1f",outline:"none" }}
+                                        onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f0f0f2";e.target.style.borderRadius="3px";}}
+                                        onBlur={e=>{e.target.style.background="transparent";}} />
+                                  }
                                 </td>
                                 <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#c7c7cc":"#6e6e73",fontSize:11 }}>{p.value||"—"}</td>
                                 <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#c7c7cc":"#6e6e73",fontSize:11 }}>{p.voltage_rating||"—"}</td>
@@ -12095,10 +12101,7 @@ function BOMManager({ user }) {
                                         );
                                       })()
                                     : p._matchStatus === "no-mpn"
-                                    ? <button onClick={() => { setPdImportMatchModal({ partIdx: i }); setPdImportMatchSearch((p.value||"") + (p.footprint ? " " + p.footprint : "") + (p.description ? " " + p.description : "")); }}
-                                        style={{ fontSize:11,padding:"5px 14px",borderRadius:980,border:"1.5px solid #ff9500",background:"rgba(255,149,0,0.13)",color:"#c86400",fontWeight:700,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.01em" }}>
-                                        ⚠ Match to library…
-                                      </button>
+                                    ? <span style={{ fontSize:10,color:"#ff9500",fontWeight:600 }}>⚠ Unmatched</span>
                                     : <span style={{ fontSize:10,padding:"1px 6px",borderRadius:4,background:"rgba(0,113,227,0.1)",color:"#0071e3",fontWeight:600 }}>+ New</span>
                                   }
                                 </td>
