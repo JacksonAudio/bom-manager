@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.07";
-const BUILD_TIME   = "2026-04-01T22:05:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.08";
+const BUILD_TIME   = "2026-04-01T19:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -22376,7 +22376,12 @@ function BOMManager({ user }) {
                       }}>
                       <div style={{ flex:1,minWidth:0 }}>
                         <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"monospace" }}>{r.mpn||"—"}</div>
-                        <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>{[r.value,r.description,r.footprint].filter(Boolean).join(" · ")}</div>
+                        <div style={{ display:"flex",flexWrap:"wrap",alignItems:"center",gap:4,marginTop:3 }}>
+                          {r.value && <span style={{ fontSize:11,color:"#86868b" }}>{r.value}</span>}
+                          {r.voltage_rating && <span style={{ fontSize:11,color:"#86868b" }}>· {r.voltage_rating}</span>}
+                          {r.footprint && <span style={{ fontSize:11,padding:"1px 6px",borderRadius:4,background:darkMode?"rgba(255,149,0,0.15)":"rgba(255,149,0,0.1)",color:"#c86400",fontWeight:600,border:"1px solid rgba(255,149,0,0.25)" }}>{r.footprint}</span>}
+                          {r.description && <span style={{ fontSize:11,color:"#86868b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160 }}>{r.description}</span>}
+                        </div>
                       </div>
                       <span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:"rgba(0,113,227,0.1)",color:"#0071e3",fontWeight:600,flexShrink:0 }}>Use</span>
                     </div>
@@ -22452,7 +22457,12 @@ function BOMManager({ user }) {
                       }}>
                       <div style={{ flex:1,minWidth:0 }}>
                         <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"monospace" }}>{r.mpn||"—"}</div>
-                        <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>{[r.value,r.voltage_rating,r.footprint,r.description].filter(Boolean).join(" · ")}</div>
+                        <div style={{ display:"flex",flexWrap:"wrap",alignItems:"center",gap:4,marginTop:3 }}>
+                          {r.value && <span style={{ fontSize:11,color:"#86868b" }}>{r.value}</span>}
+                          {r.voltage_rating && <span style={{ fontSize:11,color:"#86868b" }}>· {r.voltage_rating}</span>}
+                          {r.footprint && <span style={{ fontSize:11,padding:"1px 6px",borderRadius:4,background:darkMode?"rgba(255,149,0,0.15)":"rgba(255,149,0,0.1)",color:"#c86400",fontWeight:600,border:"1px solid rgba(255,149,0,0.25)" }}>{r.footprint}</span>}
+                          {r.description && <span style={{ fontSize:11,color:"#86868b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160 }}>{r.description}</span>}
+                        </div>
                       </div>
                       <span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:"rgba(0,113,227,0.1)",color:"#0071e3",fontWeight:600,flexShrink:0 }}>Use</span>
                     </div>
