@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.02";
-const BUILD_TIME   = "2026-04-01T21:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.03";
+const BUILD_TIME   = "2026-04-01T21:20:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -1918,6 +1918,8 @@ function BOMManager({ user }) {
   const [pdImportOk, setPdImportOk] = useState("");
   const [pdImportPreview, setPdImportPreview] = useState(null); // { parts, productId, filename, skipped, skippedDNI }
   const [pdImportExcluded, setPdImportExcluded] = useState(new Set());
+  const [pdImportMatchModal, setPdImportMatchModal] = useState(null); // { partIdx } — Match? for no-MPN product import rows
+  const [pdImportMatchSearch, setPdImportMatchSearch] = useState("");
 
   const fileRef = useRef();
   const pdFileRef = useRef(); // product detail page file input ref
@@ -3115,20 +3117,53 @@ function BOMManager({ user }) {
       const parsed = parseBOM(rawText);
       if (!parsed.length) { setPdImportError("No parts found. Check header row."); return; }
       const skippedDNI = parsed._skippedDNI || 0;
-      // Set product_id on all parsed parts
       const withProduct = parsed.map(p => ({ ...p, projectId: productId }));
-      // Flag exact MPN matches (already in library) vs new parts
+
+      // Build lookup indexes
       const existingByMPN = {};
       parts.forEach(p => { if (p.mpn) existingByMPN[p.mpn.toLowerCase()] = p; });
-      const annotated = withProduct.map(p => ({
-        ...p,
-        _matchStatus: p.mpn && existingByMPN[p.mpn.toLowerCase()] ? "exact" : (p.mpn ? "new-mpn" : "no-mpn"),
-        _existingPart: p.mpn ? existingByMPN[p.mpn.toLowerCase()] : null,
-      }));
-      // Pre-exclude exact matches (already in library) — user can include them if they want
+
+      // Auto-match no-MPN parts by value + package + description against library
+      const autoMatch = (p) => {
+        const val = (p.value || "").toLowerCase().trim();
+        const pkg = (p.footprint || "").toLowerCase().trim();
+        const desc = (p.description || "").toLowerCase().trim();
+        if (!val && !pkg) return null;
+        const scored = parts.map(lib => {
+          const lval = (lib.value || "").toLowerCase().trim();
+          const lpkg = (lib.footprint || "").toLowerCase().trim();
+          const ldesc = (lib.description || "").toLowerCase().trim();
+          let score = 0;
+          if (val && lval && lval === val) score += 4;
+          else if (val && lval && lval.includes(val)) score += 2;
+          if (pkg && lpkg && lpkg === pkg) score += 3;
+          else if (pkg && lpkg && lpkg.includes(pkg)) score += 1;
+          if (desc && ldesc && ldesc.includes(desc.slice(0, 15))) score += 1;
+          return { lib, score };
+        }).filter(c => c.score >= 4).sort((a, b) => b.score - a.score);
+        return scored[0]?.lib || null;
+      };
+
+      const annotated = withProduct.map(p => {
+        if (p.mpn && existingByMPN[p.mpn.toLowerCase()]) {
+          return { ...p, _matchStatus: "exact", _existingPart: existingByMPN[p.mpn.toLowerCase()] };
+        }
+        if (p.mpn) {
+          return { ...p, _matchStatus: "new-mpn", _existingPart: null };
+        }
+        // No MPN — try auto-match
+        const suggested = autoMatch(p);
+        return {
+          ...p,
+          _matchStatus: suggested ? "suggested" : "no-mpn",
+          _suggestedPart: suggested || null,
+          _existingPart: null,
+        };
+      });
+
+      // Pre-exclude exact matches — user confirms the rest
       const preExcluded = new Set(annotated.map((p, i) => p._matchStatus === "exact" ? i : -1).filter(i => i >= 0));
       const skipped = preExcluded.size;
-      if (annotated.length === 0) { setPdImportError("No parts found. Check header row."); return; }
       setPdImportPreview({ parts: annotated, productId, filename: filename || null, skipped, skippedDNI });
       setPdImportExcluded(preExcluded);
     } catch (e) { setPdImportError("Import error: " + e.message); }
@@ -11907,7 +11942,8 @@ function BOMManager({ user }) {
                           <span style={{ fontWeight:700,color:"#0071e3" }}>{selectedCount} of {pdImportPreview.parts.length} parts selected to import</span>
                           {pdImportPreview.skipped > 0 && <span style={{ color:"#86868b",marginLeft:8 }}>{pdImportPreview.skipped} exact match{pdImportPreview.skipped>1?"es":""} pre-unchecked</span>}
                           {pdImportPreview.skippedDNI > 0 && <span style={{ color:"#ff9500",marginLeft:8 }}>{pdImportPreview.skippedDNI} DNI skipped</span>}
-                          {hasNoMPN && <span style={{ color:"#ff9500",marginLeft:8 }}>⚠ Some parts have no MPN</span>}
+                          {(() => { const sugg = pdImportPreview.parts.filter(p=>p._matchStatus==="suggested").length; return sugg > 0 ? <span style={{ color:"#5856d6",marginLeft:8 }}>{sugg} auto-matched — review below</span> : null; })()}
+                          {hasNoMPN && <span style={{ color:"#ff9500",marginLeft:8 }}>⚠ {pdImportPreview.parts.filter(p=>p._matchStatus==="no-mpn").length} still need match</span>}
                         </div>
                         <div style={{ display:"flex",gap:6 }}>
                           <button onClick={() => { setPdImportPreview(null); setPdImportExcluded(new Set()); }}
@@ -11928,7 +11964,7 @@ function BOMManager({ user }) {
                                 <input type="checkbox" checked={pdImportExcluded.size === 0}
                                   onChange={e => { if (e.target.checked) setPdImportExcluded(new Set()); else setPdImportExcluded(new Set(pdImportPreview.parts.map((_,i)=>i))); }} />
                               </th>
-                              {["MPN","Value","Description","Status"].map(h => (
+                              {["MPN","Value","Voltage","Package","Description","Status"].map(h => (
                                 <th key={h} style={{ textAlign:"left",padding:"5px 10px",fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f",borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),whiteSpace:"nowrap" }}>{h}</th>
                               ))}
                             </tr>
@@ -11941,14 +11977,42 @@ function BOMManager({ user }) {
                                     setPdImportExcluded(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; });
                                   }} />
                                 </td>
-                                <td style={{ padding:"5px 10px",fontFamily:"monospace",whiteSpace:"nowrap",color:darkMode?"#f5f5f7":"#1d1d1f",fontWeight:600 }}>{p.mpn||"—"}</td>
-                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#c7c7cc":"#6e6e73" }}>{p.value||"—"}</td>
-                                <td style={{ padding:"5px 10px",color:darkMode?"#aeaeb2":"#86868b",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
+                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>
+                                  <input type="text" value={p.mpn||""} placeholder="—"
+                                    onChange={e => setPdImportPreview(prev => ({ ...prev, parts: prev.parts.map((pp, ii) => ii === i ? { ...pp, mpn: e.target.value, _matchStatus: e.target.value ? "new-mpn" : "no-mpn" } : pp) }))}
+                                    style={{ border:"none",background:"transparent",fontFamily:"monospace",fontWeight:600,fontSize:11,width:"100%",minWidth:90,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"inherit",outline:"none" }}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f0f0f2";e.target.style.borderRadius="3px";}}
+                                    onBlur={e=>{e.target.style.background="transparent";}} />
+                                </td>
+                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#c7c7cc":"#6e6e73",fontSize:11 }}>{p.value||"—"}</td>
+                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#c7c7cc":"#6e6e73",fontSize:11 }}>{p.voltage_rating||"—"}</td>
+                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#c7c7cc":"#6e6e73",fontSize:11 }}>{p.footprint||"—"}</td>
+                                <td style={{ padding:"5px 10px",color:darkMode?"#aeaeb2":"#86868b",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:11 }}>{p.description||"—"}</td>
                                 <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>
                                   {p._matchStatus === "exact"
                                     ? <span style={{ fontSize:10,padding:"1px 6px",borderRadius:4,background:"rgba(52,199,89,0.12)",color:"#34c759",fontWeight:600 }}>✓ In library</span>
+                                    : p._matchStatus === "suggested"
+                                    ? <div style={{ display:"flex",flexDirection:"column",gap:3,minWidth:160 }}>
+                                        <div style={{ fontSize:10,color:"#5856d6",fontWeight:600 }}>
+                                          Suggested: <span style={{ fontFamily:"monospace" }}>{p._suggestedPart.mpn}</span>
+                                        </div>
+                                        <div style={{ fontSize:9,color:"#86868b",marginBottom:2 }}>{[p._suggestedPart.value,p._suggestedPart.footprint].filter(Boolean).join(" · ")}</div>
+                                        <div style={{ display:"flex",gap:4 }}>
+                                          <button onClick={() => setPdImportPreview(prev => ({ ...prev, parts: prev.parts.map((pp, ii) => ii !== i ? pp : { ...pp, mpn: pp._suggestedPart.mpn, value: pp._suggestedPart.value || pp.value, footprint: pp._suggestedPart.footprint || pp.footprint, voltage_rating: pp._suggestedPart.voltage_rating || pp.voltage_rating, description: pp._suggestedPart.description || pp.description, _matchStatus: "new-mpn", _suggestedPart: null }) }))}
+                                            style={{ fontSize:9,padding:"2px 7px",borderRadius:980,border:"none",background:"#5856d6",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit" }}>
+                                            Accept
+                                          </button>
+                                          <button onClick={() => setPdImportPreview(prev => ({ ...prev, parts: prev.parts.map((pp, ii) => ii !== i ? pp : { ...pp, _matchStatus: "no-mpn", _suggestedPart: null }) }))}
+                                            style={{ fontSize:9,padding:"2px 7px",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",color:"#86868b",fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>
+                                            Skip
+                                          </button>
+                                        </div>
+                                      </div>
                                     : p._matchStatus === "no-mpn"
-                                    ? <span style={{ fontSize:10,padding:"1px 6px",borderRadius:4,background:"rgba(255,149,0,0.12)",color:"#ff9500",fontWeight:600 }}>⚠ No MPN</span>
+                                    ? <button onClick={() => { setPdImportMatchModal({ partIdx: i }); setPdImportMatchSearch((p.value||"") + (p.footprint ? " " + p.footprint : "") + (p.description ? " " + p.description : "")); }}
+                                        style={{ fontSize:10,padding:"2px 8px",borderRadius:980,border:"none",background:"rgba(255,149,0,0.15)",color:"#ff9500",fontWeight:700,cursor:"pointer",fontFamily:"inherit" }}>
+                                        ⚠ Match?
+                                      </button>
                                     : <span style={{ fontSize:10,padding:"1px 6px",borderRadius:4,background:"rgba(0,113,227,0.1)",color:"#0071e3",fontWeight:600 }}>+ New</span>
                                   }
                                 </td>
@@ -22274,6 +22338,82 @@ function BOMManager({ user }) {
               )}
               <div style={{ marginTop:16,display:"flex",justifyContent:"flex-end",gap:8 }}>
                 <button onClick={() => setImportMatchModal(null)}
+                  style={{ padding:"7px 18px",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit" }}>
+                  Skip — import as-is
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Product Import Match? Modal — search for MPN of unmatched product import row ── */}
+      {pdImportMatchModal && pdImportPreview && (() => {
+        const { partIdx } = pdImportMatchModal;
+        const part = pdImportPreview.parts[partIdx];
+        if (!part) return null;
+        const q = pdImportMatchSearch.toLowerCase().trim();
+        const matchResults = q.length >= 2 ? parts.filter(p =>
+          (p.mpn && p.mpn.toLowerCase().includes(q)) ||
+          (p.value && p.value.toLowerCase().includes(q)) ||
+          (p.description && p.description.toLowerCase().includes(q))
+        ).slice(0, 12) : [];
+        return (
+          <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
+            onClick={() => setPdImportMatchModal(null)}>
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"28px 32px",maxWidth:520,width:"92%",maxHeight:"80vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16 }}>
+                <div>
+                  <div style={{ fontSize:17,fontWeight:700,color:darkMode?"#f5f5f7":"#1d1d1f" }}>Match Part to Library</div>
+                  <div style={{ fontSize:12,color:"#86868b",marginTop:2 }}>
+                    {part.reference && <span style={{ fontFamily:"monospace",marginRight:8 }}>{part.reference}</span>}
+                    {part.value && <span>{part.value}</span>}
+                    {part.description && <span style={{ color:"#86868b",marginLeft:6 }}>· {part.description}</span>}
+                    {part.footprint && <span style={{ color:"#86868b",marginLeft:6 }}>· {part.footprint}</span>}
+                  </div>
+                </div>
+                <button onClick={() => setPdImportMatchModal(null)} style={{ background:darkMode?"#2c2c2e":"#f5f5f7",border:"none",borderRadius:980,width:28,height:28,cursor:"pointer",fontSize:16,color:"#86868b" }}>×</button>
+              </div>
+              <input
+                autoFocus
+                placeholder="Search value, MPN, description…"
+                value={pdImportMatchSearch}
+                onChange={e => setPdImportMatchSearch(e.target.value)}
+                style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#3a3a3e":"#d2d2d7"),background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f5f5f7":"#1d1d1f",fontSize:13,boxSizing:"border-box",fontFamily:"inherit",marginBottom:12,outline:"none" }} />
+              {matchResults.length === 0 && q.length >= 2 && (
+                <div style={{ padding:"16px 0",textAlign:"center",color:"#86868b",fontSize:13 }}>No matching parts — type an MPN directly into the MPN field in the preview table.</div>
+              )}
+              {matchResults.length > 0 && (
+                <div style={{ border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),borderRadius:10,overflow:"hidden" }}>
+                  {matchResults.map((r, ri) => (
+                    <div key={r.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:ri%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafafa"),cursor:"pointer",borderBottom:ri<matchResults.length-1?"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2"):"none" }}
+                      onClick={() => {
+                        setPdImportPreview(prev => ({
+                          ...prev,
+                          parts: prev.parts.map((pp, ii) => ii === partIdx ? {
+                            ...pp,
+                            mpn: r.mpn || pp.mpn,
+                            value: r.value || pp.value,
+                            description: r.description || pp.description,
+                            footprint: r.footprint || pp.footprint,
+                            voltage_rating: r.voltage_rating || pp.voltage_rating,
+                            _matchStatus: r.mpn ? "new-mpn" : pp._matchStatus,
+                          } : pp)
+                        }));
+                        setPdImportMatchModal(null);
+                      }}>
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f",fontFamily:"monospace" }}>{r.mpn||"—"}</div>
+                        <div style={{ fontSize:11,color:"#86868b",marginTop:1 }}>{[r.value,r.voltage_rating,r.footprint,r.description].filter(Boolean).join(" · ")}</div>
+                      </div>
+                      <span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:"rgba(0,113,227,0.1)",color:"#0071e3",fontWeight:600,flexShrink:0 }}>Use</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ marginTop:16,display:"flex",justifyContent:"flex-end",gap:8 }}>
+                <button onClick={() => setPdImportMatchModal(null)}
                   style={{ padding:"7px 18px",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit" }}>
                   Skip — import as-is
                 </button>
