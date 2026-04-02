@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.13";
-const BUILD_TIME   = "2026-04-01T20:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.14";
+const BUILD_TIME   = "2026-04-01T21:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -3543,7 +3543,11 @@ function BOMManager({ user }) {
   const deleteSelected = async () => {
     if (!isAdmin) { alert("Only admins can delete parts. Contact your administrator."); return; }
     const ids = [...selectedParts];
-    if (!await showConfirm("Delete Parts", `Delete ${ids.length} selected part${ids.length !== 1 ? "s" : ""}? This cannot be undone.`, "Delete All", "#ff3b30")) return;
+    const fromProductBOM = !!selectedProduct;
+    const confirmMsg = fromProductBOM
+      ? `Remove ${ids.length} selected part${ids.length !== 1 ? "s" : ""} from this product's BOM?\n\nThis only removes them from this product — your master parts library is not affected.`
+      : `Permanently delete ${ids.length} selected part${ids.length !== 1 ? "s" : ""} from the master library? This cannot be undone.`;
+    if (!await showConfirm("Delete Parts", confirmMsg, "Delete All", "#ff3b30")) return;
     setParts((prev) => prev.filter((p) => !selectedParts.has(p.id)));
     setSelectedParts(new Set());
     try { await deletePartsMany(ids); } catch (e) { console.error("deleteSelected failed:", e); alert("Delete failed: " + e.message); }
