@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.14";
-const BUILD_TIME   = "2026-04-01T21:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.15";
+const BUILD_TIME   = "2026-04-01T21:20:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -3222,10 +3222,17 @@ function BOMManager({ user }) {
       const inserted = await upsertParts(dbRows, user.id);
       const insertedIds = (inserted || []).map(r => r.id).filter(Boolean);
       setPdLastImportBatch({ ids: insertedIds, count: fresh.length, filename: filename || null });
+      // Save to shared import history so it shows in the last-10-imports list
+      const prodName = productCosts.find(p => p.id === productId)?.name || "Product";
+      const historyFilename = filename ? `${prodName} — ${filename}` : prodName;
+      try {
+        const imp = await createPartImport({ filename: historyFilename, importType: "product-import", partIds: insertedIds, importedBy: user?.id });
+        if (imp) setPartImports(prev => [imp, ...prev].slice(0, 10));
+      } catch {}
       setPdImportPreview(null); setPdImportExcluded(new Set()); setPdPasteText("");
       setPdImportOk(`✓ Imported ${fresh.length} parts${filename ? ` from "${filename}"` : ""} into this product.`);
     } catch (e) { setPdImportError("Import error: " + e.message); }
-  }, [pdImportPreview, pdImportExcluded, user?.id]);
+  }, [pdImportPreview, pdImportExcluded, user?.id, productCosts]);
 
   const handleProductDrop = useCallback((e, productId) => {
     e.preventDefault(); setPdDragOver(false);
@@ -6251,7 +6258,10 @@ function BOMManager({ user }) {
                     const importerProfile = profiles.find(p => p.id === imp.imported_by);
                     const importerName = importerProfile?.full_name || importerProfile?.email || (imp.imported_by ? "User" : "Unknown");
                     const when = imp.imported_at ? new Date(imp.imported_at).toLocaleString() : "";
-                    const typeLabel = imp.import_type === "invoice-import" ? "Invoice" : "CSV";
+                    const isProductImport = imp.import_type === "product-import";
+                    const typeLabel = imp.import_type === "invoice-import" ? "Invoice" : isProductImport ? "Product BOM" : "Library";
+                    const typeBg = imp.import_type === "invoice-import" ? "rgba(52,199,89,0.12)" : isProductImport ? "rgba(88,86,214,0.12)" : "rgba(0,122,255,0.1)";
+                    const typeColor = imp.import_type === "invoice-import" ? "#34c759" : isProductImport ? "#5856d6" : "#0071e3";
                     return (
                       <div key={imp.id}>
                         <div style={{ display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:idx%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafafa"),cursor:"pointer",borderBottom:isExpanded?"none":(darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2") }}
@@ -6260,20 +6270,25 @@ function BOMManager({ user }) {
                           <span style={{ fontSize:12,fontWeight:600,color:darkMode?"#f5f5f7":"#1d1d1f",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
                             {imp.filename || "(pasted)"} · {imp.part_count} part{imp.part_count!==1?"s":""}
                           </span>
-                          <span style={{ fontSize:11,color:"#86868b",background:typeLabel==="Invoice"?"rgba(52,199,89,0.12)":"rgba(0,122,255,0.1)",padding:"2px 7px",borderRadius:5,flexShrink:0 }}>{typeLabel}</span>
+                          <span style={{ fontSize:11,color:typeColor,background:typeBg,padding:"2px 7px",borderRadius:5,flexShrink:0,fontWeight:600 }}>{typeLabel}</span>
                           <span style={{ fontSize:11,color:"#86868b",flexShrink:0,whiteSpace:"nowrap" }}>{importerName}</span>
                           <span style={{ fontSize:11,color:"#aeaeb2",flexShrink:0,whiteSpace:"nowrap" }}>{when}</span>
-                          <button style={{ background:"transparent",border:"none",color:"#ff3b30",fontSize:16,cursor:"pointer",padding:"0 4px",flexShrink:0,lineHeight:1 }}
-                            title="Delete batch (soft-deletes all parts from this import)"
+                          <button style={{ background:"transparent",border:"none",color:"#ff3b30",fontSize:13,fontWeight:700,cursor:"pointer",padding:"2px 8px",flexShrink:0,lineHeight:1,borderRadius:980,border:"1px solid rgba(255,59,48,0.35)" }}
+                            title={isProductImport ? "Remove these parts from the product BOM" : "Soft-delete all parts from this import"}
                             onClick={async (e) => {
                               e.stopPropagation();
-                              if (!await showConfirm("Delete Import Batch", `Soft-delete all ${imp.part_count} part${imp.part_count!==1?"s":""} from this import? They will appear as red placeholders in any BOM they belong to.`, "Delete", "#ff3b30")) return;
-                              await softDeleteParts(imp.part_ids || [], user?.id);
+                              if (isProductImport) {
+                                if (!await showConfirm("Undo Import", `Remove the ${imp.part_count} part${imp.part_count!==1?"s":""} from "${imp.filename}"?\n\nThis only removes them from the product BOM — your master library is not affected.`, "Remove Parts", "#ff3b30")) return;
+                                await deletePartsMany(imp.part_ids || []);
+                              } else {
+                                if (!await showConfirm("Delete Import Batch", `Soft-delete all ${imp.part_count} part${imp.part_count!==1?"s":""} from this import? They will appear as red placeholders in any BOM they belong to.`, "Delete", "#ff3b30")) return;
+                                await softDeleteParts(imp.part_ids || [], user?.id);
+                              }
                               await deletePartImport(imp.id);
                               setPartImports(prev => prev.filter(x => x.id !== imp.id));
                               if (expandedImport === imp.id) setExpandedImport(null);
-                              showToast(`Soft-deleted ${imp.part_count} parts from import`, "#ff3b30");
-                            }}>×</button>
+                              showToast(`↩ Removed ${imp.part_count} parts from import`, "#ff3b30");
+                            }}>↩ Undo</button>
                         </div>
                         {isExpanded && (
                           <div style={{ padding:"10px 14px",background:darkMode?"#161618":"#f9f9fb",borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2" }}>
