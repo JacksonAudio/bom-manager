@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.03";
-const BUILD_TIME   = "2026-04-01T21:20:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.04";
+const BUILD_TIME   = "2026-04-01T21:40:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -333,6 +333,20 @@ function splitCSVLine(line, delim) {
   cells.push(cur.trim());
   return cells;
 }
+// Normalize PCB package/footprint strings — strip Eagle/KiCad type prefixes
+// R0603 → 0603, C0402 → 0402, L0805 → 0805, C_0603 → 0603, RES_0402 → 0402
+function normalizePackage(raw) {
+  if (!raw) return raw;
+  let v = raw.trim();
+  // Strip leading type prefix followed by underscore: C_0603 → 0603, RES_0402 → 0402
+  v = v.replace(/^[A-Z]{1,4}_/i, "");
+  // Strip single-letter Eagle prefix before 4-digit imperial code: R0603 → 0603, C0402 → 0402
+  v = v.replace(/^[RCLUD](\d{4})\b/i, "$1");
+  // Normalize common aliases: 0603C → 0603, 0402R → 0402
+  v = v.replace(/^(\d{4})[RCLUD]$/i, "$1");
+  return v.trim();
+}
+
 // Normalize component value strings from Eagle/KiCad BOMs
 function normalizeBOMValue(raw) {
   if (!raw) return raw;
@@ -419,7 +433,7 @@ function parseBOM(raw) {
     parts.push({
       id: `part-${Date.now()}-${i}`,
       reference: refRaw || mpn, refs, value, mpn,
-      description: get("description"), footprint: get("footprint"),
+      description: get("description"), footprint: normalizePackage(get("footprint")),
       manufacturer: get("manufacturer"), quantity: qty,
       unitCost: get("unitCost") || "", projectId: null, reorderQty: "",
       stockQty: get("stockQty") || "",
@@ -3124,24 +3138,31 @@ function BOMManager({ user }) {
       parts.forEach(p => { if (p.mpn) existingByMPN[p.mpn.toLowerCase()] = p; });
 
       // Auto-match no-MPN parts by value + package + description against library
+      // Scoring: exact value=5, partial value=2, exact package=4, partial package=1, desc=1
+      // Threshold ≥5 (requires at least exact value OR exact package to suggest)
       const autoMatch = (p) => {
         const val = (p.value || "").toLowerCase().trim();
-        const pkg = (p.footprint || "").toLowerCase().trim();
+        const pkg = normalizePackage(p.footprint || "").toLowerCase().trim();
         const desc = (p.description || "").toLowerCase().trim();
         if (!val && !pkg) return null;
         const scored = parts.map(lib => {
           const lval = (lib.value || "").toLowerCase().trim();
-          const lpkg = (lib.footprint || "").toLowerCase().trim();
+          const lpkg = normalizePackage(lib.footprint || "").toLowerCase().trim();
           const ldesc = (lib.description || "").toLowerCase().trim();
           let score = 0;
-          if (val && lval && lval === val) score += 4;
-          else if (val && lval && lval.includes(val)) score += 2;
-          if (pkg && lpkg && lpkg === pkg) score += 3;
-          else if (pkg && lpkg && lpkg.includes(pkg)) score += 1;
-          if (desc && ldesc && ldesc.includes(desc.slice(0, 15))) score += 1;
+          if (val && lval) {
+            if (lval === val) score += 5;
+            else if (lval.includes(val) || val.includes(lval)) score += 2;
+          }
+          if (pkg && lpkg) {
+            if (lpkg === pkg) score += 4;
+            else if (lpkg.includes(pkg) || pkg.includes(lpkg)) score += 1;
+          }
+          if (desc && ldesc && ldesc.slice(0,20).includes(desc.slice(0,10))) score += 1;
           return { lib, score };
-        }).filter(c => c.score >= 4).sort((a, b) => b.score - a.score);
-        return scored[0]?.lib || null;
+        }).filter(c => c.score >= 5).sort((a, b) => b.score - a.score);
+        if (!scored[0]) return null;
+        return { ...scored[0].lib, _score: scored[0].score };
       };
 
       const annotated = withProduct.map(p => {
@@ -11992,22 +12013,36 @@ function BOMManager({ user }) {
                                   {p._matchStatus === "exact"
                                     ? <span style={{ fontSize:10,padding:"1px 6px",borderRadius:4,background:"rgba(52,199,89,0.12)",color:"#34c759",fontWeight:600 }}>✓ In library</span>
                                     : p._matchStatus === "suggested"
-                                    ? <div style={{ display:"flex",flexDirection:"column",gap:3,minWidth:160 }}>
-                                        <div style={{ fontSize:10,color:"#5856d6",fontWeight:600 }}>
-                                          Suggested: <span style={{ fontFamily:"monospace" }}>{p._suggestedPart.mpn}</span>
-                                        </div>
-                                        <div style={{ fontSize:9,color:"#86868b",marginBottom:2 }}>{[p._suggestedPart.value,p._suggestedPart.footprint].filter(Boolean).join(" · ")}</div>
-                                        <div style={{ display:"flex",gap:4 }}>
-                                          <button onClick={() => setPdImportPreview(prev => ({ ...prev, parts: prev.parts.map((pp, ii) => ii !== i ? pp : { ...pp, mpn: pp._suggestedPart.mpn, value: pp._suggestedPart.value || pp.value, footprint: pp._suggestedPart.footprint || pp.footprint, voltage_rating: pp._suggestedPart.voltage_rating || pp.voltage_rating, description: pp._suggestedPart.description || pp.description, _matchStatus: "new-mpn", _suggestedPart: null }) }))}
-                                            style={{ fontSize:9,padding:"2px 7px",borderRadius:980,border:"none",background:"#5856d6",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit" }}>
-                                            Accept
-                                          </button>
-                                          <button onClick={() => setPdImportPreview(prev => ({ ...prev, parts: prev.parts.map((pp, ii) => ii !== i ? pp : { ...pp, _matchStatus: "no-mpn", _suggestedPart: null }) }))}
-                                            style={{ fontSize:9,padding:"2px 7px",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",color:"#86868b",fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>
-                                            Skip
-                                          </button>
-                                        </div>
-                                      </div>
+                                    ? (() => {
+                                        const s = p._suggestedPart;
+                                        const score = s._score || 0;
+                                        const conf = score >= 9 ? { label:"Strong", color:"#34c759" } : score >= 6 ? { label:"Good", color:"#5856d6" } : { label:"Possible", color:"#ff9500" };
+                                        return (
+                                          <div style={{ display:"flex",flexDirection:"column",gap:3,minWidth:200,padding:"6px 8px",borderRadius:8,border:`1px solid ${conf.color}33`,background:`${conf.color}0a` }}>
+                                            <div style={{ display:"flex",alignItems:"center",gap:5 }}>
+                                              <span style={{ fontSize:9,padding:"1px 5px",borderRadius:3,background:conf.color,color:"#fff",fontWeight:700,flexShrink:0 }}>{conf.label}</span>
+                                              <span style={{ fontSize:11,color:darkMode?"#f5f5f7":"#1d1d1f",fontWeight:700,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{s.mpn}</span>
+                                            </div>
+                                            <div style={{ fontSize:10,color:darkMode?"#c7c7cc":"#6e6e73",display:"flex",flexWrap:"wrap",gap:"2px 8px" }}>
+                                              {s.value && <span><b style={{ color:darkMode?"#aeaeb2":"#86868b" }}>Val:</b> {s.value}</span>}
+                                              {s.voltage_rating && <span><b style={{ color:darkMode?"#aeaeb2":"#86868b" }}>V:</b> {s.voltage_rating}</span>}
+                                              {s.footprint && <span><b style={{ color:darkMode?"#aeaeb2":"#86868b" }}>Pkg:</b> {s.footprint}</span>}
+                                              {s.manufacturer && <span><b style={{ color:darkMode?"#aeaeb2":"#86868b" }}>Mfr:</b> {s.manufacturer}</span>}
+                                            </div>
+                                            {s.description && <div style={{ fontSize:9,color:"#86868b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:240 }}>{s.description}</div>}
+                                            <div style={{ display:"flex",gap:4,marginTop:2 }}>
+                                              <button onClick={() => setPdImportPreview(prev => ({ ...prev, parts: prev.parts.map((pp, ii) => ii !== i ? pp : { ...pp, mpn: s.mpn, value: s.value || pp.value, footprint: s.footprint || pp.footprint, voltage_rating: s.voltage_rating || pp.voltage_rating, description: s.description || pp.description, manufacturer: s.manufacturer || pp.manufacturer, _matchStatus: "new-mpn", _suggestedPart: null }) }))}
+                                                style={{ fontSize:9,padding:"3px 10px",borderRadius:980,border:"none",background:conf.color,color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit" }}>
+                                                Accept
+                                              </button>
+                                              <button onClick={() => setPdImportPreview(prev => ({ ...prev, parts: prev.parts.map((pp, ii) => ii !== i ? pp : { ...pp, _matchStatus: "no-mpn", _suggestedPart: null }) }))}
+                                                style={{ fontSize:9,padding:"3px 9px",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",color:"#86868b",fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>
+                                                Skip
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()
                                     : p._matchStatus === "no-mpn"
                                     ? <button onClick={() => { setPdImportMatchModal({ partIdx: i }); setPdImportMatchSearch((p.value||"") + (p.footprint ? " " + p.footprint : "") + (p.description ? " " + p.description : "")); }}
                                         style={{ fontSize:10,padding:"2px 8px",borderRadius:980,border:"none",background:"rgba(255,149,0,0.15)",color:"#ff9500",fontWeight:700,cursor:"pointer",fontFamily:"inherit" }}>
