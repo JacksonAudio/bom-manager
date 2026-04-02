@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.05";
-const BUILD_TIME   = "2026-04-01T21:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.06";
+const BUILD_TIME   = "2026-04-01T21:55:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -11966,7 +11966,21 @@ function BOMManager({ user }) {
                           {(() => { const sugg = pdImportPreview.parts.filter(p=>p._matchStatus==="suggested").length; return sugg > 0 ? <span style={{ color:"#5856d6",marginLeft:8 }}>{sugg} auto-matched — review below</span> : null; })()}
                           {hasNoMPN && <span style={{ color:"#ff9500",marginLeft:8 }}>⚠ {pdImportPreview.parts.filter(p=>p._matchStatus==="no-mpn").length} still need match</span>}
                         </div>
-                        <div style={{ display:"flex",gap:6 }}>
+                        <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+                          {(() => {
+                            const strongCount = pdImportPreview.parts.filter(p => p._matchStatus === "suggested" && (p._suggestedPart?._score || 0) >= 9).length;
+                            if (!strongCount) return null;
+                            return (
+                              <button onClick={() => setPdImportPreview(prev => ({ ...prev, parts: prev.parts.map(pp => {
+                                if (pp._matchStatus !== "suggested" || (pp._suggestedPart?._score || 0) < 9) return pp;
+                                const s = pp._suggestedPart;
+                                return { ...pp, mpn: s.mpn, value: s.value || pp.value, footprint: s.footprint || pp.footprint, voltage_rating: s.voltage_rating || pp.voltage_rating, description: s.description || pp.description, manufacturer: s.manufacturer || pp.manufacturer, _matchStatus: "new-mpn", _suggestedPart: null };
+                              }) }))}
+                                style={{ padding:"5px 14px",borderRadius:980,border:"none",background:"#34c759",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap" }}>
+                                ✓ Auto-Approve Strong ({strongCount})
+                              </button>
+                            );
+                          })()}
                           <button onClick={() => { setPdImportPreview(null); setPdImportExcluded(new Set()); }}
                             style={{ padding:"5px 12px",borderRadius:980,border:"1px solid #d2d2d7",background:"transparent",color:darkMode?"#f5f5f7":"#1d1d1f",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit" }}>
                             Cancel
