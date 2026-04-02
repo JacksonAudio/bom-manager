@@ -9,11 +9,11 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.15";
-const BUILD_TIME   = "2026-04-01T21:20:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.16";
+const BUILD_TIME   = "2026-04-02T12:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
-import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
 import QRCode from "qrcode";
 import AuthScreen from "./components/AuthScreen.jsx";
 import QRLabelModal from "./components/QRLabelModal.jsx";
@@ -1582,6 +1582,43 @@ const CSS = `
 `;
 
 // ─────────────────────────────────────────────
+// ERROR BOUNDARY — prevents white-screen crashes
+// ─────────────────────────────────────────────
+class AppErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error("[BOM Manager crash]", error, info?.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight:"100vh",background:"#f5f5f7",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,padding:32 }}>
+          <div style={{ fontSize:48 }}>⚠</div>
+          <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:22,fontWeight:700,color:"#1d1d1f" }}>Something went wrong</div>
+          <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif",fontSize:14,color:"#86868b",maxWidth:500,textAlign:"center",lineHeight:"22px" }}>
+            BOM Manager hit an unexpected error. This is usually caused by bad data from an import. Try refreshing — if it keeps happening, contact Brad.
+          </div>
+          <div style={{ fontFamily:"monospace",fontSize:11,color:"#ff3b30",background:"#fff",padding:"12px 18px",borderRadius:10,border:"1px solid #ffd0cc",maxWidth:600,overflow:"auto",maxHeight:120,whiteSpace:"pre-wrap" }}>
+            {this.state.error?.message || "Unknown error"}
+          </div>
+          <button onClick={() => window.location.reload()}
+            style={{ padding:"10px 28px",borderRadius:980,border:"none",background:"#0071e3",color:"#fff",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif" }}>
+            Reload App
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ─────────────────────────────────────────────
 // TOP-LEVEL APP — handles auth gate
 // ─────────────────────────────────────────────
 export default function App() {
@@ -1601,7 +1638,7 @@ export default function App() {
   );
 
   if (!user) return <AuthScreen />;
-  return <BOMManager user={user} />;
+  return <AppErrorBoundary><BOMManager user={user} /></AppErrorBoundary>;
 }
 
 // Parse date string as local time (not UTC) to avoid timezone shift
@@ -6273,7 +6310,7 @@ function BOMManager({ user }) {
                           <span style={{ fontSize:11,color:typeColor,background:typeBg,padding:"2px 7px",borderRadius:5,flexShrink:0,fontWeight:600 }}>{typeLabel}</span>
                           <span style={{ fontSize:11,color:"#86868b",flexShrink:0,whiteSpace:"nowrap" }}>{importerName}</span>
                           <span style={{ fontSize:11,color:"#aeaeb2",flexShrink:0,whiteSpace:"nowrap" }}>{when}</span>
-                          <button style={{ background:"transparent",border:"none",color:"#ff3b30",fontSize:13,fontWeight:700,cursor:"pointer",padding:"2px 8px",flexShrink:0,lineHeight:1,borderRadius:980,border:"1px solid rgba(255,59,48,0.35)" }}
+                          <button style={{ background:"transparent",color:"#ff3b30",fontSize:13,fontWeight:700,cursor:"pointer",padding:"2px 8px",flexShrink:0,lineHeight:1,borderRadius:980,border:"1px solid rgba(255,59,48,0.35)" }}
                             title={isProductImport ? "Remove these parts from the product BOM" : "Soft-delete all parts from this import"}
                             onClick={async (e) => {
                               e.stopPropagation();
@@ -7906,8 +7943,8 @@ function BOMManager({ user }) {
                         transition:"border-color 0.15s, background 0.15s" };
                       const focusIn = (e) => { e.target.style.borderColor="#d2d2d7"; e.target.style.background="#fff"; };
                       const focusOut = (e) => { e.target.style.borderColor="transparent"; e.target.style.background="transparent"; };
-                      return (<>
-                        <tr key={part.id} className="table-row"
+                      return (<Fragment key={part.id}>
+                        <tr className="table-row"
                           onClick={()=>setExpandedPartRow(expandedPartRow===part.id?null:part.id)}
                           style={{ borderBottom:"1px solid #ededf0",cursor:"pointer",
                             background: selectedParts.has(part.id) ? "rgba(0,113,227,0.05)" : expandedPartRow===part.id ? "rgba(0,0,0,0.02)" : "transparent" }}>
@@ -8205,7 +8242,7 @@ function BOMManager({ user }) {
                               </div>
                             </td>
                           </tr>}
-                      </>);
+                      </Fragment>);
                     })}
                   </tbody>
                 </table>
