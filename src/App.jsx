@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.08";
-const BUILD_TIME   = "2026-04-01T19:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.09";
+const BUILD_TIME   = "2026-04-01T19:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -3140,16 +3140,36 @@ function BOMManager({ user }) {
       // Auto-match no-MPN parts by value + package + description against library
       // Scoring: exact value=5, partial value=2, exact package=4, partial package=1, desc=1
       // Threshold ≥5 (requires at least exact value OR exact package to suggest)
+      // Classify a package string as "smd", "tht", or "unknown"
+      const pkgTech = (pkgStr, descStr = "") => {
+        const p = (pkgStr || "").toLowerCase();
+        const d = (descStr || "").toLowerCase();
+        // Clear SMD indicators: 4-digit EIA codes, or SMD naming conventions
+        if (/^\d{4}$/.test(p)) return "smd"; // 0402, 0603, 0805, 1206, 1210, 2512…
+        if (/^(sot|sop|soic|qfp|qfn|dfn|tsop|tssop|ssop|sc-|lga|bga|csp|mlf|wlp)/.test(p)) return "smd";
+        if (/\bsmd\b|\bsmt\b|\bsurface.mount/.test(p) || /\bsmd\b|\bsmt\b|\bsurface.mount/.test(d)) return "smd";
+        // Clear THT indicators
+        if (/\b(tht|through.hole|thru.hole|radial|axial|dip|pth|leaded|th\b)/.test(p)) return "tht";
+        if (/\b(tht|through.hole|thru.hole|radial|axial|pth|leaded)\b/.test(d)) return "tht";
+        if (/^to-\d/.test(p)) return "tht"; // TO-220, TO-92, etc
+        return "unknown";
+      };
       const autoMatch = (p) => {
         const val = (p.value || "").toLowerCase().trim();
         const pkg = normalizePackage(p.footprint || "").toLowerCase().trim();
         const desc = (p.description || "").toLowerCase().trim();
         if (!val && !pkg) return null;
+        const bomTech = pkgTech(pkg, desc);
         const scored = parts.map(lib => {
           const lval = (lib.value || "").toLowerCase().trim();
           const lpkg = normalizePackage(lib.footprint || "").toLowerCase().trim();
           const ldesc = (lib.description || "").toLowerCase().trim();
           let score = 0;
+          // Hard disqualify if BOM and library part are opposite technologies (SMD vs THT)
+          if (bomTech !== "unknown") {
+            const libTech = pkgTech(lpkg, ldesc);
+            if (libTech !== "unknown" && libTech !== bomTech) return { lib, score: 0 };
+          }
           // Values must match EXACTLY — "0.1uF" must never match "1uF" via substring
           if (val && lval && lval === val) score += 5;
           if (pkg && lpkg) {
