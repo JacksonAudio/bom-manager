@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.06";
-const BUILD_TIME   = "2026-04-01T21:55:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.07";
+const BUILD_TIME   = "2026-04-01T22:05:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -3150,10 +3150,8 @@ function BOMManager({ user }) {
           const lpkg = normalizePackage(lib.footprint || "").toLowerCase().trim();
           const ldesc = (lib.description || "").toLowerCase().trim();
           let score = 0;
-          if (val && lval) {
-            if (lval === val) score += 5;
-            else if (lval.includes(val) || val.includes(lval)) score += 2;
-          }
+          // Values must match EXACTLY — "0.1uF" must never match "1uF" via substring
+          if (val && lval && lval === val) score += 5;
           if (pkg && lpkg) {
             if (lpkg === pkg) score += 4;
             else if (lpkg.includes(pkg) || pkg.includes(lpkg)) score += 1;
