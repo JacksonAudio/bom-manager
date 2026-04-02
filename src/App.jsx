@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.10";
-const BUILD_TIME   = "2026-04-01T20:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.11";
+const BUILD_TIME   = "2026-04-01T20:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -12036,8 +12036,14 @@ function BOMManager({ user }) {
                             </tr>
                           </thead>
                           <tbody>
-                            {pdImportPreview.parts.map((p, i) => (
-                              <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f5f5f7"),background:pdImportExcluded.has(i)?(darkMode?"#2c2c2e":"#f8f8f8"):(i%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafafa")),opacity:pdImportExcluded.has(i)?0.45:1 }}>
+                            {pdImportPreview.parts.map((p, i) => {
+                              const isUnmatched = p._matchStatus === "no-mpn" && !pdImportExcluded.has(i);
+                              return (
+                              <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f5f5f7"),
+                                background:pdImportExcluded.has(i)?(darkMode?"#2c2c2e":"#f8f8f8"):isUnmatched?(darkMode?"rgba(255,149,0,0.08)":"rgba(255,149,0,0.06)"):(i%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafafa")),
+                                opacity:pdImportExcluded.has(i)?0.45:1,
+                                outline:isUnmatched?("2px solid rgba(255,149,0,0.35)"):undefined,
+                                outlineOffset:"-2px" }}>
                                 <td style={{ padding:"5px 6px",width:28 }}>
                                   <input type="checkbox" checked={!pdImportExcluded.has(i)} onChange={() => {
                                     setPdImportExcluded(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; });
@@ -12090,14 +12096,15 @@ function BOMManager({ user }) {
                                       })()
                                     : p._matchStatus === "no-mpn"
                                     ? <button onClick={() => { setPdImportMatchModal({ partIdx: i }); setPdImportMatchSearch((p.value||"") + (p.footprint ? " " + p.footprint : "") + (p.description ? " " + p.description : "")); }}
-                                        style={{ fontSize:10,padding:"2px 8px",borderRadius:980,border:"none",background:"rgba(255,149,0,0.15)",color:"#ff9500",fontWeight:700,cursor:"pointer",fontFamily:"inherit" }}>
-                                        ⚠ Match?
+                                        style={{ fontSize:11,padding:"5px 14px",borderRadius:980,border:"1.5px solid #ff9500",background:"rgba(255,149,0,0.13)",color:"#c86400",fontWeight:700,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.01em" }}>
+                                        ⚠ Match to library…
                                       </button>
                                     : <span style={{ fontSize:10,padding:"1px 6px",borderRadius:4,background:"rgba(0,113,227,0.1)",color:"#0071e3",fontWeight:600 }}>+ New</span>
                                   }
                                 </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
