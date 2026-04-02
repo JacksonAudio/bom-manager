@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.12";
-const BUILD_TIME   = "2026-04-01T20:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.13";
+const BUILD_TIME   = "2026-04-01T20:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -1935,6 +1935,7 @@ function BOMManager({ user }) {
   const [pdImportMatchModal, setPdImportMatchModal] = useState(null); // { partIdx } — Match? for no-MPN product import rows
   const [pdImportMatchSearch, setPdImportMatchSearch] = useState("");
   const [prodBomSort, setProdBomSort] = useState({ col: null, asc: true }); // sort state for product BOM table
+  const [pdLastImportBatch, setPdLastImportBatch] = useState(null); // { ids, count, filename } — for undo
 
   const fileRef = useRef();
   const pdFileRef = useRef(); // product detail page file input ref
@@ -3218,7 +3219,9 @@ function BOMManager({ user }) {
       const fresh = allParts.filter((_, i) => !pdImportExcluded.has(i));
       if (!fresh.length) { setPdImportError("No parts selected for import."); return; }
       const dbRows = fresh.map((p) => uiPartToDB(p));
-      await upsertParts(dbRows, user.id);
+      const inserted = await upsertParts(dbRows, user.id);
+      const insertedIds = (inserted || []).map(r => r.id).filter(Boolean);
+      setPdLastImportBatch({ ids: insertedIds, count: fresh.length, filename: filename || null });
       setPdImportPreview(null); setPdImportExcluded(new Set()); setPdPasteText("");
       setPdImportOk(`✓ Imported ${fresh.length} parts${filename ? ` from "${filename}"` : ""} into this product.`);
     } catch (e) { setPdImportError("Import error: " + e.message); }
@@ -10817,7 +10820,7 @@ function BOMManager({ user }) {
                       {!collapsedBrands.has(brand) &&
                       groups[brand].map(prod => (
                         <div key={prod.id}
-                          onClick={() => { setSelectedProduct(prod.id); setPdImportError(""); setPdImportOk(""); setPdPasteText(""); }}
+                          onClick={() => { setSelectedProduct(prod.id); setPdImportError(""); setPdImportOk(""); setPdPasteText(""); setPdLastImportBatch(null); }}
                           style={{ display:"grid",gridTemplateColumns:"30px 24px 1fr 90px 80px 100px 70px 80px 36px",gap:8,alignItems:"center",
                             padding:"12px 22px",cursor:"pointer",
                             background:selectedProductIds.has(prod.id)?(darkMode?"#1a2040":"#eef4ff"):"transparent",
@@ -11981,7 +11984,21 @@ function BOMManager({ user }) {
                   </div>
                 )}
                 {pdImportError && <div style={{ marginTop:6,color:"#ff3b30",fontSize:12 }}>{pdImportError}</div>}
-                {pdImportOk && <div style={{ marginTop:6,color:"#34c759",fontSize:12 }}>{pdImportOk}</div>}
+                {pdImportOk && (
+                  <div style={{ marginTop:6,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap" }}>
+                    <span style={{ color:"#34c759",fontSize:12 }}>{pdImportOk}</span>
+                    {pdLastImportBatch && pdLastImportBatch.ids?.length > 0 && (
+                      <button onClick={async () => {
+                        if (!await showConfirm("Undo Import", `Remove the ${pdLastImportBatch.count} parts just imported? This cannot be undone.`, "Remove Parts", "#ff3b30")) return;
+                        await deletePartsMany(pdLastImportBatch.ids);
+                        setPdLastImportBatch(null);
+                        setPdImportOk(`↩ Removed ${pdLastImportBatch.count} imported parts.`);
+                      }} style={{ fontSize:11,padding:"3px 12px",borderRadius:980,border:"1px solid #ff3b30",background:"transparent",color:"#ff3b30",fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>
+                        ↩ Undo Import
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {/* ── Product Import Preview — show BEFORE writing to DB */}
                 {pdImportPreview && pdImportPreview.productId === prod.id && (() => {
