@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.09";
-const BUILD_TIME   = "2026-04-01T19:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.10";
+const BUILD_TIME   = "2026-04-01T20:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
@@ -1934,6 +1934,7 @@ function BOMManager({ user }) {
   const [pdImportExcluded, setPdImportExcluded] = useState(new Set());
   const [pdImportMatchModal, setPdImportMatchModal] = useState(null); // { partIdx } — Match? for no-MPN product import rows
   const [pdImportMatchSearch, setPdImportMatchSearch] = useState("");
+  const [prodBomSort, setProdBomSort] = useState({ col: null, asc: true }); // sort state for product BOM table
 
   const fileRef = useRef();
   const pdFileRef = useRef(); // product detail page file input ref
@@ -11507,8 +11508,20 @@ function BOMManager({ user }) {
           const prodParts = parts.filter(p => p.projectId === prod.id && !p.deletedAt);
           const deletedProdParts = parts.filter(p => p.projectId === prod.id && p.deletedAt);
           // Group primary parts with their alternates
-          const primaryParts = prodParts.filter(p => !p.alternateOf);
+          const primaryPartsRaw = prodParts.filter(p => !p.alternateOf);
           const alternateMap = {};
+          // Apply sort
+          const primaryParts = [...primaryPartsRaw].sort((a, b) => {
+            const { col, asc } = prodBomSort;
+            if (!col) return 0;
+            const dir = asc ? 1 : -1;
+            if (col === "quantity") return ((parseInt(a.quantity)||0) - (parseInt(b.quantity)||0)) * dir;
+            if (col === "stockQty") return ((parseInt(a.stockQty)||0) - (parseInt(b.stockQty)||0)) * dir;
+            if (col === "stockVal") return (((parseInt(a.stockQty)||0)*(parseFloat(a.unitCost)||0)) - ((parseInt(b.stockQty)||0)*(parseFloat(b.unitCost)||0))) * dir;
+            const av = (a[col] || "").toString().toLowerCase();
+            const bv = (b[col] || "").toString().toLowerCase();
+            return av.localeCompare(bv) * dir;
+          });
           prodParts.filter(p => p.alternateOf).forEach(p => {
             if (!alternateMap[p.alternateOf]) alternateMap[p.alternateOf] = [];
             alternateMap[p.alternateOf].push(p);
@@ -12161,12 +12174,34 @@ function BOMManager({ user }) {
                               else selectNone();
                             }} />
                         </th>
-                        {["MPN","Value","Voltage","Package","Description","Manufacturer","Qty/Build","Stock","Stock Value","Actions"].map((h,hi,arr)=>(
-                          <th key={hi} style={{ padding:"12px 10px",textAlign:hi>=6?"right":"left",
+                        {[
+                          { label:"MPN", col:"mpn" },
+                          { label:"Value", col:"value" },
+                          { label:"Voltage", col:"voltage_rating" },
+                          { label:"Package", col:"footprint" },
+                          { label:"Description", col:"description" },
+                          { label:"Manufacturer", col:"manufacturer" },
+                          { label:"Qty/Build", col:"quantity", right:true },
+                          { label:"Stock", col:"stockQty", right:true },
+                          { label:"Stock Value", col:"stockVal", right:true },
+                          { label:"Actions", col:null, right:true },
+                        ].map(({ label, col, right }, hi, arr) => {
+                          const active = prodBomSort.col === col && col !== null;
+                          return (
+                          <th key={hi} onClick={() => {
+                            if (!col) return;
+                            setProdBomSort(s => s.col === col ? { col, asc: !s.asc } : { col, asc: true });
+                          }} style={{ padding:"12px 10px",textAlign:right?"right":"left",
                             fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
                             fontSize:10,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
-                            borderRadius:hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
-                        ))}
+                            borderRadius:hi===arr.length-1?"0 8px 0 0":undefined,
+                            cursor:col?"pointer":"default",
+                            color:active?(darkMode?"#60a5fa":"#0071e3"):"inherit",
+                            userSelect:"none" }}>
+                            {label}{active ? (prodBomSort.asc ? " ▲" : " ▼") : ""}
+                          </th>
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>
