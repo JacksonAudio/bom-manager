@@ -3260,7 +3260,7 @@ function BOMManager({ user }) {
       const insertedIds = (inserted || []).map(r => r.id).filter(Boolean);
       setPdLastImportBatch({ ids: insertedIds, count: fresh.length, filename: filename || null });
       // Save to shared import history so it shows in the last-10-imports list
-      const prodName = productCosts.find(p => p.id === productId)?.name || "Product";
+      const prodName = products.find(p => p.id === productId)?.name || "Product";
       const historyFilename = filename ? `${prodName} — ${filename}` : prodName;
       try {
         const imp = await createPartImport({ filename: historyFilename, importType: "product-import", partIds: insertedIds, importedBy: user?.id });
@@ -3269,7 +3269,7 @@ function BOMManager({ user }) {
       setPdImportPreview(null); setPdImportExcluded(new Set()); setPdPasteText("");
       setPdImportOk(`✓ Imported ${fresh.length} parts${filename ? ` from "${filename}"` : ""} into this product.`);
     } catch (e) { setPdImportError("Import error: " + e.message); }
-  }, [pdImportPreview, pdImportExcluded, user?.id, productCosts]);
+  }, [pdImportPreview, pdImportExcluded, user?.id, products]);
 
   const handleProductDrop = useCallback((e, productId) => {
     e.preventDefault(); setPdDragOver(false);
