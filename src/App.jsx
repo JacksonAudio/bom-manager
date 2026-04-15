@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.23";
-const BUILD_TIME   = "2026-04-15T16:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.24";
+const BUILD_TIME   = "2026-04-15T16:40:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -5378,11 +5378,15 @@ function BOMManager({ user }) {
 
   const priceAtQty = (part) => {
     const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
-    if (!pr) return parseFloat(part.unitCost) || 0;
+    const manualPrice = parseFloat(part.unitCost) || 0;
+    // When locked to a vendor, the manually entered unit cost is authoritative.
+    // This lets users override stale API pricing for custom / sole-source parts.
+    if (pr?._lockedVendor && manualPrice > 0) return manualPrice;
+    if (!pr) return manualPrice;
     const isUS = (sid, d) => { const c = d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[sid] || ""; return !c || c === "US"; };
     let entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
     if (simUsOnly) entries = entries.filter(([sid, d]) => isUS(sid, d));
-    if (!entries.length) return parseFloat(part.unitCost) || 0;
+    if (!entries.length) return manualPrice;
     const calc = (d) => { let p = d.unitPrice; if (d.priceBreaks?.length) { for (const pb of d.priceBreaks) { if (part.quantity >= pb.qty) p = pb.price; } } return parseFloat(p) || d.unitPrice; };
     // Prefer preferred distributors if within 5% of cheapest price
     let prefDists = [];
@@ -8110,6 +8114,50 @@ function BOMManager({ user }) {
                                       </select>
                                       <div style={{ fontSize:10, color:"#8898aa", marginTop:3 }}>Locks purchasing to one vendor — use for custom parts, sole-source agreements, etc.</div>
                                     </div>
+                                    <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e5e5ea" }}>
+                                      <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>
+                                        Manual Unit Price {part.pricing?._lockedVendor && <span style={{ color:"#a05000",fontWeight:700 }}>— overrides API</span>}
+                                      </div>
+                                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                                        <span style={{ fontSize:13, color:"#64748d" }}>$</span>
+                                        <input
+                                          type="number" step="0.0001" min="0"
+                                          value={part.unitCost || ""}
+                                          onChange={(e)=>updatePart(part.id,"unitCost",e.target.value)}
+                                          onFocus={focusIn} onBlur={focusOut}
+                                          placeholder="0.0000"
+                                          style={{ flex:1, padding:"6px 10px", borderRadius:8, border:"1px solid #e3e8ee", background:"#fff", fontSize:12, fontFamily:"inherit", color: part.pricing?._lockedVendor && (parseFloat(part.unitCost)||0) > 0 ? "#a05000" : "#061b31", fontWeight: part.pricing?._lockedVendor && (parseFloat(part.unitCost)||0) > 0 ? 700 : 400, outline:"none" }} />
+                                      </div>
+                                      <div style={{ fontSize:10, color:"#8898aa", marginTop:3 }}>
+                                        {part.pricing?._lockedVendor
+                                          ? "When a vendor is locked, this manual price takes priority over any API pricing data."
+                                          : "Fallback price used only when no API pricing data exists."}
+                                      </div>
+                                    </div>
+                                    {(() => {
+                                      const apiEntries = Object.keys(part.pricing || {}).filter(k => !k.startsWith("_"));
+                                      if (apiEntries.length === 0) return null;
+                                      return (
+                                        <div style={{ marginTop:8 }}>
+                                          <button
+                                            onClick={async (e) => {
+                                              e.stopPropagation();
+                                              const newPricing = {};
+                                              // Preserve metadata (_lockedVendor, _countryOfOrigin, etc.); drop all API vendor entries
+                                              for (const [k, v] of Object.entries(part.pricing || {})) {
+                                                if (k.startsWith("_")) newPricing[k] = v;
+                                              }
+                                              await updatePart(part.id, "pricing", newPricing);
+                                            }}
+                                            style={{ padding:"5px 12px", borderRadius:100, fontSize:11, fontWeight:600, border:"1px solid #ffd0cc", background:"#fff5f5", cursor:"pointer", color:"#ff3b30", fontFamily:"inherit" }}
+                                            onMouseEnter={(e)=>e.currentTarget.style.background="#ffe0dd"}
+                                            onMouseLeave={(e)=>e.currentTarget.style.background="#fff5f5"}>
+                                            ✕ Clear API Pricing Data ({apiEntries.join(", ")})
+                                          </button>
+                                          <div style={{ fontSize:10, color:"#8898aa", marginTop:3 }}>Removes Mouser/Nexar/DigiKey API entries. Keeps vendor lock and manual price.</div>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                                 <div>
