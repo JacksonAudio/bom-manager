@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.22";
-const BUILD_TIME   = "2026-04-15T15:40:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.23";
+const BUILD_TIME   = "2026-04-15T16:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -1652,14 +1652,20 @@ function BOMManager({ user }) {
   const [products,    setProducts]    = useState([]);
   const [loading,     setLoading]     = useState(true);  // initial DB fetch in progress
   const [activeView,  setActiveViewRaw]  = useState(() => {
-    const hash = window.location.hash.replace("#","");
-    if (hash === "products") return "projects";
     const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","shelf","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin","pipeline","repairs"];
-    return validTabs.includes(hash) ? hash : "dashboard";
+    // Prefer pathname (e.g. /products); fall back to legacy hash (e.g. #products)
+    const pathSeg = window.location.pathname.replace(/^\//, "").split("/")[0].split("?")[0];
+    if (pathSeg === "products") return "projects";
+    if (validTabs.includes(pathSeg)) return pathSeg;
+    const hash = window.location.hash.replace("#","").split("?")[0];
+    if (hash === "products") return "projects";
+    if (validTabs.includes(hash)) return hash;
+    return "dashboard";
   });
   const setActiveView = (view) => {
     setActiveViewRaw(view);
-    window.history.pushState(null, "", "#" + (view === "projects" ? "products" : view));
+    const path = "/" + (view === "projects" ? "products" : view);
+    window.history.pushState(null, "", path);
   };
   const [selProject,  setSelProject]  = useState("all");
   const [selBrand,    setSelBrand]    = useState("all");
@@ -2325,8 +2331,17 @@ function BOMManager({ user }) {
           } catch {}
         }
 
-        // Load price history for product cost trends
-        fetchAllPriceHistory().then(ph => setAllPriceHistory(ph || [])).catch(() => {});
+        // Load price history for product cost trends — deferred to post-render idle
+        // (large payload, ~10k rows; not needed for critical first paint — consumers
+        // on dashboard/scoreboard/pricing gracefully handle the empty array until it arrives)
+        const loadPriceHistory = () => {
+          fetchAllPriceHistory().then(ph => setAllPriceHistory(ph || [])).catch(() => {});
+        };
+        if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+          window.requestIdleCallback(loadPriceHistory, { timeout: 3000 });
+        } else {
+          setTimeout(loadPriceHistory, 1500);
+        }
 
         // Load PO history from DB
         fetchPOHistory().then(poRows => {
@@ -2472,13 +2487,27 @@ function BOMManager({ user }) {
   // Browser back/forward navigation between tabs
   useEffect(() => {
     const onPopState = () => {
-      const hash = window.location.hash.replace("#","");
-      if (hash === "products") { setActiveViewRaw("projects"); return; }
       const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","shelf","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin","pipeline","repairs"];
+      const pathSeg = window.location.pathname.replace(/^\//, "").split("/")[0].split("?")[0];
+      if (pathSeg === "products") { setActiveViewRaw("projects"); return; }
+      if (validTabs.includes(pathSeg)) { setActiveViewRaw(pathSeg); return; }
+      const hash = window.location.hash.replace("#","").split("?")[0];
+      if (hash === "products") { setActiveViewRaw("projects"); return; }
       if (validTabs.includes(hash)) setActiveViewRaw(hash);
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // One-time URL migration: rewrite legacy #tab to /tab for cleaner shareable URLs
+  useEffect(() => {
+    const hash = window.location.hash.replace("#","").split("?")[0];
+    const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","shelf","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin","pipeline","repairs","products","build","invoice"];
+    if (hash && validTabs.includes(hash) && window.location.pathname === "/") {
+      const query = window.location.hash.split("?")[1];
+      const newPath = "/" + hash + (query ? "?" + query : "");
+      window.history.replaceState(null, "", newPath);
+    }
   }, []);
 
   // Persist dark mode preference + sync body background
@@ -2698,7 +2727,7 @@ function BOMManager({ user }) {
       const brand = prod?.brand || "Jackson Audio";
       const brandCfg = { "Jackson Audio": { logo: "JACKSON AUDIO", color: "#c8a84e", website: "jackson.audio" }, "Fulltone USA": { logo: "FULLTONE USA", color: "#b22222", website: "www.fulltoneusa.com" } };
       const cfg = brandCfg[brand] || brandCfg["Jackson Audio"];
-      const regUrl = `${window.location.origin}${window.location.pathname}#register?sn=${encodeURIComponent(unit.serial_number)}&product=${encodeURIComponent(prod?.name || "")}&brand=${encodeURIComponent(brand)}`;
+      const regUrl = `${window.location.origin}/register?sn=${encodeURIComponent(unit.serial_number)}&product=${encodeURIComponent(prod?.name || "")}&brand=${encodeURIComponent(brand)}`;
       let qrDataUrl = "";
       try { qrDataUrl = await QRCode.toDataURL(regUrl, { width: 360, margin: 1, errorCorrectionLevel: "M" }); } catch {}
       // Generate barcode SVG
@@ -5423,8 +5452,8 @@ function BOMManager({ user }) {
   // ─────────────────────────────────────────────
   // MOBILE VIEWS — render standalone when hash matches
   // ─────────────────────────────────────────────
-  if (window.location.hash === "#build") return <BuildView />;
-  if (window.location.hash === "#invoice") return <InvoiceView />;
+  if (window.location.pathname === "/build" || window.location.hash === "#build") return <BuildView />;
+  if (window.location.pathname === "/invoice" || window.location.hash === "#invoice") return <InvoiceView />;
 
   // ─────────────────────────────────────────────
   // ADMIN CHECK (isAdmin computed at top of component, near apiKeys state)
@@ -9803,13 +9832,13 @@ function BOMManager({ user }) {
                 <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
                   <span style={{ fontSize:12,color:"#64748d" }}>Mobile Invoice Scanner:</span>
                   <code style={{ fontSize:11,color:darkMode?"#f8d377":"#5856d6",background:darkMode?"#1c1c1e":"#f0f0f2",padding:"3px 8px",borderRadius:5,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
-                    {window.location.origin + window.location.pathname + "#invoice"}
+                    {window.location.origin + "/invoice"}
                   </code>
-                  <button onClick={() => { navigator.clipboard.writeText(window.location.origin + window.location.pathname + "#invoice"); }}
+                  <button onClick={() => { navigator.clipboard.writeText(window.location.origin + "/invoice"); }}
                     style={{ padding:"4px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:darkMode?"#3a3a3e":"#e5e5ea",color:darkMode?"#f6f9fc":"#061b31" }}>
                     Copy Link
                   </button>
-                  <button onClick={() => window.open(window.location.origin + window.location.pathname + "#invoice", "_blank", "noopener")}
+                  <button onClick={() => window.open(window.location.origin + "/invoice", "_blank", "noopener")}
                     style={{ padding:"4px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#f8d377",color:"#0a0a0f" }}>
                     Open &#8599;
                   </button>
@@ -10594,7 +10623,7 @@ function BOMManager({ user }) {
         {activeView === "scoreboard" && (
           <div style={{ margin:"-24px -28px", minHeight:"calc(100vh - 120px)" }}>
             <div style={{ padding:"12px 28px",display:"flex",justifyContent:"flex-end" }}>
-              <button onClick={() => window.open(window.location.origin + window.location.pathname + "#scoreboard", "_blank", "noopener")}
+              <button onClick={() => window.open(window.location.origin + "/scoreboard", "_blank", "noopener")}
                 style={{ padding:"8px 18px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#f8d377",color:"#0a0a0f" }}>
                 Full Screen ↗
               </button>
@@ -15084,13 +15113,13 @@ function BOMManager({ user }) {
             <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:24,flexWrap:"wrap" }}>
               <span style={{ fontSize:13,color:"#64748d" }}>Mobile Builder App:</span>
               <code style={{ fontSize:12,color:darkMode?"#f8d377":"#5856d6",background:darkMode?"#1c1c1e":"#f0f0f2",padding:"4px 10px",borderRadius:6,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
-                {window.location.origin + window.location.pathname + "#build"}
+                {window.location.origin + "/build"}
               </code>
-              <button onClick={() => { navigator.clipboard.writeText(window.location.origin + window.location.pathname + "#build"); }}
+              <button onClick={() => { navigator.clipboard.writeText(window.location.origin + "/build"); }}
                 style={{ padding:"5px 12px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:darkMode?"#3a3a3e":"#e5e5ea",color:darkMode?"#f6f9fc":"#061b31" }}>
                 Copy Link
               </button>
-              <button onClick={() => window.open(window.location.origin + window.location.pathname + "#build", "_blank", "noopener")}
+              <button onClick={() => window.open(window.location.origin + "/build", "_blank", "noopener")}
                 style={{ padding:"5px 12px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#f8d377",color:"#0a0a0f" }}>
                 Open &#8599;
               </button>

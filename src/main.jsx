@@ -5,14 +5,20 @@ import Scoreboard from './components/Scoreboard.jsx'
 import RegisterProduct from './components/RegisterProduct.jsx'
 
 const hash = window.location.hash
+const pathname = window.location.pathname
 const hostname = window.location.hostname.toLowerCase()
 
 // Scoreboard is fully standalone (no auth required — TV display)
-const isScoreboard = hash === '#scoreboard'
+// Accepts /scoreboard (new) or #scoreboard (legacy bookmarks)
+const isScoreboard = hash === '#scoreboard' || pathname === '/scoreboard' || pathname.startsWith('/scoreboard/')
 
 // Product registration is public (no auth — customer scans QR on pedal)
 // Auto-detect from hostname (register.jacksonaudio.net, register.fulltoneusa.com)
-const isRegister = hostname.startsWith('register.') || hash.startsWith('#register')
+// Also accepts /register or #register (legacy QR codes on already-shipped pedals)
+const isRegister = hostname.startsWith('register.')
+  || hash.startsWith('#register')
+  || pathname === '/register'
+  || pathname.startsWith('/register/')
 
 // Build and Invoice views render inside App (auth required)
 // They are handled in App.jsx after authentication
