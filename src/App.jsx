@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.21";
-const BUILD_TIME   = "2026-04-15T15:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.22";
+const BUILD_TIME   = "2026-04-15T15:40:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -12295,7 +12295,6 @@ function BOMManager({ user }) {
                           { label:"Description", col:"description" },
                           { label:"Manufacturer", col:"manufacturer" },
                           { label:"Qty/Build", col:"quantity", right:true },
-                          { label:"Stock", col:"stockQty", right:true },
                           { label:"Unit Cost", col:"unitCost", right:true },
                           { label:"Actions", col:null, right:true },
                         ].map(({ label, col, right }, hi, arr) => {
@@ -12386,19 +12385,24 @@ function BOMManager({ user }) {
                                 onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                 onBlur={e=>{e.target.style.background="transparent";}} />
                             </td>
-                            <td style={{ padding:"10px 10px",textAlign:"right" }}>
-                              <input type="number" min="0" value={part.stockQty||""} onChange={e=>updatePart(part.id,"stockQty",e.target.value)}
-                                style={{ border:"none",background:"transparent",fontSize:13,width:50,textAlign:"right",color:darkMode?"#f6f9fc":"#061b31",fontFamily:"inherit",outline:"none" }}
-                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
-                                onBlur={e=>{e.target.style.background="transparent";}} />
-                            </td>
                             <td style={{ padding:"10px 10px",textAlign:"right",fontSize:12,color:pricing.price>0?(darkMode?"#f6f9fc":"#061b31"):"#c7c7cc",whiteSpace:"nowrap" }}>
                               {pricing.price > 0 ? (
                                 <>
                                   <span style={{ fontWeight:700 }}>${fmtPrice(pricing.price)}</span>
                                   <span style={{ color:"#8898aa",fontSize:10,marginLeft:4 }}>@ {pricing.qty}</span>
                                 </>
-                              ) : "--"}
+                              ) : (
+                                <button onClick={(e)=>{ e.stopPropagation(); if(part.mpn && hasAnyKey) fetchPartPricing(part.id); }}
+                                  disabled={!part.mpn || !hasAnyKey || part.pricingStatus==="loading"}
+                                  title={!part.mpn?"No MPN — can't fetch":(!hasAnyKey?"No distributor API keys configured":"Fetch pricing from distributors")}
+                                  style={{ padding:"3px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:(!part.mpn||!hasAnyKey||part.pricingStatus==="loading")?"not-allowed":"pointer",
+                                    border:"1px solid #533afd",background:"#fff",color:"#533afd",fontFamily:"inherit",
+                                    opacity:(!part.mpn||!hasAnyKey)?0.4:1,whiteSpace:"nowrap" }}
+                                  onMouseEnter={(e)=>{ if(!e.currentTarget.disabled){e.currentTarget.style.background="#533afd";e.currentTarget.style.color="#fff";} }}
+                                  onMouseLeave={(e)=>{ e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#533afd"; }}>
+                                  {part.pricingStatus==="loading" ? "…" : !part.mpn ? "No MPN" : "Fetch Price"}
+                                </button>
+                              )}
                             </td>
                             <td style={{ padding:"10px 10px",textAlign:"right",whiteSpace:"nowrap" }}>
                               <button onClick={(e) => {
@@ -12426,10 +12430,9 @@ function BOMManager({ user }) {
                           {isExpanded && (() => {
                             const m = part.pricing?.nexar || part.pricing?.mouser;
                             const lineCost = pricing.price * (parseInt(part.quantity)||1);
-                            const stockN = parseInt(part.stockQty)||0;
                             return (
                               <tr>
-                                <td colSpan={11} style={{ padding:"16px 24px", background:darkMode?"#1c1c1e":"#fafbfc", borderBottom:"2px solid #533afd" }}>
+                                <td colSpan={10} style={{ padding:"16px 24px", background:darkMode?"#1c1c1e":"#fafbfc", borderBottom:"2px solid #533afd" }}>
                                   <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
                                     <button onClick={(e)=>{e.stopPropagation();setQrModalParts([part]);}}
                                       style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:"1px solid #e3e8ee",background:"#f6f9fc",cursor:"pointer",color:"#061b31" }}
@@ -12479,17 +12482,16 @@ function BOMManager({ user }) {
                                       </div>
                                     </div>
                                     <div>
-                                      <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Inventory & Sourcing</div>
+                                      <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Sourcing & Compliance</div>
                                       <div style={{ color:darkMode?"#f6f9fc":"#061b31",lineHeight:1.5 }}>
-                                        <div>On Hand: <strong style={{ color:stockN>0?"#34c759":"#ff3b30" }}>{stockN}</strong></div>
-                                        <div>Reel Qty: {part.reelQty || "—"}</div>
-                                        {m?.stock != null && <div>Distributor Stock: <strong>{m.stock.toLocaleString()}</strong></div>}
                                         {m?.moq != null && <div>MOQ: <strong>{m.moq.toLocaleString()}</strong></div>}
                                         {m?.leadTimeDays != null && <div>Lead Time: <strong>{m.leadTimeDays} days</strong></div>}
                                         {m?.lifecycleStatus && <div>Lifecycle: <strong style={{ color: m.lifecycleStatus.toLowerCase().includes("active") ? "#34c759" : m.lifecycleStatus.toLowerCase().includes("eol") || m.lifecycleStatus.toLowerCase().includes("obsolete") ? "#ff3b30" : "#ff9500" }}>{m.lifecycleStatus}</strong></div>}
                                         {m?.rohsStatus && <div>RoHS: {m.rohsStatus}</div>}
                                         {m?.countryOfOrigin && <div>Origin: <strong>{fmtCountry(m.countryOfOrigin)}</strong></div>}
+                                        {part.reelQty && <div>Reel Qty: {part.reelQty}</div>}
                                         {m?.datasheetUrl && <div style={{ marginTop:4 }}><a href={m.datasheetUrl} target="_blank" rel="noopener noreferrer" onClick={(e)=>e.stopPropagation()} style={{ color:"#533afd", fontWeight:600, textDecoration:"none" }}>Datasheet ↗</a></div>}
+                                        {!m && !part.reelQty && <div style={{ color:"#8898aa", fontSize:11 }}>No sourcing data yet — run pricing lookup.</div>}
                                       </div>
                                     </div>
                                   </div>
@@ -12560,19 +12562,24 @@ function BOMManager({ user }) {
                                     onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                     onBlur={e=>{e.target.style.background="transparent";}} />
                                 </td>
-                                <td style={{ padding:"8px 10px",textAlign:"right" }}>
-                                  <input type="number" min="0" value={alt.stockQty||""} onChange={e=>updatePart(alt.id,"stockQty",e.target.value)}
-                                    style={{ border:"none",background:"transparent",fontSize:13,width:50,textAlign:"right",color:darkMode?"#f6f9fc":"#061b31",fontFamily:"inherit",outline:"none" }}
-                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
-                                    onBlur={e=>{e.target.style.background="transparent";}} />
-                                </td>
                                 <td style={{ padding:"8px 10px",textAlign:"right",fontSize:12,color:altPricing.price>0?(darkMode?"#f6f9fc":"#061b31"):"#c7c7cc",whiteSpace:"nowrap" }}>
                                   {altPricing.price > 0 ? (
                                     <>
                                       <span style={{ fontWeight:700 }}>${fmtPrice(altPricing.price)}</span>
                                       <span style={{ color:"#8898aa",fontSize:10,marginLeft:4 }}>@ {altPricing.qty}</span>
                                     </>
-                                  ) : "--"}
+                                  ) : (
+                                    <button onClick={(e)=>{ e.stopPropagation(); if(alt.mpn && hasAnyKey) fetchPartPricing(alt.id); }}
+                                      disabled={!alt.mpn || !hasAnyKey || alt.pricingStatus==="loading"}
+                                      title={!alt.mpn?"No MPN — can't fetch":(!hasAnyKey?"No distributor API keys configured":"Fetch pricing from distributors")}
+                                      style={{ padding:"3px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:(!alt.mpn||!hasAnyKey||alt.pricingStatus==="loading")?"not-allowed":"pointer",
+                                        border:"1px solid #533afd",background:"#fff",color:"#533afd",fontFamily:"inherit",
+                                        opacity:(!alt.mpn||!hasAnyKey)?0.4:1,whiteSpace:"nowrap" }}
+                                      onMouseEnter={(e)=>{ if(!e.currentTarget.disabled){e.currentTarget.style.background="#533afd";e.currentTarget.style.color="#fff";} }}
+                                      onMouseLeave={(e)=>{ e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#533afd"; }}>
+                                      {alt.pricingStatus==="loading" ? "…" : !alt.mpn ? "No MPN" : "Fetch Price"}
+                                    </button>
+                                  )}
                                 </td>
                                 <td style={{ padding:"8px 10px",textAlign:"right",whiteSpace:"nowrap" }}>
                                   <button onClick={()=>updatePart(alt.id,"alternateOf",null)}
@@ -12613,7 +12620,7 @@ function BOMManager({ user }) {
                           <td style={{ padding:"8px 10px" }}>
                             <span style={{ fontSize:12,color:"#ff3b30",opacity:0.5 }}>{part.manufacturer}</span>
                           </td>
-                          <td colSpan={4} style={{ padding:"8px 10px",textAlign:"right" }}>
+                          <td colSpan={3} style={{ padding:"8px 10px",textAlign:"right" }}>
                             <span style={{ fontSize:11,color:"#ff3b30",opacity:0.6 }}>⚠ Deleted from library</span>
                           </td>
                         </tr>
@@ -12621,7 +12628,6 @@ function BOMManager({ user }) {
                     </tbody>
                     {primaryParts.length > 0 && (() => {
                       const totalQty = primaryParts.reduce((s,p) => s + (parseInt(p.quantity)||1), 0);
-                      const totalStock = primaryParts.reduce((s,p) => s + (parseInt(p.stockQty)||0), 0);
                       const costPerBuild = primaryParts.reduce((s,p) => s + priceAtQty(p) * (parseInt(p.quantity)||1), 0);
                       const pricedCount = primaryParts.filter(p => priceAtQty(p) > 0).length;
                       // Determine the dominant price break tier so we can summarize it
@@ -12640,16 +12646,42 @@ function BOMManager({ user }) {
                               Totals — {primaryParts.length} line item{primaryParts.length!==1?"s":""}{totalAlts > 0 ? ` (+${totalAlts} alt${totalAlts!==1?"s":""})` : ""}
                             </td>
                             <td style={{ padding:"14px 10px",textAlign:"right",fontWeight:800,fontSize:13,color:darkMode?"#f6f9fc":"#061b31" }}>{totalQty}</td>
-                            <td style={{ padding:"14px 10px",textAlign:"right",fontWeight:600,fontSize:12,color:"#64748d" }}>{totalStock}</td>
                             <td style={{ padding:"14px 10px",textAlign:"right",fontWeight:800,fontSize:14,color:"#533afd",whiteSpace:"nowrap" }}>
                               {costPerBuild > 0 ? `$${fmtDollar(costPerBuild)}` : "—"}
                             </td>
                             <td />
                           </tr>
                           <tr style={{ background:darkMode?"#1c1c1e":"#f6f9fc" }}>
-                            <td colSpan={11} style={{ padding:"4px 12px 14px",fontSize:11,color:"#64748d",lineHeight:1.5 }}>
+                            <td colSpan={10} style={{ padding:"4px 12px 14px",fontSize:11,color:"#64748d",lineHeight:1.5 }}>
                               <strong style={{ color:"#533afd" }}>Total cost to build 1 unit.</strong>{" "}
-                              {pricedCount < primaryParts.length && <span style={{ color:"#ff9500" }}>⚠ {primaryParts.length - pricedCount} part{(primaryParts.length - pricedCount)!==1?"s are":" is"} missing pricing.</span>}{" "}
+                              {pricedCount < primaryParts.length && (() => {
+                                const missing = primaryParts.filter(p => priceAtQty(p) <= 0);
+                                const fetchable = missing.filter(p => p.mpn && hasAnyKey);
+                                return (
+                                  <span style={{ color:"#ff9500" }}>
+                                    ⚠ {missing.length} part{missing.length!==1?"s are":" is"} missing pricing.
+                                    {fetchable.length > 0 && (
+                                      <button onClick={async () => {
+                                        for (const p of fetchable) {
+                                          try { await fetchPartPricing(p.id); } catch {}
+                                          await new Promise(r => setTimeout(r, 300));
+                                        }
+                                      }}
+                                        style={{ marginLeft:8,padding:"3px 12px",borderRadius:100,fontSize:11,fontWeight:700,cursor:"pointer",
+                                          border:"1px solid #533afd",background:"#533afd",color:"#fff",fontFamily:"inherit" }}
+                                        onMouseEnter={(e)=>e.currentTarget.style.background="#4327e0"}
+                                        onMouseLeave={(e)=>e.currentTarget.style.background="#533afd"}>
+                                        Fetch Pricing for {fetchable.length} Part{fetchable.length!==1?"s":""}
+                                      </button>
+                                    )}
+                                    {fetchable.length < missing.length && (
+                                      <span style={{ marginLeft:6,fontSize:10,color:"#8898aa" }}>
+                                        ({missing.length - fetchable.length} can't be auto-priced — {!hasAnyKey?"no API keys configured":"missing MPN"})
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              })()}{" "}
                               Unit cost is shown at each part's BOM usage quantity (the "@ N" next to each price is the distributor price break tier).
                               {dominantTier && <> Most parts are priced at the <strong>qty {dominantTier[0]}</strong> tier{tierCounts[dominantTier[0]] < pricedCount ? " (mix of tiers — open a row for detail)" : ""}.</>}{" "}
                               For bulk-build pricing, use the <strong>Production Run Simulator</strong> below.
