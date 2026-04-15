@@ -137,42 +137,42 @@ export default function StickerPrintModal({ units, products, playTesters, teamMe
         <div style={{ padding:'20px 24px',borderBottom:'1px solid #e5e5ea',display:'flex',
           alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10 }}>
           <div>
-            <div style={{ fontSize:18,fontWeight:700,color:'#1d1d1f',
-              fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+            <div style={{ fontSize:18,fontWeight:700,color:'#061b31',
+              fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
               Serial Number Stickers
             </div>
-            <div style={{ fontSize:12,color:'#86868b',marginTop:2 }}>
+            <div style={{ fontSize:12,color:'#64748d',marginTop:2 }}>
               {selectedUnits.size} of {units.length} selected — barcode encodes serial number
             </div>
           </div>
           <div style={{ display:'flex',gap:8,alignItems:'center' }}>
             <select value={stickerSize} onChange={e => setStickerSize(e.target.value)}
-              style={{ padding:'6px 10px',borderRadius:6,fontSize:12,border:'1px solid #d2d2d7',color:'#1d1d1f',minWidth:180 }}>
+              style={{ padding:'6px 10px',borderRadius:6,fontSize:12,border:'1px solid #e3e8ee',color:'#061b31',minWidth:180 }}>
               {Object.entries(STICKER_SIZES).map(([key, val]) => (
                 <option key={key} value={key}>{val.name}</option>
               ))}
             </select>
             <button onClick={toggleAll}
-              style={{ padding:'6px 14px',borderRadius:980,fontSize:11,fontWeight:600,cursor:'pointer',
-                border:'none',background:'#f0f0f2',color:'#1d1d1f' }}>
+              style={{ padding:'6px 14px',borderRadius:100,fontSize:11,fontWeight:600,cursor:'pointer',
+                border:'none',background:'#f0f0f2',color:'#061b31' }}>
               {selectedUnits.size === units.length ? 'Deselect All' : 'Select All'}
             </button>
             <button onClick={handlePrint}
               disabled={selectedUnits.size === 0}
-              style={{ padding:'8px 18px',borderRadius:980,fontSize:13,fontWeight:600,cursor:'pointer',
-                border:'none',background:'#0071e3',color:'#fff',
+              style={{ padding:'8px 18px',borderRadius:100,fontSize:13,fontWeight:600,cursor:'pointer',
+                border:'none',background:'#533afd',color:'#fff',
                 opacity: selectedUnits.size === 0 ? 0.4 : 1 }}>
               Print {selectedUnits.size} Sticker{selectedUnits.size !== 1 ? 's' : ''}
             </button>
             <button onClick={onClose}
-              style={{ background:'none',border:'none',fontSize:18,cursor:'pointer',color:'#86868b',padding:'4px 8px' }}>
+              style={{ background:'none',border:'none',fontSize:18,cursor:'pointer',color:'#64748d',padding:'4px 8px' }}>
               ✕
             </button>
           </div>
         </div>
 
         {/* Sticker preview */}
-        <div style={{ flex:1,overflowY:'auto',padding:24,background:'#f5f5f7' }}>
+        <div style={{ flex:1,overflowY:'auto',padding:24,background:'#f6f9fc' }}>
           <div style={{ display:'flex',flexWrap:'wrap',gap:10 }}>
             {units.map(unit => {
               const prod = products.find(p => p.id === unit.product_id)
@@ -183,22 +183,22 @@ export default function StickerPrintModal({ units, products, playTesters, teamMe
               return (
                 <div key={unit.id} onClick={() => toggleUnit(unit.id)}
                   style={{ width: `${sz.width * 96}px`, minHeight: `${sz.height * 96}px`,
-                    border: selected ? '2px solid #0071e3' : '1px solid #d2d2d7',
+                    border: selected ? '2px solid #533afd' : '1px solid #e3e8ee',
                     borderRadius:8, padding:'6px 10px', display:'flex', flexDirection:'column',
                     alignItems:'center', justifyContent:'center', textAlign:'center', gap:2,
-                    background: selected ? '#fff' : '#fafafa', cursor:'pointer',
+                    background: selected ? '#fff' : '#fafbfc', cursor:'pointer',
                     opacity: selected ? 1 : 0.5, transition:'all 0.15s' }}>
                   <div style={{ fontSize:7,fontWeight:900,letterSpacing:'0.12em',textTransform:'uppercase',
                     color:cfg.accentColor }}>{cfg.logo}</div>
-                  <div style={{ fontSize:10,fontWeight:700,color:'#1d1d1f',overflow:'hidden',
+                  <div style={{ fontSize:10,fontWeight:700,color:'#061b31',overflow:'hidden',
                     textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'100%' }}>{prod?.name || '?'}</div>
                   {barcodes[unit.id] && (
                     <div style={{ margin:'2px 0',width:'85%',overflow:'hidden' }}
                       dangerouslySetInnerHTML={{ __html: barcodes[unit.id] }} />
                   )}
                   <div style={{ fontSize:12,fontWeight:800,fontFamily:'SF Mono,Menlo,monospace',
-                    color:'#1d1d1f' }}>S/N {unit.serial_number}</div>
-                  <div style={{ fontSize:6,color:'#aeaeb2',marginTop:1 }}>{cfg.tagline}</div>
+                    color:'#061b31' }}>S/N {unit.serial_number}</div>
+                  <div style={{ fontSize:6,color:'#8898aa',marginTop:1 }}>{cfg.tagline}</div>
                 </div>
               )
             })}

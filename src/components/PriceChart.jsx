@@ -1,7 +1,7 @@
 // src/components/PriceChart.jsx — SVG line chart for price history
 import React, { useState, useRef, useMemo } from "react";
 
-const FONT = "-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif";
+const FONT = "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif";
 
 /**
  * PriceChart — pure SVG line chart with area fill, tooltips, and dark mode support.
@@ -30,7 +30,7 @@ export default function PriceChart({ data, width = 600, height = 220, title, dar
     if (sparkline) return null;
     return (
       <div style={{ padding: "20px 16px", textAlign: "center", fontSize: 12,
-        color: darkMode ? "#86868b" : "#aeaeb2", fontFamily: FONT }}>
+        color: darkMode ? "#64748d" : "#8898aa", fontFamily: FONT }}>
         No price data available
       </div>
     );
@@ -116,8 +116,8 @@ export default function PriceChart({ data, width = 600, height = 220, title, dar
   const tooltipY = tooltip ? toY(tooltip.price) : 0;
 
   const bgColor = darkMode ? "#1c1c1e" : "#fff";
-  const textColor = darkMode ? "#f5f5f7" : "#1d1d1f";
-  const mutedColor = "#86868b";
+  const textColor = darkMode ? "#f6f9fc" : "#061b31";
+  const mutedColor = "#64748d";
   const gridColor = darkMode ? "#2c2c2e" : "#f0f0f2";
   const borderColor = darkMode ? "#3a3a3e" : "#e5e5ea";
 
@@ -164,16 +164,16 @@ export default function PriceChart({ data, width = 600, height = 220, title, dar
         ))}
 
         {/* Area fill */}
-        <path d={areaPath} fill="rgba(0,113,227,0.1)" />
+        <path d={areaPath} fill="rgba(83,58,253,0.1)" />
 
         {/* Line */}
-        <path d={linePath} fill="none" stroke="#0071e3" strokeWidth="2"
+        <path d={linePath} fill="none" stroke="#533afd" strokeWidth="2"
           strokeLinejoin="round" strokeLinecap="round" />
 
         {/* Data points */}
         {sorted.map((d, i) => (
           <circle key={i} cx={toX(d.date)} cy={toY(d.price)} r={hoverIdx === i ? 5 : 3}
-            fill={hoverIdx === i ? "#0071e3" : "#fff"} stroke="#0071e3" strokeWidth="2"
+            fill={hoverIdx === i ? "#533afd" : "#fff"} stroke="#533afd" strokeWidth="2"
             style={{ transition: "r 0.15s" }} />
         ))}
 
@@ -200,7 +200,7 @@ export default function PriceChart({ data, width = 600, height = 220, title, dar
             <g>
               {/* Vertical guide line */}
               <line x1={tooltipX} y1={margin.top} x2={tooltipX} y2={margin.top + plotH}
-                stroke="#0071e3" strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
+                stroke="#533afd" strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
               {/* Tooltip box */}
               <rect x={tx} y={ty} width={boxW} height={boxH} rx="6"
                 fill={darkMode ? "#2c2c2e" : "#fff"} stroke={borderColor}

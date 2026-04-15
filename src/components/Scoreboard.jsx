@@ -8,7 +8,7 @@ import { supabase } from "../lib/supabase.js";
 
 const THEMES = {
   dark: { bg: "#0a0a0f", card: "#12121a", border: "#1e1e2e", text: "#e0e0e0", textDim: "#6b6b80", textMuted: "#4a4a5a", white: "#ffffff", accent: "#f8d377", hover: "rgba(255,255,255,0.05)" },
-  light: { bg: "#f0f0f5", card: "#ffffff", border: "#d2d2d7", text: "#1d1d1f", textDim: "#86868b", textMuted: "#aeaeb2", white: "#1d1d1f", accent: "#0071e3", hover: "rgba(0,0,0,0.03)" },
+  light: { bg: "#f0f0f5", card: "#ffffff", border: "#e3e8ee", text: "#061b31", textDim: "#64748d", textMuted: "#8898aa", white: "#061b31", accent: "#533afd", hover: "rgba(0,0,0,0.03)" },
 };
 
 function formatBuildTime(minutes) {
@@ -228,7 +228,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
     }}>
       <style>{`
         @keyframes scoreboardFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes leaderPulse { 0%, 100% { box-shadow: 0 0 20px ${theme==="dark"?"rgba(248,211,119,0.15)":"rgba(0,113,227,0.15)"}; } 50% { box-shadow: 0 0 40px ${theme==="dark"?"rgba(248,211,119,0.3)":"rgba(0,113,227,0.3)"}; } }
+        @keyframes leaderPulse { 0%, 100% { box-shadow: 0 0 20px ${theme==="dark"?"rgba(248,211,119,0.15)":"rgba(83,58,253,0.15)"}; } 50% { box-shadow: 0 0 40px ${theme==="dark"?"rgba(248,211,119,0.3)":"rgba(83,58,253,0.3)"}; } }
         @keyframes progressGrow { from { width: 0; } }
       `}</style>
 
@@ -278,7 +278,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
               return (
                 <div key={builder.memberId} style={{
                   background: T.card,
-                  border: `1px solid ${isLeader ? (theme==="dark"?"rgba(248,211,119,0.3)":"rgba(0,113,227,0.3)") : T.border}`,
+                  border: `1px solid ${isLeader ? (theme==="dark"?"rgba(248,211,119,0.3)":"rgba(83,58,253,0.3)") : T.border}`,
                   borderRadius: 12,
                   padding: standalone ? "16px 20px" : "12px 16px",
                   animation: isLeader ? "leaderPulse 3s ease-in-out infinite" : undefined,
@@ -310,8 +310,8 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
                         </span>
                         <span style={{
                           fontSize: standalone ? 13 : 10, fontWeight: 700, padding: "2px 8px", borderRadius: 12,
-                          background: builder.qualityScore >= 90 ? "rgba(52,199,89,0.18)" : builder.qualityScore >= 70 ? "rgba(0,113,227,0.18)" : "rgba(255,149,0,0.18)",
-                          color: builder.qualityScore >= 90 ? "#34c759" : builder.qualityScore >= 70 ? "#0071e3" : "#ff9500",
+                          background: builder.qualityScore >= 90 ? "rgba(52,199,89,0.18)" : builder.qualityScore >= 70 ? "rgba(83,58,253,0.18)" : "rgba(255,149,0,0.18)",
+                          color: builder.qualityScore >= 90 ? "#34c759" : builder.qualityScore >= 70 ? "#533afd" : "#ff9500",
                         }}>
                           Q:{builder.qualityScore.toFixed(0)}
                         </span>
@@ -341,7 +341,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
                           <div style={{
                             width: `${progressPct}%`,
                             height: "100%",
-                            background: `linear-gradient(90deg, ${T.accent}, #0071e3)`,
+                            background: `linear-gradient(90deg, ${T.accent}, #533afd)`,
                             borderRadius: 4,
                             animation: "progressGrow 1s ease-out",
                             transition: "width 0.5s ease",
@@ -402,7 +402,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
                     <div style={{ flex: 1, height: 6, background: theme==="dark"?"#1a1a28":"#e5e5ea", borderRadius: 3, overflow: "hidden" }}>
                       <div style={{
                         width: `${pct}%`, height: "100%",
-                        background: pct >= 80 ? "#34c759" : pct >= 40 ? "#0071e3" : "#5856d6",
+                        background: pct >= 80 ? "#34c759" : pct >= 40 ? "#533afd" : "#5856d6",
                         borderRadius: 3, transition: "width 0.5s ease",
                       }} />
                     </div>

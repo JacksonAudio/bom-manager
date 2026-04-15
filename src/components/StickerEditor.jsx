@@ -19,10 +19,10 @@ const SCALE = 192 // pixels per inch for editor preview
 
 const DEFAULT_ELEMENTS = [
   { id: 'qr',       type: 'qr',    x: 4,   y: 6,  w: 70,  h: 70,  visible: true },
-  { id: 'brand',    type: 'text',  x: 82,  y: 8,  w: 200, h: 16,  text: 'JACKSON AUDIO', fontSize: 9, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#c8a84e', fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", visible: true },
-  { id: 'product',  type: 'text',  x: 82,  y: 26, w: 200, h: 18,  text: '{product}', fontSize: 11, fontWeight: 700, color: '#1a1a1a', fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", visible: true },
+  { id: 'brand',    type: 'text',  x: 82,  y: 8,  w: 200, h: 16,  text: 'JACKSON AUDIO', fontSize: 9, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#c8a84e', fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", visible: true },
+  { id: 'product',  type: 'text',  x: 82,  y: 26, w: 200, h: 18,  text: '{product}', fontSize: 11, fontWeight: 700, color: '#1a1a1a', fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", visible: true },
   { id: 'serial',   type: 'text',  x: 82,  y: 46, w: 200, h: 20,  text: 'S/N {serial}', fontSize: 13, fontWeight: 800, color: '#1a1a1a', fontFamily: "'SF Mono',Menlo,monospace", letterSpacing: '0.04em', visible: true },
-  { id: 'tagline',  type: 'text',  x: 82,  y: 68, w: 200, h: 14,  text: 'Scan QR to register · jacksonaudio.com', fontSize: 6, fontWeight: 400, color: '#888888', fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", visible: true },
+  { id: 'tagline',  type: 'text',  x: 82,  y: 68, w: 200, h: 14,  text: 'Scan QR to register · jacksonaudio.com', fontSize: 6, fontWeight: 400, color: '#888888', fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", visible: true },
 ]
 
 const STORAGE_KEY = 'jackson_sticker_templates'
@@ -147,7 +147,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
     const newElem = {
       id, type: 'text', x: 20, y: 20, w: 150, h: 16,
       text: 'New Text', fontSize: 10, fontWeight: 400, color: '#1a1a1a',
-      fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif",
+      fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif",
       letterSpacing: 'normal', textTransform: 'none', visible: true,
     }
     setElements(prev => [...prev, newElem])
@@ -213,8 +213,8 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
     w.document.close()
   }
 
-  const inputStyle = { fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid #d2d2d7', outline: 'none', width: '100%', fontFamily: '-apple-system, sans-serif' }
-  const labelStyle = { fontSize: 10, fontWeight: 600, color: '#86868b', marginBottom: 2, display: 'block' }
+  const inputStyle = { fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid #e3e8ee', outline: 'none', width: '100%', fontFamily: '-apple-system, sans-serif' }
+  const labelStyle = { fontSize: 10, fontWeight: 600, color: '#64748d', marginBottom: 2, display: 'block' }
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center',
@@ -227,12 +227,12 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5e5ea', display: 'flex',
           alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#1d1d1f' }}>Sticker Layout Editor</div>
-            <div style={{ fontSize: 12, color: '#86868b', marginTop: 2 }}>Drag elements, adjust styles, save templates</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#061b31' }}>Sticker Layout Editor</div>
+            <div style={{ fontSize: 12, color: '#64748d', marginTop: 2 }}>Drag elements, adjust styles, save templates</div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={handleReset}
-              style={{ padding: '6px 14px', borderRadius: 980, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: '#f0f0f2', color: '#1d1d1f' }}>
+              style={{ padding: '6px 14px', borderRadius: 980, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: '#f0f0f2', color: '#061b31' }}>
               Reset
             </button>
             <button onClick={handleTestPrint}
@@ -240,11 +240,11 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
               Test Print
             </button>
             <button onClick={handleApply}
-              style={{ padding: '8px 18px', borderRadius: 980, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', background: '#0071e3', color: '#fff' }}>
+              style={{ padding: '8px 18px', borderRadius: 980, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', background: '#533afd', color: '#fff' }}>
               Apply Design
             </button>
             <button onClick={onClose}
-              style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#86868b', padding: '4px 8px' }}>
+              style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#64748d', padding: '4px 8px' }}>
               ✕
             </button>
           </div>
@@ -254,10 +254,10 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
         <div style={{ flex: 1, overflow: 'auto', display: 'flex', gap: 0 }}>
 
           {/* Left: Canvas */}
-          <div style={{ flex: 1, padding: 24, background: '#f5f5f7', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div style={{ flex: 1, padding: 24, background: '#f6f9fc', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
             {/* Size selector */}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 11, color: '#86868b', fontWeight: 600 }}>Size:</span>
+              <span style={{ fontSize: 11, color: '#64748d', fontWeight: 600 }}>Size:</span>
               <select value={stickerSize} onChange={e => setStickerSize(e.target.value)}
                 style={{ ...inputStyle, width: 200 }}>
                 {Object.entries(STICKER_SIZES).map(([key, val]) => (
@@ -269,7 +269,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
             {/* Add element buttons */}
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={handleAddText}
-                style={{ fontSize: 11, padding: '5px 14px', borderRadius: 980, border: 'none', cursor: 'pointer', fontWeight: 600, background: '#0071e3', color: '#fff' }}>
+                style={{ fontSize: 11, padding: '5px 14px', borderRadius: 980, border: 'none', cursor: 'pointer', fontWeight: 600, background: '#533afd', color: '#fff' }}>
                 + Add Text
               </button>
               <button onClick={handleAddImage}
@@ -297,7 +297,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
                     left: elem.x, top: elem.y,
                     width: elem.w, height: elem.h,
                     cursor: dragState?.elemId === elem.id ? 'grabbing' : 'grab',
-                    outline: selectedId === elem.id ? '2px solid #0071e3' : '1px dashed transparent',
+                    outline: selectedId === elem.id ? '2px solid #533afd' : '1px dashed transparent',
                     outlineOffset: 1,
                     borderRadius: 2,
                     display: 'flex', alignItems: 'center',
@@ -330,7 +330,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
               ))}
             </div>
 
-            <div style={{ fontSize: 10, color: '#aeaeb2', textAlign: 'center' }}>
+            <div style={{ fontSize: 10, color: '#8898aa', textAlign: 'center' }}>
               Click an element to select it. Drag to reposition. Use the panel on the right to edit properties.
             </div>
           </div>
@@ -340,7 +340,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
 
             {/* Element list */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#1d1d1f', marginBottom: 8 }}>Elements</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#061b31', marginBottom: 8 }}>Elements</div>
               {elements.map(elem => {
                 const isDefault = DEFAULT_ELEMENTS.some(d => d.id === elem.id)
                 const displayName = elem.type === 'qr' ? 'QR Code' : elem.type === 'image' ? (elem.label || 'Image') : elem.id.charAt(0).toUpperCase() + elem.id.slice(1)
@@ -348,12 +348,12 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
                 <div key={elem.id} onClick={() => setSelectedId(elem.id)}
                   style={{
                     padding: '6px 10px', borderRadius: 8, marginBottom: 4, cursor: 'pointer',
-                    background: selectedId === elem.id ? '#0071e318' : '#f5f5f7',
-                    border: selectedId === elem.id ? '1px solid #0071e3' : '1px solid transparent',
+                    background: selectedId === elem.id ? '#533afd18' : '#f6f9fc',
+                    border: selectedId === elem.id ? '1px solid #533afd' : '1px solid transparent',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#1d1d1f', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 9, color: '#aeaeb2' }}>{elem.type === 'qr' ? 'QR' : elem.type === 'image' ? 'IMG' : 'Aa'}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#061b31', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 9, color: '#8898aa' }}>{elem.type === 'qr' ? 'QR' : elem.type === 'image' ? 'IMG' : 'Aa'}</span>
                     {displayName}
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -377,7 +377,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
             {/* Selected element properties */}
             {selected && (
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1d1d1f', marginBottom: 10, borderTop: '1px solid #e5e5ea', paddingTop: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#061b31', marginBottom: 10, borderTop: '1px solid #e5e5ea', paddingTop: 12 }}>
                   Edit: {selected.id.charAt(0).toUpperCase() + selected.id.slice(1)}
                 </div>
 
@@ -440,7 +440,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
                       <label style={labelStyle}>Text Content</label>
                       <input value={selected.text || ''} onChange={e => updateElement(selected.id, { text: e.target.value })} style={inputStyle}
                         placeholder="Use {serial}, {product}, {brand}" />
-                      <div style={{ fontSize: 9, color: '#aeaeb2', marginTop: 2 }}>Variables: {'{serial}'}, {'{product}'}, {'{brand}'}</div>
+                      <div style={{ fontSize: 9, color: '#8898aa', marginTop: 2 }}>Variables: {'{serial}'}, {'{product}'}, {'{brand}'}</div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                       <div>
@@ -457,7 +457,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
                     <div style={{ marginBottom: 8 }}>
                       <label style={labelStyle}>Font Family</label>
                       <select value={selected.fontFamily || 'sans-serif'} onChange={e => updateElement(selected.id, { fontFamily: e.target.value })} style={inputStyle}>
-                        <option value="-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif">System (San Francisco)</option>
+                        <option value="Inter,-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif">System (San Francisco)</option>
                         <option value="'SF Mono',Menlo,monospace">Monospace (SF Mono)</option>
                         <option value="Georgia,'Times New Roman',serif">Serif (Georgia)</option>
                         <option value="'Courier New',monospace">Courier New</option>
@@ -469,7 +469,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
                         <label style={labelStyle}>Color</label>
                         <div style={{ display: 'flex', gap: 4 }}>
                           <input type="color" value={selected.color || '#1a1a1a'} onChange={e => updateElement(selected.id, { color: e.target.value })}
-                            style={{ width: 32, height: 28, border: '1px solid #d2d2d7', borderRadius: 4, cursor: 'pointer', padding: 0 }} />
+                            style={{ width: 32, height: 28, border: '1px solid #e3e8ee', borderRadius: 4, cursor: 'pointer', padding: 0 }} />
                           <input value={selected.color || '#1a1a1a'} onChange={e => updateElement(selected.id, { color: e.target.value })}
                             style={{ ...inputStyle, flex: 1 }} />
                         </div>
@@ -496,13 +496,13 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
 
             {/* Background settings */}
             <div style={{ borderTop: '1px solid #e5e5ea', paddingTop: 12, marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#1d1d1f', marginBottom: 8 }}>Sticker Background</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#061b31', marginBottom: 8 }}>Sticker Background</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <div>
                   <label style={labelStyle}>Fill</label>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <input type="color" value={bgColor} onChange={e => setBgColor(e.target.value)}
-                      style={{ width: 32, height: 28, border: '1px solid #d2d2d7', borderRadius: 4, cursor: 'pointer', padding: 0 }} />
+                      style={{ width: 32, height: 28, border: '1px solid #e3e8ee', borderRadius: 4, cursor: 'pointer', padding: 0 }} />
                     <input value={bgColor} onChange={e => setBgColor(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
                   </div>
                 </div>
@@ -510,7 +510,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
                   <label style={labelStyle}>Border</label>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <input type="color" value={borderColor} onChange={e => setBorderColor(e.target.value)}
-                      style={{ width: 32, height: 28, border: '1px solid #d2d2d7', borderRadius: 4, cursor: 'pointer', padding: 0 }} />
+                      style={{ width: 32, height: 28, border: '1px solid #e3e8ee', borderRadius: 4, cursor: 'pointer', padding: 0 }} />
                     <input value={borderColor} onChange={e => setBorderColor(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
                   </div>
                 </div>
@@ -519,7 +519,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
 
             {/* Templates */}
             <div style={{ borderTop: '1px solid #e5e5ea', paddingTop: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#1d1d1f', marginBottom: 8 }}>Templates</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#061b31', marginBottom: 8 }}>Templates</div>
               <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
                 <input value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder="Template name…" style={{ ...inputStyle, flex: 1 }} />
                 <button onClick={handleSaveTemplate}
@@ -528,14 +528,14 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
                 </button>
               </div>
               {Object.keys(templates).length === 0 && (
-                <div style={{ fontSize: 11, color: '#aeaeb2', fontStyle: 'italic' }}>No saved templates yet</div>
+                <div style={{ fontSize: 11, color: '#8898aa', fontStyle: 'italic' }}>No saved templates yet</div>
               )}
               {Object.keys(templates).map(name => (
-                <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', background: '#f5f5f7', borderRadius: 6, marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 500, color: '#1d1d1f' }}>{name}</span>
+                <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', background: '#f6f9fc', borderRadius: 6, marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: '#061b31' }}>{name}</span>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button onClick={() => handleLoadTemplate(name)}
-                      style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, border: 'none', background: '#0071e3', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                      style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, border: 'none', background: '#533afd', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
                       Load
                     </button>
                     <button onClick={() => handleDeleteTemplate(name)}

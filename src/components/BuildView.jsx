@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabase.js";
 
-const FONT = "-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif";
+const FONT = "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif";
 
 export default function BuildView({ standalone = false }) {
   const [teamMembers, setTeamMembers] = useState([]);
@@ -114,7 +114,7 @@ export default function BuildView({ standalone = false }) {
     return (
       <div style={styles.container}>
         <div style={styles.centered}>
-          <div style={{ fontSize: 18, color: "#86868b", fontFamily: FONT }}>Loading...</div>
+          <div style={{ fontSize: 18, color: "#64748d", fontFamily: FONT }}>Loading...</div>
         </div>
       </div>
     );
@@ -158,7 +158,7 @@ export default function BuildView({ standalone = false }) {
       <div style={styles.container}>
         <div style={{ padding: "24px 16px", maxWidth: 480, margin: "0 auto" }}>
           <h1 style={styles.title}>{pinMode ? "Enter Your PIN" : "Who are you?"}</h1>
-          <p style={{ color: "#86868b", fontFamily: FONT, fontSize: 14, marginBottom: 24, textAlign: "center" }}>
+          <p style={{ color: "#64748d", fontFamily: FONT, fontSize: 14, marginBottom: 24, textAlign: "center" }}>
             {pinMode ? "Enter your 4-6 digit PIN to sign in" : "Tap your name or use PIN to sign in"}
           </p>
 
@@ -166,9 +166,9 @@ export default function BuildView({ standalone = false }) {
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
               <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
                 {[0,1,2,3,4,5].map(i => (
-                  <div key={i} style={{ width: 44, height: 52, borderRadius: 10, border: "2px solid " + (pinValue.length > i ? "#0071e3" : "#3a3a3e"),
+                  <div key={i} style={{ width: 44, height: 52, borderRadius: 10, border: "2px solid " + (pinValue.length > i ? "#533afd" : "#3a3a3e"),
                     display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700,
-                    color: "#f5f5f7", fontFamily: FONT, background: "#1c1c1e" }}>
+                    color: "#f6f9fc", fontFamily: FONT, background: "#1c1c1e" }}>
                     {pinValue.length > i ? "\u2022" : ""}
                   </div>
                 ))}
@@ -182,7 +182,7 @@ export default function BuildView({ standalone = false }) {
                       else if (pinValue.length < 6) { setPinValue(v => v + d); setPinError(""); }
                     }}
                     style={{ width: 72, height: 56, borderRadius: 12, border: "1px solid #3a3a3e", background: "#1c1c1e",
-                      color: "#f5f5f7", fontSize: d === "del" ? 16 : 24, fontWeight: 600, fontFamily: FONT, cursor: "pointer",
+                      color: "#f6f9fc", fontSize: d === "del" ? 16 : 24, fontWeight: 600, fontFamily: FONT, cursor: "pointer",
                       display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {d === "del" ? "\u232B" : d}
                     </button>
@@ -192,13 +192,13 @@ export default function BuildView({ standalone = false }) {
               {pinError && <div style={{ color: "#ff453a", fontSize: 14, fontFamily: FONT, fontWeight: 600 }}>{pinError}</div>}
               <button onClick={handlePinSubmit}
                 disabled={pinValue.length < 4}
-                style={{ padding: "14px 48px", borderRadius: 980, border: "none", background: pinValue.length >= 4 ? "#0071e3" : "#2c2c2e",
+                style={{ padding: "14px 48px", borderRadius: 980, border: "none", background: pinValue.length >= 4 ? "#533afd" : "#2c2c2e",
                   color: "#fff", fontSize: 16, fontWeight: 700, fontFamily: FONT, cursor: pinValue.length >= 4 ? "pointer" : "default",
                   opacity: pinValue.length >= 4 ? 1 : 0.5, marginTop: 8 }}>
                 Sign In
               </button>
               <button onClick={() => { setPinMode(false); setPinValue(""); setPinError(""); }}
-                style={{ background: "none", border: "none", color: "#0071e3", fontSize: 14, fontFamily: FONT, cursor: "pointer", fontWeight: 600 }}>
+                style={{ background: "none", border: "none", color: "#533afd", fontSize: 14, fontFamily: FONT, cursor: "pointer", fontWeight: 600 }}>
                 Use Name Instead
               </button>
             </div>
@@ -215,20 +215,20 @@ export default function BuildView({ standalone = false }) {
                     >
                       <span style={{ fontSize: 22, fontWeight: 700 }}>{member.name}</span>
                       {member.role && (
-                        <span style={{ fontSize: 13, color: "#86868b", marginTop: 2 }}>{member.role}</span>
+                        <span style={{ fontSize: 13, color: "#64748d", marginTop: 2 }}>{member.role}</span>
                       )}
                     </button>
                   ))}
               </div>
               {teamMembers.filter((t) => t.active !== false).length === 0 && (
-                <div style={{ textAlign: "center", color: "#86868b", fontFamily: FONT, fontSize: 15, marginTop: 40 }}>
+                <div style={{ textAlign: "center", color: "#64748d", fontFamily: FONT, fontSize: 15, marginTop: 40 }}>
                   No team members found.
                 </div>
               )}
               {teamMembers.some(m => m.pin_code) && (
                 <button onClick={() => setPinMode(true)}
                   style={{ display: "block", margin: "24px auto 0", padding: "12px 32px", borderRadius: 980,
-                    border: "1px solid #3a3a3e", background: "transparent", color: "#0071e3", fontSize: 14,
+                    border: "1px solid #3a3a3e", background: "transparent", color: "#533afd", fontSize: 14,
                     fontWeight: 600, fontFamily: FONT, cursor: "pointer" }}>
                   Use PIN Instead
                 </button>
@@ -249,10 +249,10 @@ export default function BuildView({ standalone = false }) {
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 12, color: "#86868b", fontFamily: FONT, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>
+            <div style={{ fontSize: 12, color: "#64748d", fontFamily: FONT, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>
               Builder
             </div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#f5f5f7", fontFamily: FONT }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#f6f9fc", fontFamily: FONT }}>
               {selectedMember.name}
             </div>
           </div>
@@ -260,7 +260,7 @@ export default function BuildView({ standalone = false }) {
             onClick={() => setSelectedMember(null)}
             style={{
               padding: "10px 18px", borderRadius: 980, border: "1px solid #3a3a3e",
-              background: "transparent", color: "#86868b", fontSize: 13, fontWeight: 600,
+              background: "transparent", color: "#64748d", fontSize: 13, fontWeight: 600,
               fontFamily: FONT, cursor: "pointer",
             }}
           >
@@ -281,7 +281,7 @@ export default function BuildView({ standalone = false }) {
             <div style={{ fontSize: 20, fontWeight: 700, color: "#34c759", fontFamily: FONT, marginBottom: 8 }}>
               No tasks assigned
             </div>
-            <div style={{ fontSize: 14, color: "#86868b", fontFamily: FONT }}>
+            <div style={{ fontSize: 14, color: "#64748d", fontFamily: FONT }}>
               You're all caught up! Check back later.
             </div>
           </div>
@@ -296,21 +296,21 @@ export default function BuildView({ standalone = false }) {
               return (
                 <div key={order.id} style={styles.orderCard}>
                   <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#f5f5f7", fontFamily: FONT, marginBottom: 4 }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: "#f6f9fc", fontFamily: FONT, marginBottom: 4 }}>
                       {productName}
                     </div>
                     {order.notes && (
-                      <div style={{ fontSize: 13, color: "#86868b", fontFamily: FONT }}>{order.notes}</div>
+                      <div style={{ fontSize: 13, color: "#64748d", fontFamily: FONT }}>{order.notes}</div>
                     )}
                   </div>
 
                   {/* Progress bar */}
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: "#f5f5f7", fontFamily: FONT }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: "#f6f9fc", fontFamily: FONT }}>
                         {completed} of {total}
                       </span>
-                      <span style={{ fontSize: 13, color: "#86868b", fontFamily: FONT }}>
+                      <span style={{ fontSize: 13, color: "#64748d", fontFamily: FONT }}>
                         {Math.round(pct)}%
                       </span>
                     </div>
@@ -337,7 +337,7 @@ export default function BuildView({ standalone = false }) {
                       borderRadius: 16,
                       border: "none",
                       background: completed >= total ? "#2c2c2e" : "#34c759",
-                      color: completed >= total ? "#86868b" : "#fff",
+                      color: completed >= total ? "#64748d" : "#fff",
                       fontSize: 28,
                       fontWeight: 800,
                       fontFamily: FONT,
@@ -378,7 +378,7 @@ const styles = {
   title: {
     fontSize: 28,
     fontWeight: 800,
-    color: "#f5f5f7",
+    color: "#f6f9fc",
     fontFamily: FONT,
     textAlign: "center",
     marginBottom: 8,
@@ -393,7 +393,7 @@ const styles = {
     borderRadius: 16,
     border: "1px solid #3a3a3e",
     background: "#1c1c1e",
-    color: "#f5f5f7",
+    color: "#f6f9fc",
     fontFamily: FONT,
     cursor: "pointer",
     minHeight: 72,

@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase.js";
 
-const FONT = "-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif";
+const FONT = "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif";
 
 export default function InvoiceView() {
   const [apiKey, setApiKey] = useState("");
@@ -193,7 +193,7 @@ export default function InvoiceView() {
     return (
       <div style={styles.container}>
         <div style={styles.centered}>
-          <div style={{ fontSize: 18, color: "#86868b", fontFamily: FONT }}>Loading...</div>
+          <div style={{ fontSize: 18, color: "#64748d", fontFamily: FONT }}>Loading...</div>
         </div>
       </div>
     );
@@ -228,10 +228,10 @@ export default function InvoiceView() {
   return (
     <div style={styles.container}>
       <div style={{ padding: "24px 16px", maxWidth: 480, margin: "0 auto" }}>
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: "#f5f5f7", fontFamily: FONT, textAlign: "center", marginTop: 20, marginBottom: 8 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: "#f6f9fc", fontFamily: FONT, textAlign: "center", marginTop: 20, marginBottom: 8 }}>
           Invoice Scanner
         </h1>
-        <p style={{ color: "#86868b", fontFamily: FONT, fontSize: 14, textAlign: "center", marginBottom: 28 }}>
+        <p style={{ color: "#64748d", fontFamily: FONT, fontSize: 14, textAlign: "center", marginBottom: 28 }}>
           Upload or photograph a supplier invoice
         </p>
 
@@ -251,7 +251,7 @@ export default function InvoiceView() {
         {parsing && (
           <div style={{ textAlign: "center", marginTop: 40, marginBottom: 40 }}>
             <div style={{ fontSize: 40, marginBottom: 16, animation: "spin 1s linear infinite" }}>&#8987;</div>
-            <div style={{ fontSize: 18, fontWeight: 600, color: "#f5f5f7", fontFamily: FONT }}>Parsing invoice...</div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: "#f6f9fc", fontFamily: FONT }}>Parsing invoice...</div>
             <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
@@ -259,24 +259,24 @@ export default function InvoiceView() {
         {/* ── Results */}
         {result && result.items && !parsing && (
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#f5f5f7", fontFamily: FONT, marginBottom: 14 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#f6f9fc", fontFamily: FONT, marginBottom: 14 }}>
               Found {result.items.length} items
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
               {result.items.map((item, i) => (
                 <div key={i} style={styles.itemCard}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "#f5f5f7", fontFamily: FONT, marginBottom: 4 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#f6f9fc", fontFamily: FONT, marginBottom: 4 }}>
                     {item.mpn || "No MPN"}
                   </div>
                   {item.description && (
-                    <div style={{ fontSize: 12, color: "#86868b", fontFamily: FONT, marginBottom: 6 }}>
+                    <div style={{ fontSize: 12, color: "#64748d", fontFamily: FONT, marginBottom: 6 }}>
                       {item.description}
                     </div>
                   )}
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontFamily: FONT }}>
-                    <span style={{ color: "#aeaeb2" }}>Qty: <b style={{ color: "#f5f5f7" }}>{item.quantity}</b></span>
+                    <span style={{ color: "#8898aa" }}>Qty: <b style={{ color: "#f6f9fc" }}>{item.quantity}</b></span>
                     {item.unitPrice > 0 && (
-                      <span style={{ color: "#aeaeb2" }}>
+                      <span style={{ color: "#8898aa" }}>
                         ${typeof item.unitPrice === "number" ? item.unitPrice.toFixed(4) : item.unitPrice} ea
                       </span>
                     )}
@@ -305,7 +305,7 @@ export default function InvoiceView() {
           <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 8 }}>
             <label style={styles.bigButton}>
               Upload File
-              <span style={{ fontSize: 13, color: "#86868b", marginTop: 4, fontWeight: 400 }}>PDF, CSV, or image</span>
+              <span style={{ fontSize: 13, color: "#64748d", marginTop: 4, fontWeight: 400 }}>PDF, CSV, or image</span>
               <input
                 type="file"
                 accept=".pdf,.csv,.txt,.tsv,.png,.jpg,.jpeg,.gif,.webp,image/*"
@@ -316,7 +316,7 @@ export default function InvoiceView() {
 
             <button onClick={startCamera} style={styles.bigButton}>
               Take Photo
-              <span style={{ fontSize: 13, color: "#86868b", marginTop: 4, fontWeight: 400 }}>Opens rear camera</span>
+              <span style={{ fontSize: 13, color: "#64748d", marginTop: 4, fontWeight: 400 }}>Opens rear camera</span>
             </button>
           </div>
         )}
@@ -325,7 +325,7 @@ export default function InvoiceView() {
         {(result || savedCount !== null) && !parsing && (
           <button
             onClick={() => { setResult(null); setSavedCount(null); setError(""); }}
-            style={{ width: "100%", padding: "14px", borderRadius: 12, border: "1px solid #3a3a3e", background: "transparent", color: "#86868b", fontSize: 15, fontWeight: 600, fontFamily: FONT, cursor: "pointer", marginTop: 14 }}
+            style={{ width: "100%", padding: "14px", borderRadius: 12, border: "1px solid #3a3a3e", background: "transparent", color: "#64748d", fontSize: 15, fontWeight: 600, fontFamily: FONT, cursor: "pointer", marginTop: 14 }}
           >
             Scan Another Invoice
           </button>
@@ -357,7 +357,7 @@ const styles = {
     borderRadius: 16,
     border: "1px solid #3a3a3e",
     background: "#1c1c1e",
-    color: "#f5f5f7",
+    color: "#f6f9fc",
     fontFamily: FONT,
     fontSize: 20,
     fontWeight: 700,

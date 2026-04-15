@@ -109,7 +109,7 @@ export default function RegisterProduct() {
     padding: '12px 16px',
     fontSize: 16,
     borderRadius: 10,
-    border: '1px solid #d2d2d7',
+    border: '1px solid #e3e8ee',
     outline: 'none',
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif",
     transition: 'border-color 0.2s',
@@ -120,7 +120,7 @@ export default function RegisterProduct() {
     display: 'block',
     fontSize: 12,
     fontWeight: 700,
-    color: '#86868b',
+    color: '#64748d',
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
@@ -136,18 +136,18 @@ export default function RegisterProduct() {
           <div style={{ fontSize: 48, marginBottom: 16 }}>✓</div>
           <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.15em', color: cfg.accentColor,
             textTransform: 'uppercase', marginBottom: 8 }}>{cfg.logo}</div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1d1d1f', margin: '0 0 12px 0' }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#061b31', margin: '0 0 12px 0' }}>
             You're Registered!
           </h1>
-          <p style={{ fontSize: 16, color: '#86868b', lineHeight: 1.6, marginBottom: 8 }}>
-            Your <strong style={{ color: '#1d1d1f' }}>{form.product_name || 'product'}</strong> with serial number{' '}
-            <strong style={{ color: '#1d1d1f', fontFamily: 'SF Mono, Menlo, monospace' }}>{form.serial_number}</strong>{' '}
+          <p style={{ fontSize: 16, color: '#64748d', lineHeight: 1.6, marginBottom: 8 }}>
+            Your <strong style={{ color: '#061b31' }}>{form.product_name || 'product'}</strong> with serial number{' '}
+            <strong style={{ color: '#061b31', fontFamily: 'SF Mono, Menlo, monospace' }}>{form.serial_number}</strong>{' '}
             has been registered.
           </p>
-          <p style={{ fontSize: 14, color: '#aeaeb2', marginBottom: 24 }}>
+          <p style={{ fontSize: 14, color: '#8898aa', marginBottom: 24 }}>
             A confirmation has been sent to <strong>{form.customer_email}</strong>.
           </p>
-          <p style={{ fontSize: 13, color: '#86868b' }}>
+          <p style={{ fontSize: 13, color: '#64748d' }}>
             Thank you for choosing {brand}. Enjoy your tone!
           </p>
           <a href={`https://${cfg.website}`} target="_blank" rel="noopener noreferrer"
@@ -193,13 +193,13 @@ export default function RegisterProduct() {
             <div>
               <label style={labelStyle}>Serial Number *</label>
               <input style={{ ...inputStyle, fontFamily: 'SF Mono, Menlo, monospace', fontWeight: 700,
-                background: snFromUrl ? '#f9f9fb' : '#fff' }}
+                background: snFromUrl ? '#fafbfc' : '#fff' }}
                 value={form.serial_number} onChange={set('serial_number')}
                 placeholder="e.g. BLOOM-20260327-001" required readOnly={!!snFromUrl} />
             </div>
             <div>
               <label style={labelStyle}>Product</label>
-              <input style={{ ...inputStyle, background: productFromUrl ? '#f9f9fb' : '#fff' }}
+              <input style={{ ...inputStyle, background: productFromUrl ? '#fafbfc' : '#fff' }}
                 value={form.product_name} onChange={set('product_name')}
                 placeholder="e.g. Bloom V2" readOnly={!!productFromUrl} />
             </div>
@@ -272,7 +272,7 @@ export default function RegisterProduct() {
 
           <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20, cursor: 'pointer', userSelect: 'none' }}
             onClick={() => setEmailOptIn(!emailOptIn)}>
-            <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${emailOptIn ? cfg.accentColor : '#d2d2d7'}`,
+            <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${emailOptIn ? cfg.accentColor : '#e3e8ee'}`,
               background: emailOptIn ? cfg.accentColor : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
               {emailOptIn && <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, lineHeight: 1 }}>✓</span>}
@@ -291,7 +291,7 @@ export default function RegisterProduct() {
             {submitting ? 'Registering…' : 'Register My Product'}
           </button>
 
-          <p style={{ fontSize: 11, color: '#aeaeb2', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 11, color: '#8898aa', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
             By registering, you activate your warranty. We never share your information.
           </p>
         </form>

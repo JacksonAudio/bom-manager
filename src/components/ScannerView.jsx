@@ -9,11 +9,11 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
   const bg = darkMode ? '#1c1c1e' : '#fff'
   const border = darkMode ? '#3a3a3e' : '#e5e5ea'
   const borderLight = darkMode ? '#2c2c2e' : '#f0f0f2'
-  const text = darkMode ? '#f5f5f7' : '#1d1d1f'
-  const textSub = darkMode ? '#98989d' : '#86868b'
-  const textMuted = darkMode ? '#636366' : '#aeaeb2'
-  const inputBorder = darkMode ? '#3a3a3e' : '#d2d2d7'
-  const hoverBg = darkMode ? '#2c2c2e' : '#f5f5f7'
+  const text = darkMode ? '#f6f9fc' : '#061b31'
+  const textSub = darkMode ? '#98989d' : '#64748d'
+  const textMuted = darkMode ? '#636366' : '#8898aa'
+  const inputBorder = darkMode ? '#3a3a3e' : '#e3e8ee'
+  const hoverBg = darkMode ? '#2c2c2e' : '#f6f9fc'
 
   const [scanning, setScanning]     = useState(false)
   const [scannedPart, setScannedPart] = useState(null)
@@ -167,7 +167,7 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
-      <h2 style={{ fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",
+      <h2 style={{ fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",
         fontSize: 28, fontWeight: 700, letterSpacing: '-0.5px', color: text, marginBottom: 4 }}>
         Scan
       </h2>
@@ -182,7 +182,7 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
           style={{ padding: '12px 28px', borderRadius: 980, fontSize: 14, fontWeight: 600,
             cursor: 'pointer', border: 'none',
             background: scanning ? '#ff3b30' : '#0a84ff', color: '#fff',
-            fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+            fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
             display: 'flex', alignItems: 'center', gap: 8 }}>
           {scanning ? '■ Stop Scanner' : '📷 Start Scanner'}
         </button>
@@ -221,7 +221,7 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
             Part Found
           </div>
           <div style={{ fontSize: 20, fontWeight: 700, color: text,
-            fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+            fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
             {scannedPart.mpn || scannedPart.reference || '—'}
           </div>
           <div style={{ fontSize: 13, color: textSub, marginTop: 4 }}>
@@ -243,7 +243,7 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
               <button onClick={() => onReorder(scannedPart)}
                 style={{ padding: '6px 16px', borderRadius: 980, border: 'none', cursor: 'pointer', fontWeight: 700,
                   fontSize: 12, background: '#ff9500', color: '#fff',
-                  fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                  fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
                 🛒 Place Order
               </button>
             )}
@@ -274,7 +274,7 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
               style={{ padding: '10px 24px', borderRadius: 980, fontSize: 14, fontWeight: 600,
                 cursor: 'pointer', border: 'none', background: '#30d158', color: '#fff',
                 opacity: (!qty || parseInt(qty) <= 0) ? 0.4 : 1,
-                fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
               {updating ? 'Updating…' : 'Update Stock'}
             </button>
           </div>
@@ -282,7 +282,7 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
           {/* Preview */}
           {qty && parseInt(qty) > 0 && (
             <div style={{ marginTop: 12, fontSize: 13, color: textSub,
-              fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+              fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
               {(() => {
                 const old = parseInt(scannedPart.stockQty) || 0
                 const q = parseInt(qty)
