@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.20";
-const BUILD_TIME   = "2026-04-15T14:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.21";
+const BUILD_TIME   = "2026-04-15T15:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -1972,6 +1972,7 @@ function BOMManager({ user }) {
   const [pdImportMatchModal, setPdImportMatchModal] = useState(null); // { partIdx } — Match? for no-MPN product import rows
   const [pdImportMatchSearch, setPdImportMatchSearch] = useState("");
   const [prodBomSort, setProdBomSort] = useState({ col: null, asc: true }); // sort state for product BOM table
+  const [expandedProdPartRow, setExpandedProdPartRow] = useState(null); // id of expanded row in product BOM table
   const [pdLastImportBatch, setPdLastImportBatch] = useState(null); // { ids, count, filename } — for undo
 
   const fileRef = useRef();
@@ -5362,6 +5363,35 @@ function BOMManager({ user }) {
     const prefEntry = entries.find(([sid]) => prefDists.some(p => sid.toLowerCase().includes(p.toLowerCase())));
     if (prefEntry && calc(prefEntry[1]) <= cheapest * 1.05) return calc(prefEntry[1]);
     return cheapest;
+  };
+
+  // Returns { price, qty } — the effective price break tier the price came from.
+  // qty = 1 means we're paying the lowest-tier (single-unit) price.
+  const priceAtQtyInfo = (part) => {
+    const price = priceAtQty(part);
+    const pr = part.pricing && typeof part.pricing === "object" ? part.pricing : null;
+    if (!pr) return { price, qty: parseInt(part.quantity) || 1 };
+    const isUS = (sid, d) => { const c = d.country || DIST_COUNTRY[d.displayName] || DIST_COUNTRY[sid] || ""; return !c || c === "US"; };
+    let entries = Object.entries(pr).filter(([,d]) => d.stock > 0);
+    if (simUsOnly) entries = entries.filter(([sid, d]) => isUS(sid, d));
+    if (!entries.length) return { price, qty: parseInt(part.quantity) || 1 };
+    // Find the entry whose calculated price matches `price`, then report its break tier.
+    const bomQty = parseInt(part.quantity) || 1;
+    let tierQty = bomQty;
+    for (const [, d] of entries) {
+      let last = 1;
+      let lastPrice = d.unitPrice;
+      if (d.priceBreaks?.length) {
+        for (const pb of d.priceBreaks) {
+          if (bomQty >= pb.qty) { last = pb.qty; lastPrice = pb.price; }
+        }
+      }
+      if (Math.abs((parseFloat(lastPrice) || d.unitPrice) - price) < 0.0001) {
+        tierQty = last;
+        break;
+      }
+    }
+    return { price, qty: tierQty };
   };
 
   // Inventory valuation — total $ value of all stock on hand
@@ -11576,7 +11606,7 @@ function BOMManager({ user }) {
             const dir = asc ? 1 : -1;
             if (col === "quantity") return ((parseInt(a.quantity)||0) - (parseInt(b.quantity)||0)) * dir;
             if (col === "stockQty") return ((parseInt(a.stockQty)||0) - (parseInt(b.stockQty)||0)) * dir;
-            if (col === "stockVal") return (((parseInt(a.stockQty)||0)*(parseFloat(a.unitCost)||0)) - ((parseInt(b.stockQty)||0)*(parseFloat(b.unitCost)||0))) * dir;
+            if (col === "unitCost") return (priceAtQty(a) - priceAtQty(b)) * dir;
             const av = (a[col] || "").toString().toLowerCase();
             const bv = (b[col] || "").toString().toLowerCase();
             return av.localeCompare(bv) * dir;
@@ -12266,7 +12296,7 @@ function BOMManager({ user }) {
                           { label:"Manufacturer", col:"manufacturer" },
                           { label:"Qty/Build", col:"quantity", right:true },
                           { label:"Stock", col:"stockQty", right:true },
-                          { label:"Stock Value", col:"stockVal", right:true },
+                          { label:"Unit Cost", col:"unitCost", right:true },
                           { label:"Actions", col:null, right:true },
                         ].map(({ label, col, right }, hi, arr) => {
                           const active = prodBomSort.col === col && col !== null;
@@ -12289,15 +12319,27 @@ function BOMManager({ user }) {
                     </thead>
                     <tbody>
                       {primaryParts.map((part) => {
-                        const stockVal = (parseInt(part.stockQty)||0) * priceAtQty(part);
+                        const pricing = priceAtQtyInfo(part);
+                        const isExpanded = expandedProdPartRow === part.id;
                         const alts = alternateMap[part.id] || [];
                         const hasAlts = alts.length > 0;
                         return (
                           <Fragment key={part.id}>
-                          <tr style={{ borderBottom:hasAlts?"none":"1px solid "+(darkMode?"#3a3a3e":"#ededf0"),
-                            background:selectedParts.has(part.id)?(darkMode?"rgba(83,58,253,0.15)":"rgba(83,58,253,0.04)"):"transparent" }}>
+                          <tr
+                            onClick={(e) => {
+                              // Ignore clicks on interactive children (inputs, buttons, links, selects)
+                              const tag = e.target.tagName;
+                              if (tag === "INPUT" || tag === "BUTTON" || tag === "SELECT" || tag === "TEXTAREA" || tag === "A" || e.target.closest("button,a,input,select,textarea")) return;
+                              setExpandedProdPartRow(isExpanded ? null : part.id);
+                            }}
+                            style={{ borderBottom:hasAlts?"none":"1px solid "+(darkMode?"#3a3a3e":"#ededf0"),
+                              cursor:"pointer",
+                              background:selectedParts.has(part.id)
+                                ? (darkMode?"rgba(83,58,253,0.15)":"rgba(83,58,253,0.04)")
+                                : isExpanded ? (darkMode?"rgba(83,58,253,0.08)":"rgba(83,58,253,0.02)") : "transparent" }}>
                             <td style={{ padding:"10px 10px" }}>
                               <input type="checkbox" checked={selectedParts.has(part.id)} onChange={()=>toggleSelect(part.id)}
+                                onClick={(e)=>e.stopPropagation()}
                                 style={{ width:15,height:15,cursor:"pointer",accentColor:"#533afd" }} />
                             </td>
                             <td style={{ padding:"10px 10px" }}>
@@ -12350,11 +12392,17 @@ function BOMManager({ user }) {
                                 onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                 onBlur={e=>{e.target.style.background="transparent";}} />
                             </td>
-                            <td style={{ padding:"10px 10px",textAlign:"right",fontSize:12,color:stockVal>0?(darkMode?"#f6f9fc":"#061b31"):"#c7c7cc" }}>
-                              {stockVal > 0 ? `$${fmtDollar(stockVal)}` : "--"}
+                            <td style={{ padding:"10px 10px",textAlign:"right",fontSize:12,color:pricing.price>0?(darkMode?"#f6f9fc":"#061b31"):"#c7c7cc",whiteSpace:"nowrap" }}>
+                              {pricing.price > 0 ? (
+                                <>
+                                  <span style={{ fontWeight:700 }}>${fmtPrice(pricing.price)}</span>
+                                  <span style={{ color:"#8898aa",fontSize:10,marginLeft:4 }}>@ {pricing.qty}</span>
+                                </>
+                              ) : "--"}
                             </td>
                             <td style={{ padding:"10px 10px",textAlign:"right",whiteSpace:"nowrap" }}>
-                              <button onClick={() => {
+                              <button onClick={(e) => {
+                                  e.stopPropagation();
                                   setQAField(prod.id, "pn", "");
                                   setQAField(prod.id, "_altFor", part.id);
                                   setQAField(prod.id, "_altForMpn", part.mpn || part.reference || "part");
@@ -12367,16 +12415,96 @@ function BOMManager({ user }) {
                                 onMouseOut={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color="#5856d6";e.currentTarget.style.borderColor=darkMode?"#48484a":"#e3e8ee";}}>
                                 + Alt
                               </button>
-                              <button onClick={async ()=>{ if(await showConfirm("Remove Part", `Remove "${part.mpn||part.reference}" from this product?`, "Remove", "#ff3b30")) { updatePart(part.id,"projectId",null); alts.forEach(a => updatePart(a.id,"alternateOf",null)); } }}
+                              <button onClick={async (e)=>{ e.stopPropagation(); if(await showConfirm("Remove Part", `Remove "${part.mpn||part.reference}" from this product?`, "Remove", "#ff3b30")) { updatePart(part.id,"projectId",null); alts.forEach(a => updatePart(a.id,"alternateOf",null)); } }}
                                 title="Remove from product"
                                 style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:13,padding:"2px 6px",borderRadius:4,transition:"color 0.15s" }}
                                 onMouseOver={(e)=>e.currentTarget.style.color="#ff9500"}
                                 onMouseOut={(e)=>e.currentTarget.style.color="#c7c7cc"}>remove</button>
                             </td>
                           </tr>
+                          {/* Expanded detail row */}
+                          {isExpanded && (() => {
+                            const m = part.pricing?.nexar || part.pricing?.mouser;
+                            const lineCost = pricing.price * (parseInt(part.quantity)||1);
+                            const stockN = parseInt(part.stockQty)||0;
+                            return (
+                              <tr>
+                                <td colSpan={11} style={{ padding:"16px 24px", background:darkMode?"#1c1c1e":"#fafbfc", borderBottom:"2px solid #533afd" }}>
+                                  <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
+                                    <button onClick={(e)=>{e.stopPropagation();setQrModalParts([part]);}}
+                                      style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:"1px solid #e3e8ee",background:"#f6f9fc",cursor:"pointer",color:"#061b31" }}
+                                      onMouseEnter={(e)=>e.currentTarget.style.background="#e3e8ee"}
+                                      onMouseLeave={(e)=>e.currentTarget.style.background="#f6f9fc"}>⊞ QR Label</button>
+                                    {part.url && (
+                                      <a href={part.url} target="_blank" rel="noopener noreferrer" onClick={(e)=>e.stopPropagation()}
+                                        style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:"1px solid #e3e8ee",background:"#fff",cursor:"pointer",color:"#533afd",textDecoration:"none" }}>Open Product URL ↗</a>
+                                    )}
+                                    {getSupplierWebsite(part.preferredSupplier, part.mpn) && (
+                                      <a href={getSupplierWebsite(part.preferredSupplier, part.mpn)} target="_blank" rel="noopener noreferrer" onClick={(e)=>e.stopPropagation()}
+                                        style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,background:"#533afd",color:"#fff",textDecoration:"none" }}>
+                                        {part.mpn ? `Search "${part.mpn}" on ${part.preferredSupplier||"supplier"} →` : `Visit ${part.preferredSupplier} →`}
+                                      </a>
+                                    )}
+                                    {isAdmin && (
+                                      <button onClick={async (e)=>{ e.stopPropagation(); if(await showConfirm("Delete Part", `Permanently delete "${part.mpn||part.reference}" from the library? This removes it from ALL products.`, "Delete", "#ff3b30")) { deletePart(part.id); setExpandedProdPartRow(null); } }}
+                                        style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:"1px solid #ffd0cc",background:"#fff5f5",cursor:"pointer",color:"#ff3b30",marginLeft:"auto" }}
+                                        onMouseEnter={(e)=>e.currentTarget.style.background="#ffe0dd"}
+                                        onMouseLeave={(e)=>e.currentTarget.style.background="#fff5f5"}>✕ Delete from Library</button>
+                                    )}
+                                  </div>
+                                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:20, fontSize:12 }}>
+                                    <div>
+                                      <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Description & Identity</div>
+                                      <div style={{ color:darkMode?"#f6f9fc":"#061b31",lineHeight:1.5 }}>
+                                        <div style={{ marginBottom:4 }}>{part.description || <span style={{color:"#8898aa"}}>—</span>}</div>
+                                        <div>MPN: <strong style={{ fontFamily:"monospace" }}>{part.mpn || "—"}</strong></div>
+                                        <div>Value: {part.value || "—"}</div>
+                                        <div>Manufacturer: {part.manufacturer || "—"}</div>
+                                        <div>Reference: {part.reference || "—"}</div>
+                                        <div>Footprint: {part.footprint || "—"}</div>
+                                        <div>Voltage: {part.voltage_rating || "—"}</div>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Pricing & BOM Usage</div>
+                                      <div style={{ color:darkMode?"#f6f9fc":"#061b31",lineHeight:1.5 }}>
+                                        <div>Unit Cost: <strong>{pricing.price > 0 ? `$${fmtPrice(pricing.price)}` : "—"}</strong>{pricing.price>0 && <span style={{ color:"#8898aa",fontSize:11,marginLeft:6 }}>at qty {pricing.qty}</span>}</div>
+                                        <div>Qty per Build: <strong>{part.quantity || 1}</strong></div>
+                                        <div>Line Cost per Build: <strong style={{ color:"#533afd" }}>{lineCost > 0 ? `$${fmtDollar(lineCost)}` : "—"}</strong></div>
+                                        <div style={{ marginTop:6, paddingTop:6, borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                                          Preferred Supplier: <strong>{part.preferredSupplier || "—"}</strong>
+                                          {isLockedSupplier(part.preferredSupplier) && <span style={{ marginLeft:4,fontSize:10,color:"#ff9500",fontWeight:600 }}>🔒 Locked</span>}
+                                        </div>
+                                        {part.pricing?._lockedVendor && <div style={{ fontSize:11, color:"#a05000", fontWeight:600 }}>Locked vendor: {part.pricing._lockedVendor}</div>}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Inventory & Sourcing</div>
+                                      <div style={{ color:darkMode?"#f6f9fc":"#061b31",lineHeight:1.5 }}>
+                                        <div>On Hand: <strong style={{ color:stockN>0?"#34c759":"#ff3b30" }}>{stockN}</strong></div>
+                                        <div>Reel Qty: {part.reelQty || "—"}</div>
+                                        {m?.stock != null && <div>Distributor Stock: <strong>{m.stock.toLocaleString()}</strong></div>}
+                                        {m?.moq != null && <div>MOQ: <strong>{m.moq.toLocaleString()}</strong></div>}
+                                        {m?.leadTimeDays != null && <div>Lead Time: <strong>{m.leadTimeDays} days</strong></div>}
+                                        {m?.lifecycleStatus && <div>Lifecycle: <strong style={{ color: m.lifecycleStatus.toLowerCase().includes("active") ? "#34c759" : m.lifecycleStatus.toLowerCase().includes("eol") || m.lifecycleStatus.toLowerCase().includes("obsolete") ? "#ff3b30" : "#ff9500" }}>{m.lifecycleStatus}</strong></div>}
+                                        {m?.rohsStatus && <div>RoHS: {m.rohsStatus}</div>}
+                                        {m?.countryOfOrigin && <div>Origin: <strong>{fmtCountry(m.countryOfOrigin)}</strong></div>}
+                                        {m?.datasheetUrl && <div style={{ marginTop:4 }}><a href={m.datasheetUrl} target="_blank" rel="noopener noreferrer" onClick={(e)=>e.stopPropagation()} style={{ color:"#533afd", fontWeight:600, textDecoration:"none" }}>Datasheet ↗</a></div>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {hasAlts && (
+                                    <div style={{ marginTop:12, paddingTop:10, borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"), fontSize:11, color:"#64748d" }}>
+                                      {alts.length} alternate{alts.length!==1?"s":""} configured — shown below.
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })()}
                           {/* Alternate part rows */}
                           {alts.map((alt, altIdx) => {
-                            const altStockVal = (parseInt(alt.stockQty)||0) * priceAtQty(alt);
+                            const altPricing = priceAtQtyInfo(alt);
                             return (
                               <tr key={alt.id} style={{ borderBottom:altIdx===alts.length-1?"1px solid "+(darkMode?"#3a3a3e":"#ededf0"):"none",
                                 background:selectedParts.has(alt.id)?(darkMode?"rgba(88,86,214,0.15)":"rgba(88,86,214,0.04)"):(darkMode?"rgba(88,86,214,0.06)":"rgba(88,86,214,0.02)") }}>
@@ -12438,8 +12566,13 @@ function BOMManager({ user }) {
                                     onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                     onBlur={e=>{e.target.style.background="transparent";}} />
                                 </td>
-                                <td style={{ padding:"8px 10px",textAlign:"right",fontSize:12,color:altStockVal>0?(darkMode?"#f6f9fc":"#061b31"):"#c7c7cc" }}>
-                                  {altStockVal > 0 ? `$${fmtDollar(altStockVal)}` : "--"}
+                                <td style={{ padding:"8px 10px",textAlign:"right",fontSize:12,color:altPricing.price>0?(darkMode?"#f6f9fc":"#061b31"):"#c7c7cc",whiteSpace:"nowrap" }}>
+                                  {altPricing.price > 0 ? (
+                                    <>
+                                      <span style={{ fontWeight:700 }}>${fmtPrice(altPricing.price)}</span>
+                                      <span style={{ color:"#8898aa",fontSize:10,marginLeft:4 }}>@ {altPricing.qty}</span>
+                                    </>
+                                  ) : "--"}
                                 </td>
                                 <td style={{ padding:"8px 10px",textAlign:"right",whiteSpace:"nowrap" }}>
                                   <button onClick={()=>updatePart(alt.id,"alternateOf",null)}
@@ -12486,6 +12619,45 @@ function BOMManager({ user }) {
                         </tr>
                       ))}
                     </tbody>
+                    {primaryParts.length > 0 && (() => {
+                      const totalQty = primaryParts.reduce((s,p) => s + (parseInt(p.quantity)||1), 0);
+                      const totalStock = primaryParts.reduce((s,p) => s + (parseInt(p.stockQty)||0), 0);
+                      const costPerBuild = primaryParts.reduce((s,p) => s + priceAtQty(p) * (parseInt(p.quantity)||1), 0);
+                      const pricedCount = primaryParts.filter(p => priceAtQty(p) > 0).length;
+                      // Determine the dominant price break tier so we can summarize it
+                      const tierCounts = {};
+                      for (const p of primaryParts) {
+                        if (priceAtQty(p) <= 0) continue;
+                        const t = priceAtQtyInfo(p).qty;
+                        tierCounts[t] = (tierCounts[t] || 0) + 1;
+                      }
+                      const dominantTier = Object.entries(tierCounts).sort((a,b) => b[1] - a[1])[0];
+                      const totalAlts = Object.values(alternateMap).reduce((s,a) => s + a.length, 0);
+                      return (
+                        <tfoot>
+                          <tr style={{ background:darkMode?"#1c1c1e":"#f6f9fc",borderTop:"2px solid "+(darkMode?"#3a3a3e":"#e3e8ee") }}>
+                            <td colSpan={7} style={{ padding:"14px 12px",fontWeight:800,fontSize:13,color:darkMode?"#f6f9fc":"#061b31",letterSpacing:"0.02em" }}>
+                              Totals — {primaryParts.length} line item{primaryParts.length!==1?"s":""}{totalAlts > 0 ? ` (+${totalAlts} alt${totalAlts!==1?"s":""})` : ""}
+                            </td>
+                            <td style={{ padding:"14px 10px",textAlign:"right",fontWeight:800,fontSize:13,color:darkMode?"#f6f9fc":"#061b31" }}>{totalQty}</td>
+                            <td style={{ padding:"14px 10px",textAlign:"right",fontWeight:600,fontSize:12,color:"#64748d" }}>{totalStock}</td>
+                            <td style={{ padding:"14px 10px",textAlign:"right",fontWeight:800,fontSize:14,color:"#533afd",whiteSpace:"nowrap" }}>
+                              {costPerBuild > 0 ? `$${fmtDollar(costPerBuild)}` : "—"}
+                            </td>
+                            <td />
+                          </tr>
+                          <tr style={{ background:darkMode?"#1c1c1e":"#f6f9fc" }}>
+                            <td colSpan={11} style={{ padding:"4px 12px 14px",fontSize:11,color:"#64748d",lineHeight:1.5 }}>
+                              <strong style={{ color:"#533afd" }}>Total cost to build 1 unit.</strong>{" "}
+                              {pricedCount < primaryParts.length && <span style={{ color:"#ff9500" }}>⚠ {primaryParts.length - pricedCount} part{(primaryParts.length - pricedCount)!==1?"s are":" is"} missing pricing.</span>}{" "}
+                              Unit cost is shown at each part's BOM usage quantity (the "@ N" next to each price is the distributor price break tier).
+                              {dominantTier && <> Most parts are priced at the <strong>qty {dominantTier[0]}</strong> tier{tierCounts[dominantTier[0]] < pricedCount ? " (mix of tiers — open a row for detail)" : ""}.</>}{" "}
+                              For bulk-build pricing, use the <strong>Production Run Simulator</strong> below.
+                            </td>
+                          </tr>
+                        </tfoot>
+                      );
+                    })()}
                   </table>
                 </div>
               </div>
