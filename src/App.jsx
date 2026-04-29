@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.29";
-const BUILD_TIME   = "2026-04-29T16:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.30";
+const BUILD_TIME   = "2026-04-29T17:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -22926,7 +22926,8 @@ function BOMManager({ user }) {
       {noMpnMatchModal && (() => {
         const { partId, part } = noMpnMatchModal;
         const q = noMpnMatchSearch.toLowerCase().trim();
-        // Search across MPN, value, description, footprint
+
+        // ── Library search results ──
         const matchResults = q.length >= 2 ? parts.filter(p =>
           p.id !== partId && p.mpn && (
             p.mpn.toLowerCase().includes(q) ||
@@ -22935,18 +22936,29 @@ function BOMManager({ user }) {
             (p.footprint && p.footprint.toLowerCase().includes(q))
           )
         ).slice(0, 15) : [];
+
+        // ── URL paste: try to extract an MPN from anything typed that looks like a URL ──
+        const urlParsedMpn = noMpnMatchSearch.trim().startsWith("http")
+          ? parsePartUrlToMpn(noMpnMatchSearch.trim())
+          : null;
+
+        // ── Mouser search term built from known specs ──
+        const mouserSearchTerm = [part.value, part.footprint].filter(Boolean).join(" ");
+        const mouserSearchUrl = `https://www.mouser.com/Search/Refine?Keyword=${encodeURIComponent(mouserSearchTerm)}`;
+
         return (
           <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
             onClick={() => setNoMpnMatchModal(null)}>
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"28px 32px",maxWidth:560,width:"92%",maxHeight:"80vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"28px 32px",maxWidth:560,width:"92%",maxHeight:"85vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
               onClick={e => e.stopPropagation()}>
-              {/* Header */}
+
+              {/* ── Header ── */}
               <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16 }}>
                 <div>
                   <div style={{ fontSize:17,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>Assign Part from Library</div>
-                  <div style={{ fontSize:12,color:"#64748d",marginTop:3 }}>
-                    {part.value && <span style={{ fontWeight:600,color:"#061b31",marginRight:6 }}>{part.value}</span>}
-                    {part.footprint && <span style={{ padding:"1px 6px",borderRadius:4,background:"rgba(255,149,0,0.1)",color:"#c86400",fontWeight:600,fontSize:11,border:"1px solid rgba(255,149,0,0.25)",marginRight:6 }}>{part.footprint}</span>}
+                  <div style={{ fontSize:12,color:"#64748d",marginTop:3,display:"flex",flexWrap:"wrap",alignItems:"center",gap:6 }}>
+                    {part.value && <span style={{ fontWeight:600,color:"#061b31" }}>{part.value}</span>}
+                    {part.footprint && <span style={{ padding:"1px 6px",borderRadius:4,background:"rgba(255,149,0,0.1)",color:"#c86400",fontWeight:600,fontSize:11,border:"1px solid rgba(255,149,0,0.25)" }}>{part.footprint}</span>}
                     {part.description && <span style={{ color:"#64748d" }}>{part.description}</span>}
                   </div>
                 </div>
@@ -22956,24 +22968,66 @@ function BOMManager({ user }) {
                   onMouseLeave={e=>e.currentTarget.style.background=darkMode?"#2c2c2e":"#f5f5f7"}>×</button>
               </div>
 
-              {/* Search input */}
+              {/* ── Search / URL paste input ── */}
+              <div style={{ fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>
+                Search library or paste a supplier URL
+              </div>
               <input
                 autoFocus
-                placeholder="Search by value, MPN, description, package…"
+                placeholder="Search value, MPN… or paste a Mouser/DigiKey URL"
                 value={noMpnMatchSearch}
                 onChange={e => setNoMpnMatchSearch(e.target.value)}
                 style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#3a3a3e":"#e3e8ee"),
                   background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31",
-                  fontSize:13,boxSizing:"border-box",fontFamily:"inherit",marginBottom:12,outline:"none" }} />
+                  fontSize:13,boxSizing:"border-box",fontFamily:"inherit",marginBottom:8,outline:"none" }} />
 
-              {/* Results */}
-              {q.length >= 2 && matchResults.length === 0 && (
-                <div style={{ padding:"20px 0",textAlign:"center",color:"#64748d",fontSize:13 }}>No matching parts found in library.</div>
+              {/* ── URL detected — show extracted MPN + one-click assign ── */}
+              {urlParsedMpn && (
+                <div style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,
+                  background:darkMode?"rgba(83,58,253,0.12)":"rgba(83,58,253,0.06)",border:"1px solid rgba(83,58,253,0.2)",marginBottom:12 }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:10,fontWeight:700,color:"#533afd",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2 }}>MPN extracted from URL</div>
+                    <div style={{ fontSize:14,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"monospace" }}>{urlParsedMpn}</div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await updatePart(partId, "mpn", urlParsedMpn);
+                      setNoMpnMatchModal(null);
+                    }}
+                    style={{ padding:"6px 16px",borderRadius:100,border:"none",background:"#533afd",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap" }}
+                    onMouseEnter={e=>e.currentTarget.style.background="#3d2adb"}
+                    onMouseLeave={e=>e.currentTarget.style.background="#533afd"}>
+                    Assign MPN
+                  </button>
+                </div>
               )}
-              {q.length < 2 && (
-                <div style={{ padding:"20px 0",textAlign:"center",color:"#64748d",fontSize:13 }}>Type at least 2 characters to search…</div>
+
+              {/* ── Search Mouser button ── */}
+              {mouserSearchTerm && (
+                <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:10,
+                  background:darkMode?"#2c2c2e":"#fafbfc",border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),marginBottom:12 }}>
+                  <div>
+                    <div style={{ fontSize:10,fontWeight:700,color:"#e8500a",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:1 }}>Not in library?</div>
+                    <div style={{ fontSize:12,color:darkMode?"#c7c7cc":"#50617a" }}>Search Mouser for <strong style={{ color:darkMode?"#f6f9fc":"#061b31" }}>{mouserSearchTerm}</strong></div>
+                  </div>
+                  <a href={mouserSearchUrl} target="_blank" rel="noopener noreferrer"
+                    style={{ padding:"6px 14px",borderRadius:100,border:"1px solid #e8500a",background:"#fff",color:"#e8500a",
+                      fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",textDecoration:"none",whiteSpace:"nowrap" }}
+                    onMouseEnter={e=>{ e.currentTarget.style.background="#e8500a"; e.currentTarget.style.color="#fff"; }}
+                    onMouseLeave={e=>{ e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#e8500a"; }}>
+                    Search Mouser →
+                  </a>
+                </div>
               )}
-              {matchResults.length > 0 && (
+
+              {/* ── Library results ── */}
+              {!urlParsedMpn && q.length >= 2 && matchResults.length === 0 && (
+                <div style={{ padding:"16px 0",textAlign:"center",color:"#64748d",fontSize:13 }}>No matching parts in library — try pasting a supplier URL or use Search Mouser above.</div>
+              )}
+              {!urlParsedMpn && q.length < 2 && (
+                <div style={{ padding:"12px 0",textAlign:"center",color:"#64748d",fontSize:12 }}>Type at least 2 characters to search the library…</div>
+              )}
+              {!urlParsedMpn && matchResults.length > 0 && (
                 <div style={{ border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),borderRadius:10,overflow:"hidden" }}>
                   {matchResults.map((r, ri) => (
                     <div key={r.id}
@@ -22984,11 +23038,10 @@ function BOMManager({ user }) {
                       onMouseEnter={e=>e.currentTarget.style.background=darkMode?"rgba(83,58,253,0.15)":"#f0f6ff"}
                       onMouseLeave={e=>e.currentTarget.style.background=ri%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafbfc")}
                       onClick={async () => {
-                        // Copy MPN + key fields from the matched library part into this BOM row
                         await updatePart(partId, "mpn", r.mpn);
-                        if (r.value && !part.value)        await updatePart(partId, "value",       r.value);
-                        if (r.description && !part.description) await updatePart(partId, "description", r.description);
-                        if (r.footprint && !part.footprint) await updatePart(partId, "footprint",  r.footprint);
+                        if (r.value && !part.value)             await updatePart(partId, "value",         r.value);
+                        if (r.description && !part.description) await updatePart(partId, "description",   r.description);
+                        if (r.footprint && !part.footprint)     await updatePart(partId, "footprint",     r.footprint);
                         if (r.manufacturer && !part.manufacturer) await updatePart(partId, "manufacturer", r.manufacturer);
                         if (r.voltage_rating && !part.voltage_rating) await updatePart(partId, "voltage_rating", r.voltage_rating);
                         setNoMpnMatchModal(null);
