@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.26";
-const BUILD_TIME   = "2026-04-29T15:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.27";
+const BUILD_TIME   = "2026-04-29T16:00:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -3223,12 +3223,35 @@ function BOMManager({ user }) {
         if (/^to-\d/.test(p)) return "tht"; // TO-220, TO-92, etc
         return "unknown";
       };
+      // Extract a package code from a description string when no explicit footprint is given.
+      // Handles KiCad/Eagle patterns like "R0603", "C0402", "L0805",
+      // or any description containing a bare EIA code like "Thick Film Resistor 0603".
+      const extractPkgFromDesc = (desc) => {
+        if (!desc) return "";
+        const d = desc.trim();
+        // Single-letter type prefix + 4-digit EIA code: "R0603", "C0402", "L0805" etc.
+        const m1 = d.match(/^[RCLUD](\d{4})\b/i);
+        if (m1) return m1[1];
+        // Bare EIA code anywhere in the string: "0603", "1206", "0402" etc.
+        const m2 = d.match(/\b(0201|0402|0603|0805|1206|1210|2512|2010|1812)\b/);
+        if (m2) return m2[1];
+        return "";
+      };
+
       const autoMatch = (p) => {
         const val = (p.value || "").toLowerCase().trim();
-        const pkg = normalizePackage(p.footprint || "").toLowerCase().trim();
+        // Use explicit footprint if present; otherwise try to extract one from description.
+        // e.g. description "R0603" with no footprint → package "0603"
+        const rawPkg = p.footprint || extractPkgFromDesc(p.description || "");
+        const pkg = normalizePackage(rawPkg).toLowerCase().trim();
         const desc = (p.description || "").toLowerCase().trim();
         if (!val && !pkg) return null;
         const bomTech = pkgTech(pkg, desc);
+        // Component type hint from description prefix: R→resistor, C→capacitor, L→inductor
+        // Used to give a small boost to library parts of the same component type
+        const descTypePrefix = (p.description || "").trim().match(/^([RCL])\d{4}/i)?.[1]?.toUpperCase() || "";
+        const typeBoostMap = { R:"resistor", C:"capacitor", L:"inductor" };
+        const typeHint = typeBoostMap[descTypePrefix] || "";
         const scored = parts.map(lib => {
           const lval = (lib.value || "").toLowerCase().trim();
           const lpkg = normalizePackage(lib.footprint || "").toLowerCase().trim();
@@ -3245,7 +3268,10 @@ function BOMManager({ user }) {
             if (lpkg === pkg) score += 4;
             else if (lpkg.includes(pkg) || pkg.includes(lpkg)) score += 1;
           }
+          // Description similarity — original check
           if (desc && ldesc && ldesc.slice(0,20).includes(desc.slice(0,10))) score += 1;
+          // Type hint boost: "R0603" in import → +1 if library description mentions "resistor"
+          if (typeHint && ldesc.includes(typeHint)) score += 1;
           return { lib, score };
         }).filter(c => c.score >= 5).sort((a, b) => b.score - a.score);
         if (!scored[0]) return null;
@@ -5682,35 +5708,6 @@ function BOMManager({ user }) {
             </div>
 
 
-            {/* ── Top products by cost */}
-            {productCosts.length > 0 && (
-              <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
-                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
-                  <div>
-                    <div style={{ fontSize:16,fontWeight:700,color:"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Products</div>
-                    <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>BOM cost per unit</div>
-                  </div>
-                  <button className="btn-ghost btn-sm" onClick={()=>setActiveView("projects")}>Manage</button>
-                </div>
-                <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",gap:12 }}>
-                  {productCosts.map((prod) => (
-                    <div key={prod.id} style={{ padding:"14px 16px",borderRadius:10,border:"1px solid #e5e5ea",
-                      cursor:"pointer",transition:"background 0.15s" }}
-                      onClick={()=>setActiveView("projects")}
-                      onMouseOver={(e)=>e.currentTarget.style.background="#f6f9fc"}
-                      onMouseOut={(e)=>e.currentTarget.style.background="transparent"}>
-                      <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:6 }}>
-                        <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color }} />
-                        <div style={{ fontSize:14,fontWeight:600,color:"#061b31" }}>{prod.name}</div>
-                      </div>
-                      <div style={{ fontSize:22,fontWeight:800,color:"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>${fmtDollar(prod.total)}</div>
-                      <div style={{ fontSize:11,color:"#64748d",marginTop:2 }}>{prod.partCount} parts · {prod.costedCount} priced</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* ── Product Cost Trends */}
             {productCosts.length > 0 && allPriceHistory.length > 0 && (() => {
               // Build earliest price per part from price history
@@ -5767,27 +5764,6 @@ function BOMManager({ user }) {
                       </div>
                     ))}
                   </div>
-                </div>
-              );
-            })()}
-
-            {/* ── Inventory Value Over Time (from BOM snapshots) */}
-            {bomSnapshots.length >= 2 && (() => {
-              const chartData = bomSnapshots
-                .filter(s => s.snapshot && s.snapshot.inventoryValue != null)
-                .map(s => ({
-                  recorded_at: s.created_at,
-                  unit_price: s.snapshot.inventoryValue,
-                  supplier: s.snapshot.product_id ? (products.find(p => p.id === s.snapshot.product_id)?.name || "Product") : "All Products",
-                  source: `${(s.snapshot.parts || []).length} parts`,
-                }))
-                .sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
-              if (chartData.length < 2) return null;
-              return (
-                <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
-                  <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:4,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Inventory Value Over Time</div>
-                  <div style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>Total inventory value from BOM snapshots</div>
-                  <PriceChart data={chartData} darkMode={darkMode} height={240} />
                 </div>
               );
             })()}
