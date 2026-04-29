@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.24";
-const BUILD_TIME   = "2026-04-15T16:40:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.25";
+const BUILD_TIME   = "2026-04-29T15:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -12372,6 +12372,7 @@ function BOMManager({ user }) {
                           { label:"Description", col:"description" },
                           { label:"Manufacturer", col:"manufacturer" },
                           { label:"Qty/Build", col:"quantity", right:true },
+                          { label:"Qty/Stock", col:"stockQty", right:true },
                           { label:"Unit Cost", col:"unitCost", right:true },
                           { label:"Actions", col:null, right:true },
                         ].map(({ label, col, right }, hi, arr) => {
@@ -12461,6 +12462,15 @@ function BOMManager({ user }) {
                                 style={{ border:"none",background:"transparent",fontSize:13,fontWeight:700,width:50,textAlign:"right",color:darkMode?"#f6f9fc":"#061b31",fontFamily:"inherit",outline:"none" }}
                                 onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                 onBlur={e=>{e.target.style.background="transparent";}} />
+                            </td>
+                            {/* ── Qty/Stock — how many of this part are currently on hand ── */}
+                            <td style={{ padding:"10px 10px",textAlign:"right",fontSize:13,fontWeight:700,
+                              color:(parseInt(part.stockQty)||0) === 0
+                                ? "#ff3b30"                              // red  — zero stock
+                                : (parseInt(part.stockQty)||0) < (parseInt(part.quantity)||1)
+                                  ? "#ff9500"                            // orange — below one build's worth
+                                  : (darkMode?"#34c759":"#1a9e3f") }}>  {/* green  — adequate stock */}
+                              {parseInt(part.stockQty) || 0}
                             </td>
                             <td style={{ padding:"10px 10px",textAlign:"right",fontSize:12,color:pricing.price>0?(darkMode?"#f6f9fc":"#061b31"):"#c7c7cc",whiteSpace:"nowrap" }}>
                               {pricing.price > 0 ? (
