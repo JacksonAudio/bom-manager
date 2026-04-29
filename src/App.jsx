@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.27";
-const BUILD_TIME   = "2026-04-29T16:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.28";
+const BUILD_TIME   = "2026-04-29T16:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -1653,7 +1653,7 @@ function BOMManager({ user }) {
   const [loading,     setLoading]     = useState(true);  // initial DB fetch in progress
   const [activeView,  setActiveViewRaw]  = useState(() => {
     const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","shelf","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin","pipeline","repairs"];
-    // Prefer pathname (e.g. /products); fall back to legacy hash (e.g. #products)
+    // Prefer pathname (e.g. /products or /products/{id}); fall back to legacy hash
     const pathSeg = window.location.pathname.replace(/^\//, "").split("/")[0].split("?")[0];
     if (pathSeg === "products") return "projects";
     if (validTabs.includes(pathSeg)) return pathSeg;
@@ -1667,6 +1667,11 @@ function BOMManager({ user }) {
     const path = "/" + (view === "projects" ? "products" : view);
     window.history.pushState(null, "", path);
   };
+  // selectedProduct is initialized from URL if path is /products/{id}
+  const _initialProductId = (() => {
+    const segs = window.location.pathname.replace(/^\//, "").split("/");
+    return segs[0] === "products" && segs[1] ? segs[1] : null;
+  })();
   const [selProject,  setSelProject]  = useState("all");
   const [selBrand,    setSelBrand]    = useState("all");
   const [prodSearch,  setProdSearch]  = useState("");
@@ -1720,7 +1725,16 @@ function BOMManager({ user }) {
   const [profileForm, setProfileForm] = useState(null); // { id, fullName, email, phone, role } | null
   const [expandedPart,setExpandedPart]= useState(null);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedProduct, setSelectedProductRaw] = useState(_initialProductId);
+  // Wrapper so opening/closing a product always keeps the URL in sync
+  const setSelectedProduct = (id) => {
+    setSelectedProductRaw(id);
+    if (id) {
+      window.history.pushState(null, "", `/products/${id}`);
+    } else {
+      window.history.pushState(null, "", "/products");
+    }
+  };
   const [lastProductImport, setLastProductImport] = useState(() => {
     try { const s = localStorage.getItem("bom_last_product_import"); return s ? JSON.parse(s) : null; } catch { return null; }
   });
@@ -1977,6 +1991,8 @@ function BOMManager({ user }) {
   const [pdImportExcluded, setPdImportExcluded] = useState(new Set());
   const [pdImportMatchModal, setPdImportMatchModal] = useState(null); // { partIdx } — Match? for no-MPN product import rows
   const [pdImportMatchSearch, setPdImportMatchSearch] = useState("");
+  const [noMpnMatchModal, setNoMpnMatchModal] = useState(null);       // { partId, part } — assign MPN to a no-MPN product BOM row
+  const [noMpnMatchSearch, setNoMpnMatchSearch] = useState("");
   const [prodBomSort, setProdBomSort] = useState({ col: null, asc: true }); // sort state for product BOM table
   const [expandedProdPartRow, setExpandedProdPartRow] = useState(null); // id of expanded row in product BOM table
   const [pdLastImportBatch, setPdLastImportBatch] = useState(null); // { ids, count, filename } — for undo
@@ -2484,16 +2500,22 @@ function BOMManager({ user }) {
     boot();
   }, []); // eslint-disable-line
 
-  // Browser back/forward navigation between tabs
+  // Browser back/forward navigation between tabs and individual product pages
   useEffect(() => {
     const onPopState = () => {
       const validTabs = ["dashboard","bom","scan","pricing","purchasing","orders","demand","production","shelf","scoreboard","projects","suppliers","dealers","shops","alerts","settings","admin","pipeline","repairs"];
-      const pathSeg = window.location.pathname.replace(/^\//, "").split("/")[0].split("?")[0];
-      if (pathSeg === "products") { setActiveViewRaw("projects"); return; }
-      if (validTabs.includes(pathSeg)) { setActiveViewRaw(pathSeg); return; }
+      const segs = window.location.pathname.replace(/^\//, "").split("/");
+      const pathSeg = segs[0].split("?")[0];
+      if (pathSeg === "products") {
+        setActiveViewRaw("projects");
+        // Restore individual product if URL is /products/{id}
+        setSelectedProductRaw(segs[1] || null);
+        return;
+      }
+      if (validTabs.includes(pathSeg)) { setActiveViewRaw(pathSeg); setSelectedProductRaw(null); return; }
       const hash = window.location.hash.replace("#","").split("?")[0];
       if (hash === "products") { setActiveViewRaw("projects"); return; }
-      if (validTabs.includes(hash)) setActiveViewRaw(hash);
+      if (validTabs.includes(hash)) { setActiveViewRaw(hash); setSelectedProductRaw(null); }
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
@@ -12461,16 +12483,28 @@ function BOMManager({ user }) {
                                   <span style={{ color:"#8898aa",fontSize:10,marginLeft:4 }}>@ {pricing.qty}</span>
                                 </>
                               ) : (
-                                <button onClick={(e)=>{ e.stopPropagation(); if(part.mpn && hasAnyKey) fetchPartPricing(part.id); }}
-                                  disabled={!part.mpn || !hasAnyKey || part.pricingStatus==="loading"}
-                                  title={!part.mpn?"No MPN — can't fetch":(!hasAnyKey?"No distributor API keys configured":"Fetch pricing from distributors")}
-                                  style={{ padding:"3px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:(!part.mpn||!hasAnyKey||part.pricingStatus==="loading")?"not-allowed":"pointer",
-                                    border:"1px solid #533afd",background:"#fff",color:"#533afd",fontFamily:"inherit",
-                                    opacity:(!part.mpn||!hasAnyKey)?0.4:1,whiteSpace:"nowrap" }}
-                                  onMouseEnter={(e)=>{ if(!e.currentTarget.disabled){e.currentTarget.style.background="#533afd";e.currentTarget.style.color="#fff";} }}
-                                  onMouseLeave={(e)=>{ e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#533afd"; }}>
-                                  {part.pricingStatus==="loading" ? "…" : !part.mpn ? "No MPN" : "Fetch Price"}
-                                </button>
+                                {/* No MPN — show clickable button to open library search modal */}
+                                {!part.mpn ? (
+                                  <button onClick={(e)=>{ e.stopPropagation(); setNoMpnMatchSearch(part.value || ""); setNoMpnMatchModal({ partId: part.id, part }); }}
+                                    title="No MPN assigned — click to search library and match this part"
+                                    style={{ padding:"3px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:"pointer",
+                                      border:"1px solid #ff9500",background:"#fff",color:"#ff9500",fontFamily:"inherit",whiteSpace:"nowrap" }}
+                                    onMouseEnter={(e)=>{ e.currentTarget.style.background="#ff9500"; e.currentTarget.style.color="#fff"; }}
+                                    onMouseLeave={(e)=>{ e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#ff9500"; }}>
+                                    No MPN
+                                  </button>
+                                ) : (
+                                  <button onClick={(e)=>{ e.stopPropagation(); if(hasAnyKey) fetchPartPricing(part.id); }}
+                                    disabled={!hasAnyKey || part.pricingStatus==="loading"}
+                                    title={!hasAnyKey?"No distributor API keys configured":"Fetch pricing from distributors"}
+                                    style={{ padding:"3px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:(!hasAnyKey||part.pricingStatus==="loading")?"not-allowed":"pointer",
+                                      border:"1px solid #533afd",background:"#fff",color:"#533afd",fontFamily:"inherit",
+                                      opacity:!hasAnyKey?0.4:1,whiteSpace:"nowrap" }}
+                                    onMouseEnter={(e)=>{ if(!e.currentTarget.disabled){e.currentTarget.style.background="#533afd";e.currentTarget.style.color="#fff";} }}
+                                    onMouseLeave={(e)=>{ e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#533afd"; }}>
+                                    {part.pricingStatus==="loading" ? "…" : "Fetch Price"}
+                                  </button>
+                                )}
                               )}
                             </td>
                             <td style={{ padding:"10px 10px",textAlign:"right",whiteSpace:"nowrap" }}>
@@ -22884,6 +22918,109 @@ function BOMManager({ user }) {
                 <button onClick={() => setPdImportMatchModal(null)}
                   style={{ padding:"7px 18px",borderRadius:100,border:"1px solid #e3e8ee",background:"transparent",color:darkMode?"#f6f9fc":"#061b31",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit" }}>
                   Skip — import as-is
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── No MPN — Assign from Library Modal ── */}
+      {noMpnMatchModal && (() => {
+        const { partId, part } = noMpnMatchModal;
+        const q = noMpnMatchSearch.toLowerCase().trim();
+        // Search across MPN, value, description, footprint
+        const matchResults = q.length >= 2 ? parts.filter(p =>
+          p.id !== partId && p.mpn && (
+            p.mpn.toLowerCase().includes(q) ||
+            (p.value && p.value.toLowerCase().includes(q)) ||
+            (p.description && p.description.toLowerCase().includes(q)) ||
+            (p.footprint && p.footprint.toLowerCase().includes(q))
+          )
+        ).slice(0, 15) : [];
+        return (
+          <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
+            onClick={() => setNoMpnMatchModal(null)}>
+            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"28px 32px",maxWidth:560,width:"92%",maxHeight:"80vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
+              onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16 }}>
+                <div>
+                  <div style={{ fontSize:17,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>Assign Part from Library</div>
+                  <div style={{ fontSize:12,color:"#64748d",marginTop:3 }}>
+                    {part.value && <span style={{ fontWeight:600,color:"#061b31",marginRight:6 }}>{part.value}</span>}
+                    {part.footprint && <span style={{ padding:"1px 6px",borderRadius:4,background:"rgba(255,149,0,0.1)",color:"#c86400",fontWeight:600,fontSize:11,border:"1px solid rgba(255,149,0,0.25)",marginRight:6 }}>{part.footprint}</span>}
+                    {part.description && <span style={{ color:"#64748d" }}>{part.description}</span>}
+                  </div>
+                </div>
+                <button onClick={() => setNoMpnMatchModal(null)}
+                  style={{ background:darkMode?"#2c2c2e":"#f5f5f7",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:"#64748d",flexShrink:0 }}
+                  onMouseEnter={e=>e.currentTarget.style.background=darkMode?"#3a3a3e":"#e8e8ed"}
+                  onMouseLeave={e=>e.currentTarget.style.background=darkMode?"#2c2c2e":"#f5f5f7"}>×</button>
+              </div>
+
+              {/* Search input */}
+              <input
+                autoFocus
+                placeholder="Search by value, MPN, description, package…"
+                value={noMpnMatchSearch}
+                onChange={e => setNoMpnMatchSearch(e.target.value)}
+                style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#3a3a3e":"#e3e8ee"),
+                  background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31",
+                  fontSize:13,boxSizing:"border-box",fontFamily:"inherit",marginBottom:12,outline:"none" }} />
+
+              {/* Results */}
+              {q.length >= 2 && matchResults.length === 0 && (
+                <div style={{ padding:"20px 0",textAlign:"center",color:"#64748d",fontSize:13 }}>No matching parts found in library.</div>
+              )}
+              {q.length < 2 && (
+                <div style={{ padding:"20px 0",textAlign:"center",color:"#64748d",fontSize:13 }}>Type at least 2 characters to search…</div>
+              )}
+              {matchResults.length > 0 && (
+                <div style={{ border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),borderRadius:10,overflow:"hidden" }}>
+                  {matchResults.map((r, ri) => (
+                    <div key={r.id}
+                      style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",
+                        background:ri%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafbfc"),
+                        cursor:"pointer",borderBottom:ri<matchResults.length-1?"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2"):"none",
+                        transition:"background 0.1s" }}
+                      onMouseEnter={e=>e.currentTarget.style.background=darkMode?"rgba(83,58,253,0.15)":"#f0f6ff"}
+                      onMouseLeave={e=>e.currentTarget.style.background=ri%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafbfc")}
+                      onClick={async () => {
+                        // Copy MPN + key fields from the matched library part into this BOM row
+                        await updatePart(partId, "mpn", r.mpn);
+                        if (r.value && !part.value)        await updatePart(partId, "value",       r.value);
+                        if (r.description && !part.description) await updatePart(partId, "description", r.description);
+                        if (r.footprint && !part.footprint) await updatePart(partId, "footprint",  r.footprint);
+                        if (r.manufacturer && !part.manufacturer) await updatePart(partId, "manufacturer", r.manufacturer);
+                        if (r.voltage_rating && !part.voltage_rating) await updatePart(partId, "voltage_rating", r.voltage_rating);
+                        setNoMpnMatchModal(null);
+                      }}>
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ fontSize:13,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"monospace" }}>{r.mpn}</div>
+                        <div style={{ display:"flex",flexWrap:"wrap",alignItems:"center",gap:4,marginTop:3 }}>
+                          {r.value && <span style={{ fontSize:11,fontWeight:600,color:"#50617a" }}>{r.value}</span>}
+                          {r.voltage_rating && <span style={{ fontSize:11,color:"#64748d" }}>· {r.voltage_rating}</span>}
+                          {r.footprint && <span style={{ fontSize:11,padding:"1px 6px",borderRadius:4,background:darkMode?"rgba(255,149,0,0.15)":"rgba(255,149,0,0.1)",color:"#c86400",fontWeight:600,border:"1px solid rgba(255,149,0,0.25)" }}>{r.footprint}</span>}
+                          {r.manufacturer && <span style={{ fontSize:11,color:"#64748d" }}>{r.manufacturer}</span>}
+                          {r.description && <span style={{ fontSize:11,color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180 }}>{r.description}</span>}
+                        </div>
+                      </div>
+                      <span style={{ fontSize:11,padding:"3px 10px",borderRadius:100,background:"rgba(83,58,253,0.1)",color:"#533afd",fontWeight:700,flexShrink:0,border:"1px solid rgba(83,58,253,0.2)" }}>
+                        Assign
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ marginTop:16,display:"flex",justifyContent:"flex-end" }}>
+                <button onClick={() => setNoMpnMatchModal(null)}
+                  style={{ padding:"7px 20px",borderRadius:100,border:"1px solid "+(darkMode?"#3a3a3e":"#e3e8ee"),background:"transparent",
+                    color:darkMode?"#f6f9fc":"#061b31",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit" }}
+                  onMouseEnter={e=>e.currentTarget.style.background=darkMode?"#2c2c2e":"#f5f5f7"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  Cancel
                 </button>
               </div>
             </div>
