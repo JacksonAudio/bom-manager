@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.28";
-const BUILD_TIME   = "2026-04-29T16:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.29";
+const BUILD_TIME   = "2026-04-29T16:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -12482,9 +12482,7 @@ function BOMManager({ user }) {
                                   <span style={{ fontWeight:700 }}>${fmtPrice(pricing.price)}</span>
                                   <span style={{ color:"#8898aa",fontSize:10,marginLeft:4 }}>@ {pricing.qty}</span>
                                 </>
-                              ) : (
-                                {/* No MPN — show clickable button to open library search modal */}
-                                {!part.mpn ? (
+                              ) : !part.mpn ? (
                                   <button onClick={(e)=>{ e.stopPropagation(); setNoMpnMatchSearch(part.value || ""); setNoMpnMatchModal({ partId: part.id, part }); }}
                                     title="No MPN assigned — click to search library and match this part"
                                     style={{ padding:"3px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:"pointer",
@@ -12505,7 +12503,6 @@ function BOMManager({ user }) {
                                     {part.pricingStatus==="loading" ? "…" : "Fetch Price"}
                                   </button>
                                 )}
-                              )}
                             </td>
                             <td style={{ padding:"10px 10px",textAlign:"right",whiteSpace:"nowrap" }}>
                               <button onClick={(e) => {
