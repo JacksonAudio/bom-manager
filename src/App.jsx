@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.25";
-const BUILD_TIME   = "2026-04-29T15:30:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.26";
+const BUILD_TIME   = "2026-04-29T15:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -7977,8 +7977,8 @@ function BOMManager({ user }) {
                         />
                       </th>
                       {[
-                        {label:"MPN",field:"mpn",w:"18%"},{label:"Value",field:"value",w:"10%"},{label:"Voltage",field:"voltage_rating",w:"6%"},{label:"Package",field:"footprint",w:"6%"},{label:"Description",field:"description",w:"37%"},
-                        {label:"Manufacturer",field:"manufacturer",w:"14%"},{label:"Added",field:"createdAt",w:"7%"}
+                        {label:"MPN",field:"mpn",w:"18%"},{label:"Value",field:"value",w:"10%"},{label:"Voltage",field:"voltage_rating",w:"6%"},{label:"Package",field:"footprint",w:"6%"},{label:"Description",field:"description",w:"30%"},
+                        {label:"Manufacturer",field:"manufacturer",w:"12%"},{label:"Qty/Stock",field:"stockQty",w:"6%"},{label:"Added",field:"createdAt",w:"7%"}
                       ].map((h,hi,arr)=>(
                         <th key={hi} onClick={h.field ? ()=>setPartSort(prev=>({field:h.field,asc:prev.field===h.field?!prev.asc:true})) : undefined}
                           style={{ textAlign:"left",padding:"12px 14px",
@@ -8064,12 +8064,18 @@ function BOMManager({ user }) {
                               onFocus={focusIn} onBlur={focusOut}
                               style={{ ...inputStyle,width:"100%",color:"#64748d" }} placeholder="" />
                           </td>
+                          {/* ── Qty/Stock — color-coded stock level ── */}
+                          <td style={{ padding:"6px 8px",textAlign:"right",whiteSpace:"nowrap",
+                            fontSize:13,fontWeight:700,
+                            color: sn === 0 ? "#ff3b30" : (darkMode?"#34c759":"#1a9e3f") }}>
+                            {sn}
+                          </td>
                           <td style={{ padding:"6px 8px",whiteSpace:"nowrap",fontSize:11,color:"#64748d",textAlign:"center" }}>
                             {part.createdAt ? new Date(part.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"2-digit"}) : "—"}
                           </td>
                         </tr>
                         {expandedPartRow === part.id && <tr>
-                            <td colSpan={9} style={{ padding:"12px 20px",background:darkMode?"#1c1c1e":"#fafbfc",borderBottom:"2px solid #533afd" }}>
+                            <td colSpan={10} style={{ padding:"12px 20px",background:darkMode?"#1c1c1e":"#fafbfc",borderBottom:"2px solid #533afd" }}>
                               <div style={{ display:"flex",gap:8,marginBottom:12 }}>
                                 <button onClick={(e)=>{e.stopPropagation();setQrModalParts([part]);}}
                                   style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:"1px solid #e3e8ee",background:"#f6f9fc",cursor:"pointer",color:"#061b31" }}
