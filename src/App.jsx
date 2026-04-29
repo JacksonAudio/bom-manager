@@ -9,8 +9,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.30";
-const BUILD_TIME   = "2026-04-29T17:00:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.31";
+const BUILD_TIME   = "2026-04-29T17:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -198,7 +198,7 @@ function toUSD(price, currency, rates) {
 // SUPPLIER DISPLAY CONFIG
 // ─────────────────────────────────────────────
 const SUPPLIERS = [
-  { id: "mouser",   name: "Mouser Electronics",   color: "#e8500a", bg: "rgba(232,80,10,0.06)", logo: "M",  shipping: 7.99,  address: "1000 N. Main Street\nMansfield, TX 76063\nUSA", searchUrl: (pn) => `https://www.mouser.com/Search/Refine?Keyword=${encodeURIComponent(pn)}` },
+  { id: "mouser",   name: "Mouser Electronics",   color: "#e8500a", bg: "rgba(232,80,10,0.06)", logo: "M",  shipping: 7.99,  address: "1000 N. Main Street\nMansfield, TX 76063\nUSA", searchUrl: (pn) => `https://www.mouser.com/c/?q=${encodeURIComponent(pn)}` },
   { id: "digikey",  name: "Digi-Key Electronics", color: "#cc0000", bg: "rgba(204,0,0,0.06)", logo: "DK", shipping: 6.99,  address: "701 Brooks Avenue South\nThief River Falls, MN 56701\nUSA", searchUrl: (pn) => `https://www.digikey.com/en/products/result?keywords=${encodeURIComponent(pn)}` },
   { id: "arrow",    name: "Arrow Electronics",    color: "#005eb8", bg: "rgba(0,94,184,0.06)", logo: "A",  shipping: 0,     address: "9201 E. Dry Creek Road\nCentennial, CO 80112\nUSA", searchUrl: (pn) => `https://www.arrow.com/en/products/search?q=${encodeURIComponent(pn)}` },
   { id: "lcsc",     name: "LCSC Electronics",     color: "#0a8f4c", bg: "rgba(10,143,76,0.06)", logo: "LC", shipping: 20.00, address: "Shenzhen, Guangdong\nChina", searchUrl: (pn) => `https://www.lcsc.com/search?q=${encodeURIComponent(pn)}` },
@@ -22944,7 +22944,7 @@ function BOMManager({ user }) {
 
         // ── Mouser search term built from known specs ──
         const mouserSearchTerm = [part.value, part.footprint].filter(Boolean).join(" ");
-        const mouserSearchUrl = `https://www.mouser.com/Search/Refine?Keyword=${encodeURIComponent(mouserSearchTerm)}`;
+        const mouserSearchUrl = `https://www.mouser.com/c/?q=${encodeURIComponent(mouserSearchTerm)}`;
 
         return (
           <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
