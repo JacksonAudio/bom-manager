@@ -23,8 +23,17 @@ function check(error, context) {
 // ─────────────────────────────────────────────
 
 // Sign up with email + password
+// emailRedirectTo pins confirmation links back to bom.jacksonaudio.net so they
+// don't follow Supabase's project-wide Site URL (which is set to mm.jacksonaudio.net
+// for Marketing Manager — same shared Supabase project, changed 2026-04-30).
 export async function signUp(email, password) {
-  const { data, error } = await supabase.auth.signUp({ email, password })
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: 'https://bom.jacksonaudio.net',
+    },
+  })
   check(error, 'signUp')
   return data
 }
