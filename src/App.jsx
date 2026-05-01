@@ -1,16 +1,17 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v8.60
-// Saturday, March 28, 2026
+// src/App.jsx — Jackson Audio BOM Manager v10.33
+// Friday, May 1, 2026
 //
 // Changelog:
-//   [1] Fix Nexar query — inline MPN string instead of GraphQL variable (fixes 400)
-//   [2] Auto-connect APIs on page load using saved keys from DB
-//   [3] Debug console logging for Nexar response parsing
+//   [1] Inter-app launcher in header — three pills (BOM / MM / BM) for
+//       jumping to mm.jacksonaudio.net + bm.jacksonaudio.net. BOM pill is
+//       the current-app indicator. Brad's "same three buttons everywhere"
+//       ask after the bm.jacksonaudio.net split.
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.32";
-const BUILD_TIME   = "2026-04-30T17:42:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.33";
+const BUILD_TIME   = "2026-05-01T14:18:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -5523,13 +5524,58 @@ function BOMManager({ user }) {
       <header style={{ background:darkMode?"#1c1c1e":"#fff", borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
         padding:"0 28px", display:"flex", alignItems:"center", justifyContent:"space-between",
         height:58, position:"sticky", top:0, zIndex:100 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:34,height:34,background:"#533afd",borderRadius:7,
-            display:"flex",alignItems:"center",justifyContent:"center",
-            fontWeight:900,fontSize:14,color:"#fff",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>JA</div>
-          <div>
-            <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:14,color:"#061b31" }}>Jackson Audio</div>
-            <div style={{ fontSize:9,color:"#8898aa",letterSpacing:"0.15em" }}>BOM MANAGER</div>
+        <div style={{ display:"flex", alignItems:"center", gap:18 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:34,height:34,background:"#533afd",borderRadius:7,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontWeight:900,fontSize:14,color:"#fff",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>JA</div>
+            <div>
+              <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:14,color:darkMode?"#f6f9fc":"#061b31" }}>Jackson Audio</div>
+              <div style={{ fontSize:9,color:"#8898aa",letterSpacing:"0.15em" }}>BOM MANAGER</div>
+            </div>
+          </div>
+
+          {/* Inter-app launcher — BOM / Marketing / Business pills.
+              Current app is highlighted purple; the others are anchor links
+              to the sibling Vercel projects on jacksonaudio.net subdomains. */}
+          <div style={{ display:"flex", alignItems:"center", gap:4, padding:"3px",
+            background:darkMode?"#1c1c1e":"#f6f9fc",
+            border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
+            borderRadius:8 }}>
+            {[
+              { label:"BOM",       href:"https://bom.jacksonaudio.net", current:true  },
+              { label:"Marketing", href:"https://mm.jacksonaudio.net",  current:false },
+              { label:"Business",  href:"https://bm.jacksonaudio.net",  current:false },
+            ].map((app) => {
+              const baseStyle = {
+                display:"inline-flex", alignItems:"center", justifyContent:"center",
+                padding:"6px 12px", borderRadius:6, fontSize:11, fontWeight:600,
+                letterSpacing:"0.04em", textTransform:"uppercase",
+                fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                transition:"background 0.15s, color 0.15s",
+                textDecoration:"none",
+              };
+              const activeStyle = {
+                ...baseStyle,
+                background:"rgba(83,58,253,0.12)", color:"#533afd",
+                cursor:"default",
+              };
+              const inactiveStyle = {
+                ...baseStyle,
+                background:"transparent",
+                color:darkMode?"#8898aa":"#525f7f",
+                cursor:"pointer",
+              };
+              return app.current ? (
+                <span key={app.label} style={activeStyle} aria-current="page">{app.label}</span>
+              ) : (
+                <a key={app.label} href={app.href} style={inactiveStyle}
+                  onMouseOver={(e)=>{ e.currentTarget.style.background=darkMode?"#2a2a2c":"#e5e5ea"; e.currentTarget.style.color=darkMode?"#f6f9fc":"#061b31"; }}
+                  onMouseOut={(e)=>{ e.currentTarget.style.background="transparent"; e.currentTarget.style.color=darkMode?"#8898aa":"#525f7f"; }}>
+                  {app.label}
+                </a>
+              );
+            })}
           </div>
         </div>
         <div style={{ display:"flex", gap:20, alignItems:"center" }}>
