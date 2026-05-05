@@ -1,7 +1,7 @@
 // src/components/PriceChart.jsx — SVG line chart for price history
 import React, { useState, useRef, useMemo } from "react";
 
-const FONT = "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif";
+const FONT = "'IBM Plex Sans',system-ui,sans-serif";
 
 /**
  * PriceChart — pure SVG line chart with area fill, tooltips, and dark mode support.
@@ -115,11 +115,11 @@ export default function PriceChart({ data, width = 600, height = 220, title, dar
   const tooltipX = tooltip ? toX(tooltip.date) : 0;
   const tooltipY = tooltip ? toY(tooltip.price) : 0;
 
-  const bgColor = darkMode ? "#1c1c1e" : "#fff";
+  const bgColor = darkMode ? "#0f1218" : "#fff";
   const textColor = darkMode ? "#f6f9fc" : "#061b31";
   const mutedColor = "#64748d";
-  const gridColor = darkMode ? "#2c2c2e" : "#f0f0f2";
-  const borderColor = darkMode ? "#3a3a3e" : "#e5e5ea";
+  const gridColor = darkMode ? "#161a22" : "#f0f0f2";
+  const borderColor = darkMode ? "#1f2530" : "#e5e5ea";
 
   return (
     <div style={{ width: "100%", fontFamily: FONT }}>
@@ -167,13 +167,13 @@ export default function PriceChart({ data, width = 600, height = 220, title, dar
         <path d={areaPath} fill="rgba(83,58,253,0.1)" />
 
         {/* Line */}
-        <path d={linePath} fill="none" stroke="#533afd" strokeWidth="2"
+        <path d={linePath} fill="none" stroke="#58a6ff" strokeWidth="2"
           strokeLinejoin="round" strokeLinecap="round" />
 
         {/* Data points */}
         {sorted.map((d, i) => (
           <circle key={i} cx={toX(d.date)} cy={toY(d.price)} r={hoverIdx === i ? 5 : 3}
-            fill={hoverIdx === i ? "#533afd" : "#fff"} stroke="#533afd" strokeWidth="2"
+            fill={hoverIdx === i ? "#58a6ff" : "#fff"} stroke="#58a6ff" strokeWidth="2"
             style={{ transition: "r 0.15s" }} />
         ))}
 
@@ -200,10 +200,10 @@ export default function PriceChart({ data, width = 600, height = 220, title, dar
             <g>
               {/* Vertical guide line */}
               <line x1={tooltipX} y1={margin.top} x2={tooltipX} y2={margin.top + plotH}
-                stroke="#533afd" strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
+                stroke="#58a6ff" strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
               {/* Tooltip box */}
               <rect x={tx} y={ty} width={boxW} height={boxH} rx="6"
-                fill={darkMode ? "#2c2c2e" : "#fff"} stroke={borderColor}
+                fill={darkMode ? "#161a22" : "#fff"} stroke={borderColor}
                 strokeWidth="1" filter="url(#shadow)" />
               <text x={tx + 10} y={ty + 16} fontSize="11" fontWeight="700"
                 fill={textColor} fontFamily={FONT}>

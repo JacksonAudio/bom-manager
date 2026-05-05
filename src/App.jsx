@@ -1,17 +1,25 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.33
-// Friday, May 1, 2026
+// src/App.jsx — Jackson Audio BOM Manager v10.34
+// Tuesday, May 5, 2026
 //
 // Changelog:
-//   [1] Inter-app launcher in header — three pills (BOM / MM / BM) for
-//       jumping to mm.jacksonaudio.net + bm.jacksonaudio.net. BOM pill is
-//       the current-app indicator. Brad's "same three buttons everywhere"
-//       ask after the bm.jacksonaudio.net split.
+//   [v10.34] Visual unification with Marketing Manager + Business Manager.
+//       Dark mode now uses the BM "mission-control" palette: canvas-900
+//       (#0a0c10) deepest bg, canvas-800 (#0f1218) cards, canvas-700
+//       (#161a22) elevated surfaces, canvas-600 (#1f2530) borders, plus
+//       ink-100/200/300/400 graduated text and status-good/okay/concerning/
+//       info semantic colors. Typography swapped to IBM Plex Sans + JetBrains
+//       Mono globally (was Inter / SF Pro). Primary brand accent moved off
+//       purple (#533afd) onto status-info blue (#58a6ff) per Brad's "no
+//       purple" rule. Goal: BOM, MM, and BM are visually indistinguishable
+//       — they're one application that happens to be in three repos.
+//   [v10.33] Inter-app launcher in header — three pills (BOM / MM / BM) for
+//       jumping to mm.jacksonaudio.net + bm.jacksonaudio.net.
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.33";
-const BUILD_TIME   = "2026-05-01T14:18:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.34";
+const BUILD_TIME   = "2026-05-05T01:55:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -858,7 +866,7 @@ function getReelQty(part) {
 
 const ORDER_MODE_CONFIG = {
   api:    { label: "API",    color: "#34c759", bg: "rgba(52,199,89,0.12)", description: "Direct API ordering" },
-  rep:    { label: "Rep",    color: "#533afd", bg: "rgba(83,58,253,0.10)", description: "Email PO to sales rep" },
+  rep:    { label: "Rep",    color: "#58a6ff", bg: "rgba(83,58,253,0.10)", description: "Email PO to sales rep" },
   manual: { label: "Manual", color: "#64748d", bg: "rgba(142,142,147,0.10)", description: "Order on website" },
 };
 
@@ -1270,7 +1278,7 @@ function printPO(supplier, lines, poNumber, companyInfo) {
     </tr>`).join("");
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PO ${poNumber}</title>
   <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:12px;padding:40px;color:#1a1a1a}
-  .header{display:flex;justify-content:space-between;margin-bottom:28px;border-bottom:3px solid #533afd;padding-bottom:18px}
+  .header{display:flex;justify-content:space-between;margin-bottom:28px;border-bottom:3px solid #58a6ff;padding-bottom:18px}
   .company{font-size:20px;font-weight:900}.po-num{font-size:18px;font-weight:800;color:${supplier.color};text-align:right}
   .addr-row{display:flex;gap:40px;margin-bottom:20px}
   .addr-box{flex:1;background:#f5f5f5;border-radius:6px;padding:14px 18px;font-size:11px;line-height:1.6;color:#444}
@@ -1382,31 +1390,31 @@ const CSS = `
 
   .nav-btn { background: none; border: none; border-right: 1px solid #e5e5ea;
     cursor: pointer; padding: 0; height: 36px;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
     font-size: 12px; font-weight: 500; color: #64748d; transition: all 0.15s;
     text-align: center; display: flex; align-items: center; justify-content: center; }
   .nav-btn:nth-child(7) { border-right: none; }
   .nav-btn:last-child { border-right: none; }
   .nav-btn:nth-child(n+8) { border-top: 1px solid #e5e5ea; }
   .nav-btn:hover { color: #061b31; background: rgba(0,0,0,0.03); }
-  .nav-btn.active { color: #533afd; font-weight: 700; background: rgba(83,58,253,0.06); }
+  .nav-btn.active { color: #58a6ff; font-weight: 700; background: rgba(83,58,253,0.06); }
 
   .supplier-pill { display: inline-flex; align-items: center; gap: 4px;
     padding: 3px 9px; border-radius: 4px; border: none;
     font-size: 11px; font-weight: 800; cursor: pointer;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
     transition: opacity 0.15s; text-decoration: none; white-space: nowrap; }
   .supplier-pill:hover { opacity: 0.75; }
 
   input[type="text"], input[type="number"], input[type="password"], select, textarea {
     background: #fff; border: 1px solid #e3e8ee;
     color: #061b31; border-radius: 5px;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; font-size: 12px; }
-  input:focus, select:focus, textarea:focus { outline: none; border-color: #533afd; }
+    font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 12px; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: #58a6ff; }
 
   .card { background: #fff; border: 1px solid #e5e5ea; border-radius: 10px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-  .btn-primary { background: #533afd; color: #fff; border: none; border-radius: 980px;
-    padding: 9px 18px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  .btn-primary { background: #58a6ff; color: #fff; border: none; border-radius: 980px;
+    padding: 9px 18px; font-weight: 600; font-family: 'IBM Plex Sans', system-ui, sans-serif;
     font-size: 13px; cursor: pointer; transition: background 0.15s; white-space: nowrap;
     display: inline-flex; align-items: center; gap: 8px; }
   .btn-primary:hover { background: #0077ED; }
@@ -1414,24 +1422,24 @@ const CSS = `
 
   .btn-ghost { background: none; border: 1px solid #e3e8ee; color: #64748d; border-radius: 980px;
     padding: 8px 14px; font-size: 12px; cursor: pointer;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; font-weight: 600;
+    font-family: 'IBM Plex Sans', system-ui, sans-serif; font-weight: 600;
     transition: all 0.15s; white-space: nowrap;
     display: inline-flex; align-items: center; gap: 7px; }
-  .btn-ghost:hover { border-color: #533afd; color: #533afd; }
+  .btn-ghost:hover { border-color: #58a6ff; color: #58a6ff; }
   .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .btn-sm { padding: 5px 10px; font-size: 11px; }
 
   .drop-zone { border: 2px dashed #e3e8ee; border-radius: 10px; padding: 48px 24px;
     text-align: center; transition: all 0.2s; cursor: pointer; background: #fff; }
-  .drop-zone.drag-over { border-color: #533afd; background: rgba(83,58,253,0.04); }
+  .drop-zone.drag-over { border-color: #58a6ff; background: rgba(83,58,253,0.04); }
   .drop-zone:hover { border-color: #8898aa; }
 
   .table-row:hover td { background: rgba(0,0,0,0.02) !important; }
 
   .badge { display: inline-block; padding: 2px 8px; border-radius: 20px;
     font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; }
+    font-family: 'IBM Plex Sans', system-ui, sans-serif; }
 
   .price-card { background: #fff; border: 1px solid #e5e5ea;
     border-radius: 8px; padding: 12px 14px; min-width: 160px; }
@@ -1442,14 +1450,14 @@ const CSS = `
   .po-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .po-table th { background: #f6f9fc; padding: 8px 12px; text-align: left;
     font-size: 10px; letter-spacing: 0.08em; color: #64748d;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; font-weight: 700;
+    font-family: 'IBM Plex Sans', system-ui, sans-serif; font-weight: 700;
     border-bottom: 1px solid #e5e5ea; white-space: nowrap; }
   .po-table td { padding: 9px 12px; border-bottom: 1px solid #f0f0f2;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; vertical-align: middle; }
+    font-family: 'IBM Plex Sans', system-ui, sans-serif; vertical-align: middle; }
   .po-table tr:hover td { background: #f6f9fc; }
 
   .spinner { display: inline-block; width: 12px; height: 12px;
-    border: 2px solid #e3e8ee; border-top-color: #533afd;
+    border: 2px solid #e3e8ee; border-top-color: #58a6ff;
     border-radius: 50%; animation: spin 0.7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -1458,7 +1466,7 @@ const CSS = `
   @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
 
   .key-input-row { display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center; margin-bottom: 10px; }
-  .key-label { font-size: 12px; color: #64748d; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; font-weight: 600; }
+  .key-label { font-size: 12px; color: #64748d; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-weight: 600; }
   .key-hint { font-size: 10px; color: #8898aa; margin-top: 2px; }
 
   .price-break-row { display: flex; gap: 6px; align-items: center; font-size: 11px; color: #64748d; }
@@ -1467,91 +1475,91 @@ const CSS = `
   /* ── Dark Mode ── */
   .dark { color-scheme: dark; color: #f6f9fc !important; }
   .dark ::-webkit-scrollbar-track { background: #1a1a1e; }
-  .dark ::-webkit-scrollbar-thumb { background: #3a3a3e; }
+  .dark ::-webkit-scrollbar-thumb { background: #1f2530; }
 
-  .dark .nav-btn { color: #98989d; border-right-color: #3a3a3e; }
-  .dark .nav-btn:nth-child(n+8) { border-top-color: #3a3a3e; }
+  .dark .nav-btn { color: #8a93a3; border-right-color: #1f2530; }
+  .dark .nav-btn:nth-child(n+8) { border-top-color: #1f2530; }
   .dark .nav-btn:hover { color: #f6f9fc; background: rgba(255,255,255,0.05); }
-  .dark .nav-btn.active { color: #64d2ff; background: rgba(100,210,255,0.08); }
+  .dark .nav-btn.active { color: #58a6ff; background: rgba(100,210,255,0.08); }
 
   /* Override ALL inline backgrounds inside .dark */
   /* Standalone inputs — visible borders */
   .dark input[type="text"], .dark input[type="number"], .dark input[type="password"],
   .dark select, .dark textarea {
-    background: #1c1c1e !important; border-color: #3a3a3e !important; color: #f6f9fc !important; }
-  .dark input:focus, .dark select:focus, .dark textarea:focus { border-color: #64d2ff !important; }
+    background: #0f1218 !important; border-color: #1f2530 !important; color: #f6f9fc !important; }
+  .dark input:focus, .dark select:focus, .dark textarea:focus { border-color: #58a6ff !important; }
   /* Table inputs — seamless/transparent like light mode */
   .dark table input[type="text"], .dark table input[type="number"] {
     background: transparent !important; border-color: transparent !important; }
-  .dark table input:focus { border-color: #3a3a3e !important; background: #2c2c2e !important; }
-  .dark input::placeholder, .dark textarea::placeholder { color: #636366 !important; }
-  .dark option { background: #1c1c1e; color: #f6f9fc; }
+  .dark table input:focus { border-color: #1f2530 !important; background: #161a22 !important; }
+  .dark input::placeholder, .dark textarea::placeholder { color: #5a6373 !important; }
+  .dark option { background: #0f1218; color: #f6f9fc; }
 
   /* Headings and text */
   .dark h2, .dark h3, .dark h4 { color: #f6f9fc !important; }
-  .dark p { color: #98989d !important; }
+  .dark p { color: #8a93a3 !important; }
   .dark span { color: inherit; }
-  .dark label { color: #98989d !important; }
+  .dark label { color: #8a93a3 !important; }
   .dark td { color: #f6f9fc !important; }
-  .dark th { color: #c7c7cc !important; }
+  .dark th { color: #b8bfcc !important; }
 
   /* Major layout sections — override inline backgrounds */
-  .dark main > div { background: #000000 !important; }
-  .dark main > div > div[style*="background"] { background: #1c1c1e !important; }
+  .dark main > div { background: #0a0c10 !important; }
+  .dark main > div > div[style*="background"] { background: #0f1218 !important; }
 
   /* Cards, tables, containers */
-  .dark .card { background: #1c1c1e !important; border-color: #3a3a3e !important; box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important; }
-  .dark table { background: #1c1c1e !important; }
-  .dark thead tr { background: #2c2c2e !important; }
-  .dark thead th { background: #2c2c2e !important; color: #c7c7cc !important; }
-  .dark tbody tr { border-bottom-color: #2c2c2e !important; }
+  .dark .card { background: #0f1218 !important; border-color: #1f2530 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important; }
+  .dark table { background: #0f1218 !important; }
+  .dark thead tr { background: #161a22 !important; }
+  .dark thead th { background: #161a22 !important; color: #b8bfcc !important; }
+  .dark tbody tr { border-bottom-color: #161a22 !important; }
   .dark tbody td { background: transparent !important; }
   .dark .table-row:hover td { background: rgba(255,255,255,0.04) !important; }
-  .dark tr[style*="borderBottom"] { border-bottom-color: #2c2c2e !important; }
+  .dark tr[style*="borderBottom"] { border-bottom-color: #161a22 !important; }
 
   /* Buttons */
-  .dark .btn-primary { background: #0a84ff !important; }
+  .dark .btn-primary { background: #58a6ff !important; }
   .dark .btn-primary:hover { background: #409cff !important; }
-  .dark .btn-ghost { border-color: #3a3a3e !important; color: #98989d !important; }
-  .dark .btn-ghost:hover { border-color: #64d2ff !important; color: #64d2ff !important; }
+  .dark .btn-ghost { border-color: #1f2530 !important; color: #8a93a3 !important; }
+  .dark .btn-ghost:hover { border-color: #58a6ff !important; color: #58a6ff !important; }
 
   /* Drop zone */
-  .dark .drop-zone { border-color: #3a3a3e !important; background: #1c1c1e !important; }
-  .dark .drop-zone.drag-over { border-color: #0a84ff !important; background: rgba(10,132,255,0.08) !important; }
-  .dark .drop-zone:hover { border-color: #636366 !important; }
+  .dark .drop-zone { border-color: #1f2530 !important; background: #0f1218 !important; }
+  .dark .drop-zone.drag-over { border-color: #58a6ff !important; background: rgba(10,132,255,0.08) !important; }
+  .dark .drop-zone:hover { border-color: #5a6373 !important; }
 
   /* Price cards */
-  .dark .price-card { background: #1c1c1e !important; border-color: #3a3a3e !important; }
-  .dark .price-card.best { border-color: #30d158 !important; background: rgba(48,209,88,0.08) !important; }
+  .dark .price-card { background: #0f1218 !important; border-color: #1f2530 !important; }
+  .dark .price-card.best { border-color: #3fb950 !important; background: rgba(48,209,88,0.08) !important; }
 
   /* PO cards */
-  .dark .po-card { background: #1c1c1e !important; border-color: #3a3a3e !important; box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important; }
-  .dark .po-table th { background: #2c2c2e !important; color: #98989d !important; border-bottom-color: #3a3a3e !important; }
-  .dark .po-table td { border-bottom-color: #2c2c2e !important; }
-  .dark .po-table tr:hover td { background: #2c2c2e !important; }
+  .dark .po-card { background: #0f1218 !important; border-color: #1f2530 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important; }
+  .dark .po-table th { background: #161a22 !important; color: #8a93a3 !important; border-bottom-color: #1f2530 !important; }
+  .dark .po-table td { border-bottom-color: #161a22 !important; }
+  .dark .po-table tr:hover td { background: #161a22 !important; }
 
   /* Spinner */
-  .dark .spinner { border-color: #3a3a3e; border-top-color: #0a84ff; }
+  .dark .spinner { border-color: #1f2530; border-top-color: #58a6ff; }
 
   /* Nuclear dark mode: override ALL div, section, main backgrounds */
-  .dark main { background: #000000 !important; }
-  .dark main div { border-color: #2c2c2e; }
-  .dark main > div > div { background: #000000 !important; border-color: #3a3a3e !important; }
-  .dark main > div > div > div { background: #1c1c1e !important; border-color: #3a3a3e !important; }
-  .dark main > div > div > div > div { border-color: #2c2c2e !important; }
+  .dark main { background: #0a0c10 !important; }
+  .dark main div { border-color: #161a22; }
+  .dark main > div > div { background: #0a0c10 !important; border-color: #1f2530 !important; }
+  .dark main > div > div > div { background: #0f1218 !important; border-color: #1f2530 !important; }
+  .dark main > div > div > div > div { border-color: #161a22 !important; }
 
   /* Product/pricing/purchasing row items */
-  .dark main div[style] { border-color: #2c2c2e !important; }
+  .dark main div[style] { border-color: #161a22 !important; }
 
   /* All white backgrounds → dark */
-  .dark [style*="background"][style*="fff"] { background: #1c1c1e !important; }
-  .dark [style*="background"][style*="f5f5f7"] { background: #000000 !important; }
-  .dark [style*="background"][style*="f5f5f7"] > div { background: #1c1c1e !important; }
+  .dark [style*="background"][style*="fff"] { background: #0f1218 !important; }
+  .dark [style*="background"][style*="f5f5f7"] { background: #0a0c10 !important; }
+  .dark [style*="background"][style*="f5f5f7"] > div { background: #0f1218 !important; }
 
   /* Borders */
-  .dark [style*="border"][style*="e5e5ea"] { border-color: #3a3a3e !important; }
-  .dark [style*="border"][style*="f0f0f2"] { border-color: #2c2c2e !important; }
-  .dark [style*="border"][style*="d2d2d7"] { border-color: #3a3a3e !important; }
+  .dark [style*="border"][style*="e5e5ea"] { border-color: #1f2530 !important; }
+  .dark [style*="border"][style*="f0f0f2"] { border-color: #161a22 !important; }
+  .dark [style*="border"][style*="d2d2d7"] { border-color: #1f2530 !important; }
 
   /* Box shadows */
   .dark [style*="box-shadow"] { box-shadow: 0 1px 4px rgba(0,0,0,0.4) !important; }
@@ -1567,19 +1575,19 @@ const CSS = `
   .dark main :not(button)[style*="font-size: 11px"], .dark main :not(button)[style*="fontSize:11"],
   .dark main :not(button)[style*="font-size: 10px"], .dark main :not(button)[style*="fontSize:10"],
   .dark main :not(button)[style*="font-size: 9px"],  .dark main :not(button)[style*="fontSize:9"] {
-    color: #98989d !important;
+    color: #8a93a3 !important;
   }
   /* ALL buttons in dark mode get white text */
   #root .dark main button { color: #fff !important; }
-  #root .dark .btn-ghost { color: #98989d !important; }
-  #root .dark .btn-ghost:hover { color: #64d2ff !important; }
+  #root .dark .btn-ghost { color: #8a93a3 !important; }
+  #root .dark .btn-ghost:hover { color: #58a6ff !important; }
 
   /* Table header row */
-  .dark [style*="background"][style*="b8bdd1"] { background: #2c2c2e !important; }
+  .dark [style*="background"][style*="b8bdd1"] { background: #161a22 !important; }
 
   /* Key input rows in settings */
-  .dark .key-label { color: #c7c7cc !important; }
-  .dark .key-hint { color: #636366 !important; }
+  .dark .key-label { color: #b8bfcc !important; }
+  .dark .key-hint { color: #5a6373 !important; }
 `;
 
 // ─────────────────────────────────────────────
@@ -1601,15 +1609,15 @@ class AppErrorBoundary extends Component {
       return (
         <div style={{ minHeight:"100vh",background:"#f6f9fc",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,padding:32 }}>
           <div style={{ fontSize:48 }}>⚠</div>
-          <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:22,fontWeight:700,color:"#061b31" }}>Something went wrong</div>
-          <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif",fontSize:14,color:"#64748d",maxWidth:500,textAlign:"center",lineHeight:"22px" }}>
+          <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:22,fontWeight:700,color:"#061b31" }}>Something went wrong</div>
+          <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:14,color:"#64748d",maxWidth:500,textAlign:"center",lineHeight:"22px" }}>
             BOM Manager hit an unexpected error. This is usually caused by bad data from an import. Try refreshing — if it keeps happening, contact Brad.
           </div>
           <div style={{ fontFamily:"monospace",fontSize:11,color:"#ff3b30",background:"#fff",padding:"12px 18px",borderRadius:10,border:"1px solid #ffd0cc",maxWidth:600,overflow:"auto",maxHeight:120,whiteSpace:"pre-wrap" }}>
             {this.state.error?.message || "Unknown error"}
           </div>
           <button onClick={() => window.location.reload()}
-            style={{ padding:"10px 28px",borderRadius:100,border:"none",background:"#533afd",color:"#fff",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif" }}>
+            style={{ padding:"10px 28px",borderRadius:100,border:"none",background:"#58a6ff",color:"#fff",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
             Reload App
           </button>
         </div>
@@ -1634,7 +1642,7 @@ export default function App() {
   // While checking session, show nothing (avoids flash)
   if (user === undefined) return (
     <div style={{ minHeight:"100vh",background:"#f6f9fc",display:"flex",alignItems:"center",justifyContent:"center" }}>
-      <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",color:"#8898aa",fontSize:13 }}>Loading…</div>
+      <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",color:"#8898aa",fontSize:13 }}>Loading…</div>
     </div>
   );
 
@@ -2536,7 +2544,11 @@ function BOMManager({ user }) {
   // Persist dark mode preference + sync body background
   useEffect(() => {
     try { localStorage.setItem("bom_dark_mode", darkMode); } catch {}
-    document.body.style.background = darkMode ? "#000000" : "#f6f9fc";
+    document.body.style.background = darkMode ? "#0a0c10" : "#f6f9fc";
+    // Toggle a body class so the html-level <style> in index.html knows
+    // we're in dark mode (controls scrollbar gutter + initial paint color).
+    if (darkMode) document.body.classList.add("bom-dark");
+    else document.body.classList.remove("bom-dark");
   }, [darkMode]);
 
   // Auto-refresh Mouser data when a part row is expanded
@@ -2806,7 +2818,7 @@ function BOMManager({ user }) {
         @media print { .box-label { border: none !important; } .no-print { display: none !important; } }
       </style></head><body>
       <div class="no-print" style="text-align:center;padding:12px;background:#f6f9fc;border-bottom:1px solid #e5e5ea">
-        <button onclick="window.print()" style="padding:10px 24px;border-radius:980px;border:none;background:#533afd;color:#fff;font-weight:600;cursor:pointer;font-size:14px">Print Box Labels</button>
+        <button onclick="window.print()" style="padding:10px 24px;border-radius:980px;border:none;background:#58a6ff;color:#fff;font-weight:600;cursor:pointer;font-size:14px">Print Box Labels</button>
         <span style="margin-left:12px;font-size:13px;color:#64748d">${labelData.length} label${labelData.length !== 1 ? "s" : ""} — 4" × 3"</span>
       </div>
       <div class="sheet">${labelsHtml}</div>
@@ -3679,7 +3691,7 @@ function BOMManager({ user }) {
   // ── Add a new Product (writes to DB, realtime updates all sessions)
   const addProduct = async () => {
     if (!newProjName.trim()) return;
-    const colors = ["#ff9500","#5856d6","#ff3b30","#34c759","#533afd","#ff9500","#ff2d55"];
+    const colors = ["#ff9500","#5856d6","#ff3b30","#34c759","#58a6ff","#ff9500","#ff2d55"];
     const color  = colors[products.length % colors.length];
     const name   = newProjName.trim();
     setNewProjName(""); // clear immediately for responsiveness
@@ -5496,9 +5508,9 @@ function BOMManager({ user }) {
   // Show loading screen while initial DB fetch completes
   if (loading) return (
     <div style={{ minHeight:"100vh",background:"#f6f9fc",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14 }}>
-      <div style={{ width:36,height:36,border:"3px solid #e3e8ee",borderTopColor:"#533afd",borderRadius:"50%",animation:"spin 0.7s linear infinite" }} />
+      <div style={{ width:36,height:36,border:"3px solid #e3e8ee",borderTopColor:"#58a6ff",borderRadius:"50%",animation:"spin 0.7s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",color:"#8898aa",fontSize:13 }}>Loading workspace…</div>
+      <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",color:"#8898aa",fontSize:13 }}>Loading workspace…</div>
     </div>
   );
 
@@ -5516,21 +5528,21 @@ function BOMManager({ user }) {
   // RENDER
   // ─────────────────────────────────────────────
   return (
-    <div className={darkMode ? "dark" : ""} style={{ minHeight:"100vh", background:darkMode?"#000000":"#f6f9fc", color:darkMode?"#f6f9fc":"#061b31",
-      fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", display:"flex", flexDirection:"column", transition:"background 0.3s,color 0.3s" }}>
+    <div className={darkMode ? "dark" : ""} style={{ minHeight:"100vh", background:darkMode?"#0a0c10":"#f6f9fc", color:darkMode?"#f6f9fc":"#061b31",
+      fontFamily:"'IBM Plex Sans',system-ui,sans-serif", display:"flex", flexDirection:"column", transition:"background 0.3s,color 0.3s" }}>
       <style>{CSS}</style>
 
       {/* ── HEADER ── */}
-      <header style={{ background:darkMode?"#1c1c1e":"#fff", borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
+      <header style={{ background:darkMode?"#0f1218":"#fff", borderBottom:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",
         padding:"0 28px", display:"flex", alignItems:"center", justifyContent:"space-between",
         height:58, position:"sticky", top:0, zIndex:100 }}>
         <div style={{ display:"flex", alignItems:"center", gap:18 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ width:34,height:34,background:"#533afd",borderRadius:7,
+            <div style={{ width:34,height:34,background:"#58a6ff",borderRadius:7,
               display:"flex",alignItems:"center",justifyContent:"center",
-              fontWeight:900,fontSize:14,color:"#fff",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>JA</div>
+              fontWeight:900,fontSize:14,color:"#fff",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>JA</div>
             <div>
-              <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:800,fontSize:14,color:darkMode?"#f6f9fc":"#061b31" }}>Jackson Audio</div>
+              <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:800,fontSize:14,color:darkMode?"#f6f9fc":"#061b31" }}>Jackson Audio</div>
               <div style={{ fontSize:9,color:"#8898aa",letterSpacing:"0.15em" }}>BOM MANAGER</div>
             </div>
           </div>
@@ -5539,8 +5551,8 @@ function BOMManager({ user }) {
               Current app is highlighted purple; the others are anchor links
               to the sibling Vercel projects on jacksonaudio.net subdomains. */}
           <div style={{ display:"flex", alignItems:"center", gap:4, padding:"3px",
-            background:darkMode?"#1c1c1e":"#f6f9fc",
-            border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
+            background:darkMode?"#0f1218":"#f6f9fc",
+            border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",
             borderRadius:8 }}>
             {[
               { label:"BOM",       href:"https://bom.jacksonaudio.net", current:true  },
@@ -5551,13 +5563,13 @@ function BOMManager({ user }) {
                 display:"inline-flex", alignItems:"center", justifyContent:"center",
                 padding:"6px 12px", borderRadius:6, fontSize:11, fontWeight:600,
                 letterSpacing:"0.04em", textTransform:"uppercase",
-                fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                fontFamily:"'IBM Plex Sans',system-ui,sans-serif",
                 transition:"background 0.15s, color 0.15s",
                 textDecoration:"none",
               };
               const activeStyle = {
                 ...baseStyle,
-                background:"rgba(83,58,253,0.12)", color:"#533afd",
+                background:"rgba(83,58,253,0.12)", color:"#58a6ff",
                 cursor:"default",
               };
               const inactiveStyle = {
@@ -5587,8 +5599,8 @@ function BOMManager({ user }) {
           ].map((s) => (
             <div key={s.label} style={{ textAlign:"center", cursor:"pointer" }}
               onClick={() => setActiveView(s.nav)}>
-              <div style={{ fontSize:17,fontWeight:700,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
-                color:s.warn&&s.value>0?"#ff3b30":"#533afd" }}>{s.value}</div>
+              <div style={{ fontSize:17,fontWeight:700,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",
+                color:s.warn&&s.value>0?"#ff3b30":"#58a6ff" }}>{s.value}</div>
               <div style={{ fontSize:9,color:"#8898aa",letterSpacing:"0.08em" }}>{s.label.toUpperCase()}</div>
             </div>
           ))}
@@ -5596,14 +5608,14 @@ function BOMManager({ user }) {
           <div style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", position:"relative" }}
             onClick={() => setShowBootLog(prev => !prev)}>
             <div style={{ width:8,height:8,borderRadius:"50%",
-              background: tokenStatus==="ok" ? "#34c759" : tokenStatus==="loading" ? "#533afd" : tokenStatus==="error" ? "#ff3b30" : "#8898aa" }} />
+              background: tokenStatus==="ok" ? "#34c759" : tokenStatus==="loading" ? "#58a6ff" : tokenStatus==="error" ? "#ff3b30" : "#8898aa" }} />
             <span style={{ fontSize:10, color:"#8898aa" }}>
               {tokenMsg || (tokenStatus==="loading" ? "connecting…" : "no API keys")}
             </span>
             {showBootLog && bootLog.length > 0 && (
-              <div style={{ position:"absolute",top:24,right:0,background:"#1c1c1e",color:"#e5e5ea",borderRadius:8,padding:"10px 14px",
+              <div style={{ position:"absolute",top:24,right:0,background:"#0f1218",color:"#e5e5ea",borderRadius:8,padding:"10px 14px",
                 fontSize:11,fontFamily:"'SF Mono',Menlo,monospace",lineHeight:1.8,minWidth:360,maxWidth:500,zIndex:9999,
-                boxShadow:"0 4px 20px rgba(0,0,0,0.3)",border:"1px solid #3a3a3c" }}
+                boxShadow:"0 4px 20px rgba(0,0,0,0.3)",border:"1px solid #1f2530" }}
                 onClick={e => e.stopPropagation()}>
                 <div style={{ fontWeight:700,marginBottom:6,color:"#8898aa",fontSize:10,textTransform:"uppercase",letterSpacing:"0.5px" }}>API Connection Log</div>
                 {bootLog.map((entry, i) => (
@@ -5621,7 +5633,7 @@ function BOMManager({ user }) {
             </span>
             <span style={{ fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,
               background: isAdmin ? "rgba(52,199,89,0.12)" : "rgba(83,58,253,0.08)",
-              color: isAdmin ? "#34c759" : "#533afd" }}>
+              color: isAdmin ? "#34c759" : "#58a6ff" }}>
               {isAdmin ? "Admin" : "Editor"}
             </span>
             <button className="btn-ghost btn-sm" onClick={signOut}>Sign out</button>
@@ -5638,11 +5650,11 @@ function BOMManager({ user }) {
 
       {/* ── NAV ── */}
       <nav style={{ display:"grid", gridTemplateColumns:"repeat(8, 1fr)", padding:"0",
-        borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
-        background:darkMode?"#1c1c1e":"#fff" }}>
+        borderBottom:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",
+        background:darkMode?"#0f1218":"#fff" }}>
         {[
           { id:"dashboard", label:"Dashboard", step:null, color:null },
-          { id:"bom",       label:`Parts (${parts.length})`, step:1, color:"#533afd" },
+          { id:"bom",       label:`Parts (${parts.length})`, step:1, color:"#58a6ff" },
           { id:"projects",  label:"Products",   step:2, color:"#5856d6" },
           { id:"pricing",   label:`Pricing${pricedCount>0?` (${pricedCount}/${parts.length})`:""}`, step:3, color:"#ff9500" },
           { id:"demand",    label:`Orders${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)?` (${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)})`:""}`, step:4, color:"#34c759" },
@@ -5677,13 +5689,13 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "dashboard" && (
           <div style={{ maxWidth:"100%" }}>
-            <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#061b31",marginBottom:4 }}>Dashboard</h2>
+            <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:"#061b31",marginBottom:4 }}>Dashboard</h2>
             <p style={{ fontSize:14,color:"#64748d",marginBottom:24 }}>Overview of your inventory, orders, and production status.</p>
 
             {/* ── Metric cards row */}
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:16,marginBottom:24 }}>
               {[
-                { label:"Inventory Value", value:`$${fmtDollar(inventoryValue)}`, sub:`${totalStockParts} parts, ${totalStockUnits.toLocaleString()} units`, color:"#533afd", nav:"bom" },
+                { label:"Inventory Value", value:`$${fmtDollar(inventoryValue)}`, sub:`${totalStockParts} parts, ${totalStockUnits.toLocaleString()} units`, color:"#58a6ff", nav:"bom" },
                 { label:"Parts Stocked", value:parts.filter(p=>(parseInt(p.stockQty)||0)>0).length, sub:"Parts with stock on hand", color:"#34c759", nav:"bom" },
                 { label:"Parts to Order", value:poPartCount, sub:poPartCount>0?`across ${Object.keys(purchaseOrders).length} suppliers`:"No orders pending", color:poPartCount>0?"#ff9500":"#34c759", nav:"purchasing" },
                 { label:"Products", value:products.length, sub:`${pricedCount}/${parts.length} parts priced`, color:"#5856d6", nav:"projects" },
@@ -5696,7 +5708,7 @@ function BOMManager({ user }) {
                   onMouseOver={(e)=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.1)"}}
                   onMouseOut={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.06)"}}>
                   <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
-                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
+                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
                   <div style={{ fontSize:12,color:"#64748d",marginTop:4 }}>{card.sub}</div>
                 </div>
               ))}
@@ -5713,7 +5725,7 @@ function BOMManager({ user }) {
                 <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:`1px solid ${needsRestock > 0 ? "#ff9500" : "#e5e5ea"}` }}>
                   <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
                     <div>
-                      <div style={{ fontSize:16,fontWeight:700,color:"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                      <div style={{ fontSize:16,fontWeight:700,color:"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                         Shelf Status {shelfHealthy ? "✓" : "⚠"}
                       </div>
                       <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>Finished goods on the shelf right now</div>
@@ -5722,14 +5734,14 @@ function BOMManager({ user }) {
                   </div>
                   <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:12 }}>
                     {[
-                      { label:"SKUs Tracked", value:totalSkus, color:"#533afd" },
+                      { label:"SKUs Tracked", value:totalSkus, color:"#58a6ff" },
                       { label:"Total Units", value:totalUnits, color:"#34c759" },
                       { label:"At/Above Target", value:healthy, color:"#34c759" },
                       { label:"Need Restock", value:needsRestock, color:needsRestock > 0 ? "#ff9500" : "#34c759" },
                     ].map(c => (
                       <div key={c.label} style={{ textAlign:"center",padding:"12px 8px",borderRadius:10,background:"#fafbfc",border:"1px solid #e5e5ea",cursor:"pointer" }}
                         onClick={() => { setActiveView("shelf"); }}>
-                        <div style={{ fontSize:24,fontWeight:800,color:c.color,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{c.value}</div>
+                        <div style={{ fontSize:24,fontWeight:800,color:c.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>{c.value}</div>
                         <div style={{ fontSize:10,color:"#64748d",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase",marginTop:2 }}>{c.label}</div>
                       </div>
                     ))}
@@ -5745,11 +5757,11 @@ function BOMManager({ user }) {
 
             {/* ── Workflow Flowchart */}
             <div style={{ background:"#fff",borderRadius:14,padding:"24px 28px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
-              <div style={{ fontSize:16,fontWeight:700,color:"#061b31",marginBottom:4,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>How It Works</div>
+              <div style={{ fontSize:16,fontWeight:700,color:"#061b31",marginBottom:4,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>How It Works</div>
               <div style={{ fontSize:12,color:"#64748d",marginBottom:20 }}>Follow this workflow from setup to receiving parts.</div>
               <div style={{ display:"flex",flexWrap:"wrap",alignItems:"flex-start",gap:0 }}>
                 {[
-                  { step:1, title:"Add Parts", desc:"Import CSV, use Component Library, or Quick Add from a supplier URL to auto-fetch pricing, datasheets, and specs.", tab:"bom", color:"#533afd" },
+                  { step:1, title:"Add Parts", desc:"Import CSV, use Component Library, or Quick Add from a supplier URL to auto-fetch pricing, datasheets, and specs.", tab:"bom", color:"#58a6ff" },
                   { step:2, title:"Create Products", desc:"Group parts into products (pedals, amps, etc). Assign each part to the product it belongs to.", tab:"projects", color:"#5856d6" },
                   { step:3, title:"Get Pricing", desc:"Live quotes from 900+ distributors. Landed costs include tariffs by country of origin. Mouser preferred within 5% of cheapest.", tab:"pricing", color:"#ff9500" },
                   { step:4, title:"Track Orders", desc:"Shopify + Zoho customer orders with due dates, fulfillment tracking, and ShipStation shipment data. See shelf coverage at a glance.", tab:"demand", color:"#34c759" },
@@ -5763,7 +5775,7 @@ function BOMManager({ user }) {
                       onMouseOut={e=>e.currentTarget.style.background="transparent"}>
                       <div style={{ width:36,height:36,borderRadius:"50%",background:s.color,color:"#fff",fontWeight:800,fontSize:16,
                         display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 8px",
-                        fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>{s.step}</div>
+                        fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>{s.step}</div>
                       <div style={{ fontSize:12,fontWeight:700,color:"#061b31",marginBottom:4 }}>{s.title}</div>
                       <div style={{ fontSize:10,color:"#64748d",lineHeight:"14px" }}>{s.desc}</div>
                     </div>
@@ -5806,7 +5818,7 @@ function BOMManager({ user }) {
               if (trends.length === 0) return null;
               return (
                 <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
-                  <div style={{ fontSize:16,fontWeight:700,color:"#061b31",marginBottom:4,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Product Cost Trends</div>
+                  <div style={{ fontSize:16,fontWeight:700,color:"#061b31",marginBottom:4,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>Product Cost Trends</div>
                   <div style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>Current BOM cost vs earliest recorded prices</div>
                   <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
                     {trends.map(t => (
@@ -5839,7 +5851,7 @@ function BOMManager({ user }) {
             {/* ── Build queue */}
             {buildQueue.length > 0 && (
               <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
-                <div style={{ fontSize:16,fontWeight:700,color:"#061b31",marginBottom:14,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Build Queue</div>
+                <div style={{ fontSize:16,fontWeight:700,color:"#061b31",marginBottom:14,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>Build Queue</div>
                 <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
                   {buildQueue.map((q) => (
                     <div key={q.productId} style={{ padding:"12px 18px",borderRadius:10,border:"1px solid #e5e5ea",
@@ -5860,7 +5872,7 @@ function BOMManager({ user }) {
               <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
                 <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
                   <div>
-                    <div style={{ fontSize:16,fontWeight:700,color:"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>PO History</div>
+                    <div style={{ fontSize:16,fontWeight:700,color:"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>PO History</div>
                     <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>Recent purchase orders</div>
                   </div>
                   <button className="btn-ghost btn-sm" onClick={()=>setActiveView("orders")}>View All</button>
@@ -5870,7 +5882,7 @@ function BOMManager({ user }) {
                     <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
                       {["Supplier","PO #","Date","Items","Total","Status"].map(h=>(
                         <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#64748d",letterSpacing:"0.06em",textTransform:"uppercase",
-                          fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{h}</th>
+                          fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -5879,7 +5891,7 @@ function BOMManager({ user }) {
                       const itemCount = (order.items || []).length;
                       const totalValue = order.totalEstimate || (order.items || []).reduce((s,i) => s + (parseFloat(i.price)||0) * (parseInt(i.quantity)||0), 0);
                       const dateStr = order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) : "—";
-                      const statusColors = { submitted:"#ff9500", shipped:"#533afd", delivered:"#34c759", received:"#34c759", cancelled:"#ff3b30" };
+                      const statusColors = { submitted:"#ff9500", shipped:"#58a6ff", delivered:"#34c759", received:"#34c759", cancelled:"#ff3b30" };
                       return (
                         <tr key={order.id} style={{ borderBottom:"1px solid #f0f0f2" }}>
                           <td style={{ padding:"10px 12px",fontWeight:600 }}>
@@ -5923,7 +5935,7 @@ function BOMManager({ user }) {
                 <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
                   <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
                     <div>
-                      <div style={{ fontSize:16,fontWeight:700,color:"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Aging Inventory</div>
+                      <div style={{ fontSize:16,fontWeight:700,color:"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>Aging Inventory</div>
                       <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>Parts with stock not updated in 90+ days</div>
                     </div>
                     <span style={{ fontSize:12,fontWeight:600,color:"#ff9500" }}>{agingParts.length} part{agingParts.length !== 1 ? "s" : ""}</span>
@@ -5933,14 +5945,14 @@ function BOMManager({ user }) {
                       <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
                         {["MPN","Description","Stock","Age (days)","Last Updated"].map(h=>(
                           <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#64748d",letterSpacing:"0.06em",textTransform:"uppercase",
-                            fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{h}</th>
+                            fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {agingParts.slice(0,10).map((p)=>(
                         <tr key={p.id} style={{ borderBottom:"1px solid #f0f0f2" }}>
-                          <td style={{ padding:"10px 12px",fontWeight:600,color:"#533afd" }}>{p.mpn||p.reference||"—"}</td>
+                          <td style={{ padding:"10px 12px",fontWeight:600,color:"#58a6ff" }}>{p.mpn||p.reference||"—"}</td>
                           <td style={{ padding:"10px 12px",color:"#50617a" }}>{p.description||p.value||"—"}</td>
                           <td style={{ padding:"10px 12px",fontWeight:600 }}>{parseInt(p.stockQty)||0}</td>
                           <td style={{ padding:"10px 12px",fontWeight:700,color:p.ageDays>=180?"#ff3b30":p.ageDays>=120?"#ff9500":"#64748d" }}>{p.ageDays}</td>
@@ -5955,7 +5967,7 @@ function BOMManager({ user }) {
 
             {/* ── Quick Actions */}
             <div style={{ background:"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:"1px solid #e5e5ea" }}>
-              <div style={{ fontSize:16,fontWeight:700,color:"#061b31",marginBottom:14,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Quick Actions</div>
+              <div style={{ fontSize:16,fontWeight:700,color:"#061b31",marginBottom:14,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>Quick Actions</div>
               <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
                 <button className="btn-primary" onClick={()=>{setActiveView("bom");setShowImport(true);}}>Import BOM</button>
                 <button className="btn-primary" style={{ background:"#5856d6" }} onClick={()=>setActiveView("scan")}>Scan Parts</button>
@@ -6000,11 +6012,11 @@ function BOMManager({ user }) {
             </div>
 
             {/* ── BOM History (always visible) ── */}
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                 <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                   onClick={() => setBomHistoryOpen(!bomHistoryOpen)}>
                   <div>
-                    <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>BOM Version History</div>
+                    <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>BOM Version History</div>
                     <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>{bomSnapshots.length} saved snapshot{bomSnapshots.length!==1?"s":""}</div>
                   </div>
                   <span style={{ fontSize:14,color:"#64748d",transform:bomHistoryOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s" }}>{"\u25BC"}</span>
@@ -6018,10 +6030,10 @@ function BOMManager({ user }) {
                     )}
                     {bomSnapshots.length > 0 && <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                       <thead>
-                        <tr style={{ borderBottom:"2px solid " + (darkMode?"#3a3a3e":"#e5e5ea") }}>
+                        <tr style={{ borderBottom:"2px solid " + (darkMode?"#1f2530":"#e5e5ea") }}>
                           {["Date","Label","Scope","Parts","Inventory Value",""].map(h=>(
                             <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#64748d",letterSpacing:"0.06em",textTransform:"uppercase",
-                              fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>{h}</th>
+                              fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -6033,7 +6045,7 @@ function BOMManager({ user }) {
                           const dateStr = new Date(snap.created_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric", hour:"numeric", minute:"2-digit" });
                           const isComparing = bomCompareIdx === idx;
                           return (
-                            <tr key={snap.id} style={{ borderBottom:"1px solid " + (darkMode?"#2c2c2e":"#f0f0f2") }}>
+                            <tr key={snap.id} style={{ borderBottom:"1px solid " + (darkMode?"#161a22":"#f0f0f2") }}>
                               <td style={{ padding:"10px 12px",fontSize:12,color:darkMode?"#e2e8f0":"#061b31" }}>{dateStr}</td>
                               <td style={{ padding:"10px 12px",fontSize:12,color:darkMode?"#e2e8f0":"#061b31",fontWeight:600 }}>{snap.label || "Untitled"}</td>
                               <td style={{ padding:"10px 12px",fontSize:12 }}>
@@ -6041,7 +6053,7 @@ function BOMManager({ user }) {
                                   ? <span style={{ padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:600,background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>
                                       {(s.products && s.products[0]?.name) || "Product"}
                                     </span>
-                                  : <span style={{ padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:600,background:"rgba(83,58,253,0.08)",color:"#533afd" }}>
+                                  : <span style={{ padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:600,background:"rgba(83,58,253,0.08)",color:"#58a6ff" }}>
                                       All Products
                                     </span>}
                               </td>
@@ -6084,8 +6096,8 @@ function BOMManager({ user }) {
                         }
                       }
                       return (
-                        <div style={{ marginTop:16,padding:16,background:darkMode?"#2c2c2e":"#fafbfc",borderRadius:10,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
-                          <div style={{ fontWeight:700,fontSize:14,marginBottom:12,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                        <div style={{ marginTop:16,padding:16,background:darkMode?"#161a22":"#fafbfc",borderRadius:10,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
+                          <div style={{ fontWeight:700,fontSize:14,marginBottom:12,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                             Changes since "{bomSnapshots[bomCompareIdx].label || "Snapshot"}"
                           </div>
                           {added.length === 0 && removed.length === 0 && changed.length === 0 && (
@@ -6115,7 +6127,7 @@ function BOMManager({ user }) {
                               {changed.slice(0, 30).map(c => (
                                 <div key={c.mpn} style={{ fontSize:12,color:darkMode?"#e2e8f0":"#061b31",padding:"3px 0" }}>
                                   {c.mpn}:
-                                  {c.qtyDiff && <span style={{ color:"#533afd" }}> qty {c.oldQty}{"\u2192"}{c.newQty}</span>}
+                                  {c.qtyDiff && <span style={{ color:"#58a6ff" }}> qty {c.oldQty}{"\u2192"}{c.newQty}</span>}
                                   {c.stockDiff && <span style={{ color:"#ff9500" }}> stock {c.oldStock}{"\u2192"}{c.newStock}</span>}
                                   {c.priceDiff && <span style={{ color:"#5856d6" }}> price ${parseFloat(c.oldPrice||0).toFixed(4)}{"\u2192"}${parseFloat(c.newPrice||0).toFixed(4)}</span>}
                                 </div>
@@ -6142,7 +6154,7 @@ function BOMManager({ user }) {
             <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
               <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#00c7be",color:"#fff",fontSize:12,fontWeight:800 }}>6</span>
-                <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:"#061b31",margin:0 }}>Receive & Scan</h2>
+                <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,color:"#061b31",margin:0 }}>Receive & Scan</h2>
               </div>
               <p style={{ fontSize:13,color:"#50617a",lineHeight:"20px",margin:0 }}>
                 The final step — when parts arrive, scan barcodes to update stock instantly or upload supplier invoices for AI-powered extraction. This closes the loop on your purchase orders, keeps inventory accurate in real time, and means your team on the floor always has the latest stock counts without manual data entry.
@@ -6177,8 +6189,8 @@ function BOMManager({ user }) {
 
             {/* ── Invoice Scanning Section */}
             <div style={{ maxWidth:600,margin:"16px auto 0" }}>
-              <div style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",paddingTop:24,marginTop:8 }}>
-                <h3 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",
+              <div style={{ borderTop:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",paddingTop:24,marginTop:8 }}>
+                <h3 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",
                   fontSize:20,fontWeight:700,letterSpacing:"-0.3px",color:darkMode?"#f6f9fc":"#061b31",marginBottom:4 }}>
                   Invoice Scanner
                 </h3>
@@ -6187,8 +6199,8 @@ function BOMManager({ user }) {
                 </p>
                 {/* Progress indicator */}
                 {invoiceParsing && (
-                  <div style={{ marginBottom:16,padding:"16px 20px",background:darkMode?"#1c1c1e":"#f6f9fc",borderRadius:12,
-                    border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                  <div style={{ marginBottom:16,padding:"16px 20px",background:darkMode?"#0f1218":"#f6f9fc",borderRadius:12,
+                    border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                     <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10 }}>
                       <div style={{ width:20,height:20,border:"3px solid #e3e8ee",borderTopColor:"#5856d6",borderRadius:"50%",animation:"spin 0.7s linear infinite" }} />
                       <span style={{ fontSize:14,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>
@@ -6205,7 +6217,7 @@ function BOMManager({ user }) {
                             <span style={{ marginLeft:8,color:"#ff3b30" }}>{bulkInvoiceProgress.errors.length} error{bulkInvoiceProgress.errors.length !== 1 ? "s" : ""}</span>
                           )}
                         </div>
-                        <div style={{ marginTop:8,height:6,background:darkMode?"#2c2c2e":"#e5e5ea",borderRadius:3,overflow:"hidden" }}>
+                        <div style={{ marginTop:8,height:6,background:darkMode?"#161a22":"#e5e5ea",borderRadius:3,overflow:"hidden" }}>
                           <div style={{ height:"100%",background:"linear-gradient(90deg,#e8500a,#ff9500)",borderRadius:3,
                             transition:"width 0.3s",width:`${Math.round((bulkInvoiceProgress.done / bulkInvoiceProgress.total) * 100)}%` }} />
                         </div>
@@ -6216,8 +6228,8 @@ function BOMManager({ user }) {
                     ) : (
                       <>
                         <div style={{ fontSize:12,color:"#64748d" }}>This may take 10-30 seconds for multi-page PDFs. Do not close this page.</div>
-                        <div style={{ marginTop:10,height:4,background:darkMode?"#2c2c2e":"#e5e5ea",borderRadius:2,overflow:"hidden" }}>
-                          <div style={{ height:"100%",background:"linear-gradient(90deg,#5856d6,#533afd)",borderRadius:2,
+                        <div style={{ marginTop:10,height:4,background:darkMode?"#161a22":"#e5e5ea",borderRadius:2,overflow:"hidden" }}>
+                          <div style={{ height:"100%",background:"linear-gradient(90deg,#5856d6,#58a6ff)",borderRadius:2,
                             animation:"progressIndeterminate 1.5s ease-in-out infinite",width:"40%" }} />
                         </div>
                       </>
@@ -6230,7 +6242,7 @@ function BOMManager({ user }) {
                   <label style={{ display:"inline-flex",alignItems:"center",gap:8,padding:"10px 20px",borderRadius:100,
                     fontSize:13,fontWeight:600,cursor:invoiceParsing?"not-allowed":"pointer",border:"none",
                     background:invoiceParsing?"#8898aa":"#5856d6",color:"#fff",
-                    fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                    fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                     {invoiceParsing ? "Processing..." : "Upload Invoice"}
                     <input type="file" accept=".pdf,.csv,.txt,.tsv,.png,.jpg,.jpeg,.gif,.webp,image/*" style={{ display:"none" }}
                       onChange={(e) => { const f = e.target.files[0]; if (f) parseInvoice(f); e.target.value=""; }}
@@ -6239,7 +6251,7 @@ function BOMManager({ user }) {
                   <label style={{ display:"inline-flex",alignItems:"center",gap:8,padding:"10px 20px",borderRadius:100,
                     fontSize:13,fontWeight:600,cursor:invoiceParsing?"not-allowed":"pointer",border:"none",
                     background:invoiceParsing?"#8898aa":"#e8500a",color:"#fff",
-                    fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                    fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                     {invoiceParsing && bulkInvoiceProgress ? `Processing ${bulkInvoiceProgress.done}/${bulkInvoiceProgress.total}...` : "Bulk Import (Multi/ZIP)"}
                     <input type="file" accept=".pdf,.csv,.txt,.tsv,.png,.jpg,.jpeg,.gif,.webp,.zip,image/*" multiple style={{ display:"none" }}
                       onChange={(e) => { const files = [...(e.target.files || [])]; if (files.length) parseBulkInvoices(files, bulkInvoiceSupplier); e.target.value=""; }}
@@ -6256,7 +6268,7 @@ function BOMManager({ user }) {
                     disabled={invoiceParsing || invoiceScanning}
                     style={{ padding:"10px 20px",borderRadius:100,fontSize:13,fontWeight:600,cursor:"pointer",
                       border:"none",background:"#34c759",color:"#fff",
-                      fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                      fontFamily:"'IBM Plex Sans',system-ui,sans-serif",
                       opacity:(invoiceParsing||invoiceScanning)?0.5:1 }}>
                     Scan Invoice
                   </button>
@@ -6292,7 +6304,7 @@ function BOMManager({ user }) {
 
                 {/* Results */}
                 {invoiceResult && (
-                  <div style={{ background:darkMode?"#1c1c1e":"#fff",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:12,overflow:"hidden",marginBottom:16 }}>
+                  <div style={{ background:darkMode?"#0f1218":"#fff",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",borderRadius:12,overflow:"hidden",marginBottom:16 }}>
                     <div style={{ background:"#5856d6",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                       <div>
                         <div style={{ fontWeight:700,fontSize:13,color:"#fff" }}>{invoiceResult.fileName}</div>
@@ -6312,8 +6324,8 @@ function BOMManager({ user }) {
                       </div>
                     </div>
                     {/* Select All */}
-                    <div style={{ padding:"8px 16px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #e5e5ea",
-                      background:darkMode?"#2c2c2e":"#fafbfc",display:"flex",alignItems:"center",gap:10 }}>
+                    <div style={{ padding:"8px 16px",borderBottom:darkMode?"1px solid #161a22":"1px solid #e5e5ea",
+                      background:darkMode?"#161a22":"#fafbfc",display:"flex",alignItems:"center",gap:10 }}>
                       <input type="checkbox"
                         checked={invoiceResult.items.every(i=>i.apply)}
                         onChange={()=>{
@@ -6327,7 +6339,7 @@ function BOMManager({ user }) {
                     </div>
                     {invoiceResult.items.map((item, idx) => (
                       <div key={idx} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 16px",
-                        borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",fontSize:13 }}>
+                        borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",fontSize:13 }}>
                         <input type="checkbox" checked={item.apply}
                           onChange={()=>setInvoiceResult(prev=>({...prev,items:prev.items.map((it,i)=>i===idx?{...it,apply:!it.apply}:it)}))}
                           style={{ width:16,height:16,cursor:"pointer",accentColor:"#5856d6",flexShrink:0 }} />
@@ -6365,7 +6377,7 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "import" && (
           <div style={{ maxWidth:780 }}>
-            <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Import Bill of Materials</h2>
+            <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Import Bill of Materials</h2>
             <p style={{ color:"#64748d",fontSize:13,marginBottom:20 }}>CSV/TSV from KiCad, Altium, Eagle, or paste directly.</p>
 
             {/* ── Undo Last Import */}
@@ -6396,7 +6408,7 @@ function BOMManager({ user }) {
             {partImports.length > 0 && (
               <div style={{ marginBottom:16 }}>
                 <div style={{ fontSize:13,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:8 }}>Import History</div>
-                <div style={{ border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10,overflow:"hidden" }}>
+                <div style={{ border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",borderRadius:10,overflow:"hidden" }}>
                   {partImports.map((imp, idx) => {
                     const isExpanded = expandedImport === imp.id;
                     const importerProfile = profiles.find(p => p.id === imp.imported_by);
@@ -6405,10 +6417,10 @@ function BOMManager({ user }) {
                     const isProductImport = imp.import_type === "product-import";
                     const typeLabel = imp.import_type === "invoice-import" ? "Invoice" : isProductImport ? "Product BOM" : "Library";
                     const typeBg = imp.import_type === "invoice-import" ? "rgba(52,199,89,0.12)" : isProductImport ? "rgba(88,86,214,0.12)" : "rgba(0,122,255,0.1)";
-                    const typeColor = imp.import_type === "invoice-import" ? "#34c759" : isProductImport ? "#5856d6" : "#533afd";
+                    const typeColor = imp.import_type === "invoice-import" ? "#34c759" : isProductImport ? "#5856d6" : "#58a6ff";
                     return (
                       <div key={imp.id}>
-                        <div style={{ display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:idx%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafbfc"),cursor:"pointer",borderBottom:isExpanded?"none":(darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2") }}
+                        <div style={{ display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:idx%2===0?(darkMode?"#0f1218":"#fff"):(darkMode?"#161a22":"#fafbfc"),cursor:"pointer",borderBottom:isExpanded?"none":(darkMode?"1px solid #1f2530":"1px solid #f0f0f2") }}
                           onClick={() => setExpandedImport(isExpanded ? null : imp.id)}>
                           <span style={{ fontSize:11,color:"#64748d",flexShrink:0 }}>{isExpanded?"▾":"▸"}</span>
                           <span style={{ fontSize:12,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
@@ -6435,7 +6447,7 @@ function BOMManager({ user }) {
                             }}>↩ Undo</button>
                         </div>
                         {isExpanded && (
-                          <div style={{ padding:"10px 14px",background:darkMode?"#161618":"#fafbfc",borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2" }}>
+                          <div style={{ padding:"10px 14px",background:darkMode?"#161618":"#fafbfc",borderBottom:darkMode?"1px solid #1f2530":"1px solid #f0f0f2" }}>
                             {(imp.part_ids || []).length === 0 ? (
                               <span style={{ fontSize:12,color:"#64748d" }}>No part IDs recorded for this import.</span>
                             ) : (
@@ -6443,7 +6455,7 @@ function BOMManager({ user }) {
                                 {(imp.part_ids || []).map(pid => {
                                   const p = parts.find(x => x.id === pid);
                                   return (
-                                    <span key={pid} style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:p?.deletedAt?(darkMode?"#3d0a0a":"rgba(255,59,48,0.08)"):(darkMode?"#2c2c2e":"#f0f0f2"),color:p?.deletedAt?"#ff3b30":(darkMode?"#f6f9fc":"#061b31"),border:p?.deletedAt?"1px solid rgba(255,59,48,0.3)":"none",textDecoration:p?.deletedAt?"line-through":"none" }}>
+                                    <span key={pid} style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:p?.deletedAt?(darkMode?"#3d0a0a":"rgba(255,59,48,0.08)"):(darkMode?"#161a22":"#f0f0f2"),color:p?.deletedAt?"#ff3b30":(darkMode?"#f6f9fc":"#061b31"),border:p?.deletedAt?"1px solid rgba(255,59,48,0.3)":"none",textDecoration:p?.deletedAt?"line-through":"none" }}>
                                       {p?.mpn || pid.slice(0,8)}
                                     </span>
                                   );
@@ -6466,7 +6478,7 @@ function BOMManager({ user }) {
               onDrop={handleDrop}
               onClick={()=>fileRef.current.click()}>
               <div style={{ fontSize:34,marginBottom:10 }}>📋</div>
-              <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:14,marginBottom:6 }}>Drop BOM file here</div>
+              <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:14,marginBottom:6 }}>Drop BOM file here</div>
               <div style={{ color:"#8898aa",fontSize:12 }}>CSV · TSV · TXT — or click to browse</div>
               <input ref={fileRef} type="file" accept=".csv,.tsv,.txt" style={{ display:"none" }} onChange={handleFilePick} />
             </div>
@@ -6589,8 +6601,8 @@ function BOMManager({ user }) {
                     { col:"PurchaseURL", alt:"Notes, SourceURL, ReorderURL",          note:"Reorder link saved with part (e.g. AliExpress order URL)" },
                   ].map(({ col, alt, note, req }) => (
                     <tr key={col} style={{ borderTop:"1px solid #f6f9fc" }}>
-                      <td style={{ padding:"7px 10px",fontWeight:700,color: req?"#533afd":"#061b31",fontFamily:"monospace" }}>
-                        {col}{req && <span style={{ marginLeft:4,fontSize:10,color:"#533afd",fontWeight:600 }}>required</span>}
+                      <td style={{ padding:"7px 10px",fontWeight:700,color: req?"#58a6ff":"#061b31",fontFamily:"monospace" }}>
+                        {col}{req && <span style={{ marginLeft:4,fontSize:10,color:"#58a6ff",fontWeight:600 }}>required</span>}
                       </td>
                       <td style={{ padding:"7px 10px",color:"#50617a",fontFamily:"monospace",fontSize:11 }}>{alt}</td>
                       <td style={{ padding:"7px 10px",color:"#50617a" }}>{note}</td>
@@ -6619,8 +6631,8 @@ function BOMManager({ user }) {
           <div>
             <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
               <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
-                <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#533afd",color:"#fff",fontSize:12,fontWeight:800 }}>1</span>
-                <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:"#061b31",margin:0 }}>Parts Library</h2>
+                <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#58a6ff",color:"#fff",fontSize:12,fontWeight:800 }}>1</span>
+                <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,color:"#061b31",margin:0 }}>Parts Library</h2>
               </div>
               <p style={{ fontSize:13,color:"#50617a",lineHeight:"20px",margin:0 }}>
                 This is your master inventory — every component your company uses lives here. Import BOMs from KiCad, Altium, or Eagle, add parts manually, search the Component Library, or use Quick Add URL to paste a Mouser/DigiKey/Arrow link and auto-import the part with pricing, description, datasheet, country of origin, and quantity price breaks. Accurate part data with MPNs, stock levels, and reel quantities keeps purchasing efficient and inventory visible.
@@ -6633,7 +6645,7 @@ function BOMManager({ user }) {
                 flexWrap:"wrap",alignItems:"center" }}>
                 <div>
                   <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>Inventory Value</div>
-                  <div style={{ fontSize:24,fontWeight:800,color:"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>
+                  <div style={{ fontSize:24,fontWeight:800,color:"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>
                     ${fmtDollar(inventoryValue)}
                   </div>
                 </div>
@@ -7393,7 +7405,7 @@ function BOMManager({ user }) {
                         { col:"Stock",        alt:"StockQty, Stock_Qty, In Stock",       note:"Units on hand" },
                       ].map(({ col, alt, note, req }) => (
                         <tr key={col} style={{ borderTop:"1px solid #f6f9fc" }}>
-                          <td style={{ padding:"5px 8px",fontWeight:700,color:req?"#533afd":"#061b31",fontFamily:"monospace" }}>{col}{req && <span style={{ marginLeft:4,fontSize:9,color:"#533afd" }}>required</span>}</td>
+                          <td style={{ padding:"5px 8px",fontWeight:700,color:req?"#58a6ff":"#061b31",fontFamily:"monospace" }}>{col}{req && <span style={{ marginLeft:4,fontSize:9,color:"#58a6ff" }}>required</span>}</td>
                           <td style={{ padding:"5px 8px",color:"#50617a",fontFamily:"monospace",fontSize:10 }}>{alt}</td>
                           <td style={{ padding:"5px 8px",color:"#50617a" }}>{note}</td>
                         </tr>
@@ -7765,7 +7777,7 @@ function BOMManager({ user }) {
                                     <input type="checkbox" checked={compSelectedParts.has(p.mpn)} onChange={()=>toggleOne(p.mpn)}
                                       style={{ width:13,height:13,accentColor:"#5856d6",cursor:"pointer" }} />
                                   </td>
-                                  <td style={{ padding:"4px 10px",fontWeight:600,color:"#533afd",fontFamily:"'SF Mono',monospace" }}>{p.mpn}</td>
+                                  <td style={{ padding:"4px 10px",fontWeight:600,color:"#58a6ff",fontFamily:"'SF Mono',monospace" }}>{p.mpn}</td>
                                   <td style={{ padding:"4px 10px" }}>{p.manufacturer}</td>
                                   <td style={{ padding:"4px 10px",fontWeight:600,color:"#061b31" }}>{p.value || "—"}</td>
                                   <td style={{ padding:"4px 10px" }}>
@@ -7775,7 +7787,7 @@ function BOMManager({ user }) {
                                         color:pTariff > 0 ? "#ff9500" : "#34c759" }}>
                                         {fmtCountry(p.countryOfOrigin)}{pTariff > 0 ? ` +${pTariff}%` : ""}
                                       </span>
-                                    ) : <span style={{ fontSize:9,color:"#c7c7cc" }}>—</span>}
+                                    ) : <span style={{ fontSize:9,color:"#b8bfcc" }}>—</span>}
                                   </td>
                                   <td style={{ padding:"4px 10px",color:"#64748d" }}>{p.description}</td>
                                 </tr>
@@ -7893,7 +7905,7 @@ function BOMManager({ user }) {
                       </a>
                       {r.datasheet && (
                         <a href={r.datasheet} target="_blank" rel="noopener noreferrer"
-                          style={{ fontSize:12,color:"#533afd",textDecoration:"none",fontWeight:600 }}>
+                          style={{ fontSize:12,color:"#58a6ff",textDecoration:"none",fontWeight:600 }}>
                           Datasheet ↗
                         </a>
                       )}
@@ -7907,21 +7919,21 @@ function BOMManager({ user }) {
             {selectedParts.size > 0 && (
               <div style={{ display:"flex",alignItems:"center",gap:10,padding:"6px 12px",
                 background:"rgba(83,58,253,0.06)",border:"1px solid rgba(83,58,253,0.3)",borderRadius:6,marginBottom:6 }}>
-                <span style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#533afd" }}>
+                <span style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#58a6ff" }}>
                   {selectedParts.size} part{selectedParts.size!==1?"s":""} selected
                 </span>
                 {isAdmin && <button
                   onClick={deleteSelected}
                   style={{ background:"#ff3b30",color:"#fff",border:"none",borderRadius:6,
                     padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",
-                    fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",display:"flex",alignItems:"center",gap:7 }}>
+                    fontFamily:"'IBM Plex Sans',system-ui,sans-serif",display:"flex",alignItems:"center",gap:7 }}>
                   🗑 Delete Selected
                 </button>}
                 <button
                   onClick={() => { const sel = parts.filter(p => selectedParts.has(p.id)); console.log("[QR] Opening labels for", sel.length, "parts"); setQrModalParts(sel); }}
                   style={{ background:"#5856d6",color:"#fff",border:"none",borderRadius:6,
                     padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",
-                    fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",display:"flex",alignItems:"center",gap:7 }}>
+                    fontFamily:"'IBM Plex Sans',system-ui,sans-serif",display:"flex",alignItems:"center",gap:7 }}>
                   ⊞ Print QR Labels
                 </button>
                 <button className="btn-ghost btn-sm" onClick={selectNone}>Cancel</button>
@@ -7987,7 +7999,7 @@ function BOMManager({ user }) {
                     } catch (e) { alert("Bulk update failed: " + e.message); }
                     setBulkValue("");
                   }}
-                    style={{ background:"#533afd",color:"#fff",border:"none",borderRadius:6,
+                    style={{ background:"#58a6ff",color:"#fff",border:"none",borderRadius:6,
                       padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap" }}>
                     Apply to {selectedParts.size}
                   </button>
@@ -7998,7 +8010,7 @@ function BOMManager({ user }) {
             {parts.length === 0 ? (
               <div style={{ textAlign:"center",padding:"80px 20px",color:"#8898aa" }}>
                 <div style={{ fontSize:44,marginBottom:14 }}>🔩</div>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:15 }}>No parts yet — import a BOM to get started</div>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:15 }}>No parts yet — import a BOM to get started</div>
               </div>
             ) : (
               <div style={{ overflowX:"auto",maxHeight:"75vh",overflowY:"auto",background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
@@ -8009,7 +8021,7 @@ function BOMManager({ user }) {
                         <input
                           type="checkbox"
                           title={selectedParts.size === visibleParts.length && visibleParts.length > 0 ? "Deselect all" : "Select all visible"}
-                          style={{ width:15,height:15,cursor:"pointer",accentColor:"#533afd" }}
+                          style={{ width:15,height:15,cursor:"pointer",accentColor:"#58a6ff" }}
                           checked={visibleParts.length > 0 && visibleParts.every((p) => selectedParts.has(p.id))}
                           ref={(el) => {
                             if (el) el.indeterminate = selectedParts.size > 0 && !visibleParts.every((p) => selectedParts.has(p.id));
@@ -8026,7 +8038,7 @@ function BOMManager({ user }) {
                       ].map((h,hi,arr)=>(
                         <th key={hi} onClick={h.field ? ()=>setPartSort(prev=>({field:h.field,asc:prev.field===h.field?!prev.asc:true})) : undefined}
                           style={{ textAlign:"left",padding:"12px 14px",
-                          fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                          fontFamily:"'IBM Plex Sans',system-ui,sans-serif",
                           fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",
                           whiteSpace:"nowrap",overflow:"hidden",
                           width: h.w || undefined,
@@ -8045,7 +8057,7 @@ function BOMManager({ user }) {
                       const totalPartReserved = partActiveReservations.reduce((s, r) => s + (r.reserved_qty || 0), 0);
                       const partAvailable = Math.max(0, sn - totalPartReserved);
                       const inputStyle = { width:"100%",padding:"6px 10px",borderRadius:6,fontSize:13,
-                        fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                        fontFamily:"'IBM Plex Sans',system-ui,sans-serif",
                         border:"1px solid transparent",background:"transparent",outline:"none",color:"#061b31",
                         transition:"border-color 0.15s, background 0.15s" };
                       const focusIn = (e) => { e.target.style.borderColor="#e3e8ee"; e.target.style.background="#fff"; };
@@ -8057,7 +8069,7 @@ function BOMManager({ user }) {
                             background: selectedParts.has(part.id) ? "rgba(83,58,253,0.05)" : expandedPartRow===part.id ? "rgba(0,0,0,0.02)" : "transparent" }}>
                           <td style={{ padding:"10px 10px",width:28 }}>
                             <input type="checkbox"
-                              style={{ width:15,height:15,cursor:"pointer",accentColor:"#533afd" }}
+                              style={{ width:15,height:15,cursor:"pointer",accentColor:"#58a6ff" }}
                               checked={selectedParts.has(part.id)}
                               onChange={() => toggleSelect(part.id)} />
                           </td>
@@ -8065,7 +8077,7 @@ function BOMManager({ user }) {
                             <input type="text" value={part.mpn||""}
                               onChange={(e)=>updatePart(part.id,"mpn",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
-                              style={{ ...inputStyle,width:"100%",color:"#533afd",fontWeight:600 }} placeholder="—" />
+                              style={{ ...inputStyle,width:"100%",color:"#58a6ff",fontWeight:600 }} placeholder="—" />
                             {(() => {
                               const src = getPartDataSource(part);
                               const lockedVendor = part.pricing?._lockedVendor;
@@ -8094,7 +8106,7 @@ function BOMManager({ user }) {
                             <input type="text" placeholder="—" value={part.footprint||""}
                               onChange={(e)=>updatePart(part.id,"footprint",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
-                              style={{ ...inputStyle,width:"100%",fontSize:12,color:"#636366" }} />
+                              style={{ ...inputStyle,width:"100%",fontSize:12,color:"#5a6373" }} />
                           </td>
                           <td style={{ padding:"6px 8px" }}>
                             <input type="text" value={part.description||""}
@@ -8119,7 +8131,7 @@ function BOMManager({ user }) {
                           </td>
                         </tr>
                         {expandedPartRow === part.id && <tr>
-                            <td colSpan={10} style={{ padding:"12px 20px",background:darkMode?"#1c1c1e":"#fafbfc",borderBottom:"2px solid #533afd" }}>
+                            <td colSpan={10} style={{ padding:"12px 20px",background:darkMode?"#0f1218":"#fafbfc",borderBottom:"2px solid #58a6ff" }}>
                               <div style={{ display:"flex",gap:8,marginBottom:12 }}>
                                 <button onClick={(e)=>{e.stopPropagation();setQrModalParts([part]);}}
                                   style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:"1px solid #e3e8ee",background:"#f6f9fc",cursor:"pointer",color:"#061b31" }}
@@ -8144,7 +8156,7 @@ function BOMManager({ user }) {
                                     <div>Reference: {part.reference || "—"}</div>
                                     <div>Footprint: {part.footprint || "—"}</div>
                                     <div>Voltage Rating: {part.voltage_rating || "—"}</div>
-                                    <div>Order URL: {part.url ? <a href={part.url} target="_blank" rel="noopener noreferrer" style={{color:"#533afd"}}>{part.url.length > 60 ? part.url.slice(0,60)+"…" : part.url}</a> : "—"}</div>
+                                    <div>Order URL: {part.url ? <a href={part.url} target="_blank" rel="noopener noreferrer" style={{color:"#58a6ff"}}>{part.url.length > 60 ? part.url.slice(0,60)+"…" : part.url}</a> : "—"}</div>
                                     <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e5e5ea" }}>
                                       <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>🔒 Locked Vendor</div>
                                       <select
@@ -8231,7 +8243,7 @@ function BOMManager({ user }) {
                                       <span>Supplier: {part.preferredSupplier || "—"}{isLockedSupplier(part.preferredSupplier) && <span style={{ marginLeft:4,fontSize:10,color:"#ff9500",fontWeight:600 }} title="Locked — pricing from this supplier only, no API lookups">🔒 Locked</span>}</span>
                                       {getSupplierWebsite(part.preferredSupplier, part.mpn) && (
                                         <a href={getSupplierWebsite(part.preferredSupplier, part.mpn)} target="_blank" rel="noopener noreferrer"
-                                          style={{ fontSize:11,padding:"2px 10px",borderRadius:100,background:"#533afd",color:"#fff",fontWeight:600,textDecoration:"none",whiteSpace:"nowrap" }}>
+                                          style={{ fontSize:11,padding:"2px 10px",borderRadius:100,background:"#58a6ff",color:"#fff",fontWeight:600,textDecoration:"none",whiteSpace:"nowrap" }}>
                                           {part.mpn ? `Search "${part.mpn}" →` : `Visit ${part.preferredSupplier} →`}
                                         </a>
                                       )}
@@ -8263,7 +8275,7 @@ function BOMManager({ user }) {
                                         </a>
                                       </div>
                                     )}
-                                    {part.url && <div>Order URL: <a href={part.url} target="_blank" rel="noopener noreferrer" style={{color:"#533afd",fontSize:11}}>Open →</a></div>}
+                                    {part.url && <div>Order URL: <a href={part.url} target="_blank" rel="noopener noreferrer" style={{color:"#58a6ff",fontSize:11}}>Open →</a></div>}
                                     {part.addedVia && <div>Added via: <span style={{ fontWeight:600,color:"#5856d6" }}>{{
                                       "manual":"Manual Entry", "quick-add-url":"Quick Add URL", "csv-import":"CSV/BOM Import",
                                       "invoice-import":"Invoice Scanner", "mouser-history":"Mouser Order History",
@@ -8277,10 +8289,10 @@ function BOMManager({ user }) {
                               {(() => {
                                 const usingProducts = products.filter(pr => parts.some(p => p.mpn && p.mpn === part.mpn && p.projectId === pr.id) || (part.projectId === pr.id));
                                 return usingProducts.length > 0 ? (
-                                  <div style={{ marginTop:10,paddingTop:10,borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                                  <div style={{ marginTop:10,paddingTop:10,borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                                     <span style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Used in: </span>
                                     {usingProducts.map(pr => (
-                                      <span key={pr.id} style={{ display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:600,color:"#533afd",marginRight:10 }}>
+                                      <span key={pr.id} style={{ display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:600,color:"#58a6ff",marginRight:10 }}>
                                         <span style={{ width:6,height:6,borderRadius:"50%",background:pr.color }} />{pr.name}
                                       </span>
                                     ))}
@@ -8293,7 +8305,7 @@ function BOMManager({ user }) {
                                 if (!m) return null;
                                 const lifecycleColor = m.lifecycleStatus?.toLowerCase().includes("active") ? "#34c759" : m.lifecycleStatus?.toLowerCase().includes("nrnd") ? "#ff9500" : m.lifecycleStatus?.toLowerCase().includes("eol") || m.lifecycleStatus?.toLowerCase().includes("obsolete") ? "#ff3b30" : "#64748d";
                                 return (
-                                  <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                                  <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                                     {/* Part image — small square thumbnail */}
                                     {m.imagePath && (
                                       <div style={{ marginBottom:10 }}>
@@ -8318,8 +8330,8 @@ function BOMManager({ user }) {
                                           {m.leadTimeDays != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>Lead Time</span><span style={{ fontWeight:600 }}>{m.leadTimeDays} days</span></div>}
                                           {m.caseCode && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>Package</span><span style={{ fontWeight:600 }}>{m.caseCode}</span></div>}
                                           {m.packagingType && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>Tape/Reel</span><span style={{ fontWeight:600 }}>{m.packagingType}</span></div>}
-                                          {m.url && <div style={{ marginTop:4 }}><a href={m.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#533afd", textDecoration:"none", fontWeight:600 }}>View on Mouser →</a></div>}
-                                          {m.datasheetUrl && <div style={{ marginTop:2 }}><a href={m.datasheetUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#533afd", textDecoration:"none", fontWeight:600 }}>Datasheet →</a></div>}
+                                          {m.url && <div style={{ marginTop:4 }}><a href={m.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#58a6ff", textDecoration:"none", fontWeight:600 }}>View on Mouser →</a></div>}
+                                          {m.datasheetUrl && <div style={{ marginTop:2 }}><a href={m.datasheetUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#58a6ff", textDecoration:"none", fontWeight:600 }}>Datasheet →</a></div>}
                                           {m.lastFetched && <div style={{ fontSize:10, color:"#8898aa", marginTop:2 }}>Updated {new Date(m.lastFetched).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>}
                                         </div>
                                       </div>
@@ -8340,7 +8352,7 @@ function BOMManager({ user }) {
                                 );
                               })()}
                               {/* Transaction History (collapsible) */}
-                              <div style={{ marginTop:10,paddingTop:10,borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                              <div style={{ marginTop:10,paddingTop:10,borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                                 <button
                                   onClick={async (e) => {
                                     e.stopPropagation();
@@ -8355,7 +8367,7 @@ function BOMManager({ user }) {
                                       setTxHistoryLoading(prev => ({ ...prev, [part.id]: false }));
                                     }
                                   }}
-                                  style={{ fontSize:11,fontWeight:700,color:"#533afd",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit" }}>
+                                  style={{ fontSize:11,fontWeight:700,color:"#58a6ff",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit" }}>
                                   {txHistoryOpen[part.id] ? "▼" : "▶"} Transaction History
                                 </button>
                                 {txHistoryOpen[part.id] && (
@@ -8381,7 +8393,7 @@ function BOMManager({ user }) {
                                             const delta = tx.quantity_delta || 0;
                                             const deltaColor = delta > 0 ? "#34c759" : delta < 0 ? "#ff3b30" : "#64748d";
                                             return (
-                                              <tr key={tx.id} style={{ borderTop:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2") }}>
+                                              <tr key={tx.id} style={{ borderTop:"1px solid "+(darkMode?"#161a22":"#f0f0f2") }}>
                                                 <td style={{ padding:"4px 6px",color:"#64748d" }}>{tx.created_at ? new Date(tx.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "—"}</td>
                                                 <td style={{ padding:"4px 6px",fontWeight:600 }}>{tx.type || "—"}</td>
                                                 <td style={{ padding:"4px 6px",textAlign:"right",fontWeight:700,color:deltaColor }}>{delta > 0 ? "+" : ""}{delta}</td>
@@ -8417,7 +8429,7 @@ function BOMManager({ user }) {
             <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
               <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#ff9500",color:"#fff",fontSize:12,fontWeight:800 }}>3</span>
-                <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:"#061b31",margin:0 }}>Live Pricing</h2>
+                <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,color:"#061b31",margin:0 }}>Live Pricing</h2>
               </div>
               <p style={{ fontSize:13,color:"#50617a",lineHeight:"20px",margin:0 }}>
                 Live quotes from 900+ distributors worldwide, powered by Nexar/Octopart. Prices include landed costs with tariff calculations based on each part's country of origin. Mouser is automatically preferred when their price is within 5% of the cheapest option (configurable in Settings). Price breaks are calculated at your actual order quantities so you always see the real cost before committing to a PO.
@@ -8444,7 +8456,7 @@ function BOMManager({ user }) {
                 <button
                   disabled={!hasAnyKey || fetchingAll || parts.filter(p=>p.mpn).length===0}
                   onClick={fetchAllPartsPricing}
-                  style={{ padding:"8px 18px",borderRadius:100,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#533afd",color:"#fff",opacity:(!hasAnyKey||fetchingAll)?"0.4":"1" }}>
+                  style={{ padding:"8px 18px",borderRadius:100,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#58a6ff",color:"#fff",opacity:(!hasAnyKey||fetchingAll)?"0.4":"1" }}>
                   {fetchingAll ? "Fetching…" : pricingSearch.trim() ? `Fetch Filtered Prices` : "Fetch All Prices"}
                 </button>
                 <div style={{ display:"flex",borderRadius:100,overflow:"hidden",border:"1px solid #e3e8ee" }}>
@@ -8576,7 +8588,7 @@ function BOMManager({ user }) {
                               onClick={(e)=>e.stopPropagation()}
                               onChange={(e)=>{e.stopPropagation();const v=e.target.value.replace(/[^0-9]/g,"");setBuyQtys(q=>({...q,[part.id]:parseInt(v)||1}));}}
                               style={{ width:72,padding:"2px 4px",border:"none",borderBottom:"1px solid transparent",fontSize:15,textAlign:"center",fontFamily:"inherit",fontWeight:600,color:"#061b31",background:"transparent",outline:"none",transition:"border-color 0.15s" }}
-                              onFocus={(e)=>{e.target.style.borderBottom="1px solid #533afd";e.target.select();}}
+                              onFocus={(e)=>{e.target.style.borderBottom="1px solid #58a6ff";e.target.select();}}
                               onBlur={(e)=>{e.target.style.borderBottom="1px solid transparent";}} />
                             {(() => {
                               const rq = getReelQty(part);
@@ -8636,7 +8648,7 @@ function BOMManager({ user }) {
                                 {getSupplierWebsite(part.preferredSupplier, part.mpn) && (
                                   <a href={getSupplierWebsite(part.preferredSupplier, part.mpn)} target="_blank" rel="noopener noreferrer"
                                     onClick={e=>e.stopPropagation()}
-                                    style={{ fontSize:10,padding:"2px 8px",borderRadius:100,background:"#533afd",color:"#fff",fontWeight:600,textDecoration:"none",whiteSpace:"nowrap" }}>
+                                    style={{ fontSize:10,padding:"2px 8px",borderRadius:100,background:"#58a6ff",color:"#fff",fontWeight:600,textDecoration:"none",whiteSpace:"nowrap" }}>
                                     Visit →
                                   </a>
                                 )}
@@ -8685,7 +8697,7 @@ function BOMManager({ user }) {
                                           {tariffRate > 0 ? ` + ${tariffRate}% tariff` : ""}
                                         </div>
                                       ) : data.originalCurrency ? (
-                                        <div style={{ fontSize:9,color:"#533afd",fontWeight:500,marginTop:1 }}>
+                                        <div style={{ fontSize:9,color:"#58a6ff",fontWeight:500,marginTop:1 }}>
                                           Converted from {data.originalCurrency}
                                         </div>
                                       ) : null}
@@ -8712,7 +8724,7 @@ function BOMManager({ user }) {
                                         )}
                                         {data.leadTime && (
                                           <span style={{ display:"inline-block",padding:"1px 6px",borderRadius:4,fontSize:9,fontWeight:500,
-                                            background:"rgba(83,58,253,0.08)",color:"#533afd" }}>
+                                            background:"rgba(83,58,253,0.08)",color:"#58a6ff" }}>
                                             Lead: {data.leadTime}
                                           </span>
                                         )}
@@ -8720,7 +8732,7 @@ function BOMManager({ user }) {
                                       {data.datasheetUrl && (
                                         <a href={data.datasheetUrl} target="_blank" rel="noopener noreferrer"
                                           onClick={e => e.stopPropagation()}
-                                          style={{ display:"inline-block",marginTop:4,fontSize:10,color:"#533afd",textDecoration:"none",fontWeight:500 }}>
+                                          style={{ display:"inline-block",marginTop:4,fontSize:10,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>
                                           📄 Datasheet
                                         </a>
                                       )}
@@ -8733,7 +8745,7 @@ function BOMManager({ user }) {
                                       {data.url && (
                                         <a href={data.url} target="_blank" rel="noopener noreferrer"
                                           style={{ display:"inline-block",marginTop:8,padding:"4px 12px",borderRadius:100,fontSize:10,
-                                            fontWeight:600,background:isBest?"#34c759":"#533afd",color:"#fff",textDecoration:"none",
+                                            fontWeight:600,background:isBest?"#34c759":"#58a6ff",color:"#fff",textDecoration:"none",
                                             textAlign:"center" }}
                                           onClick={e=>e.stopPropagation()}>
                                           Buy {bq.toLocaleString()} →
@@ -8742,7 +8754,7 @@ function BOMManager({ user }) {
                                       {data.isCustom && (
                                         <div style={{ display:"flex",gap:10,marginTop:6 }}>
                                           <button onClick={(e)=>{e.stopPropagation();setCustomSupplierForm({ partId:part.id, editKey:key, name:data.displayName, url:data.url||"", country:data.country||"US", stock:String(data.stock||""), breaks:data.priceBreaks?.length ? data.priceBreaks.map(b=>({qty:b.qty,price:b.price})) : [{qty:1,price:""}], exclusive:!!data.exclusive });}}
-                                            style={{ fontSize:10,color:"#533afd",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit",fontWeight:500 }}>
+                                            style={{ fontSize:10,color:"#58a6ff",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit",fontWeight:500 }}>
                                             Edit
                                           </button>
                                           <button onClick={(e)=>{e.stopPropagation();removeCustomSupplier(part.id,key);}}
@@ -8766,7 +8778,7 @@ function BOMManager({ user }) {
                                     <a href={`https://octopart.com/search?q=${encodeURIComponent(part.mpn)}&start=0`}
                                       target="_blank" rel="noopener noreferrer"
                                       onClick={e => e.stopPropagation()}
-                                      style={{ fontSize:11,color:"#533afd",textDecoration:"none",fontWeight:600,cursor:"pointer",marginLeft:4 }}>
+                                      style={{ fontSize:11,color:"#58a6ff",textDecoration:"none",fontWeight:600,cursor:"pointer",marginLeft:4 }}>
                                       Search Alternatives
                                     </a>
                                   </div>
@@ -8782,7 +8794,7 @@ function BOMManager({ user }) {
                                     <a href={`https://octopart.com/search?q=${encodeURIComponent(part.mpn)}&start=0`}
                                       target="_blank" rel="noopener noreferrer"
                                       onClick={e => e.stopPropagation()}
-                                      style={{ display:"inline-block",marginLeft:8,fontSize:12,color:"#533afd",textDecoration:"none",fontWeight:600,cursor:"pointer" }}>
+                                      style={{ display:"inline-block",marginLeft:8,fontSize:12,color:"#58a6ff",textDecoration:"none",fontWeight:600,cursor:"pointer" }}>
                                       Search Alternatives on Octopart
                                     </a>
                                   </div>
@@ -8796,14 +8808,14 @@ function BOMManager({ user }) {
                             <div style={{ display:"flex",gap:8,marginBottom:14,flexWrap:"wrap" }}>
                               <button onClick={(e)=>{e.stopPropagation();setCustomSupplierForm({ partId:part.id, name:"", url:"", country:"US", stock:"", breaks:[{qty:1,price:""}], exclusive:false });}}
                                 style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
-                                  border:"1px solid #533afd",background:"none",color:"#533afd" }}>
+                                  border:"1px solid #58a6ff",background:"none",color:"#58a6ff" }}>
                                 + Custom Supplier
                               </button>
                               {(effectiveStatus === "done" || part.pricingStatus === "loading") && (
                                 <button type="button"
                                   onPointerDown={(e)=>{e.stopPropagation();e.preventDefault();if(part.pricingStatus!=="loading")fetchPartPricing(part.id);}}
                                   style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:600,cursor:part.pricingStatus==="loading"?"default":"pointer",fontFamily:"inherit",
-                                    border:"1px solid #533afd",background:"none",color:"#533afd",
+                                    border:"1px solid #58a6ff",background:"none",color:"#58a6ff",
                                     opacity:part.pricingStatus==="loading"?0.5:1 }}>
                                   {part.pricingStatus === "loading" ? "Fetching…" : "Refresh Prices"}
                                 </button>
@@ -8863,7 +8875,7 @@ function BOMManager({ user }) {
                                   </div>
                                 ))}
                                 <button onClick={()=>setCustomSupplierForm(f=>({...f,breaks:[...f.breaks,{qty:"",price:""}]}))}
-                                  style={{ fontSize:11,color:"#533afd",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit",fontWeight:500,marginBottom:12 }}>
+                                  style={{ fontSize:11,color:"#58a6ff",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit",fontWeight:500,marginBottom:12 }}>
                                   + Add price break
                                 </button>
 
@@ -8885,7 +8897,7 @@ function BOMManager({ user }) {
                                     saveCustomSupplier(part.id, { ...customSupplierForm, breaks });
                                   }}
                                     style={{ padding:"7px 18px",borderRadius:8,fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
-                                      border:"none",background:"#533afd",color:"#fff" }}>
+                                      border:"none",background:"#58a6ff",color:"#fff" }}>
                                     Save
                                   </button>
                                   <button onClick={()=>setCustomSupplierForm(null)}
@@ -8946,7 +8958,7 @@ function BOMManager({ user }) {
                                       )}
                                     </div>
                                     <button onClick={(e)=>{e.stopPropagation();loadHistory();}}
-                                      style={{ fontSize:10,color:"#533afd",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:500 }}>
+                                      style={{ fontSize:10,color:"#58a6ff",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:500 }}>
                                       Refresh
                                     </button>
                                   </div>
@@ -8964,7 +8976,7 @@ function BOMManager({ user }) {
                                         const pct = ((v - sparkMin) / sparkRange) * 100;
                                         const h = Math.max(4, 4 + (pct / 100) * 28);
                                         const isLast = i === sparkData.length - 1;
-                                        return <div key={i} style={{ flex:1,height:h,borderRadius:2,background:isLast?"#533afd":"#e3e8ee",transition:"height 0.2s" }}
+                                        return <div key={i} style={{ flex:1,height:h,borderRadius:2,background:isLast?"#58a6ff":"#e3e8ee",transition:"height 0.2s" }}
                                           title={`$${fmtPrice(v)}`} />;
                                       })}
                                     </div>
@@ -8987,7 +8999,7 @@ function BOMManager({ user }) {
                                           <td style={{ padding:"5px 8px" }}>
                                             <span style={{ display:"inline-block",padding:"1px 6px",borderRadius:4,fontSize:9,fontWeight:600,
                                               background:row.source==="invoice"?"rgba(255,149,0,0.1)":row.source==="pricing"?"rgba(83,58,253,0.08)":"rgba(134,134,139,0.1)",
-                                              color:row.source==="invoice"?"#ff9500":row.source==="pricing"?"#533afd":"#64748d" }}>
+                                              color:row.source==="invoice"?"#ff9500":row.source==="pricing"?"#58a6ff":"#64748d" }}>
                                               {row.source}
                                             </span>
                                           </td>
@@ -9220,7 +9232,7 @@ function BOMManager({ user }) {
             <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
               <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#ff3b30",color:"#fff",fontSize:12,fontWeight:800 }}>5</span>
-                <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:"#061b31",margin:0 }}>Purchasing</h2>
+                <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,color:"#061b31",margin:0 }}>Purchasing</h2>
               </div>
               <p style={{ fontSize:13,color:"#50617a",lineHeight:"20px",margin:0 }}>
                 Your checkout page for parts. The build queue aggregates every part needed across all queued products, deduplicates shared components, subtracts current stock, and groups the remaining demand by supplier. Each line item shows tariff exposure by country of origin — use "Skip Tariffed Parts" to hold back tariffed components and order tariff-free parts first. For Mouser orders, "Check Tariffs" queries their Cart API for actual surcharges before you commit. Parts priced at or above the reel order threshold prompt a reel vs. cut tape decision with burn-time estimates so you only buy full reels when it makes sense. Generate POs, email reps, export CSVs, or push directly to Mouser's cart.
@@ -9234,7 +9246,7 @@ function BOMManager({ user }) {
                   Go to Products and enter a quantity next to any product, then click Order to add it here.
                 </div>
                 <button onClick={()=>setActiveView("projects")}
-                  style={{ padding:"8px 24px",borderRadius:100,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#533afd",color:"#fff" }}>
+                  style={{ padding:"8px 24px",borderRadius:100,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#58a6ff",color:"#fff" }}>
                   Go to Products
                 </button>
               </div>
@@ -9279,9 +9291,9 @@ function BOMManager({ user }) {
                         <div style={{ fontSize:18,fontWeight:600,color:"#061b31" }}>{"$"}{fmtDollar(extCost)}</div>
                       </div>
                       <button onClick={() => setBuildQueue(prev => prev.filter(q => q.productId !== item.productId))}
-                        style={{ background:"none",border:"none",color:"#c7c7cc",fontSize:14,cursor:"pointer",padding:"2px 6px",borderRadius:4,transition:"color 0.15s" }}
+                        style={{ background:"none",border:"none",color:"#b8bfcc",fontSize:14,cursor:"pointer",padding:"2px 6px",borderRadius:4,transition:"color 0.15s" }}
                         onMouseOver={(e)=>e.target.style.color="#ff3b30"}
-                        onMouseOut={(e)=>e.target.style.color="#c7c7cc"}>✕</button>
+                        onMouseOut={(e)=>e.target.style.color="#b8bfcc"}>✕</button>
                     </div>
                   );
                 })}
@@ -9305,9 +9317,9 @@ function BOMManager({ user }) {
                 return (
                   <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
                     <div style={{ display:"flex",alignItems:"center",gap:16,padding:"14px 22px",flexWrap:"wrap" }}>
-                      <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,fontWeight:600,color:usSuppliersOnly?"#533afd":"#061b31" }}>
+                      <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,fontWeight:600,color:usSuppliersOnly?"#58a6ff":"#061b31" }}>
                         <input type="checkbox" checked={usSuppliersOnly} onChange={() => setUsSuppliersOnly(v => !v)}
-                          style={{ width:16,height:16,accentColor:"#533afd",cursor:"pointer" }} />
+                          style={{ width:16,height:16,accentColor:"#58a6ff",cursor:"pointer" }} />
                         US Suppliers Only
                       </label>
                       <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,fontWeight:600,color:skipTariffedParts?"#ff9500":"#061b31" }}>
@@ -9443,7 +9455,7 @@ function BOMManager({ user }) {
                                   <button onClick={() => setReelDecisions(prev => ({ ...prev, [d.part.id]: "reel" }))}
                                     style={{ flex:1,padding:"6px 10px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
                                       border:"none",
-                                      background: effectiveDecision === "reel" ? "#533afd" : "#f6f9fc",
+                                      background: effectiveDecision === "reel" ? "#58a6ff" : "#f6f9fc",
                                       color: effectiveDecision === "reel" ? "#fff" : "#3a3f51",
                                       transition:"all 0.15s" }}>
                                     {effectiveDecision === "reel" ? "● " : "○ "}{isReelPkg ? "Full Reel" : "Full Pack"} {d.net.toLocaleString()} pcs · ${fmtDollar(d.bestPrice * d.net)}
@@ -9451,7 +9463,7 @@ function BOMManager({ user }) {
                                   <button onClick={() => setReelDecisions(prev => ({ ...prev, [d.part.id]: "cut" }))}
                                     style={{ flex:1,padding:"6px 10px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
                                       border:"none",
-                                      background: effectiveDecision === "cut" ? "#533afd" : "#f6f9fc",
+                                      background: effectiveDecision === "cut" ? "#58a6ff" : "#f6f9fc",
                                       color: effectiveDecision === "cut" ? "#fff" : "#3a3f51",
                                       transition:"all 0.15s" }}>
                                     {effectiveDecision === "cut" ? "● " : "○ "}{isReelPkg ? "Cut Tape" : "Exact Qty"} {d.rawNet.toLocaleString()} pcs · ~${fmtDollar(d.bestPrice * d.rawNet)}
@@ -9515,7 +9527,7 @@ function BOMManager({ user }) {
                                   <div style={{ fontSize:18,fontWeight:600,color:d.hasTariff?"#ff9500":"#061b31" }}>{"$"}{fmtDollar(effectiveLandedPrice * effectiveQty)}</div>
                                   <div style={{ fontSize:11,color:"#64748d" }}>${fmtPrice(d.bestPrice)} ea{d.hasTariff ? ` + $${fmtPrice(effectiveLandedPrice - d.bestPrice)} tariff` : ""}</div>
                                 </>
-                              : <div style={{ fontSize:14,color:"#c7c7cc" }}>—</div>}
+                              : <div style={{ fontSize:14,color:"#b8bfcc" }}>—</div>}
                           </div>
                         </div>
                       );
@@ -9709,7 +9721,7 @@ function BOMManager({ user }) {
                                 totalEstimate: poTotal, notes: `Submitted to rep: ${repName} (${repEmail})` });
                               try { await createPORecord({ supplier: sup.name, po_number: poNum, status: "submitted", items: items.map(d => ({ mpn: d.part.mpn, qty: d.allocatedQty || d.net, unitPrice: d.allocatedPrice || d.bestPrice })), total_value: poTotal, notes: `Emailed to rep: ${repEmail}`, ordered_at: new Date().toISOString() }, user.id); } catch {}
                             }}
-                            style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#533afd",color:"#fff" }}>
+                            style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#58a6ff",color:"#fff" }}>
                             Email PO to Rep
                           </button>
                         )}
@@ -9757,7 +9769,7 @@ function BOMManager({ user }) {
                     {orderMode === "rep" && (repEmail || lastOrder) && (
                       <div style={{ padding:"8px 22px",background:"rgba(83,58,253,0.04)",borderBottom:"1px solid #f0f0f2",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",fontSize:11,color:"#50617a" }}>
                         {repEmail && (
-                          <span>Rep: <strong style={{ color:"#533afd" }}>{repName}</strong> &middot; <a href={`mailto:${repEmail}`} style={{ color:"#533afd",textDecoration:"none" }}>{repEmail}</a></span>
+                          <span>Rep: <strong style={{ color:"#58a6ff" }}>{repName}</strong> &middot; <a href={`mailto:${repEmail}`} style={{ color:"#58a6ff",textDecoration:"none" }}>{repEmail}</a></span>
                         )}
                         {lastOrder && (
                           <span>Last ordered: {new Date(lastOrder.ordered_at || lastOrder.created_at).toLocaleDateString()}</span>
@@ -9867,7 +9879,7 @@ function BOMManager({ user }) {
                     </div>
                     <div style={{ textAlign:"right" }}>
                       <div style={{ fontSize:11,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.5px",fontWeight:500 }}>Estimated Landed Total</div>
-                      <span style={{ fontSize:24,fontWeight:800,color:"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                      <span style={{ fontSize:24,fontWeight:800,color:"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                         {"$"}{fmtDollar(landedTotal)}
                       </span>
                     </div>
@@ -9905,8 +9917,8 @@ function BOMManager({ user }) {
                     }}
                     style={{
                       padding:"14px 36px",borderRadius:100,fontSize:15,fontWeight:700,cursor:"pointer",
-                      fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
-                      border:"none",background:"#533afd",color:"#fff",
+                      fontFamily:"'IBM Plex Sans',system-ui,sans-serif",
+                      border:"none",background:"#58a6ff",color:"#fff",
                       boxShadow:"0 2px 8px rgba(83,58,253,0.3)",
                     }}>
                     Email All POs ({Object.keys(supplierGroups).length} suppliers)
@@ -9925,15 +9937,15 @@ function BOMManager({ user }) {
           <div>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12 }}>
               <div>
-                <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Order Tracker</h2>
+                <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Order Tracker</h2>
                 <p style={{ color:"#64748d",fontSize:13,marginBottom:8 }}>Track orders across all suppliers. Mouser cart orders are logged automatically.</p>
                 <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
                   <span style={{ fontSize:12,color:"#64748d" }}>Mobile Invoice Scanner:</span>
-                  <code style={{ fontSize:11,color:darkMode?"#f8d377":"#5856d6",background:darkMode?"#1c1c1e":"#f0f0f2",padding:"3px 8px",borderRadius:5,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
+                  <code style={{ fontSize:11,color:darkMode?"#f8d377":"#5856d6",background:darkMode?"#0f1218":"#f0f0f2",padding:"3px 8px",borderRadius:5,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
                     {window.location.origin + "/invoice"}
                   </code>
                   <button onClick={() => { navigator.clipboard.writeText(window.location.origin + "/invoice"); }}
-                    style={{ padding:"4px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:darkMode?"#3a3a3e":"#e5e5ea",color:darkMode?"#f6f9fc":"#061b31" }}>
+                    style={{ padding:"4px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:darkMode?"#1f2530":"#e5e5ea",color:darkMode?"#f6f9fc":"#061b31" }}>
                     Copy Link
                   </button>
                   <button onClick={() => window.open(window.location.origin + "/invoice", "_blank", "noopener")}
@@ -9954,7 +9966,7 @@ function BOMManager({ user }) {
             {orderForm && (
               <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,overflow:"hidden" }}>
                 <div style={{ background:"#b8bdd1",padding:"14px 20px" }}>
-                  <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                     Log New Order
                   </div>
                 </div>
@@ -10005,7 +10017,7 @@ function BOMManager({ user }) {
                     </div>
                   ))}
                   <button onClick={() => setOrderForm(f => ({ ...f, items: [...f.items, { mpn: "", qty: 1, unitPrice: "" }] }))}
-                    style={{ fontSize:11,color:"#533afd",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit",fontWeight:500,marginTop:4 }}>
+                    style={{ fontSize:11,color:"#58a6ff",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit",fontWeight:500,marginTop:4 }}>
                     + Add Line
                   </button>
                   <div style={{ display:"flex",gap:8,marginTop:14 }}>
@@ -10036,7 +10048,7 @@ function BOMManager({ user }) {
             {trackedOrders.length === 0 ? (
               <div className="card" style={{ textAlign:"center",padding:"60px 30px" }}>
                 <div style={{ fontSize:44,marginBottom:14 }}>📋</div>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:16,marginBottom:8 }}>No Orders Tracked Yet</div>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:16,marginBottom:8 }}>No Orders Tracked Yet</div>
                 <div style={{ color:"#64748d",fontSize:13,maxWidth:440,margin:"0 auto" }}>
                   Orders are logged automatically when you use "Send to Mouser Cart" from the Purchasing page, or you can log orders from any supplier manually.
                 </div>
@@ -10046,7 +10058,7 @@ function BOMManager({ user }) {
                 {trackedOrders.map((order) => {
                   const isOpen = expandedOrder === order.id;
                   const statusColors = {
-                    submitted: { bg: "rgba(83,58,253,0.1)", color: "#533afd", label: "Submitted" },
+                    submitted: { bg: "rgba(83,58,253,0.1)", color: "#58a6ff", label: "Submitted" },
                     processing: { bg: "rgba(255,149,0,0.1)", color: "#ff9500", label: "Processing" },
                     shipped: { bg: "rgba(52,199,89,0.1)", color: "#34c759", label: "Shipped" },
                     delivered: { bg: "rgba(52,199,89,0.15)", color: "#248a3d", label: "Delivered" },
@@ -10065,7 +10077,7 @@ function BOMManager({ user }) {
                         onMouseOut={e => e.currentTarget.style.background = "transparent"}>
                         <div style={{ width:36,height:36,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",
                           background: order.supplierColor || "#8e8e93",color:"#fff",fontWeight:800,fontSize:11,
-                          fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",flexShrink:0 }}>
+                          fontFamily:"'IBM Plex Sans',system-ui,sans-serif",flexShrink:0 }}>
                           {(order.supplier || "?").slice(0, 2).toUpperCase()}
                         </div>
                         <div style={{ flex:1,minWidth:0 }}>
@@ -10086,7 +10098,7 @@ function BOMManager({ user }) {
                           <a href={getTrackingUrl(order.trackingNumbers[0], order.carrier)}
                             target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                             style={{ padding:"5px 12px",borderRadius:100,fontSize:11,fontWeight:600,textDecoration:"none",
-                              background:"rgba(83,58,253,0.08)",color:"#533afd",whiteSpace:"nowrap" }}>
+                              background:"rgba(83,58,253,0.08)",color:"#58a6ff",whiteSpace:"nowrap" }}>
                             Track Package
                           </a>
                         )}
@@ -10131,7 +10143,7 @@ function BOMManager({ user }) {
                                   <div key={ti} style={{ display:"flex",alignItems:"center",gap:4,background:"rgba(83,58,253,0.06)",
                                     borderRadius:8,padding:"4px 10px" }}>
                                     <a href={getTrackingUrl(tn, order.carrier)} target="_blank" rel="noopener noreferrer"
-                                      style={{ fontSize:12,color:"#533afd",textDecoration:"none",fontWeight:500 }}>
+                                      style={{ fontSize:12,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>
                                       {tn} ↗
                                     </a>
                                     <button onClick={() => {
@@ -10149,7 +10161,7 @@ function BOMManager({ user }) {
                                     status: order.status === "submitted" ? "shipped" : order.status,
                                   });
                                 }}
-                                  style={{ fontSize:11,color:"#533afd",background:"none",border:"1px solid rgba(83,58,253,0.2)",
+                                  style={{ fontSize:11,color:"#58a6ff",background:"none",border:"1px solid rgba(83,58,253,0.2)",
                                     borderRadius:8,cursor:"pointer",padding:"4px 10px",fontFamily:"inherit",fontWeight:500 }}>
                                   + Add Tracking
                                 </button>
@@ -10233,9 +10245,9 @@ function BOMManager({ user }) {
           if (vendors.length === 0 && !vendorsLoading) loadVendors();
 
           const textPrimary2   = darkMode ? "#f6f9fc" : "#061b31";
-          const textSecondary2 = darkMode ? "#98989d" : "#64748d";
-          const cardBg2        = darkMode ? "#2c2c2e" : "#fff";
-          const borderColor2   = darkMode ? "#3a3a3e" : "#e5e5ea";
+          const textSecondary2 = darkMode ? "#8a93a3" : "#64748d";
+          const cardBg2        = darkMode ? "#161a22" : "#fff";
+          const borderColor2   = darkMode ? "#1f2530" : "#e5e5ea";
 
           // ── VENDOR DIRECTORY sub-tab ──────────────────────────────
           if (supplierSubTab === "directory") {
@@ -10276,7 +10288,7 @@ function BOMManager({ user }) {
             const domestic      = allRows.filter(v => v.is_domestic !== false);
             const international = allRows.filter(v => v.is_domestic === false);
 
-            const inputStyle = { width:"100%",padding:"5px 7px",borderRadius:6,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f6f9fc",color:textPrimary2,fontSize:12,fontFamily:"inherit",boxSizing:"border-box" };
+            const inputStyle = { width:"100%",padding:"5px 7px",borderRadius:6,border:`1px solid ${borderColor2}`,background:darkMode?"#0f1218":"#f6f9fc",color:textPrimary2,fontSize:12,fontFamily:"inherit",boxSizing:"border-box" };
             const thStyle    = { padding:"8px 12px",fontSize:11,fontWeight:700,color:textSecondary2,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left",whiteSpace:"nowrap",borderBottom:`2px solid ${borderColor2}` };
             const tdStyle    = (editing) => ({ padding: editing ? "6px 8px" : "10px 12px", verticalAlign:"middle", borderBottom:`1px solid ${borderColor2}`, fontSize:13 });
 
@@ -10290,7 +10302,7 @@ function BOMManager({ user }) {
                 <div style={{ background:cardBg2,borderRadius:12,border:`1px solid ${borderColor2}`,overflow:"hidden" }}>
                   <table style={{ width:"100%",borderCollapse:"collapse" }}>
                     <thead>
-                      <tr style={{ background:darkMode?"#3a3a3e":"#f6f9fc" }}>
+                      <tr style={{ background:darkMode?"#1f2530":"#f6f9fc" }}>
                         <th style={thStyle}>Vendor</th>
                         <th style={thStyle}>Account #</th>
                         <th style={thStyle}>Contact</th>
@@ -10319,7 +10331,7 @@ function BOMManager({ user }) {
                                     {vendor.is_api_supplier && (() => {
                                       const status = apiStatus(vendor.slug);
                                       if (status === "direct") return <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:100,background:"rgba(52,199,89,0.12)",color:"#34c759" }}>✓ API Connected</span>;
-                                      if (status === "nexar")  return <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:100,background:"rgba(83,58,253,0.1)",color:"#533afd" }}>✓ Via Nexar</span>;
+                                      if (status === "nexar")  return <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:100,background:"rgba(83,58,253,0.1)",color:"#58a6ff" }}>✓ Via Nexar</span>;
                                       return <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:100,background:"rgba(255,59,48,0.1)",color:"#ff3b30" }}>✗ Not Connected</span>;
                                     })()}
                                     {vendor.is_locked_supplier && <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:100,background:"rgba(255,149,0,0.1)",color:"#ff9500" }}>🔒 Manual</span>}
@@ -10342,14 +10354,14 @@ function BOMManager({ user }) {
                               {isEditing
                                 ? <input style={inputStyle} type="email" value={d.contact_email||""} onChange={e=>setVendorDraft(x=>({...x,contact_email:e.target.value}))} />
                                 : vendor.contact_email
-                                  ? <a href={`mailto:${vendor.contact_email}`} style={{ color:"#533afd",fontWeight:600,fontSize:12 }}>{vendor.contact_email}</a>
+                                  ? <a href={`mailto:${vendor.contact_email}`} style={{ color:"#58a6ff",fontWeight:600,fontSize:12 }}>{vendor.contact_email}</a>
                                   : <span style={{ color:textSecondary2 }}>—</span>}
                             </td>
                             <td style={tdStyle(isEditing)}>
                               {isEditing
                                 ? <input style={inputStyle} type="tel" value={d.contact_phone||""} onChange={e=>setVendorDraft(x=>({...x,contact_phone:e.target.value}))} />
                                 : vendor.contact_phone
-                                  ? <a href={`tel:${vendor.contact_phone}`} style={{ color:"#533afd",fontWeight:600,fontSize:12 }}>{vendor.contact_phone}</a>
+                                  ? <a href={`tel:${vendor.contact_phone}`} style={{ color:"#58a6ff",fontWeight:600,fontSize:12 }}>{vendor.contact_phone}</a>
                                   : <span style={{ color:textSecondary2 }}>—</span>}
                             </td>
                             <td style={tdStyle(isEditing)}>
@@ -10387,7 +10399,7 @@ function BOMManager({ user }) {
                                   <button onClick={()=>{ setEditingVendorId(vendor.id); setVendorDraft({...vendor}); window.scrollTo({top:0,behavior:"smooth"}); }}
                                     style={{ padding:"4px 10px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor2}`,background:"transparent",color:textPrimary2 }}>Edit</button>
                                   {vendor.website && <a href={vendor.website} target="_blank" rel="noopener noreferrer"
-                                    style={{ padding:"4px 10px",borderRadius:100,fontSize:11,fontWeight:600,textDecoration:"none",background:"#533afd",color:"#fff" }}>↗</a>}
+                                    style={{ padding:"4px 10px",borderRadius:100,fontSize:11,fontWeight:600,textDecoration:"none",background:"#58a6ff",color:"#fff" }}>↗</a>}
                                 </div>
                               )}
                             </td>
@@ -10404,7 +10416,7 @@ function BOMManager({ user }) {
               <div>
                 <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10 }}>
                   <div>
-                    <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary2,margin:0 }}>Vendor Directory</h2>
+                    <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary2,margin:0 }}>Vendor Directory</h2>
                     <p style={{ fontSize:14,color:textSecondary2,marginTop:4,marginBottom:0 }}>Contact info, account numbers, and payment terms for all suppliers.</p>
                   </div>
                   <div style={{ display:"flex",gap:10,alignItems:"center" }}>
@@ -10412,14 +10424,14 @@ function BOMManager({ user }) {
                       {["scorecards","directory"].map(t => (
                         <button key={t} onClick={()=>setSupplierSubTab(t)}
                           style={{ padding:"7px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",
-                            background:supplierSubTab===t?(darkMode?"#3a3a3e":"#061b31"):"transparent",
+                            background:supplierSubTab===t?(darkMode?"#1f2530":"#061b31"):"transparent",
                             color:supplierSubTab===t?"#fff":textSecondary2,textTransform:"capitalize" }}>
                           {t}
                         </button>
                       ))}
                     </div>
                     <button onClick={()=>{setEditingVendorId("new");setVendorDraft({slug:"",display_name:"",website:"",account_number:"",contact_name:"",contact_email:"",contact_phone:"",payment_terms:"Net 30",lead_time_days:"",notes:"",is_domestic:true});}}
-                      style={{ padding:"8px 18px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#533afd",color:"#fff" }}>
+                      style={{ padding:"8px 18px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#58a6ff",color:"#fff" }}>
                       + Add Vendor
                     </button>
                   </div>
@@ -10444,20 +10456,20 @@ function BOMManager({ user }) {
                         <div key={f.key}>
                           <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>{f.label}</div>
                           <input placeholder={f.placeholder||""} value={vendorDraft[f.key]||""} onChange={e=>setVendorDraft(d=>({...d,[f.key]:e.target.value}))}
-                            style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f6f9fc",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }} />
+                            style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#0f1218":"#f6f9fc",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }} />
                         </div>
                       ))}
                       <div>
                         <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Payment Terms</div>
                         <select value={vendorDraft.payment_terms||"Net 30"} onChange={e=>setVendorDraft(d=>({...d,payment_terms:e.target.value}))}
-                          style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f6f9fc",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }}>
+                          style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#0f1218":"#f6f9fc",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }}>
                           {PAYMENT_TERMS.map(t=><option key={t} value={t}>{t}</option>)}
                         </select>
                       </div>
                       <div>
                         <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Region</div>
                         <select value={vendorDraft.is_domestic !== false ? "domestic" : "international"} onChange={e=>setVendorDraft(d=>({...d,is_domestic:e.target.value==="domestic"}))}
-                          style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f6f9fc",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }}>
+                          style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#0f1218":"#f6f9fc",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }}>
                           <option value="domestic">🇺🇸 Domestic</option>
                           <option value="international">🌐 International</option>
                         </select>
@@ -10465,7 +10477,7 @@ function BOMManager({ user }) {
                       <div>
                         <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Supplier Type</div>
                         <select value={vendorDraft.is_api_supplier ? "api" : "manual"} onChange={e=>setVendorDraft(d=>({...d,is_api_supplier:e.target.value==="api"}))}
-                          style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f6f9fc",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }}>
+                          style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#0f1218":"#f6f9fc",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }}>
                           <option value="manual">🔒 Manual (no API)</option>
                           <option value="api">⚡ API Connected</option>
                         </select>
@@ -10473,7 +10485,7 @@ function BOMManager({ user }) {
                       <div style={{ gridColumn:"1/-1" }}>
                         <div style={{ fontSize:11,fontWeight:600,color:textSecondary2,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Notes</div>
                         <textarea value={vendorDraft.notes||""} onChange={e=>setVendorDraft(d=>({...d,notes:e.target.value}))} rows={2}
-                          style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#1c1c1e":"#f6f9fc",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",resize:"vertical" }} />
+                          style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${borderColor2}`,background:darkMode?"#0f1218":"#f6f9fc",color:textPrimary2,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",resize:"vertical" }} />
                       </div>
                     </div>
                     <div style={{ display:"flex",gap:10,alignItems:"center" }}>
@@ -10578,10 +10590,10 @@ function BOMManager({ user }) {
           const overallAvgLead = allLeadTimes.length > 0 ? Math.round(allLeadTimes.reduce((a,b)=>a+b,0) / allLeadTimes.length * 10) / 10 : null;
           const bestSupplier = allSuppliers.filter(s => s.orderCount >= 3 && s.avgLeadTime != null).sort((a,b) => a.avgLeadTime - b.avgLeadTime)[0];
 
-          const cardBg = darkMode ? "#2c2c2e" : "#fff";
+          const cardBg = darkMode ? "#161a22" : "#fff";
           const textPrimary = darkMode ? "#f6f9fc" : "#061b31";
-          const textSecondary = darkMode ? "#98989d" : "#64748d";
-          const borderColor = darkMode ? "#3a3a3e" : "#e5e5ea";
+          const textSecondary = darkMode ? "#8a93a3" : "#64748d";
+          const borderColor = darkMode ? "#1f2530" : "#e5e5ea";
           const ratingColor = (val, goodBelow, badAbove) => {
             if (val == null) return textSecondary;
             if (typeof goodBelow === "number") return val <= goodBelow ? "#34c759" : val >= badAbove ? "#ff3b30" : "#ff9500";
@@ -10592,12 +10604,12 @@ function BOMManager({ user }) {
           return (
             <div style={{ maxWidth:"100%" }}>
               <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,flexWrap:"wrap",gap:10 }}>
-                <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,margin:0 }}>Supplier Scorecards</h2>
+                <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,margin:0 }}>Supplier Scorecards</h2>
                 <div style={{ display:"flex",borderRadius:100,overflow:"hidden",border:`1px solid ${borderColor}` }}>
                   {["scorecards","directory"].map(t => (
                     <button key={t} onClick={() => setSupplierSubTab(t)}
                       style={{ padding:"7px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",
-                        background:supplierSubTab===t?(darkMode?"#3a3a3e":"#061b31"):"transparent",
+                        background:supplierSubTab===t?(darkMode?"#1f2530":"#061b31"):"transparent",
                         color:supplierSubTab===t?"#fff":textSecondary,textTransform:"capitalize" }}>
                       {t}
                     </button>
@@ -10610,13 +10622,13 @@ function BOMManager({ user }) {
               <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:16,marginBottom:28 }}>
                 {[
                   { label:"Total Suppliers", value:allSuppliers.length, color:"#5856d6" },
-                  { label:"Total Orders", value:totalOrders, color:"#533afd" },
+                  { label:"Total Orders", value:totalOrders, color:"#58a6ff" },
                   { label:"Avg Lead Time", value:overallAvgLead != null ? `${overallAvgLead} days` : "—", color:"#ff9500" },
                   { label:"Best Supplier", value:bestSupplier ? bestSupplier.name.replace(/ Electronics/,"") : "—", sub:bestSupplier ? `${bestSupplier.avgLeadTime}d avg, ${bestSupplier.orderCount} orders` : "Need 3+ orders", color:"#34c759" },
                 ].map(card => (
                   <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"18px 20px",boxShadow:darkMode?"none":"0 1px 4px rgba(0,0,0,0.06)",border:`1px solid ${borderColor}` }}>
                     <div style={{ fontSize:11,fontWeight:600,color:textSecondary,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6 }}>{card.label}</div>
-                    <div style={{ fontSize:26,fontWeight:700,color:card.color,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>{card.value}</div>
+                    <div style={{ fontSize:26,fontWeight:700,color:card.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>{card.value}</div>
                     {card.sub && <div style={{ fontSize:11,color:textSecondary,marginTop:2 }}>{card.sub}</div>}
                   </div>
                 ))}
@@ -10629,7 +10641,7 @@ function BOMManager({ user }) {
                   <button key={opt.k} onClick={() => setSupplierSort(opt.k)}
                     style={{ padding:"6px 14px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
                       border:`1px solid ${borderColor}`,
-                      background:supplierSort===opt.k ? (darkMode?"#3a3a3e":"#061b31") : "transparent",
+                      background:supplierSort===opt.k ? (darkMode?"#1f2530":"#061b31") : "transparent",
                       color:supplierSort===opt.k ? "#fff" : textSecondary }}>
                     {opt.l}
                   </button>
@@ -10734,12 +10746,12 @@ function BOMManager({ user }) {
             PRODUCTS
         ══════════════════════════════════════ */}
         {activeView === "projects" && !selectedProduct && (
-          <div style={{ background:darkMode?"#1c1c1e":"#f6f9fc",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
+          <div style={{ background:darkMode?"#0f1218":"#f6f9fc",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
             {/* Header bubble */}
             <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
               <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#5856d6",color:"#fff",fontSize:12,fontWeight:800 }}>2</span>
-                <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",margin:0 }}>Products</h2>
+                <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",margin:0 }}>Products</h2>
               </div>
               <p style={{ fontSize:13,color:"#50617a",lineHeight:"20px",margin:0 }}>
                 Products are the pedals, amps, and gear you build. Each product has a bill of materials — the parts required for one unit. This is where you manage what you manufacture, queue build orders linked to specific dealer POs or direct orders, and see the true cost of each product including tariffs and shipping. When it's time to order parts, enter a quantity and click Order to send it to the Purchasing tab.
@@ -10750,7 +10762,7 @@ function BOMManager({ user }) {
                 <div style={{ position:"relative",display:"inline-block" }}>
                   <input type="text" placeholder="Search products..." value={prodSearch}
                     onChange={e => setProdSearch(e.target.value)}
-                    style={{ padding:"8px 14px",paddingRight:prodSearch?28:14,borderRadius:100,fontSize:13,border:"1px solid #e3e8ee",fontFamily:"inherit",outline:"none",width:220,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                    style={{ padding:"8px 14px",paddingRight:prodSearch?28:14,borderRadius:100,fontSize:13,border:"1px solid #e3e8ee",fontFamily:"inherit",outline:"none",width:220,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                   {prodSearch && <span onClick={()=>setProdSearch("")} style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#64748d",lineHeight:1 }}>✕</span>}
                 </div>
                 <select value={selBrand||"all"} onChange={e=>setSelBrand(e.target.value)}
@@ -10761,7 +10773,7 @@ function BOMManager({ user }) {
                   )}
                 </select>
                 <button onClick={() => setUpcImportOpen(true)}
-                  style={{ padding:"6px 14px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #e3e8ee",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
+                  style={{ padding:"6px 14px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #e3e8ee",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
                   Import UPCs
                 </button>
                 <button onClick={() => {
@@ -10801,7 +10813,7 @@ function BOMManager({ user }) {
                   setUpcGenerateResults(results);
                   setUpcGenerateOpen(true);
                 }}
-                  style={{ padding:"6px 14px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:"#533afd",color:"#fff" }}>
+                  style={{ padding:"6px 14px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:"#58a6ff",color:"#fff" }}>
                   Generate UPCs
                 </button>
                 <button onClick={async () => {
@@ -10885,7 +10897,7 @@ function BOMManager({ user }) {
                   a.download = `dealer-product-sheet-${selBrand === "all" ? "all-brands" : selBrand.replace(/\s+/g,"-").toLowerCase()}-${new Date().toISOString().slice(0,10)}.csv`;
                   a.click();
                 }}
-                  style={{ padding:"6px 14px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #e3e8ee",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
+                  style={{ padding:"6px 14px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #e3e8ee",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
                   Export Dealer Sheet
                 </button>
                 <button onClick={() => {
@@ -10894,12 +10906,12 @@ function BOMManager({ user }) {
                   setBulkRenameEdits(sorted.map(p => ({ id: p.id, brand: p.brand || "Jackson Audio", original: p.name, newName: p.name, changed: false, selected: false })));
                   setBulkRenameOpen(true);
                 }}
-                  style={{ padding:"6px 14px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #e3e8ee",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
+                  style={{ padding:"6px 14px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #e3e8ee",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
                   Bulk Rename
                 </button>
                 <input type="text" placeholder="New product name…" value={newProjName}
                   onChange={(e)=>setNewProjName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addProduct()}
-                  style={{ marginLeft:"auto",padding:"6px 12px",borderRadius:100,fontSize:12,border:"1px solid #e3e8ee",fontFamily:"inherit",outline:"none",width:180,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                  style={{ marginLeft:"auto",padding:"6px 12px",borderRadius:100,fontSize:12,border:"1px solid #e3e8ee",fontFamily:"inherit",outline:"none",width:180,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                 <select value={newProjBrand} onChange={e=>{
                     let val=e.target.value;
                     if(val==="__new__"){val=window.prompt("New brand name:");if(!val){setNewProjBrand("Jackson Audio");return;}}
@@ -10912,7 +10924,7 @@ function BOMManager({ user }) {
                   <option value="__new__">+ New Brand...</option>
                 </select>
                 <button onClick={addProduct}
-                  style={{ padding:"8px 18px",borderRadius:100,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#533afd",color:"#fff" }}>
+                  style={{ padding:"8px 18px",borderRadius:100,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#58a6ff",color:"#fff" }}>
                   + New Product
                 </button>
               </div>
@@ -11003,11 +11015,11 @@ function BOMManager({ user }) {
                     </button>
                   </div>
                 )}
-                <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div style={{ background:darkMode?"#161a22":"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                   {/* Column headers */}
                   <div style={{ display:"grid",gridTemplateColumns:"30px 24px 1fr 90px 80px 100px 70px 80px 36px",gap:8,padding:"10px 22px",
                     fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",
-                    borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),background:darkMode?"#1c1c1e":"#fafbfc" }}>
+                    borderBottom:"2px solid "+(darkMode?"#1f2530":"#e5e5ea"),background:darkMode?"#0f1218":"#fafbfc" }}>
                     <div style={{ display:"flex",alignItems:"center" }}>
                       <input type="checkbox"
                         checked={sorted.length > 0 && sorted.every(p => selectedProductIds.has(p.id))}
@@ -11023,7 +11035,7 @@ function BOMManager({ user }) {
                     <div key={brand}>
                       {brandKeys.length > 1 && (
                         <div style={{ padding:"8px 22px",fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",
-                          color:darkMode?"#8898aa":"#64748d",background:darkMode?"#1c1c1e":"#f0f0f2",borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),
+                          color:darkMode?"#8898aa":"#64748d",background:darkMode?"#0f1218":"#f0f0f2",borderBottom:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),
                           cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center" }}
                           onClick={()=>setCollapsedBrands(prev=>{const s=new Set(prev);s.has(brand)?s.delete(brand):s.add(brand);return s;})}>
                           <span>{brand} ({groups[brand].length})</span>
@@ -11037,8 +11049,8 @@ function BOMManager({ user }) {
                           style={{ display:"grid",gridTemplateColumns:"30px 24px 1fr 90px 80px 100px 70px 80px 36px",gap:8,alignItems:"center",
                             padding:"12px 22px",cursor:"pointer",
                             background:selectedProductIds.has(prod.id)?(darkMode?"#1a2040":"#eef4ff"):"transparent",
-                            borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#ededf0"),transition:"background 0.12s" }}
-                          onMouseOver={e=>{if(!selectedProductIds.has(prod.id))e.currentTarget.style.background=darkMode?"#3a3a3e":"#f6f9fc"}}
+                            borderBottom:"1px solid "+(darkMode?"#1f2530":"#ededf0"),transition:"background 0.12s" }}
+                          onMouseOver={e=>{if(!selectedProductIds.has(prod.id))e.currentTarget.style.background=darkMode?"#1f2530":"#f6f9fc"}}
                           onMouseOut={e=>{if(!selectedProductIds.has(prod.id))e.currentTarget.style.background="transparent"}}>
                           <div onClick={e => e.stopPropagation()} style={{ display:"flex",alignItems:"center" }}>
                             <input type="checkbox" checked={selectedProductIds.has(prod.id)}
@@ -11082,7 +11094,7 @@ function BOMManager({ user }) {
                                 style={{ width:55,padding:"4px 6px",borderRadius:6,border:"2px solid #34c759",fontSize:12,fontWeight:700,textAlign:"center",color:"#34c759",background:"rgba(52,199,89,0.06)" }} />
                             ) : (
                               <input type="number" min="0" placeholder="—"
-                                onFocus={e => e.target.style.border="2px solid #533afd"}
+                                onFocus={e => e.target.style.border="2px solid #58a6ff"}
                                 onBlur={e => { e.target.style.border="1px solid #e3e8ee"; }}
                                 onChange={e => {
                                   const val = parseInt(e.target.value) || 0;
@@ -11120,9 +11132,9 @@ function BOMManager({ user }) {
                                 }
                               } catch (err) { console.error("Duplicate product failed:", err); alert("Duplicate failed: " + err.message); }
                             }}
-                            style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:15,padding:"2px 6px",borderRadius:4,transition:"color 0.15s",flexShrink:0 }}
-                            onMouseOver={e=>{e.stopPropagation();e.currentTarget.style.color="#533afd";}}
-                            onMouseOut={e=>{e.stopPropagation();e.currentTarget.style.color="#c7c7cc";}}>
+                            style={{ background:"none",border:"none",cursor:"pointer",color:"#b8bfcc",fontSize:15,padding:"2px 6px",borderRadius:4,transition:"color 0.15s",flexShrink:0 }}
+                            onMouseOver={e=>{e.stopPropagation();e.currentTarget.style.color="#58a6ff";}}
+                            onMouseOut={e=>{e.stopPropagation();e.currentTarget.style.color="#b8bfcc";}}>
                             ⧉
                           </button>
                         </div>
@@ -11142,7 +11154,7 @@ function BOMManager({ user }) {
         {upcImportOpen && (
           <div style={{ position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.5)",padding:20 }}
             onClick={() => { setUpcImportOpen(false); setUpcImportResults(null); setUpcImportText(""); }}>
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:16,maxWidth:700,width:"100%",maxHeight:"85vh",overflow:"auto",padding:"24px 28px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:16,maxWidth:700,width:"100%",maxHeight:"85vh",overflow:"auto",padding:"24px 28px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:4 }}>Import UPC Codes</div>
               <p style={{ fontSize:13,color:"#64748d",marginBottom:16 }}>
@@ -11150,7 +11162,7 @@ function BOMManager({ user }) {
               </p>
               {!upcImportResults ? (<>
                 <textarea style={{ width:"100%",minHeight:200,padding:12,borderRadius:10,border:"1px solid #e3e8ee",fontSize:12,fontFamily:"SF Mono,Menlo,monospace",
-                  background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31",resize:"vertical",boxSizing:"border-box" }}
+                  background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31",resize:"vertical",boxSizing:"border-box" }}
                   placeholder={"UPC,EAN,SKU,Weight,Size\n302128186087,0302128186087,Bloom v2,1.35lbs,\n..."}
                   value={upcImportText} onChange={e => setUpcImportText(e.target.value)} />
                 <div style={{ display:"flex",gap:8,marginTop:12,justifyContent:"flex-end" }}>
@@ -11207,7 +11219,7 @@ function BOMManager({ user }) {
                       results.push({ upc, sku, weight, match: bestMatch, score: Math.round(bestScore), confirmed: bestScore >= 50 });
                     }
                     setUpcImportResults(results);
-                  }} style={{ padding:"8px 18px",borderRadius:100,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:"#533afd",color:"#fff" }}>
+                  }} style={{ padding:"8px 18px",borderRadius:100,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:"#58a6ff",color:"#fff" }}>
                     Match Products
                   </button>
                 </div>
@@ -11217,21 +11229,21 @@ function BOMManager({ user }) {
                 </div>
                 <div style={{ maxHeight:400,overflowY:"auto",border:"1px solid #e5e5ea",borderRadius:10 }}>
                   <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
-                    <thead><tr style={{ background:darkMode?"#2c2c2e":"#fafbfc",position:"sticky",top:0 }}>
+                    <thead><tr style={{ background:darkMode?"#161a22":"#fafbfc",position:"sticky",top:0 }}>
                       <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>UPC</th>
                       <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>CSV Name</th>
                       <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Matched Product</th>
                       <th style={{ padding:"8px 10px",textAlign:"center",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>✓</th>
                     </tr></thead>
                     <tbody>{upcImportResults.map((r, i) => (
-                      <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2") }}>
+                      <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#1f2530":"#f0f0f2") }}>
                         <td style={{ padding:"6px 10px",fontFamily:"monospace",fontSize:11 }}>{r.upc}</td>
                         <td style={{ padding:"6px 10px" }}>{r.sku}</td>
                         <td style={{ padding:"6px 10px" }}>
                           <select value={r.match?.id || ""} onChange={e => {
                             const prod = products.find(p => p.id === e.target.value);
                             setUpcImportResults(prev => prev.map((x, j) => j === i ? { ...x, match: prod || null, confirmed: !!prod } : x));
-                          }} style={{ fontSize:11,padding:"3px 6px",borderRadius:4,border:"1px solid #e3e8ee",minWidth:160,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
+                          }} style={{ fontSize:11,padding:"3px 6px",borderRadius:4,border:"1px solid #e3e8ee",minWidth:160,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
                             <option value="">— No match —</option>
                             {products.map(p => <option key={p.id} value={p.id}>{p.name} {p.brand !== "Jackson Audio" ? `(${p.brand})` : ""}</option>)}
                           </select>
@@ -11285,7 +11297,7 @@ function BOMManager({ user }) {
         {upcGenerateOpen && upcGenerateResults && (
           <div style={{ position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.5)",padding:20 }}
             onClick={() => { setUpcGenerateOpen(false); setUpcGenerateResults(null); }}>
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:16,maxWidth:750,width:"100%",maxHeight:"85vh",overflow:"auto",padding:"24px 28px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:16,maxWidth:750,width:"100%",maxHeight:"85vh",overflow:"auto",padding:"24px 28px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:4 }}>Generate UPC Codes</div>
               <p style={{ fontSize:13,color:"#64748d",marginBottom:6 }}>
@@ -11293,7 +11305,7 @@ function BOMManager({ user }) {
               </p>
               <div style={{ display:"flex",gap:16,marginBottom:14,flexWrap:"wrap" }}>
                 {Object.entries(GS1_PREFIXES).map(([brand, prefix]) => (
-                  <div key={brand} style={{ fontSize:12,color:"#64748d",background:darkMode?"#2c2c2e":"#f6f9fc",padding:"4px 10px",borderRadius:6 }}>
+                  <div key={brand} style={{ fontSize:12,color:"#64748d",background:darkMode?"#161a22":"#f6f9fc",padding:"4px 10px",borderRadius:6 }}>
                     <strong style={{ color:darkMode?"#f6f9fc":"#061b31" }}>{brand}</strong>: {prefix}-XXXXX-C
                   </div>
                 ))}
@@ -11304,9 +11316,9 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:13,color:"#64748d",marginBottom:10 }}>
                   {upcGenerateResults.filter(r => r.confirmed).length} of {upcGenerateResults.length} products selected for UPC assignment:
                 </div>
-                <div style={{ maxHeight:400,overflowY:"auto",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10 }}>
+                <div style={{ maxHeight:400,overflowY:"auto",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",borderRadius:10 }}>
                   <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
-                    <thead><tr style={{ background:darkMode?"#2c2c2e":"#fafbfc",position:"sticky",top:0 }}>
+                    <thead><tr style={{ background:darkMode?"#161a22":"#fafbfc",position:"sticky",top:0 }}>
                       <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</th>
                       <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Brand</th>
                       <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Generated UPC</th>
@@ -11314,7 +11326,7 @@ function BOMManager({ user }) {
                       <th style={{ padding:"8px 10px",textAlign:"center",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>✓</th>
                     </tr></thead>
                     <tbody>{upcGenerateResults.map((r, i) => (
-                      <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2") }}>
+                      <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#1f2530":"#f0f0f2") }}>
                         <td style={{ padding:"6px 10px",fontWeight:500,color:darkMode?"#f6f9fc":"#061b31" }}>{r.product.name}</td>
                         <td style={{ padding:"6px 10px",color:"#64748d",fontSize:11 }}>{r.brand}</td>
                         <td style={{ padding:"6px 10px",fontFamily:"SF Mono,Menlo,monospace",fontSize:11,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{r.upc}</td>
@@ -11368,7 +11380,7 @@ function BOMManager({ user }) {
         {shopifyImportOpen && shopifyImportData && (
           <div style={{ position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.5)",padding:20 }}
             onClick={() => { setShopifyImportOpen(false); setShopifyImportData(null); }}>
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:16,maxWidth:900,width:"100%",maxHeight:"88vh",overflow:"auto",padding:"24px 28px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:16,maxWidth:900,width:"100%",maxHeight:"88vh",overflow:"auto",padding:"24px 28px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:4 }}>
                 <div style={{ width:28,height:28,borderRadius:7,background:"#96bf48",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#fff",fontWeight:700 }}>S</div>
@@ -11399,9 +11411,9 @@ function BOMManager({ user }) {
                     </button>
                   </div>
                 </div>
-                <div style={{ maxHeight:450,overflowY:"auto",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10 }}>
+                <div style={{ maxHeight:450,overflowY:"auto",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",borderRadius:10 }}>
                   <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
-                    <thead><tr style={{ background:darkMode?"#2c2c2e":"#fafbfc",position:"sticky",top:0,zIndex:1 }}>
+                    <thead><tr style={{ background:darkMode?"#161a22":"#fafbfc",position:"sticky",top:0,zIndex:1 }}>
                       <th style={{ padding:"8px 10px",textAlign:"center",width:30 }}>
                         <input type="checkbox" checked={shopifyImportData.products.every(p => p.selected)}
                           onChange={e => setShopifyImportData(prev => ({ ...prev, products: prev.products.map(p => ({ ...p, selected: e.target.checked })) }))} />
@@ -11414,7 +11426,7 @@ function BOMManager({ user }) {
                       <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Status</th>
                     </tr></thead>
                     <tbody>{shopifyImportData.products.map((p, i) => (
-                      <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2"),
+                      <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#1f2530":"#f0f0f2"),
                         background: p.existing ? (darkMode?"#1a2a1a":"#f0faf0") : "transparent" }}>
                         <td style={{ padding:"6px 10px",textAlign:"center" }}>
                           <input type="checkbox" checked={p.selected} onChange={e =>
@@ -11432,7 +11444,7 @@ function BOMManager({ user }) {
                         <td style={{ padding:"6px 10px",fontSize:10 }}>
                           {p.existing
                             ? <span style={{ color:"#34c759",fontWeight:600 }}>Exists{p.barcode && !p.existing.upc ? " (will add UPC)" : ""}</span>
-                            : <span style={{ color:"#533afd",fontWeight:600 }}>New</span>
+                            : <span style={{ color:"#58a6ff",fontWeight:600 }}>New</span>
                           }
                         </td>
                       </tr>
@@ -11525,17 +11537,17 @@ function BOMManager({ user }) {
         {bulkRenameOpen && (
           <div style={{ position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.5)",padding:20 }}
             onClick={() => setBulkRenameOpen(false)}>
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:16,maxWidth:860,width:"100%",maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:16,maxWidth:860,width:"100%",maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
               onClick={e => e.stopPropagation()}>
               {/* Header */}
-              <div style={{ padding:"20px 24px 12px",borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ padding:"20px 24px 12px",borderBottom:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                 <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:8 }}>Bulk Rename Products</div>
                 <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
                   {/* Find & Replace */}
                   <input id="br-find" type="text" placeholder="Find…"
-                    style={{ padding:"6px 10px",borderRadius:8,fontSize:12,border:"1px solid #e3e8ee",width:140,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                    style={{ padding:"6px 10px",borderRadius:8,fontSize:12,border:"1px solid #e3e8ee",width:140,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                   <input id="br-replace" type="text" placeholder="Replace with…"
-                    style={{ padding:"6px 10px",borderRadius:8,fontSize:12,border:"1px solid #e3e8ee",width:140,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                    style={{ padding:"6px 10px",borderRadius:8,fontSize:12,border:"1px solid #e3e8ee",width:140,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                   <button onClick={() => {
                     const find = document.getElementById("br-find").value;
                     const replace = document.getElementById("br-replace").value;
@@ -11544,10 +11556,10 @@ function BOMManager({ user }) {
                       const newName = e.newName.replaceAll(find, replace);
                       return { ...e, newName, changed: newName !== e.original };
                     }));
-                  }} style={{ padding:"6px 12px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #533afd",background:"transparent",color:"#533afd" }}>
+                  }} style={{ padding:"6px 12px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid #58a6ff",background:"transparent",color:"#58a6ff" }}>
                     Replace All
                   </button>
-                  <div style={{ width:1,height:20,background:darkMode?"#3a3a3e":"#e3e8ee" }} />
+                  <div style={{ width:1,height:20,background:darkMode?"#1f2530":"#e3e8ee" }} />
                   {/* Quick actions */}
                   <button onClick={() => {
                     setBulkRenameEdits(prev => prev.map(e => {
@@ -11584,16 +11596,16 @@ function BOMManager({ user }) {
                     <input type="text" placeholder="Search products..." value={bulkRenameSearch}
                       onChange={e => setBulkRenameSearch(e.target.value)}
                       style={{ width:"100%",padding:"6px 10px",paddingRight:bulkRenameSearch?26:10,borderRadius:8,fontSize:12,border:"1px solid #e3e8ee",
-                        background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31",boxSizing:"border-box" }} />
+                        background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31",boxSizing:"border-box" }} />
                     {bulkRenameSearch && <span onClick={()=>setBulkRenameSearch("")} style={{ position:"absolute",right:7,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:13,color:"#64748d",lineHeight:1 }}>✕</span>}
                   </div>
                   <select value={bulkRenameBrand} onChange={e => setBulkRenameBrand(e.target.value)}
-                    style={{ padding:"6px 10px",borderRadius:8,fontSize:11,border:"1px solid #e3e8ee",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
+                    style={{ padding:"6px 10px",borderRadius:8,fontSize:11,border:"1px solid #e3e8ee",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
                     <option value="all">All Brands</option>
                     {[...new Set(bulkRenameEdits.map(e => e.brand))].sort().map(b => <option key={b} value={b}>{b}</option>)}
                   </select>
                   <select value={bulkRenameFilter} onChange={e => setBulkRenameFilter(e.target.value)}
-                    style={{ padding:"6px 10px",borderRadius:8,fontSize:11,border:"1px solid #e3e8ee",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
+                    style={{ padding:"6px 10px",borderRadius:8,fontSize:11,border:"1px solid #e3e8ee",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
                     <option value="all">All ({bulkRenameEdits.length})</option>
                     <option value="changed">Changed ({bulkRenameEdits.filter(e => e.changed).length})</option>
                     <option value="unchanged">Unchanged ({bulkRenameEdits.filter(e => !e.changed).length})</option>
@@ -11618,7 +11630,7 @@ function BOMManager({ user }) {
                 return (
               <div style={{ flex:1,overflowY:"auto",padding:"0 24px" }}>
                 <table style={{ width:"100%",borderCollapse:"collapse" }}>
-                  <thead><tr style={{ position:"sticky",top:0,background:darkMode?"#1c1c1e":"#fff",zIndex:1 }}>
+                  <thead><tr style={{ position:"sticky",top:0,background:darkMode?"#0f1218":"#fff",zIndex:1 }}>
                     <th style={{ padding:"10px 0 6px",textAlign:"center",width:30 }}>
                       <input type="checkbox"
                         checked={brFiltered.length > 0 && brFiltered.every(e => e.selected)}
@@ -11633,7 +11645,7 @@ function BOMManager({ user }) {
                     <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>New Name</th>
                   </tr></thead>
                   <tbody>{brFiltered.map((e) => { const i = e._idx; return (
-                    <tr key={e.id} style={{ borderBottom:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2"),
+                    <tr key={e.id} style={{ borderBottom:"1px solid "+(darkMode?"#161a22":"#f0f0f2"),
                       background:e.selected?(darkMode?"#2a1a1a":"#fff0f0"):"transparent" }}>
                       <td style={{ padding:"5px 6px",textAlign:"center" }}>
                         <input type="checkbox" checked={!!e.selected}
@@ -11644,13 +11656,13 @@ function BOMManager({ user }) {
                         textDecoration:e.changed?"line-through":"none",fontWeight:e.changed?400:500 }}>
                         {e.original}
                       </td>
-                      <td style={{ padding:"5px 4px",textAlign:"center",fontSize:12,color:e.changed?"#533afd":"#e3e8ee" }}>→</td>
+                      <td style={{ padding:"5px 4px",textAlign:"center",fontSize:12,color:e.changed?"#58a6ff":"#e3e8ee" }}>→</td>
                       <td style={{ padding:"5px 0" }}>
                         <input type="text" value={e.newName}
                           onChange={ev => setBulkRenameEdits(prev => prev.map((x, j) => j === i ? { ...x, newName: ev.target.value, changed: ev.target.value !== x.original } : x))}
                           style={{ width:"100%",padding:"5px 8px",borderRadius:6,fontSize:13,fontWeight:500,
-                            border:e.changed?"2px solid #533afd":"1px solid "+(darkMode?"#3a3a3e":"#e3e8ee"),
-                            background:e.changed?(darkMode?"#1a2040":"#eef4ff"):(darkMode?"#2c2c2e":"#fff"),
+                            border:e.changed?"2px solid #58a6ff":"1px solid "+(darkMode?"#1f2530":"#e3e8ee"),
+                            background:e.changed?(darkMode?"#1a2040":"#eef4ff"):(darkMode?"#161a22":"#fff"),
                             color:darkMode?"#f6f9fc":"#061b31",boxSizing:"border-box" }} />
                       </td>
                     </tr>
@@ -11659,7 +11671,7 @@ function BOMManager({ user }) {
               </div>
                 ); })()}
               {/* Footer */}
-              <div style={{ padding:"14px 24px",borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap" }}>
+              <div style={{ padding:"14px 24px",borderTop:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap" }}>
                 <div style={{ flex:1,fontSize:12,fontWeight:600,display:"flex",gap:12,alignItems:"center" }}>
                   {bulkRenameEdits.filter(e => e.selected).length > 0 && (
                     <button onClick={async () => {
@@ -11684,7 +11696,7 @@ function BOMManager({ user }) {
                       Delete {bulkRenameEdits.filter(e => e.selected).length} Selected
                     </button>
                   )}
-                  <span style={{ color:bulkRenameEdits.filter(e => e.changed).length > 0?"#533afd":"#64748d" }}>
+                  <span style={{ color:bulkRenameEdits.filter(e => e.changed).length > 0?"#58a6ff":"#64748d" }}>
                     {bulkRenameEdits.filter(e => e.changed).length} rename{bulkRenameEdits.filter(e => e.changed).length !== 1 ? "s" : ""} to save
                   </span>
                 </div>
@@ -11707,7 +11719,7 @@ function BOMManager({ user }) {
                   setBulkRenameOpen(false);
                 }} disabled={bulkRenameEdits.filter(e => e.changed && e.newName.trim()).length === 0}
                   style={{ padding:"8px 20px",borderRadius:100,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",
-                    background:"#533afd",color:"#fff",opacity:bulkRenameEdits.filter(e => e.changed && e.newName.trim()).length === 0 ? 0.4 : 1 }}>
+                    background:"#58a6ff",color:"#fff",opacity:bulkRenameEdits.filter(e => e.changed && e.newName.trim()).length === 0 ? 0.4 : 1 }}>
                   Save {bulkRenameEdits.filter(e => e.changed && e.newName.trim()).length} Rename{bulkRenameEdits.filter(e => e.changed && e.newName.trim()).length !== 1 ? "s" : ""}
                 </button>
               </div>
@@ -11748,12 +11760,12 @@ function BOMManager({ user }) {
           const allProdSelected = prodParts.length > 0 && prodParts.every(p => selectedParts.has(p.id));
 
           return (
-          <div style={{ background:darkMode?"#1c1c1e":"#f6f9fc",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
+          <div style={{ background:darkMode?"#0f1218":"#f6f9fc",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
 
             {/* Back button */}
             <button onClick={() => { setSelectedProduct(null); selectNone(); }}
               style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",
-                fontSize:13,fontWeight:600,color:"#533afd",fontFamily:"inherit",padding:"4px 0",marginBottom:20 }}>
+                fontSize:13,fontWeight:600,color:"#58a6ff",fontFamily:"inherit",padding:"4px 0",marginBottom:20 }}>
               ← Back to Products
             </button>
 
@@ -11762,7 +11774,7 @@ function BOMManager({ user }) {
               <div style={{ flex:1,minWidth:0 }}>
                 <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
                   <span style={{ display:"inline-block",width:12,height:12,borderRadius:"50%",background:prod.color }} />
-                  <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f6f9fc":"#061b31",margin:0 }}>
+                  <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f6f9fc":"#061b31",margin:0 }}>
                     {prod.name}
                   </h2>
                   {prod.brand && prod.brand !== "Jackson Audio" && (
@@ -11801,7 +11813,7 @@ function BOMManager({ user }) {
                     }}
                     style={{ background:"none",border:"1px solid #e3e8ee",borderRadius:6,cursor:"pointer",padding:"4px 10px",
                       fontSize:12,color:"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
-                    onMouseOver={e=>e.currentTarget.style.borderColor="#533afd"}
+                    onMouseOver={e=>e.currentTarget.style.borderColor="#58a6ff"}
                     onMouseOut={e=>e.currentTarget.style.borderColor="#e3e8ee"}>
                     Duplicate
                   </button>
@@ -11825,7 +11837,7 @@ function BOMManager({ user }) {
                     onMouseOut={e=>{e.currentTarget.style.borderColor="#e3e8ee";e.currentTarget.style.color="#64748d"}}>
                     Delete
                   </button>
-                  <div style={{ width:1,height:20,background:darkMode?"#3a3a3e":"#e3e8ee",margin:"0 4px" }} />
+                  <div style={{ width:1,height:20,background:darkMode?"#1f2530":"#e3e8ee",margin:"0 4px" }} />
                   <button title="Preview sticker label"
                     onClick={() => {
                       const prefix = prod.serial_prefix || prod.name.replace(/[^A-Z0-9]/gi,"").slice(0,10).toUpperCase();
@@ -11873,7 +11885,7 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
                 <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                   <span style={{ fontSize:10,color:"#64748d" }}>Brand:</span>
-                  <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#2c2c2e":"#fff",minWidth:120 }}
+                  <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#161a22":"#fff",minWidth:120 }}
                     value={prod.brand || "Jackson Audio"}
                     onChange={async (e) => {
                       const val = e.target.value;
@@ -11893,7 +11905,7 @@ function BOMManager({ user }) {
                       setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, buildMinutes: val } : p));
                       try { await supabase.from("products").update({ build_minutes: val }).eq("id", prod.id); } catch (err) { console.error("Build time save failed:", err); }
                     }}
-                    style={{ width:52,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"inherit",outline:"none",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                    style={{ width:52,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"inherit",outline:"none",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                   <span style={{ fontSize:10,color:"#64748d" }}>
                     {prod.buildMinutes ? (prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h ${prod.buildMinutes%60}m`) : "min"}
                   </span>
@@ -11907,7 +11919,7 @@ function BOMManager({ user }) {
                       setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, serial_prefix: val || null } : p));
                       try { await supabase.from("products").update({ serial_prefix: val || null }).eq("id", prod.id); } catch (err) { console.error("Serial prefix save failed:", err); }
                     }}
-                    style={{ width:80,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",outline:"none",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31",letterSpacing:"0.05em" }} />
+                    style={{ width:80,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",outline:"none",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31",letterSpacing:"0.05em" }} />
                 </div>
                 <div style={{ display:"flex",alignItems:"center",gap:4 }}>
                   <span style={{ fontSize:10,color:"#64748d" }}>Start #:</span>
@@ -11918,7 +11930,7 @@ function BOMManager({ user }) {
                       setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, serial_start: val } : p));
                       try { await supabase.from("products").update({ serial_start: val }).eq("id", prod.id); } catch (err) { console.error("Serial start save failed:", err); }
                     }}
-                    style={{ width:60,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",outline:"none",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                    style={{ width:60,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",outline:"none",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                   <span style={{ fontSize:10,color:"#64748d",fontFamily:"monospace" }}>
                     → {(prod.serial_prefix || prod.name.replace(/[^A-Z0-9]/gi,"").slice(0,10).toUpperCase())}-{String(parseInt(prod.serial_start) || 1).padStart(4,"0")}
                   </span>
@@ -11932,7 +11944,7 @@ function BOMManager({ user }) {
                       setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, upc: val || null } : p));
                       try { await supabase.from("products").update({ upc: val || null }).eq("id", prod.id); } catch (err) { console.error("UPC save failed:", err); }
                     }}
-                    style={{ width:120,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",outline:"none",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31",letterSpacing:"0.08em" }} />
+                    style={{ width:120,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",outline:"none",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31",letterSpacing:"0.08em" }} />
                   {prod.upc && <span style={{ fontSize:10,color:prod.upc.length === 12 || prod.upc.length === 13 ? "#34c759" : "#ff9500" }}>
                     {prod.upc.length === 12 ? "UPC-A" : prod.upc.length === 13 ? "EAN-13" : `${prod.upc.length} digits`}
                   </span>}
@@ -11940,7 +11952,7 @@ function BOMManager({ user }) {
                 {shopifyProducts.length > 0 && (
                   <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                     <span style={{ fontSize:10,color:"#64748d" }}>Shopify:</span>
-                    <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#2c2c2e":"#fff",minWidth:120 }}
+                    <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#161a22":"#fff",minWidth:120 }}
                       value={prod.shopifyProductId || ""}
                       onChange={async (e) => {
                         const val = e.target.value || null;
@@ -11958,7 +11970,7 @@ function BOMManager({ user }) {
                 {zohoDemand?.products?.length > 0 && (
                   <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                     <span style={{ fontSize:10,color:"#64748d" }}>Zoho:</span>
-                    <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#2c2c2e":"#fff",minWidth:120 }}
+                    <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#161a22":"#fff",minWidth:120 }}
                       value={prod.zohoProductId || ""}
                       onChange={async (e) => {
                         const val = e.target.value || null;
@@ -11991,12 +12003,12 @@ function BOMManager({ user }) {
                         value={pkg[field] || ""}
                         onChange={(e) => { setProductPackaging(prev => prev.map(p => p.product_id === prod.id ? { ...p, [field]: e.target.value } : p)); }}
                         onBlur={(e) => savePkg(field, e.target.value)}
-                        style={{ width:52,padding:"3px 5px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",outline:"none",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                        style={{ width:52,padding:"3px 5px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",outline:"none",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                       <span style={{ fontSize:9,color:"#8898aa" }}>{unit}</span>
                     </div>
                   );
                   return (
-                    <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",padding:"6px 0",borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",padding:"6px 0",borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                       <span style={{ fontSize:10,color:"#64748d",fontWeight:600 }}>Box Dims:</span>
                       {dimInput("L", "length_in", "in")}
                       <span style={{ color:"#e3e8ee",fontSize:10 }}>×</span>
@@ -12047,7 +12059,7 @@ function BOMManager({ user }) {
             </div>
 
             {/* ── Import / Add Parts Section */}
-            <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:14,padding:"20px 22px",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+            <div style={{ background:darkMode?"#161a22":"#fff",borderRadius:14,padding:"20px 22px",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
               <div style={{ fontSize:12,color:"#64748d",letterSpacing:"0.5px",fontWeight:600,marginBottom:14,textTransform:"uppercase" }}>
                 Add Parts to {prod.name}
               </div>
@@ -12078,7 +12090,7 @@ function BOMManager({ user }) {
                     onKeyDown={(e) => { if(e.key==="Enter") quickAddPart(prod.id); }}
                     onFocus={() => setQAField(prod.id, "_focused", true)}
                     onBlur={() => setTimeout(() => setQAField(prod.id, "_focused", false), 200)}
-                    style={{ padding:"8px 12px",borderRadius:6,width:"100%",fontSize:13,fontWeight:600,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(qa._altFor?"#5856d6":darkMode?"#48484a":"#e3e8ee") }} />
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%",fontSize:13,fontWeight:600,background:darkMode?"#1f2530":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(qa._altFor?"#5856d6":darkMode?"#48484a":"#e3e8ee") }} />
                   {/* Autocomplete dropdown */}
                   {qa._focused && qa.pn && qa.pn.trim().length >= 2 && (() => {
                     const q = qa.pn.trim().toLowerCase();
@@ -12092,9 +12104,9 @@ function BOMManager({ user }) {
                     if (matches.length === 0) return null;
                     return (
                       <div style={{ position:"absolute",top:"100%",left:0,right:0,zIndex:100,
-                        background:darkMode?"#2c2c2e":"#fff",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",
+                        background:darkMode?"#161a22":"#fff",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",
                         border:"1px solid "+(darkMode?"#48484a":"#e5e5ea"),marginTop:4,maxHeight:240,overflowY:"auto" }}>
-                        <div style={{ padding:"6px 12px",fontSize:9,color:"#8898aa",letterSpacing:"0.1em",fontWeight:700,borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2") }}>
+                        <div style={{ padding:"6px 12px",fontSize:9,color:"#8898aa",letterSpacing:"0.1em",fontWeight:700,borderBottom:"1px solid "+(darkMode?"#1f2530":"#f0f0f2") }}>
                           EXISTING PARTS
                         </div>
                         {matches.map(m => (
@@ -12105,8 +12117,8 @@ function BOMManager({ user }) {
                               setQAField(prod.id, "pn", "");
                               setQAField(prod.id, "_focused", false);
                             }}
-                            style={{ padding:"8px 12px",cursor:"pointer",borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f6f9fc"),transition:"background 0.1s" }}
-                            onMouseOver={e=>e.currentTarget.style.background=darkMode?"#3a3a3e":"#f6f9fc"}
+                            style={{ padding:"8px 12px",cursor:"pointer",borderBottom:"1px solid "+(darkMode?"#1f2530":"#f6f9fc"),transition:"background 0.1s" }}
+                            onMouseOver={e=>e.currentTarget.style.background=darkMode?"#1f2530":"#f6f9fc"}
                             onMouseOut={e=>e.currentTarget.style.background="transparent"}>
                             <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{m.mpn || m.reference}</div>
                             <div style={{ fontSize:11,color:"#64748d",marginTop:1 }}>
@@ -12128,11 +12140,11 @@ function BOMManager({ user }) {
                     value={qa.qty || ""}
                     onChange={(e) => setQAField(prod.id, "qty", e.target.value)}
                     onKeyDown={(e) => { if(e.key==="Enter") quickAddPart(prod.id); }}
-                    style={{ padding:"8px 10px",borderRadius:6,width:"100%",fontSize:13,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
+                    style={{ padding:"8px 10px",borderRadius:6,width:"100%",fontSize:13,background:darkMode?"#1f2530":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
                 </div>
                 <div style={{ flex:"0 0 auto",alignSelf:"flex-end" }}>
                   <button disabled={!qa.pn?.trim()} onClick={() => quickAddPart(prod.id)}
-                    style={{ padding:"8px 18px",borderRadius:100,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#533afd",color:"#fff",opacity:qa.pn?.trim()?"1":"0.4" }}>
+                    style={{ padding:"8px 18px",borderRadius:100,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#58a6ff",color:"#fff",opacity:qa.pn?.trim()?"1":"0.4" }}>
                     + Add Part
                   </button>
                 </div>
@@ -12149,19 +12161,19 @@ function BOMManager({ user }) {
                     <div style={{ fontSize:10,color:"#64748d",marginBottom:3 }}>Description</div>
                     <input type="text" placeholder="e.g. 24V Power Supply" value={qa.desc || ""}
                       onChange={(e) => setQAField(prod.id, "desc", e.target.value)}
-                      style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
+                      style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,background:darkMode?"#1f2530":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
                   </div>
                   <div style={{ flex:"1 1 100px" }}>
                     <div style={{ fontSize:10,color:"#64748d",marginBottom:3 }}>Value</div>
                     <input type="text" placeholder="e.g. 10k" value={qa.value || ""}
                       onChange={(e) => setQAField(prod.id, "value", e.target.value)}
-                      style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
+                      style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,background:darkMode?"#1f2530":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
                   </div>
                   <div style={{ flex:"1 1 140px" }}>
                     <div style={{ fontSize:10,color:"#64748d",marginBottom:3 }}>Manufacturer</div>
                     <input type="text" placeholder="e.g. Mean Well" value={qa.mfr || ""}
                       onChange={(e) => setQAField(prod.id, "mfr", e.target.value)}
-                      style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
+                      style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,background:darkMode?"#1f2530":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
                   </div>
                   <div style={{ display:"flex",alignItems:"center",gap:6,paddingTop:14 }}>
                     <input type="checkbox" checked={qa.isInternal || false}
@@ -12173,7 +12185,7 @@ function BOMManager({ user }) {
               )}
 
               {/* Import drop zone */}
-              <div style={{ borderTop:"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2"),paddingTop:14,marginTop:4 }}>
+              <div style={{ borderTop:"1px solid "+(darkMode?"#1f2530":"#f0f0f2"),paddingTop:14,marginTop:4 }}>
                 <div style={{ fontSize:10,color:"#64748d",letterSpacing:"0.5px",fontWeight:600,marginBottom:8,textTransform:"uppercase" }}>
                   Import BOM into {prod.name}
                 </div>
@@ -12189,7 +12201,7 @@ function BOMManager({ user }) {
                     onChange={(e)=>handleProductFilePick(e, prod.id)} />
                 </div>
                 <textarea placeholder="Or paste BOM text here..." value={pdPasteText} onChange={(e)=>setPdPasteText(e.target.value)}
-                  style={{ width:"100%",minHeight:50,padding:"8px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#48484a":"#e3e8ee"),fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",marginBottom:6,background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                  style={{ width:"100%",minHeight:50,padding:"8px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#48484a":"#e3e8ee"),fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",marginBottom:6,background:darkMode?"#1f2530":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                 {pdPasteText.trim() && (
                   <div style={{ display:"flex",gap:8 }}>
                     <button className="btn-primary" style={{ fontSize:12 }} onClick={()=>handleProductImport(pdPasteText, prod.id)}>Parse & Import into {prod.name}</button>
@@ -12218,10 +12230,10 @@ function BOMManager({ user }) {
                   const selectedCount = pdImportPreview.parts.length - pdImportExcluded.size;
                   const hasNoMPN = pdImportPreview.parts.some(p => p._matchStatus === "no-mpn");
                   return (
-                    <div style={{ marginTop:10,border:"1px solid #533afd",borderRadius:10,overflow:"hidden" }}>
+                    <div style={{ marginTop:10,border:"1px solid #58a6ff",borderRadius:10,overflow:"hidden" }}>
                       <div style={{ background:"rgba(83,58,253,0.07)",padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap" }}>
                         <div style={{ fontSize:12 }}>
-                          <span style={{ fontWeight:700,color:"#533afd" }}>{selectedCount} of {pdImportPreview.parts.length} parts selected to import</span>
+                          <span style={{ fontWeight:700,color:"#58a6ff" }}>{selectedCount} of {pdImportPreview.parts.length} parts selected to import</span>
                           {pdImportPreview.skipped > 0 && <span style={{ color:"#64748d",marginLeft:8 }}>{pdImportPreview.skipped} exact match{pdImportPreview.skipped>1?"es":""} pre-unchecked</span>}
                           {pdImportPreview.skippedDNI > 0 && <span style={{ color:"#ff9500",marginLeft:8 }}>{pdImportPreview.skippedDNI} DNI skipped</span>}
                           {(() => { const sugg = pdImportPreview.parts.filter(p=>p._matchStatus==="suggested").length; return sugg > 0 ? <span style={{ color:"#5856d6",marginLeft:8 }}>{sugg} auto-matched — review below</span> : null; })()}
@@ -12247,21 +12259,21 @@ function BOMManager({ user }) {
                             Cancel
                           </button>
                           <button onClick={confirmProductImport} disabled={!selectedCount}
-                            style={{ padding:"5px 14px",borderRadius:100,border:"none",background:selectedCount?"#533afd":"#c7c7cc",color:"#fff",fontWeight:700,fontSize:12,cursor:selectedCount?"pointer":"not-allowed",fontFamily:"inherit" }}>
+                            style={{ padding:"5px 14px",borderRadius:100,border:"none",background:selectedCount?"#58a6ff":"#b8bfcc",color:"#fff",fontWeight:700,fontSize:12,cursor:selectedCount?"pointer":"not-allowed",fontFamily:"inherit" }}>
                             ✓ Confirm Import ({selectedCount})
                           </button>
                         </div>
                       </div>
                       <div style={{ overflowX:"auto",maxHeight:"60vh",overflowY:"auto" }}>
                         <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
-                          <thead style={{ position:"sticky",top:0,background:darkMode?"#2c2c2e":"#f6f9fc",zIndex:1 }}>
+                          <thead style={{ position:"sticky",top:0,background:darkMode?"#161a22":"#f6f9fc",zIndex:1 }}>
                             <tr>
-                              <th style={{ padding:"5px 6px",borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),width:28 }}>
+                              <th style={{ padding:"5px 6px",borderBottom:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),width:28 }}>
                                 <input type="checkbox" checked={pdImportExcluded.size === 0}
                                   onChange={e => { if (e.target.checked) setPdImportExcluded(new Set()); else setPdImportExcluded(new Set(pdImportPreview.parts.map((_,i)=>i))); }} />
                               </th>
                               {["MPN","Value","Voltage","Package","Description","Status"].map(h => (
-                                <th key={h} style={{ textAlign:"left",padding:"5px 10px",fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),whiteSpace:"nowrap" }}>{h}</th>
+                                <th key={h} style={{ textAlign:"left",padding:"5px 10px",fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",borderBottom:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),whiteSpace:"nowrap" }}>{h}</th>
                               ))}
                             </tr>
                           </thead>
@@ -12269,8 +12281,8 @@ function BOMManager({ user }) {
                             {pdImportPreview.parts.map((p, i) => {
                               const isUnmatched = p._matchStatus === "no-mpn" && !pdImportExcluded.has(i);
                               return (
-                              <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f6f9fc"),
-                                background:pdImportExcluded.has(i)?(darkMode?"#2c2c2e":"#f8f8f8"):isUnmatched?(darkMode?"rgba(255,149,0,0.08)":"rgba(255,149,0,0.06)"):(i%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafbfc")),
+                              <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#1f2530":"#f6f9fc"),
+                                background:pdImportExcluded.has(i)?(darkMode?"#161a22":"#f8f8f8"):isUnmatched?(darkMode?"rgba(255,149,0,0.08)":"rgba(255,149,0,0.06)"):(i%2===0?(darkMode?"#0f1218":"#fff"):(darkMode?"#161a22":"#fafbfc")),
                                 opacity:pdImportExcluded.has(i)?0.45:1,
                                 outline:isUnmatched?("2px solid rgba(255,149,0,0.35)"):undefined,
                                 outlineOffset:"-2px" }}>
@@ -12288,13 +12300,13 @@ function BOMManager({ user }) {
                                     : <input type="text" value={p.mpn||""} placeholder="—"
                                         onChange={e => setPdImportPreview(prev => ({ ...prev, parts: prev.parts.map((pp, ii) => ii === i ? { ...pp, mpn: e.target.value, _matchStatus: e.target.value ? "new-mpn" : "no-mpn" } : pp) }))}
                                         style={{ border:"none",background:"transparent",fontFamily:"monospace",fontWeight:600,fontSize:11,width:"100%",minWidth:90,color:darkMode?"#f6f9fc":"#061b31",outline:"none" }}
-                                        onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f0f0f2";e.target.style.borderRadius="3px";}}
+                                        onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f0f0f2";e.target.style.borderRadius="3px";}}
                                         onBlur={e=>{e.target.style.background="transparent";}} />
                                   }
                                 </td>
-                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#c7c7cc":"#50617a",fontSize:11 }}>{p.value||"—"}</td>
-                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#c7c7cc":"#50617a",fontSize:11 }}>{p.voltage_rating||"—"}</td>
-                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#c7c7cc":"#50617a",fontSize:11 }}>{p.footprint||"—"}</td>
+                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#b8bfcc":"#50617a",fontSize:11 }}>{p.value||"—"}</td>
+                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#b8bfcc":"#50617a",fontSize:11 }}>{p.voltage_rating||"—"}</td>
+                                <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#b8bfcc":"#50617a",fontSize:11 }}>{p.footprint||"—"}</td>
                                 <td style={{ padding:"5px 10px",color:darkMode?"#8898aa":"#64748d",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:11 }}>{p.description||"—"}</td>
                                 <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>
                                   {p._matchStatus === "exact"
@@ -12310,7 +12322,7 @@ function BOMManager({ user }) {
                                               <span style={{ fontSize:9,padding:"1px 5px",borderRadius:3,background:conf.color,color:"#fff",fontWeight:700,flexShrink:0 }}>{conf.label}</span>
                                               <span style={{ fontSize:11,color:darkMode?"#f6f9fc":"#061b31",fontWeight:700,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{s.mpn}</span>
                                             </div>
-                                            <div style={{ fontSize:10,color:darkMode?"#c7c7cc":"#50617a",display:"flex",flexWrap:"wrap",gap:"2px 8px" }}>
+                                            <div style={{ fontSize:10,color:darkMode?"#b8bfcc":"#50617a",display:"flex",flexWrap:"wrap",gap:"2px 8px" }}>
                                               {s.value && <span><b style={{ color:darkMode?"#8898aa":"#64748d" }}>Val:</b> {s.value}</span>}
                                               {s.voltage_rating && <span><b style={{ color:darkMode?"#8898aa":"#64748d" }}>V:</b> {s.voltage_rating}</span>}
                                               {s.footprint && <span><b style={{ color:darkMode?"#8898aa":"#64748d" }}>Pkg:</b> {s.footprint}</span>}
@@ -12332,7 +12344,7 @@ function BOMManager({ user }) {
                                       })()
                                     : p._matchStatus === "no-mpn"
                                     ? <span style={{ fontSize:10,color:"#ff9500",fontWeight:600 }}>⚠ Unmatched</span>
-                                    : <span style={{ fontSize:10,padding:"1px 6px",borderRadius:4,background:"rgba(83,58,253,0.1)",color:"#533afd",fontWeight:600 }}>+ New</span>
+                                    : <span style={{ fontSize:10,padding:"1px 6px",borderRadius:4,background:"rgba(83,58,253,0.1)",color:"#58a6ff",fontWeight:600 }}>+ New</span>
                                   }
                                 </td>
                               </tr>
@@ -12351,7 +12363,7 @@ function BOMManager({ user }) {
             {prodSelectedParts.length > 0 && (
               <div style={{ display:"flex",alignItems:"center",gap:10,padding:"6px 12px",
                 background:"rgba(83,58,253,0.06)",border:"1px solid rgba(83,58,253,0.3)",borderRadius:6,marginBottom:10 }}>
-                <span style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#533afd" }}>
+                <span style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#58a6ff" }}>
                   {prodSelectedParts.length} part{prodSelectedParts.length!==1?"s":""} selected
                 </span>
                 <button onClick={deleteSelected}
@@ -12390,7 +12402,7 @@ function BOMManager({ user }) {
                     for (const id of prodSelectedParts) { await updatePart(id, field, val); }
                     document.getElementById("pdBulkValue").value = "";
                   }}
-                    style={{ background:"#533afd",color:"#fff",border:"none",borderRadius:6,
+                    style={{ background:"#58a6ff",color:"#fff",border:"none",borderRadius:6,
                       padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap" }}>
                     Apply to {prodSelectedParts.length}
                   </button>
@@ -12400,13 +12412,13 @@ function BOMManager({ user }) {
 
             {/* ── Parts Table */}
             {prodParts.length > 0 ? (
-              <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:20 }}>
+              <div style={{ background:darkMode?"#161a22":"#fff",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:20 }}>
                 <div style={{ overflowX:"auto" }}>
                   <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                     <thead>
-                      <tr style={{ background:darkMode?"#3a3a3e":"#b8bdd1",color:darkMode?"#e5e5ea":"#3a3f51" }}>
+                      <tr style={{ background:darkMode?"#1f2530":"#b8bdd1",color:darkMode?"#e5e5ea":"#3a3f51" }}>
                         <th style={{ padding:"12px 10px",width:28,borderRadius:"8px 0 0 0" }}>
-                          <input type="checkbox" style={{ width:15,height:15,cursor:"pointer",accentColor:"#533afd" }}
+                          <input type="checkbox" style={{ width:15,height:15,cursor:"pointer",accentColor:"#58a6ff" }}
                             checked={allProdSelected}
                             ref={(el) => { if (el) el.indeterminate = prodSelectedParts.length > 0 && !allProdSelected; }}
                             onChange={(e) => {
@@ -12432,11 +12444,11 @@ function BOMManager({ user }) {
                             if (!col) return;
                             setProdBomSort(s => s.col === col ? { col, asc: !s.asc } : { col, asc: true });
                           }} style={{ padding:"12px 10px",textAlign:right?"right":"left",
-                            fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                            fontFamily:"'IBM Plex Sans',system-ui,sans-serif",
                             fontSize:10,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
                             borderRadius:hi===arr.length-1?"0 8px 0 0":undefined,
                             cursor:col?"pointer":"default",
-                            color:active?(darkMode?"#60a5fa":"#533afd"):"inherit",
+                            color:active?(darkMode?"#60a5fa":"#58a6ff"):"inherit",
                             userSelect:"none" }}>
                             {label}{active ? (prodBomSort.asc ? " ▲" : " ▼") : ""}
                           </th>
@@ -12459,7 +12471,7 @@ function BOMManager({ user }) {
                               if (tag === "INPUT" || tag === "BUTTON" || tag === "SELECT" || tag === "TEXTAREA" || tag === "A" || e.target.closest("button,a,input,select,textarea")) return;
                               setExpandedProdPartRow(isExpanded ? null : part.id);
                             }}
-                            style={{ borderBottom:hasAlts?"none":"1px solid "+(darkMode?"#3a3a3e":"#ededf0"),
+                            style={{ borderBottom:hasAlts?"none":"1px solid "+(darkMode?"#1f2530":"#ededf0"),
                               cursor:"pointer",
                               background:selectedParts.has(part.id)
                                 ? (darkMode?"rgba(83,58,253,0.15)":"rgba(83,58,253,0.04)")
@@ -12467,50 +12479,50 @@ function BOMManager({ user }) {
                             <td style={{ padding:"10px 10px" }}>
                               <input type="checkbox" checked={selectedParts.has(part.id)} onChange={()=>toggleSelect(part.id)}
                                 onClick={(e)=>e.stopPropagation()}
-                                style={{ width:15,height:15,cursor:"pointer",accentColor:"#533afd" }} />
+                                style={{ width:15,height:15,cursor:"pointer",accentColor:"#58a6ff" }} />
                             </td>
                             <td style={{ padding:"10px 10px" }}>
                               <input type="text" value={part.mpn||""} onChange={e=>updatePart(part.id,"mpn",e.target.value)}
                                 style={{ border:"none",background:"transparent",fontWeight:700,fontSize:13,width:"100%",color:darkMode?"#f6f9fc":"#061b31",fontFamily:"inherit",outline:"none" }}
-                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";e.target.style.padding="2px 4px";}}
+                                onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";e.target.style.padding="2px 4px";}}
                                 onBlur={e=>{e.target.style.background="transparent";e.target.style.padding="0";}} />
                             </td>
                             <td style={{ padding:"10px 10px" }}>
                               <input type="text" value={part.value||""} onChange={e=>updatePart(part.id,"value",e.target.value)}
-                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#50617a",fontFamily:"inherit",outline:"none" }}
-                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
+                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#b8bfcc":"#50617a",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                 onBlur={e=>{e.target.style.background="transparent";}} />
                             </td>
                             <td style={{ padding:"10px 10px" }}>
                               <input type="text" value={part.voltage_rating||""} onChange={e=>updatePart(part.id,"voltage_rating",e.target.value)}
                                 placeholder="—"
-                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",minWidth:50,color:darkMode?"#c7c7cc":"#50617a",fontFamily:"inherit",outline:"none" }}
-                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
+                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",minWidth:50,color:darkMode?"#b8bfcc":"#50617a",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                 onBlur={e=>{e.target.style.background="transparent";}} />
                             </td>
                             <td style={{ padding:"10px 10px" }}>
                               <input type="text" value={part.footprint||""} onChange={e=>updatePart(part.id,"footprint",e.target.value)}
                                 placeholder="—"
-                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",minWidth:60,color:darkMode?"#c7c7cc":"#50617a",fontFamily:"inherit",outline:"none" }}
-                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
+                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",minWidth:60,color:darkMode?"#b8bfcc":"#50617a",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                 onBlur={e=>{e.target.style.background="transparent";}} />
                             </td>
                             <td style={{ padding:"10px 10px" }}>
                               <input type="text" value={part.description||""} onChange={e=>updatePart(part.id,"description",e.target.value)}
-                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#50617a",fontFamily:"inherit",outline:"none" }}
-                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
+                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#b8bfcc":"#50617a",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                 onBlur={e=>{e.target.style.background="transparent";}} />
                             </td>
                             <td style={{ padding:"10px 10px" }}>
                               <input type="text" value={part.manufacturer||""} onChange={e=>updatePart(part.id,"manufacturer",e.target.value)}
-                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#50617a",fontFamily:"inherit",outline:"none" }}
-                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
+                                style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#b8bfcc":"#50617a",fontFamily:"inherit",outline:"none" }}
+                                onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                 onBlur={e=>{e.target.style.background="transparent";}} />
                             </td>
                             <td style={{ padding:"10px 10px",textAlign:"right" }}>
                               <input type="number" min="1" value={part.quantity||""} onChange={e=>updatePart(part.id,"quantity",parseInt(e.target.value)||1)}
                                 style={{ border:"none",background:"transparent",fontSize:13,fontWeight:700,width:50,textAlign:"right",color:darkMode?"#f6f9fc":"#061b31",fontFamily:"inherit",outline:"none" }}
-                                onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
+                                onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                 onBlur={e=>{e.target.style.background="transparent";}} />
                             </td>
                             {/* ── Qty/Stock — how many of this part are currently on hand ── */}
@@ -12522,7 +12534,7 @@ function BOMManager({ user }) {
                                   : (darkMode?"#34c759":"#1a9e3f") }}>  {/* green  — adequate stock */}
                               {parseInt(part.stockQty) || 0}
                             </td>
-                            <td style={{ padding:"10px 10px",textAlign:"right",fontSize:12,color:pricing.price>0?(darkMode?"#f6f9fc":"#061b31"):"#c7c7cc",whiteSpace:"nowrap" }}>
+                            <td style={{ padding:"10px 10px",textAlign:"right",fontSize:12,color:pricing.price>0?(darkMode?"#f6f9fc":"#061b31"):"#b8bfcc",whiteSpace:"nowrap" }}>
                               {pricing.price > 0 ? (
                                 <>
                                   <span style={{ fontWeight:700 }}>${fmtPrice(pricing.price)}</span>
@@ -12542,10 +12554,10 @@ function BOMManager({ user }) {
                                     disabled={!hasAnyKey || part.pricingStatus==="loading"}
                                     title={!hasAnyKey?"No distributor API keys configured":"Fetch pricing from distributors"}
                                     style={{ padding:"3px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:(!hasAnyKey||part.pricingStatus==="loading")?"not-allowed":"pointer",
-                                      border:"1px solid #533afd",background:"#fff",color:"#533afd",fontFamily:"inherit",
+                                      border:"1px solid #58a6ff",background:"#fff",color:"#58a6ff",fontFamily:"inherit",
                                       opacity:!hasAnyKey?0.4:1,whiteSpace:"nowrap" }}
-                                    onMouseEnter={(e)=>{ if(!e.currentTarget.disabled){e.currentTarget.style.background="#533afd";e.currentTarget.style.color="#fff";} }}
-                                    onMouseLeave={(e)=>{ e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#533afd"; }}>
+                                    onMouseEnter={(e)=>{ if(!e.currentTarget.disabled){e.currentTarget.style.background="#58a6ff";e.currentTarget.style.color="#fff";} }}
+                                    onMouseLeave={(e)=>{ e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#58a6ff"; }}>
                                     {part.pricingStatus==="loading" ? "…" : "Fetch Price"}
                                   </button>
                                 )}
@@ -12567,9 +12579,9 @@ function BOMManager({ user }) {
                               </button>
                               <button onClick={async (e)=>{ e.stopPropagation(); if(await showConfirm("Remove Part", `Remove "${part.mpn||part.reference}" from this product?`, "Remove", "#ff3b30")) { updatePart(part.id,"projectId",null); alts.forEach(a => updatePart(a.id,"alternateOf",null)); } }}
                                 title="Remove from product"
-                                style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:13,padding:"2px 6px",borderRadius:4,transition:"color 0.15s" }}
+                                style={{ background:"none",border:"none",cursor:"pointer",color:"#b8bfcc",fontSize:13,padding:"2px 6px",borderRadius:4,transition:"color 0.15s" }}
                                 onMouseOver={(e)=>e.currentTarget.style.color="#ff9500"}
-                                onMouseOut={(e)=>e.currentTarget.style.color="#c7c7cc"}>remove</button>
+                                onMouseOut={(e)=>e.currentTarget.style.color="#b8bfcc"}>remove</button>
                             </td>
                           </tr>
                           {/* Expanded detail row */}
@@ -12578,7 +12590,7 @@ function BOMManager({ user }) {
                             const lineCost = pricing.price * (parseInt(part.quantity)||1);
                             return (
                               <tr>
-                                <td colSpan={10} style={{ padding:"16px 24px", background:darkMode?"#1c1c1e":"#fafbfc", borderBottom:"2px solid #533afd" }}>
+                                <td colSpan={10} style={{ padding:"16px 24px", background:darkMode?"#0f1218":"#fafbfc", borderBottom:"2px solid #58a6ff" }}>
                                   <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
                                     <button onClick={(e)=>{e.stopPropagation();setQrModalParts([part]);}}
                                       style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:"1px solid #e3e8ee",background:"#f6f9fc",cursor:"pointer",color:"#061b31" }}
@@ -12586,11 +12598,11 @@ function BOMManager({ user }) {
                                       onMouseLeave={(e)=>e.currentTarget.style.background="#f6f9fc"}>⊞ QR Label</button>
                                     {part.url && (
                                       <a href={part.url} target="_blank" rel="noopener noreferrer" onClick={(e)=>e.stopPropagation()}
-                                        style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:"1px solid #e3e8ee",background:"#fff",cursor:"pointer",color:"#533afd",textDecoration:"none" }}>Open Product URL ↗</a>
+                                        style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:"1px solid #e3e8ee",background:"#fff",cursor:"pointer",color:"#58a6ff",textDecoration:"none" }}>Open Product URL ↗</a>
                                     )}
                                     {getSupplierWebsite(part.preferredSupplier, part.mpn) && (
                                       <a href={getSupplierWebsite(part.preferredSupplier, part.mpn)} target="_blank" rel="noopener noreferrer" onClick={(e)=>e.stopPropagation()}
-                                        style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,background:"#533afd",color:"#fff",textDecoration:"none" }}>
+                                        style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,background:"#58a6ff",color:"#fff",textDecoration:"none" }}>
                                         {part.mpn ? `Search "${part.mpn}" on ${part.preferredSupplier||"supplier"} →` : `Visit ${part.preferredSupplier} →`}
                                       </a>
                                     )}
@@ -12619,8 +12631,8 @@ function BOMManager({ user }) {
                                       <div style={{ color:darkMode?"#f6f9fc":"#061b31",lineHeight:1.5 }}>
                                         <div>Unit Cost: <strong>{pricing.price > 0 ? `$${fmtPrice(pricing.price)}` : "—"}</strong>{pricing.price>0 && <span style={{ color:"#8898aa",fontSize:11,marginLeft:6 }}>at qty {pricing.qty}</span>}</div>
                                         <div>Qty per Build: <strong>{part.quantity || 1}</strong></div>
-                                        <div>Line Cost per Build: <strong style={{ color:"#533afd" }}>{lineCost > 0 ? `$${fmtDollar(lineCost)}` : "—"}</strong></div>
-                                        <div style={{ marginTop:6, paddingTop:6, borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                                        <div>Line Cost per Build: <strong style={{ color:"#58a6ff" }}>{lineCost > 0 ? `$${fmtDollar(lineCost)}` : "—"}</strong></div>
+                                        <div style={{ marginTop:6, paddingTop:6, borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                                           Preferred Supplier: <strong>{part.preferredSupplier || "—"}</strong>
                                           {isLockedSupplier(part.preferredSupplier) && <span style={{ marginLeft:4,fontSize:10,color:"#ff9500",fontWeight:600 }}>🔒 Locked</span>}
                                         </div>
@@ -12636,13 +12648,13 @@ function BOMManager({ user }) {
                                         {m?.rohsStatus && <div>RoHS: {m.rohsStatus}</div>}
                                         {m?.countryOfOrigin && <div>Origin: <strong>{fmtCountry(m.countryOfOrigin)}</strong></div>}
                                         {part.reelQty && <div>Reel Qty: {part.reelQty}</div>}
-                                        {m?.datasheetUrl && <div style={{ marginTop:4 }}><a href={m.datasheetUrl} target="_blank" rel="noopener noreferrer" onClick={(e)=>e.stopPropagation()} style={{ color:"#533afd", fontWeight:600, textDecoration:"none" }}>Datasheet ↗</a></div>}
+                                        {m?.datasheetUrl && <div style={{ marginTop:4 }}><a href={m.datasheetUrl} target="_blank" rel="noopener noreferrer" onClick={(e)=>e.stopPropagation()} style={{ color:"#58a6ff", fontWeight:600, textDecoration:"none" }}>Datasheet ↗</a></div>}
                                         {!m && !part.reelQty && <div style={{ color:"#8898aa", fontSize:11 }}>No sourcing data yet — run pricing lookup.</div>}
                                       </div>
                                     </div>
                                   </div>
                                   {hasAlts && (
-                                    <div style={{ marginTop:12, paddingTop:10, borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"), fontSize:11, color:"#64748d" }}>
+                                    <div style={{ marginTop:12, paddingTop:10, borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"), fontSize:11, color:"#64748d" }}>
                                       {alts.length} alternate{alts.length!==1?"s":""} configured — shown below.
                                     </div>
                                   )}
@@ -12654,7 +12666,7 @@ function BOMManager({ user }) {
                           {alts.map((alt, altIdx) => {
                             const altPricing = priceAtQtyInfo(alt);
                             return (
-                              <tr key={alt.id} style={{ borderBottom:altIdx===alts.length-1?"1px solid "+(darkMode?"#3a3a3e":"#ededf0"):"none",
+                              <tr key={alt.id} style={{ borderBottom:altIdx===alts.length-1?"1px solid "+(darkMode?"#1f2530":"#ededf0"):"none",
                                 background:selectedParts.has(alt.id)?(darkMode?"rgba(88,86,214,0.15)":"rgba(88,86,214,0.04)"):(darkMode?"rgba(88,86,214,0.06)":"rgba(88,86,214,0.02)") }}>
                                 <td style={{ padding:"8px 10px" }}>
                                   <input type="checkbox" checked={selectedParts.has(alt.id)} onChange={()=>toggleSelect(alt.id)}
@@ -12666,49 +12678,49 @@ function BOMManager({ user }) {
                                     <span style={{ fontSize:9,fontWeight:800,color:"#fff",background:"#5856d6",padding:"1px 5px",borderRadius:3,flexShrink:0,letterSpacing:"0.04em" }}>ALT</span>
                                     <input type="text" value={alt.mpn||""} onChange={e=>updatePart(alt.id,"mpn",e.target.value)}
                                       style={{ border:"none",background:"transparent",fontWeight:700,fontSize:13,width:"100%",color:darkMode?"#f6f9fc":"#061b31",fontFamily:"inherit",outline:"none" }}
-                                      onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";e.target.style.padding="2px 4px";}}
+                                      onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";e.target.style.padding="2px 4px";}}
                                       onBlur={e=>{e.target.style.background="transparent";e.target.style.padding="0";}} />
                                   </div>
                                 </td>
                                 <td style={{ padding:"8px 10px" }}>
                                   <input type="text" value={alt.value||""} onChange={e=>updatePart(alt.id,"value",e.target.value)}
-                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#50617a",fontFamily:"inherit",outline:"none" }}
-                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
+                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#b8bfcc":"#50617a",fontFamily:"inherit",outline:"none" }}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                     onBlur={e=>{e.target.style.background="transparent";}} />
                                 </td>
                                 <td style={{ padding:"8px 10px" }}>
                                   <input type="text" value={alt.voltage_rating||""} onChange={e=>updatePart(alt.id,"voltage_rating",e.target.value)}
                                     placeholder="—"
-                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",minWidth:50,color:darkMode?"#c7c7cc":"#50617a",fontFamily:"inherit",outline:"none" }}
-                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
+                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",minWidth:50,color:darkMode?"#b8bfcc":"#50617a",fontFamily:"inherit",outline:"none" }}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                     onBlur={e=>{e.target.style.background="transparent";}} />
                                 </td>
                                 <td style={{ padding:"8px 10px" }}>
                                   <input type="text" value={alt.footprint||""} onChange={e=>updatePart(alt.id,"footprint",e.target.value)}
                                     placeholder="—"
-                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",minWidth:60,color:darkMode?"#c7c7cc":"#50617a",fontFamily:"inherit",outline:"none" }}
-                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
+                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",minWidth:60,color:darkMode?"#b8bfcc":"#50617a",fontFamily:"inherit",outline:"none" }}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                     onBlur={e=>{e.target.style.background="transparent";}} />
                                 </td>
                                 <td style={{ padding:"8px 10px" }}>
                                   <input type="text" value={alt.description||""} onChange={e=>updatePart(alt.id,"description",e.target.value)}
-                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#50617a",fontFamily:"inherit",outline:"none" }}
-                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
+                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#b8bfcc":"#50617a",fontFamily:"inherit",outline:"none" }}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                     onBlur={e=>{e.target.style.background="transparent";}} />
                                 </td>
                                 <td style={{ padding:"8px 10px" }}>
                                   <input type="text" value={alt.manufacturer||""} onChange={e=>updatePart(alt.id,"manufacturer",e.target.value)}
-                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#c7c7cc":"#50617a",fontFamily:"inherit",outline:"none" }}
-                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
+                                    style={{ border:"none",background:"transparent",fontSize:12,width:"100%",color:darkMode?"#b8bfcc":"#50617a",fontFamily:"inherit",outline:"none" }}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                     onBlur={e=>{e.target.style.background="transparent";}} />
                                 </td>
                                 <td style={{ padding:"8px 10px",textAlign:"right" }}>
                                   <input type="number" min="1" value={alt.quantity||""} onChange={e=>updatePart(alt.id,"quantity",parseInt(e.target.value)||1)}
                                     style={{ border:"none",background:"transparent",fontSize:13,fontWeight:700,width:50,textAlign:"right",color:darkMode?"#f6f9fc":"#061b31",fontFamily:"inherit",outline:"none" }}
-                                    onFocus={e=>{e.target.style.background=darkMode?"#3a3a3e":"#f6f9fc";e.target.style.borderRadius="4px";}}
+                                    onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";}}
                                     onBlur={e=>{e.target.style.background="transparent";}} />
                                 </td>
-                                <td style={{ padding:"8px 10px",textAlign:"right",fontSize:12,color:altPricing.price>0?(darkMode?"#f6f9fc":"#061b31"):"#c7c7cc",whiteSpace:"nowrap" }}>
+                                <td style={{ padding:"8px 10px",textAlign:"right",fontSize:12,color:altPricing.price>0?(darkMode?"#f6f9fc":"#061b31"):"#b8bfcc",whiteSpace:"nowrap" }}>
                                   {altPricing.price > 0 ? (
                                     <>
                                       <span style={{ fontWeight:700 }}>${fmtPrice(altPricing.price)}</span>
@@ -12719,10 +12731,10 @@ function BOMManager({ user }) {
                                       disabled={!alt.mpn || !hasAnyKey || alt.pricingStatus==="loading"}
                                       title={!alt.mpn?"No MPN — can't fetch":(!hasAnyKey?"No distributor API keys configured":"Fetch pricing from distributors")}
                                       style={{ padding:"3px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:(!alt.mpn||!hasAnyKey||alt.pricingStatus==="loading")?"not-allowed":"pointer",
-                                        border:"1px solid #533afd",background:"#fff",color:"#533afd",fontFamily:"inherit",
+                                        border:"1px solid #58a6ff",background:"#fff",color:"#58a6ff",fontFamily:"inherit",
                                         opacity:(!alt.mpn||!hasAnyKey)?0.4:1,whiteSpace:"nowrap" }}
-                                      onMouseEnter={(e)=>{ if(!e.currentTarget.disabled){e.currentTarget.style.background="#533afd";e.currentTarget.style.color="#fff";} }}
-                                      onMouseLeave={(e)=>{ e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#533afd"; }}>
+                                      onMouseEnter={(e)=>{ if(!e.currentTarget.disabled){e.currentTarget.style.background="#58a6ff";e.currentTarget.style.color="#fff";} }}
+                                      onMouseLeave={(e)=>{ e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#58a6ff"; }}>
                                       {alt.pricingStatus==="loading" ? "…" : !alt.mpn ? "No MPN" : "Fetch Price"}
                                     </button>
                                   )}
@@ -12738,9 +12750,9 @@ function BOMManager({ user }) {
                                   </button>
                                   <button onClick={async ()=>{ if(await showConfirm("Remove Part", `Remove alternate "${alt.mpn||alt.reference}" from this product?`, "Remove", "#ff3b30")) updatePart(alt.id,"projectId",null); }}
                                     title="Remove from product"
-                                    style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:13,padding:"2px 6px",borderRadius:4,transition:"color 0.15s" }}
+                                    style={{ background:"none",border:"none",cursor:"pointer",color:"#b8bfcc",fontSize:13,padding:"2px 6px",borderRadius:4,transition:"color 0.15s" }}
                                     onMouseOver={(e)=>e.currentTarget.style.color="#ff9500"}
-                                    onMouseOut={(e)=>e.currentTarget.style.color="#c7c7cc"}>remove</button>
+                                    onMouseOut={(e)=>e.currentTarget.style.color="#b8bfcc"}>remove</button>
                                 </td>
                               </tr>
                             );
@@ -12787,19 +12799,19 @@ function BOMManager({ user }) {
                       const totalAlts = Object.values(alternateMap).reduce((s,a) => s + a.length, 0);
                       return (
                         <tfoot>
-                          <tr style={{ background:darkMode?"#1c1c1e":"#f6f9fc",borderTop:"2px solid "+(darkMode?"#3a3a3e":"#e3e8ee") }}>
+                          <tr style={{ background:darkMode?"#0f1218":"#f6f9fc",borderTop:"2px solid "+(darkMode?"#1f2530":"#e3e8ee") }}>
                             <td colSpan={7} style={{ padding:"14px 12px",fontWeight:800,fontSize:13,color:darkMode?"#f6f9fc":"#061b31",letterSpacing:"0.02em" }}>
                               Totals — {primaryParts.length} line item{primaryParts.length!==1?"s":""}{totalAlts > 0 ? ` (+${totalAlts} alt${totalAlts!==1?"s":""})` : ""}
                             </td>
                             <td style={{ padding:"14px 10px",textAlign:"right",fontWeight:800,fontSize:13,color:darkMode?"#f6f9fc":"#061b31" }}>{totalQty}</td>
-                            <td style={{ padding:"14px 10px",textAlign:"right",fontWeight:800,fontSize:14,color:"#533afd",whiteSpace:"nowrap" }}>
+                            <td style={{ padding:"14px 10px",textAlign:"right",fontWeight:800,fontSize:14,color:"#58a6ff",whiteSpace:"nowrap" }}>
                               {costPerBuild > 0 ? `$${fmtDollar(costPerBuild)}` : "—"}
                             </td>
                             <td />
                           </tr>
-                          <tr style={{ background:darkMode?"#1c1c1e":"#f6f9fc" }}>
+                          <tr style={{ background:darkMode?"#0f1218":"#f6f9fc" }}>
                             <td colSpan={10} style={{ padding:"4px 12px 14px",fontSize:11,color:"#64748d",lineHeight:1.5 }}>
-                              <strong style={{ color:"#533afd" }}>Total cost to build 1 unit.</strong>{" "}
+                              <strong style={{ color:"#58a6ff" }}>Total cost to build 1 unit.</strong>{" "}
                               {pricedCount < primaryParts.length && (() => {
                                 const missing = primaryParts.filter(p => priceAtQty(p) <= 0);
                                 const fetchable = missing.filter(p => p.mpn && hasAnyKey);
@@ -12814,9 +12826,9 @@ function BOMManager({ user }) {
                                         }
                                       }}
                                         style={{ marginLeft:8,padding:"3px 12px",borderRadius:100,fontSize:11,fontWeight:700,cursor:"pointer",
-                                          border:"1px solid #533afd",background:"#533afd",color:"#fff",fontFamily:"inherit" }}
+                                          border:"1px solid #58a6ff",background:"#58a6ff",color:"#fff",fontFamily:"inherit" }}
                                         onMouseEnter={(e)=>e.currentTarget.style.background="#4327e0"}
-                                        onMouseLeave={(e)=>e.currentTarget.style.background="#533afd"}>
+                                        onMouseLeave={(e)=>e.currentTarget.style.background="#58a6ff"}>
                                         Fetch Pricing for {fetchable.length} Part{fetchable.length!==1?"s":""}
                                       </button>
                                     )}
@@ -12840,21 +12852,21 @@ function BOMManager({ user }) {
                 </div>
               </div>
             ) : deletedProdParts.length > 0 ? (
-              <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:14,padding:"16px 20px",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:"1px solid rgba(255,59,48,0.2)" }}>
+              <div style={{ background:darkMode?"#161a22":"#fff",borderRadius:14,padding:"16px 20px",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:"1px solid rgba(255,59,48,0.2)" }}>
                 <div style={{ fontSize:13,color:"#ff3b30",fontWeight:600,marginBottom:8 }}>⚠ {deletedProdParts.length} deleted part{deletedProdParts.length!==1?"s":""} were assigned to this product</div>
                 {deletedProdParts.map(p => (
                   <div key={p.id} style={{ fontSize:12,color:"#ff3b30",opacity:0.7,textDecoration:"line-through",marginBottom:2 }}>{p.mpn || "(no MPN)"} — {p.description}</div>
                 ))}
               </div>
             ) : (
-              <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:14,padding:"40px 20px",textAlign:"center",color:"#64748d",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ background:darkMode?"#161a22":"#fff",borderRadius:14,padding:"40px 20px",textAlign:"center",color:"#64748d",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                 <div style={{ fontSize:14 }}>No parts assigned to this product yet. Use the form above to add parts.</div>
               </div>
             )}
 
             {/* ── Production Run Simulator */}
             {prodParts.length > 0 && (
-              <div style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ background:darkMode?"#161a22":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                 <div style={{ fontSize:10,color:"#64748d",letterSpacing:"0.5px",fontWeight:500,marginBottom:10,textTransform:"uppercase" }}>
                   Production Run Simulator
                 </div>
@@ -12869,7 +12881,7 @@ function BOMManager({ user }) {
                       clearTimeout(simTimer.current);
                       if (parseInt(val) > 0) simTimer.current = setTimeout(() => runBomSimulation(pid), 600);
                     }}
-                    style={{ width:100,padding:"6px 10px",borderRadius:5,fontSize:14,fontWeight:700,textAlign:"center",background:darkMode?"#3a3a3e":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
+                    style={{ width:100,padding:"6px 10px",borderRadius:5,fontSize:14,fontWeight:700,textAlign:"center",background:darkMode?"#1f2530":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
                   <span style={{ fontSize:12,color:"#64748d" }}>units of <strong style={{ color:darkMode?"#f6f9fc":"#061b31" }}>{prod.name}</strong>...</span>
                   <button className="btn-primary" style={{ fontSize:12 }}
                     disabled={bomSim[prod.id]?.loading || !parseInt(bomSim[prod.id]?.qty)}
@@ -12900,29 +12912,29 @@ function BOMManager({ user }) {
                   return (
                     <div>
                       <div style={{ display:"flex",gap:12,flexWrap:"wrap",marginBottom:16 }}>
-                        <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,padding:"12px 16px",minWidth:200,flex:1,border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                        <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:8,padding:"12px 16px",minWidth:200,flex:1,border:"1px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                           <div style={{ fontSize:10,color:"#ff9500",fontWeight:700,letterSpacing:"0.06em",marginBottom:4 }}>CHEAPEST PER PART</div>
-                          <div style={{ fontSize:22,fontWeight:800,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",color:darkMode?"#f6f9fc":"#061b31" }}>
+                          <div style={{ fontSize:22,fontWeight:800,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",color:darkMode?"#f6f9fc":"#061b31" }}>
                             ${fmtPrice(cheapBase.perUnit)}<span style={{ fontSize:12,color:"#64748d",fontWeight:400 }}> / unit</span>
                           </div>
                           <div style={{ fontSize:11,color:"#64748d",marginTop:8 }}>Parts: {"$"}{fmtDollar(cheapBase.partsCost)}</div>
                           <div style={{ fontSize:11,color:"#64748d" }}>Shipping: {"$"}{fmtDollar(cheapBase.shipping)} ({cheapBase.suppliers.length} vendor{cheapBase.suppliers.length!==1?"s":""})</div>
                           <div style={{ fontSize:11,color:cheapBase.tariffTotal>0?"#ff3b30":"#64748d" }}>Tariffs: {cheapBase.tariffTotal > 0 ? `$${fmtDollar(cheapBase.tariffTotal)}` : "$0.00"}</div>
-                          <div style={{ fontSize:12,color:darkMode?"#f6f9fc":"#061b31",fontWeight:700,marginTop:4,borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),paddingTop:4 }}>Total: {"$"}{fmtDollar(cheapBase.total)}</div>
+                          <div style={{ fontSize:12,color:darkMode?"#f6f9fc":"#061b31",fontWeight:700,marginTop:4,borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),paddingTop:4 }}>Total: {"$"}{fmtDollar(cheapBase.total)}</div>
                           <div style={{ fontSize:10,color:"#8898aa",marginTop:6 }}>{cheapBase.shippingBreakdown.map(sb => <div key={sb.supplierId}>{sb.name}: {"$"}{fmtDollar(sb.cost)} shipping</div>)}</div>
                           {cheapBase.tariffBreakdown?.length > 0 && <div style={{ fontSize:10,color:"#ff3b30",marginTop:4 }}>{cheapBase.tariffBreakdown.map((t,i) => <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{fmtDollar(t.goodsValue)} = {"$"}{fmtDollar(t.cost)}</div>)}</div>}
                         </div>
-                        <div style={{ background:smartSavings>0?"rgba(52,199,89,0.06)":(darkMode?"#1c1c1e":"#fff"),
-                          border:smartSavings>0?"1px solid #34c759":"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),
+                        <div style={{ background:smartSavings>0?"rgba(52,199,89,0.06)":(darkMode?"#0f1218":"#fff"),
+                          border:smartSavings>0?"1px solid #34c759":"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),
                           borderRadius:8,padding:"12px 16px",minWidth:200,flex:1 }}>
                           <div style={{ fontSize:10,color:"#34c759",fontWeight:700,letterSpacing:"0.06em",marginBottom:4 }}>SMART CONSOLIDATED {smartSavings > 0 ? "-- RECOMMENDED" : ""}</div>
-                          <div style={{ fontSize:22,fontWeight:800,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",color:"#34c759" }}>
+                          <div style={{ fontSize:22,fontWeight:800,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",color:"#34c759" }}>
                             ${fmtPrice(smartBase.perUnit)}<span style={{ fontSize:12,color:"#64748d",fontWeight:400 }}> / unit</span>
                           </div>
                           <div style={{ fontSize:11,color:"#64748d",marginTop:8 }}>Parts: {"$"}{fmtDollar(smartBase.partsCost)}</div>
                           <div style={{ fontSize:11,color:"#64748d" }}>Shipping: {"$"}{fmtDollar(smartBase.shipping)} ({smartBase.suppliers.length} vendor{smartBase.suppliers.length!==1?"s":""})</div>
                           <div style={{ fontSize:11,color:smartBase.tariffTotal>0?"#ff3b30":"#64748d" }}>Tariffs: {smartBase.tariffTotal > 0 ? `$${fmtDollar(smartBase.tariffTotal)}` : "$0.00"}</div>
-                          <div style={{ fontSize:12,color:darkMode?"#f6f9fc":"#061b31",fontWeight:700,marginTop:4,borderTop:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),paddingTop:4 }}>Total: {"$"}{fmtDollar(smartBase.total)}</div>
+                          <div style={{ fontSize:12,color:darkMode?"#f6f9fc":"#061b31",fontWeight:700,marginTop:4,borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),paddingTop:4 }}>Total: {"$"}{fmtDollar(smartBase.total)}</div>
                           <div style={{ fontSize:10,color:"#8898aa",marginTop:6 }}>{smartBase.shippingBreakdown.map(sb => <div key={sb.supplierId}>{sb.name}: {"$"}{fmtDollar(sb.cost)} shipping</div>)}</div>
                           {smartBase.tariffBreakdown?.length > 0 && <div style={{ fontSize:10,color:"#ff3b30",marginTop:4 }}>{smartBase.tariffBreakdown.map((t,i) => <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{fmtDollar(t.goodsValue)} = {"$"}{fmtDollar(t.cost)}</div>)}</div>}
                           {smartSavings > 0 && <div style={{ fontSize:12,color:"#34c759",fontWeight:700,marginTop:6 }}>Saves {"$"}{fmtDollar(smartSavings)} total vs cheapest-per-part</div>}
@@ -12930,13 +12942,13 @@ function BOMManager({ user }) {
                       </div>
 
                       <div style={{ fontSize:10,color:"#5856d6",fontWeight:700,letterSpacing:"0.06em",marginBottom:6 }}>QUANTITY COMPARISON (Smart Consolidated)</div>
-                      <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden" }}>
+                      <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden" }}>
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                         <thead>
-                          <tr style={{ background:darkMode?"#3a3a3e":"#b8bdd1",color:darkMode?"#e5e5ea":"#3a3f51" }}>
+                          <tr style={{ background:darkMode?"#1f2530":"#b8bdd1",color:darkMode?"#e5e5ea":"#3a3f51" }}>
                             {["Units","Parts Cost","Shipping","Tariffs","Total","Per Unit","Vendors","vs Base"].map((h,hi,arr)=>(
                               <th key={hi} style={{ padding:"12px 14px",textAlign:hi>0?"right":"left",
-                                fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                                fontFamily:"'IBM Plex Sans',system-ui,sans-serif",
                                 fontSize:11,fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",whiteSpace:"nowrap",
                                 borderRadius:hi===0?"8px 0 0 0":hi===arr.length-1?"0 8px 0 0":undefined }}>{h}</th>
                             ))}
@@ -12949,18 +12961,18 @@ function BOMManager({ user }) {
                             const isBase = r.qty === baseQty;
                             const isBest = r.qty === bestQty.qty && r.qty !== baseQty;
                             return (
-                              <tr key={r.qty} style={{ borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#ededf0"),
-                                background: isBest ? "rgba(52,199,89,0.06)" : isBase ? (darkMode?"#2c2c2e":"#fafbfc") : "transparent" }}>
+                              <tr key={r.qty} style={{ borderBottom:"1px solid "+(darkMode?"#1f2530":"#ededf0"),
+                                background: isBest ? "rgba(52,199,89,0.06)" : isBase ? (darkMode?"#161a22":"#fafbfc") : "transparent" }}>
                                 <td style={{ padding:"12px 14px",fontWeight:isBase||isBest?700:400,color:isBest?"#34c759":isBase?(darkMode?"#f6f9fc":"#061b31"):"#50617a" }}>
                                   {r.qty.toLocaleString()}{isBest?" (best value)":""}{isBase?" (base)":""}
                                 </td>
                                 <td style={{ padding:"12px 14px",textAlign:"right",color:"#50617a" }}>{"$"}{fmtDollar(s.partsCost)}</td>
                                 <td style={{ padding:"12px 14px",textAlign:"right",color:"#50617a" }}>{"$"}{fmtDollar(s.shipping)}</td>
-                                <td style={{ padding:"12px 14px",textAlign:"right",color:s.tariffTotal>0?"#ff3b30":"#c7c7cc" }}>{s.tariffTotal > 0 ? `$${fmtDollar(s.tariffTotal)}` : "--"}</td>
+                                <td style={{ padding:"12px 14px",textAlign:"right",color:s.tariffTotal>0?"#ff3b30":"#b8bfcc" }}>{s.tariffTotal > 0 ? `$${fmtDollar(s.tariffTotal)}` : "--"}</td>
                                 <td style={{ padding:"12px 14px",textAlign:"right",color:darkMode?"#f6f9fc":"#061b31",fontWeight:600 }}>{"$"}{fmtDollar(s.total)}</td>
                                 <td style={{ padding:"12px 14px",textAlign:"right",fontWeight:700,color:isBest?"#34c759":(darkMode?"#f6f9fc":"#061b31") }}>{"$"}{fmtPrice(s.perUnit)}</td>
                                 <td style={{ padding:"12px 14px",textAlign:"right",color:"#50617a" }}>{s.suppliers.length}</td>
-                                <td style={{ padding:"12px 14px",textAlign:"right",color:diff>0?"#34c759":diff<0?"#ff3b30":"#c7c7cc",fontWeight:diff!==0?600:400 }}>
+                                <td style={{ padding:"12px 14px",textAlign:"right",color:diff>0?"#34c759":diff<0?"#ff3b30":"#b8bfcc",fontWeight:diff!==0?600:400 }}>
                                   {isBase ? "--" : diff > 0 ? `-$${fmtPrice(diff)}/ea` : diff < 0 ? `+$${fmtPrice(Math.abs(diff))}/ea` : "same"}
                                 </td>
                               </tr>
@@ -13031,7 +13043,7 @@ function BOMManager({ user }) {
             <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
               <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#34c759",color:"#fff",fontSize:12,fontWeight:800 }}>4</span>
-                <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:20,fontWeight:700,margin:0 }}>Orders</h2>
+                <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,margin:0 }}>Orders</h2>
               </div>
               <p style={{ color:"#50617a",fontSize:13,lineHeight:"20px",margin:0 }}>
                 Your fulfillment queue — every open customer order from Shopify (direct-to-consumer) and Zoho Books (dealer/wholesale), with due dates, fulfillment progress, and overdue alerts. ShipStation data shows what's already shipped. Build orders are created automatically when shelf stock falls below your minimum threshold — set thresholds on the Shelf tab.
@@ -13112,7 +13124,7 @@ function BOMManager({ user }) {
             {!shopifyDemand && !shopifyDemand?.loading && !zohoDemand && !zohoDemand?.loading && (
               <div className="card" style={{ textAlign:"center",padding:60 }}>
                 <div style={{ fontSize:40,marginBottom:12 }}>🛒</div>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:15,marginBottom:8 }}>Connect Shopify or Zoho Books to see orders</div>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:15,marginBottom:8 }}>Connect Shopify or Zoho Books to see orders</div>
                 <p style={{ color:"#64748d",fontSize:13,marginBottom:16 }}>Add your Shopify store or Zoho Books credentials in Settings, then sync.</p>
                 <button className="btn-primary" onClick={() => setActiveView("settings")}>⚙ Go to Settings</button>
               </div>
@@ -13123,7 +13135,7 @@ function BOMManager({ user }) {
                 {/* ── Summary cards */}
                 <div style={{ display:"flex",gap:12,marginBottom:20,flexWrap:"wrap" }}>
                   {[
-                    { label:"Direct Orders (Shopify)", value:shopifyDemand?.totalOrders || 0, color:"#533afd" },
+                    { label:"Direct Orders (Shopify)", value:shopifyDemand?.totalOrders || 0, color:"#58a6ff" },
                     { label:"Dealer Orders (Zoho)", value:zohoDemand?.totalOrders || 0, color:"#4bc076" },
                     { label:"Units Shipped (ShipStation)", value:shipstationData?.totalUnitsShipped || 0, color:"#00c7be" },
                     { label:"Products in Demand", value:(shopifyDemand?.products?.length || 0) + (zohoDemand?.products?.length || 0), color:"#5856d6" },
@@ -13131,7 +13143,7 @@ function BOMManager({ user }) {
                     { label:"Parts Short", value:partsDemand.filter(d => d.needed > (parseInt(d.part.stockQty) || 0)).length, color:"#ff3b30" },
                   ].map(c => (
                     <div key={c.label} className="card" style={{ flex:"1 1 140px",textAlign:"center",padding:"16px 12px" }}>
-                      <div style={{ fontSize:28,fontWeight:800,color:c.color,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                      <div style={{ fontSize:28,fontWeight:800,color:c.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                         {c.value.toLocaleString()}
                       </div>
                       <div style={{ fontSize:10,color:"#64748d",letterSpacing:"0.08em",marginTop:2 }}>{c.label.toUpperCase()}</div>
@@ -13351,7 +13363,7 @@ function BOMManager({ user }) {
                     }
                     const ssMatch = matchShipStation(order.name) || matchShipStation(order.orderNumber);
                     const base = {
-                      id: order.id, channel: "Direct", accentColor: "#533afd",
+                      id: order.id, channel: "Direct", accentColor: "#58a6ff",
                       customer: order.name, orderName: order.name, dealerPO: "", dueDate: "",
                       date: order.createdAt, createdAt: order.createdAt,
                       lineItems: items.map(li => ({ title: li.title, quantity: li.quantity || 0, fulfilled: li.fulfilledQty || 0 })),
@@ -13385,7 +13397,7 @@ function BOMManager({ user }) {
                           }}>
                           <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                             <div style={{ width:8,height:8,borderRadius:"50%",background:color,flexShrink:0 }} />
-                            <span style={{ fontSize:13,fontWeight:700,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                            <span style={{ fontSize:13,fontWeight:700,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                               {title}
                             </span>
                             <span style={{ fontSize:11,color:"#64748d",fontWeight:500 }}>
@@ -13490,7 +13502,7 @@ function BOMManager({ user }) {
                                               {po.trackingNumbers.map((tn,i) => (
                                                 <div key={i}>
                                                   <a href={getTrackingUrl(tn, po.carrier)} target="_blank" rel="noopener noreferrer"
-                                                    style={{ color:"#533afd",textDecoration:"none" }}
+                                                    style={{ color:"#58a6ff",textDecoration:"none" }}
                                                     onMouseOver={e => e.target.style.textDecoration="underline"}
                                                     onMouseOut={e => e.target.style.textDecoration="none"}>
                                                     {tn}
@@ -13712,7 +13724,7 @@ function BOMManager({ user }) {
                                             <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#64748d",marginBottom:8 }}>Dealer Info</div>
                                             <div style={{ fontSize:15,fontWeight:700,color:"#061b31",marginBottom:4 }}>{po.dealerName || po.contactName || "—"}</div>
                                             {po.contactName && <div style={{ fontSize:12,color:"#3a3f51" }}>{po.contactName}</div>}
-                                            {po.email && <div style={{ fontSize:12 }}><a href={"mailto:"+po.email} style={{ color:"#533afd",textDecoration:"none" }}>{po.email}</a></div>}
+                                            {po.email && <div style={{ fontSize:12 }}><a href={"mailto:"+po.email} style={{ color:"#58a6ff",textDecoration:"none" }}>{po.email}</a></div>}
                                             {po.phone && <div style={{ fontSize:12,color:"#3a3f51" }}>{po.phone}</div>}
                                             {(() => {
                                               const shipLines = fmtAddrBlock(po.shippingAddress);
@@ -13865,7 +13877,7 @@ function BOMManager({ user }) {
 
                   return (<>
                     {renderDealerPOs()}
-                    {renderOrderSection(sortOrders(directOrders), "direct-orders", "Direct Order Tracker", "#533afd",
+                    {renderOrderSection(sortOrders(directOrders), "direct-orders", "Direct Order Tracker", "#58a6ff",
                       directOrders.length, directOrders.filter(o => o.pctComplete < 100).length,
                       directOrders.filter(o => o.due.urgent && o.pctComplete < 100).length
                     )}
@@ -13888,7 +13900,7 @@ function BOMManager({ user }) {
                       </div>
                       <button className="btn-ghost" style={{ fontSize:10,fontWeight:700,color:"#ff9500" }}
                         onClick={async () => {
-                          const colors = ["#ff9500","#5856d6","#ff3b30","#34c759","#533afd","#ff2d55"];
+                          const colors = ["#ff9500","#5856d6","#ff3b30","#34c759","#58a6ff","#ff2d55"];
                           for (let i = 0; i < unmapped.length; i++) {
                             const u = unmapped[i];
                             const color = colors[(products.length + i) % colors.length];
@@ -13907,7 +13919,7 @@ function BOMManager({ user }) {
                         <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
                           onClick={async (e) => {
                             const btn = e.currentTarget;
-                            const colors = ["#ff9500","#5856d6","#ff3b30","#34c759","#533afd","#ff2d55"];
+                            const colors = ["#ff9500","#5856d6","#ff3b30","#34c759","#58a6ff","#ff2d55"];
                             const color = colors[(products.length + i) % colors.length];
                             try {
                               await createProduct({ name: u.title, color, userId: user.id, shopify_product_id: u.shopifyProductId });
@@ -13932,7 +13944,7 @@ function BOMManager({ user }) {
                       </div>
                       <button className="btn-ghost" style={{ fontSize:10,fontWeight:700,color:"#4bc076" }}
                         onClick={async () => {
-                          const colors = ["#4bc076","#5856d6","#ff3b30","#34c759","#533afd","#ff2d55"];
+                          const colors = ["#4bc076","#5856d6","#ff3b30","#34c759","#58a6ff","#ff2d55"];
                           for (let i = 0; i < unmappedZoho.length; i++) {
                             const u = unmappedZoho[i];
                             const color = colors[(products.length + i) % colors.length];
@@ -13953,7 +13965,7 @@ function BOMManager({ user }) {
                           <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
                             onClick={async (e) => {
                               const btn = e.currentTarget;
-                              const colors = ["#4bc076","#5856d6","#ff3b30","#34c759","#533afd","#ff2d55"];
+                              const colors = ["#4bc076","#5856d6","#ff3b30","#34c759","#58a6ff","#ff2d55"];
                               const color = colors[(products.length) % colors.length];
                               try {
                                 await createProduct({ name: u.title, color, userId: user.id });
@@ -13994,11 +14006,11 @@ function BOMManager({ user }) {
                             return (
                               <tr key={d.part.id} style={{ borderBottom:"1px solid #f0f0f2" }}>
                                 <td style={{ padding:"10px 10px" }}>
-                                  <div style={{ fontWeight:700,color:"#533afd" }}>{d.part.reference}</div>
+                                  <div style={{ fontWeight:700,color:"#58a6ff" }}>{d.part.reference}</div>
                                   <div style={{ fontSize:11,color:"#64748d" }}>{d.part.value}</div>
                                 </td>
                                 <td style={{ padding:"10px 10px",fontSize:11,color:"#3a3f51" }}>{d.part.mpn || "—"}</td>
-                                <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                   {d.needed.toLocaleString()}
                                 </td>
                                 <td style={{ padding:"10px 10px",textAlign:"right",color:stock >= d.needed ? "#34c759" : "#64748d" }}>
@@ -14006,7 +14018,7 @@ function BOMManager({ user }) {
                                 </td>
                                 <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,
                                   color: deficit > 0 ? "#ff3b30" : "#34c759",
-                                  fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                  fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                   {deficit > 0 ? `-${deficit.toLocaleString()}` : "✓"}
                                 </td>
                                 <td style={{ padding:"10px 10px" }}>
@@ -14108,7 +14120,7 @@ function BOMManager({ user }) {
                         key: `direct-${brand}`,
                         channel: "Direct",
                         brand,
-                        accentColor: "#533afd",
+                        accentColor: "#58a6ff",
                         orderCount: shopOrdersByBrand[brand] || 0,
                         totalUnits,
                         products: prods,
@@ -14126,7 +14138,7 @@ function BOMManager({ user }) {
                           onClick={() => setExpandedDemandSections(prev => { const s = new Set(prev); s.has(section.key) ? s.delete(section.key) : s.add(section.key); return s; })}
                           style={{
                             padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
-                            background: darkMode ? "#1c1c1e" : (section.accentColor + "0a"),
+                            background: darkMode ? "#0f1218" : (section.accentColor + "0a"),
                             borderBottom: isCollapsed ? "none" : `2px solid ${section.accentColor}33`,
                             borderRadius: isCollapsed ? 12 : "12px 12px 0 0",
                             transition: "all 0.2s",
@@ -14134,7 +14146,7 @@ function BOMManager({ user }) {
                         >
                           <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                             <div style={{ width:8,height:8,borderRadius:"50%",background:section.accentColor,flexShrink:0 }} />
-                            <span style={{ fontSize:13,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                            <span style={{ fontSize:13,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                               {section.channel} Orders — {section.brand}
                             </span>
                             <span style={{ fontSize:11,color:"#64748d",fontWeight:500 }}>
@@ -14164,7 +14176,7 @@ function BOMManager({ user }) {
                                   return (
                                     <tr key={prod.zohoProductId || prod.shopifyProductId || prod.title} style={{ borderBottom:"1px solid #f0f0f2" }}>
                                       <td style={{ padding:"10px 10px",fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{prod.title}</td>
-                                      <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,color:section.accentColor,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                      <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,color:section.accentColor,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                         {prod.totalUnfulfilled.toLocaleString()}
                                       </td>
                                       {section.source === "zoho" && (
@@ -14237,12 +14249,12 @@ function BOMManager({ user }) {
                           onClick={() => setExpandedDemandSections(prev => { const s = new Set(prev); s.has("direct-forecast") ? s.delete("direct-forecast") : s.add("direct-forecast"); return s; })}
                           style={{
                             padding:"12px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
-                            background:"#533afd0a",borderBottom: isForecastCollapsed ? "none" : "2px solid #533afd33",
+                            background:"#58a6ff0a",borderBottom: isForecastCollapsed ? "none" : "2px solid #58a6ff33",
                             borderRadius: isForecastCollapsed ? 12 : "12px 12px 0 0",transition:"all 0.2s",
                           }}>
                           <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                            <div style={{ width:8,height:8,borderRadius:"50%",background:"#533afd",flexShrink:0 }} />
-                            <span style={{ fontSize:13,fontWeight:700,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                            <div style={{ width:8,height:8,borderRadius:"50%",background:"#58a6ff",flexShrink:0 }} />
+                            <span style={{ fontSize:13,fontWeight:700,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                               Direct Sales Forecast
                             </span>
                             <span style={{ fontSize:11,color:"#64748d",fontWeight:500 }}>
@@ -14277,7 +14289,7 @@ function BOMManager({ user }) {
                                           {f.storeName && <span style={{ color:"#5856d6",fontWeight:600,marginLeft:4 }}>{f.storeName}</span>}
                                         </div>
                                       </td>
-                                      <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:600,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                      <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:600,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                         {f.dailyRate.toFixed(1)}
                                       </td>
                                       <td style={{ padding:"10px 10px",textAlign:"right",color:"#64748d" }}>
@@ -14287,18 +14299,18 @@ function BOMManager({ user }) {
                                         {Math.round(f.monthlyRate).toLocaleString()}
                                       </td>
                                       <td style={{ padding:"10px 10px",textAlign:"center",fontWeight:700,fontSize:14,
-                                        background:"#f0f7ff",color:"#533afd",
-                                        fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                        background:"#f0f7ff",color:"#58a6ff",
+                                        fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                         {f.forecast30.toLocaleString()}
                                       </td>
                                       <td style={{ padding:"10px 10px",textAlign:"center",fontWeight:700,fontSize:14,
                                         background:"#fff8f0",color:"#ff9500",
-                                        fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                        fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                         {f.forecast60.toLocaleString()}
                                       </td>
                                       <td style={{ padding:"10px 10px",textAlign:"center",fontWeight:700,fontSize:14,
                                         background:"#fff2f0",color:"#ff3b30",
-                                        fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                        fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                         {f.forecast90.toLocaleString()}
                                       </td>
                                       <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,
@@ -14339,7 +14351,7 @@ function BOMManager({ user }) {
                   }}>
                   <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                     <div style={{ width:8,height:8,borderRadius:"50%",background:"#00c7be",flexShrink:0 }} />
-                    <span style={{ fontSize:13,fontWeight:700,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                    <span style={{ fontSize:13,fontWeight:700,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                       Units Shipped — ShipStation
                     </span>
                     <span style={{ fontSize:11,color:"#64748d",fontWeight:500 }}>
@@ -14397,23 +14409,23 @@ function BOMManager({ user }) {
                         <div style={{ display:"flex",gap:10,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4 }}>
                           {yearSummary.map(ys => (
                             <div key={ys.year} style={{ background:"#f6f9fc",borderRadius:14,padding:"16px 20px",minWidth:155,flex:"0 0 auto" }}>
-                              <div style={{ fontSize:22,fontWeight:800,color:"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",marginBottom:10 }}>{ys.year}</div>
+                              <div style={{ fontSize:22,fontWeight:800,color:"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif",marginBottom:10 }}>{ys.year}</div>
                               <div style={{ display:"flex",gap:16 }}>
                                 <div>
                                   <div style={{ fontSize:24,fontWeight:800,lineHeight:1,color: ys.avg <= 1 ? "#34c759" : ys.avg <= 3 ? "#ff9500" : "#ff3b30",
-                                    fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                                    fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                     {ys.avg.toFixed(1)}d
                                   </div>
                                   <div style={{ fontSize:11,color:"#64748d",marginTop:3 }}>avg lead time</div>
                                 </div>
                                 <div>
-                                  <div style={{ fontSize:24,fontWeight:800,lineHeight:1,color:"#00c7be",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                                  <div style={{ fontSize:24,fontWeight:800,lineHeight:1,color:"#00c7be",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                     {ys.count.toLocaleString()}
                                   </div>
                                   <div style={{ fontSize:11,color:"#64748d",marginTop:3 }}>orders</div>
                                 </div>
                                 <div>
-                                  <div style={{ fontSize:24,fontWeight:800,lineHeight:1,color:"#533afd",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                                  <div style={{ fontSize:24,fontWeight:800,lineHeight:1,color:"#58a6ff",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                     {ys.sameDayPct}%
                                   </div>
                                   <div style={{ fontSize:11,color:"#64748d",marginTop:3 }}>same-day</div>
@@ -14451,7 +14463,7 @@ function BOMManager({ user }) {
                               return (
                                 <div key={i} style={{ width:barWidth,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%" }}
                                   title={`${monthLabel} ${yr}: avg ${m.avg.toFixed(1)}d (${m.count} orders)`}>
-                                  <div style={{ fontSize:12,color:"#061b31",fontWeight:800,marginBottom:4,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                                  <div style={{ fontSize:12,color:"#061b31",fontWeight:800,marginBottom:4,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                     {m.avg.toFixed(1)}
                                   </div>
                                   <div style={{ width:"70%",height:barH,background:color,borderRadius:"6px 6px 0 0",transition:"height 0.3s",position:"relative",minHeight:20 }}>
@@ -14506,12 +14518,12 @@ function BOMManager({ user }) {
                                 </td>
                                 <td style={{ padding:"10px 10px",textAlign:"center" }}>
                                   {lt != null ? (
-                                    <span style={{ fontWeight:700,fontSize:13,color:ltColor,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                    <span style={{ fontWeight:700,fontSize:13,color:ltColor,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                       {lt === 0 ? "Same day" : `${lt}d`}
                                     </span>
                                   ) : <span style={{ color:"#8898aa",fontSize:10 }}>—</span>}
                                 </td>
-                                <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                   {order.totalItemsShipped}
                                 </td>
                                 <td style={{ padding:"10px 10px",fontSize:10,color:"#64748d",textTransform:"uppercase" }}>
@@ -14520,7 +14532,7 @@ function BOMManager({ user }) {
                                 <td style={{ padding:"10px 10px",fontSize:11 }}>
                                   {tn ? (
                                     <a href={getTrackingUrl(tn, carrier)} target="_blank" rel="noopener noreferrer"
-                                      style={{ color:"#533afd",fontFamily:"monospace",textDecoration:"none",fontWeight:500 }}
+                                      style={{ color:"#58a6ff",fontFamily:"monospace",textDecoration:"none",fontWeight:500 }}
                                       onMouseOver={e => e.target.style.textDecoration="underline"}
                                       onMouseOut={e => e.target.style.textDecoration="none"}>
                                       {tn}
@@ -14555,7 +14567,7 @@ function BOMManager({ user }) {
             <div style={{ marginTop:32, borderTop:"2px solid #e5e5ea", paddingTop:24 }}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:12 }}>
                 <div>
-                  <h3 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:18,fontWeight:800,marginBottom:4 }}>Demand Forecast</h3>
+                  <h3 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:18,fontWeight:800,marginBottom:4 }}>Demand Forecast</h3>
                   <p style={{ color:"#64748d",fontSize:12,margin:0 }}>
                     Predictive forecast based on {salesHistory ? `${salesHistory.history?.length || 0} months` : "up to 24 months"} of historical sales data from Shopify + Zoho.
                     {salesHistory?.fetchedAt && <span style={{ marginLeft:8,fontSize:11 }}>Last loaded: {new Date(salesHistory.fetchedAt).toLocaleString()}</span>}
@@ -14699,7 +14711,7 @@ function BOMManager({ user }) {
                   <div style={{ display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center" }}>
                     <span style={{ fontSize:11,color:"#64748d",fontWeight:600 }}>PRODUCT:</span>
                     <select value={forecastChartProduct} onChange={e => setForecastChartProduct(e.target.value)}
-                      style={{ fontSize:12,padding:"4px 8px",borderRadius:6,border:"1px solid #e3e8ee",background:"#fff",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                      style={{ fontSize:12,padding:"4px 8px",borderRadius:6,border:"1px solid #e3e8ee",background:"#fff",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                       <option value="__all__">All Products (Total)</option>
                       {allProducts.map(p => <option key={p.title} value={p.title}>{p.title} ({p.totalHistorical.toLocaleString()} sold)</option>)}
                     </select>
@@ -14717,36 +14729,36 @@ function BOMManager({ user }) {
                         {gridLines.map((g, i) => (
                           <g key={i}>
                             <line x1={padL} y1={g.y} x2={chartW - padR} y2={g.y} stroke="#f0f0f2" strokeWidth="1" />
-                            <text x={padL - 6} y={g.y + 3} fontSize="9" fill="#64748d" textAnchor="end" fontFamily="Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif">{g.label}</text>
+                            <text x={padL - 6} y={g.y + 3} fontSize="9" fill="#64748d" textAnchor="end" fontFamily="'IBM Plex Sans',system-ui,sans-serif">{g.label}</text>
                           </g>
                         ))}
                         {/* X axis */}
                         <line x1={padL} y1={padT + plotH} x2={chartW - padR} y2={padT + plotH} stroke="#e5e5ea" strokeWidth="1" />
                         {xLabels.map((l, i) => (
                           <text key={i} x={l.x} y={chartH - 8} fontSize="9" fill="#64748d" textAnchor="middle"
-                            fontFamily="Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif">{l.label}</text>
+                            fontFamily="'IBM Plex Sans',system-ui,sans-serif">{l.label}</text>
                         ))}
                         {/* Confidence band */}
                         {bandPath && <path d={bandPath} fill="rgba(88,86,214,0.1)" />}
                         {/* Historical line */}
-                        {histLinePath && <path d={histLinePath} fill="none" stroke="#533afd" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
+                        {histLinePath && <path d={histLinePath} fill="none" stroke="#58a6ff" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
                         {/* Forecast line (dashed) */}
                         {fcastLinePath && <path d={fcastLinePath} fill="none" stroke="#5856d6" strokeWidth="2" strokeDasharray="6,4" strokeLinejoin="round" strokeLinecap="round" />}
                         {/* Historical dots */}
                         {histPoints.map((p, i) => (
-                          <circle key={`h${i}`} cx={toX(i)} cy={toY(p.value)} r="2.5" fill="#533afd" />
+                          <circle key={`h${i}`} cx={toX(i)} cy={toY(p.value)} r="2.5" fill="#58a6ff" />
                         ))}
                         {/* Forecast dots */}
                         {fcastPoints.map((p, i) => (
                           <circle key={`f${i}`} cx={toX(fcastStartIdx + i)} cy={toY(p.value)} r="3.5" fill="#5856d6" stroke="#fff" strokeWidth="1.5" />
                         ))}
                         {/* Legend */}
-                        <line x1={padL + 10} y1={12} x2={padL + 30} y2={12} stroke="#533afd" strokeWidth="2" />
-                        <text x={padL + 34} y={15} fontSize="9" fill="#64748d" fontFamily="Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif">Actual</text>
+                        <line x1={padL + 10} y1={12} x2={padL + 30} y2={12} stroke="#58a6ff" strokeWidth="2" />
+                        <text x={padL + 34} y={15} fontSize="9" fill="#64748d" fontFamily="'IBM Plex Sans',system-ui,sans-serif">Actual</text>
                         <line x1={padL + 80} y1={12} x2={padL + 100} y2={12} stroke="#5856d6" strokeWidth="2" strokeDasharray="6,4" />
-                        <text x={padL + 104} y={15} fontSize="9" fill="#64748d" fontFamily="Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif">Forecast</text>
+                        <text x={padL + 104} y={15} fontSize="9" fill="#64748d" fontFamily="'IBM Plex Sans',system-ui,sans-serif">Forecast</text>
                         <rect x={padL + 155} y={6} width={12} height={12} fill="rgba(88,86,214,0.1)" stroke="#5856d6" strokeWidth="0.5" rx="2" />
-                        <text x={padL + 171} y={15} fontSize="9" fill="#64748d" fontFamily="Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif">Confidence Range</text>
+                        <text x={padL + 171} y={15} fontSize="9" fill="#64748d" fontFamily="'IBM Plex Sans',system-ui,sans-serif">Confidence Range</text>
                       </svg>
                     </div>
                   </div>
@@ -14787,7 +14799,7 @@ function BOMManager({ user }) {
                               </td>
                               {p.forecasts.map(f => (
                                 <td key={f.month} style={{ padding:"10px 10px",textAlign:"center" }}>
-                                  <div style={{ fontWeight:800,fontSize:15,color:"#5856d6",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                  <div style={{ fontWeight:800,fontSize:15,color:"#5856d6",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                     {f.forecast.toLocaleString()}
                                   </div>
                                   <div style={{ fontSize:9,color:"#64748d" }}>{f.low.toLocaleString()} — {f.high.toLocaleString()}</div>
@@ -14804,7 +14816,7 @@ function BOMManager({ user }) {
                                 </td>
                               ))}
                               <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontSize:14,
-                                fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                                fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                 {p.recentMonthlyAvg.toLocaleString()}
                               </td>
                               <td style={{ padding:"10px 10px",fontSize:11 }}>
@@ -14835,7 +14847,7 @@ function BOMManager({ user }) {
                             <div style={{
                               width:"100%",maxWidth:40,
                               height: Math.max(barH, 2),
-                              background: isStrong ? "#34c759" : isWeak ? "#ff9500" : "#533afd",
+                              background: isStrong ? "#34c759" : isWeak ? "#ff9500" : "#58a6ff",
                               borderRadius:"4px 4px 0 0",
                               opacity: 0.8,
                               transition: "height 0.3s",
@@ -14850,7 +14862,7 @@ function BOMManager({ user }) {
                     </div>
                     <div style={{ marginTop:10,fontSize:10,color:"#8898aa",display:"flex",gap:16 }}>
                       <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#34c759",marginRight:4 }} />Above average ({">"} 1.15x)</span>
-                      <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#533afd",marginRight:4 }} />Average</span>
+                      <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#58a6ff",marginRight:4 }} />Average</span>
                       <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#ff9500",marginRight:4 }} />Below average ({"<"} 0.85x)</span>
                     </div>
                   </div>
@@ -14972,7 +14984,7 @@ function BOMManager({ user }) {
                       });
                     } catch (txErr) { console.warn('[reservations] tx write failed:', txErr.message); }
                   }
-                  showToast(`Reserved components for ${productParts.length} BOM parts`, "#533afd");
+                  showToast(`Reserved components for ${productParts.length} BOM parts`, "#58a6ff");
                 }
               } catch (resErr) { console.warn('[reservations] create failed:', resErr.message); }
 
@@ -15194,15 +15206,15 @@ function BOMManager({ user }) {
             } catch (e) { alert("Release hold failed: " + e.message); }
           };
 
-          const priorityColors = { low:"#64748d", normal:"#533afd", high:"#ff9500", urgent:"#ff3b30" };
-          const statusColors = { pending:"#64748d", assigned:"#533afd", "in-progress":"#ff9500", completed:"#34c759" };
-          const inputStyle = { fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:"1px solid #e3e8ee", outline:"none", transition:"border 0.15s", width:"100%" };
+          const priorityColors = { low:"#64748d", normal:"#58a6ff", high:"#ff9500", urgent:"#ff3b30" };
+          const statusColors = { pending:"#64748d", assigned:"#58a6ff", "in-progress":"#ff9500", completed:"#34c759" };
+          const inputStyle = { fontFamily:"'IBM Plex Sans',system-ui,sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:"1px solid #e3e8ee", outline:"none", transition:"border 0.15s", width:"100%" };
           const selectStyle = { ...inputStyle, background:"#fff", cursor:"pointer" };
           const fmtHours = (h) => h < 1 ? `${Math.round(h*60)}m` : `${h.toFixed(1)}h`;
 
           return (
           <div style={{ maxWidth:"100%" }}>
-            <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f6f9fc":"#061b31",marginBottom:4 }}>Production Floor</h2>
+            <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f6f9fc":"#061b31",marginBottom:4 }}>Production Floor</h2>
             <p style={{ fontSize:14,color:"#64748d",marginBottom:12 }}>Manage build orders, team assignments, play testing, and boxing.</p>
 
             {/* ── Sub-tab navigation ── */}
@@ -15215,8 +15227,8 @@ function BOMManager({ user }) {
                 <button key={sub.id} onClick={() => setProdSubTab(sub.id)}
                   style={{
                     padding:"8px 18px",borderRadius:100,fontSize:13,fontWeight:600,cursor:"pointer",
-                    border:prodSubTab===sub.id?"none":(darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee"),
-                    background:prodSubTab===sub.id?(darkMode?"#533afd":"#533afd"):(darkMode?"#2c2c2e":"#fff"),
+                    border:prodSubTab===sub.id?"none":(darkMode?"1px solid #1f2530":"1px solid #e3e8ee"),
+                    background:prodSubTab===sub.id?(darkMode?"#58a6ff":"#58a6ff"):(darkMode?"#161a22":"#fff"),
                     color:prodSubTab===sub.id?"#fff":(darkMode?"#f6f9fc":"#061b31"),
                     transition:"all 0.15s",
                   }}>
@@ -15229,11 +15241,11 @@ function BOMManager({ user }) {
             {/* ── Mobile Builder App link ── */}
             <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:24,flexWrap:"wrap" }}>
               <span style={{ fontSize:13,color:"#64748d" }}>Mobile Builder App:</span>
-              <code style={{ fontSize:12,color:darkMode?"#f8d377":"#5856d6",background:darkMode?"#1c1c1e":"#f0f0f2",padding:"4px 10px",borderRadius:6,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
+              <code style={{ fontSize:12,color:darkMode?"#f8d377":"#5856d6",background:darkMode?"#0f1218":"#f0f0f2",padding:"4px 10px",borderRadius:6,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
                 {window.location.origin + "/build"}
               </code>
               <button onClick={() => { navigator.clipboard.writeText(window.location.origin + "/build"); }}
-                style={{ padding:"5px 12px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:darkMode?"#3a3a3e":"#e5e5ea",color:darkMode?"#f6f9fc":"#061b31" }}>
+                style={{ padding:"5px 12px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:darkMode?"#1f2530":"#e5e5ea",color:darkMode?"#f6f9fc":"#061b31" }}>
                 Copy Link
               </button>
               <button onClick={() => window.open(window.location.origin + "/build", "_blank", "noopener")}
@@ -15246,24 +15258,24 @@ function BOMManager({ user }) {
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:16,marginBottom:28 }}>
               {[
                 { label:"Active Builds", value:activeOrders.length, color:activeOrders.length>0?"#ff9500":"#34c759" },
-                { label:"Team Members", value:activeMembers.length, color:"#533afd" },
+                { label:"Team Members", value:activeMembers.length, color:"#58a6ff" },
                 { label:"Completed Today", value:completedToday, color:"#34c759" },
                 { label:"Completed This Week", value:completedWeek, color:"#5856d6" },
               ].map(card => (
-                <div key={card.label} style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                <div key={card.label} style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                   <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
-                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
+                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
                 </div>
               ))}
             </div>
 
             {/* ══════ PRODUCTION CALENDAR ══════ */}
             {(() => {
-              const cardBg = darkMode ? "#1c1c1e" : "#fff";
-              const cardBorder = darkMode ? "1px solid #3a3a3e" : "1px solid #e5e5ea";
+              const cardBg = darkMode ? "#0f1218" : "#fff";
+              const cardBorder = darkMode ? "1px solid #1f2530" : "1px solid #e5e5ea";
               const textPrimary = darkMode ? "#f6f9fc" : "#061b31";
               const textSecondary = "#64748d";
-              const borderColor = darkMode ? "#3a3a3e" : "#e5e5ea";
+              const borderColor = darkMode ? "#1f2530" : "#e5e5ea";
               const todayDate = new Date(); todayDate.setHours(0,0,0,0);
 
               // Helper: format date as YYYY-MM-DD for comparison
@@ -15358,20 +15370,20 @@ function BOMManager({ user }) {
                 const isOverdue = dueDate && fmtISO(dueDate) < fmtISO(todayDate) && bo.status !== "completed";
                 return (
                   <div key={bo.id} style={{ padding:"6px 8px",borderRadius:8,marginBottom:4,fontSize:11,
-                    background: darkMode ? "#2c2c2e" : "#f6f9fc",
-                    borderLeft: `3px solid ${bo.priority === "urgent" ? "#ff3b30" : bo.priority === "high" ? "#ff9500" : (prod?.color || "#533afd")}`,
+                    background: darkMode ? "#161a22" : "#f6f9fc",
+                    borderLeft: `3px solid ${bo.priority === "urgent" ? "#ff3b30" : bo.priority === "high" ? "#ff9500" : (prod?.color || "#58a6ff")}`,
                     border: isOverdue ? "1px solid #ff3b30" : "none",
                     borderLeftWidth: 3, borderLeftStyle: "solid",
-                    borderLeftColor: bo.priority === "urgent" ? "#ff3b30" : bo.priority === "high" ? "#ff9500" : (prod?.color || "#533afd"),
+                    borderLeftColor: bo.priority === "urgent" ? "#ff3b30" : bo.priority === "high" ? "#ff9500" : (prod?.color || "#58a6ff"),
                     cursor: "pointer", transition: "background 0.15s" }}
                     onClick={() => setCalendarReschedule(calendarReschedule === bo.id ? null : bo.id)}>
                     <div style={{ display:"flex",alignItems:"center",gap:4,marginBottom:2 }}>
-                      {prod && <div style={{ width:6,height:6,borderRadius:"50%",background:prod.color||"#533afd",flexShrink:0 }} />}
+                      {prod && <div style={{ width:6,height:6,borderRadius:"50%",background:prod.color||"#58a6ff",flexShrink:0 }} />}
                       <span style={{ fontWeight:600,color:textPrimary,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{prod?.name || "?"}</span>
                     </div>
                     <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",color:textSecondary }}>
                       <span>x{total}</span>
-                      <span style={{ fontWeight:600,color:pct >= 100 ? "#34c759" : "#533afd" }}>{done}/{total}</span>
+                      <span style={{ fontWeight:600,color:pct >= 100 ? "#34c759" : "#58a6ff" }}>{done}/{total}</span>
                     </div>
                     {assignedMember && <div style={{ color:textSecondary,fontSize:10,marginTop:1 }}>{assignedMember.name}</div>}
                     {/* Reschedule date picker */}
@@ -15380,7 +15392,7 @@ function BOMManager({ user }) {
                         <label style={{ fontSize:9,fontWeight:700,color:textSecondary,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3 }}>Reschedule</label>
                         <input type="date" defaultValue={bo.due_date ? fmtISO(parseLocal(bo.due_date)) : ""}
                           style={{ fontSize:11,padding:"4px 6px",borderRadius:5,border:`1px solid ${borderColor}`,
-                            background:darkMode?"#1c1c1e":"#fff",color:textPrimary,width:"100%" }}
+                            background:darkMode?"#0f1218":"#fff",color:textPrimary,width:"100%" }}
                           onChange={e => { if (e.target.value) handleReschedule(bo.id, e.target.value); }} />
                       </div>
                     )}
@@ -15398,11 +15410,11 @@ function BOMManager({ user }) {
                     <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>Production Calendar</div>
                     <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                       <button onClick={goToday}
-                        style={{ padding:"5px 12px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor}`,background:darkMode?"#2c2c2e":"#f6f9fc",color:textPrimary }}>
+                        style={{ padding:"5px 12px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor}`,background:darkMode?"#161a22":"#f6f9fc",color:textPrimary }}>
                         Today
                       </button>
                       <button onClick={calendarView === "week" ? prevWeek : prevMonth}
-                        style={{ padding:"5px 10px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor}`,background:darkMode?"#2c2c2e":"#f6f9fc",color:textPrimary }}>
+                        style={{ padding:"5px 10px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor}`,background:darkMode?"#161a22":"#f6f9fc",color:textPrimary }}>
                         ←
                       </button>
                       <span style={{ fontSize:13,fontWeight:600,color:textPrimary,minWidth:160,textAlign:"center" }}>
@@ -15411,14 +15423,14 @@ function BOMManager({ user }) {
                           : `${monthNames[calendarMonth.month]} ${calendarMonth.year}`}
                       </span>
                       <button onClick={calendarView === "week" ? nextWeek : nextMonth}
-                        style={{ padding:"5px 10px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor}`,background:darkMode?"#2c2c2e":"#f6f9fc",color:textPrimary }}>
+                        style={{ padding:"5px 10px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${borderColor}`,background:darkMode?"#161a22":"#f6f9fc",color:textPrimary }}>
                         →
                       </button>
                       <div style={{ marginLeft:8,display:"flex",borderRadius:100,overflow:"hidden",border:`1px solid ${borderColor}` }}>
                         {["week","month"].map(v => (
                           <button key={v} onClick={() => { setCalendarView(v); setCalendarSelectedDay(null); }}
                             style={{ padding:"5px 14px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",
-                              background: calendarView === v ? "#533afd" : (darkMode ? "#2c2c2e" : "#f6f9fc"),
+                              background: calendarView === v ? "#58a6ff" : (darkMode ? "#161a22" : "#f6f9fc"),
                               color: calendarView === v ? "#fff" : textPrimary }}>
                             {v.charAt(0).toUpperCase() + v.slice(1)}
                           </button>
@@ -15437,13 +15449,13 @@ function BOMManager({ user }) {
                         const dayIsToday = isToday(day);
                         return (
                           <div key={i} style={{ background:cardBg,minHeight:160,display:"flex",flexDirection:"column",
-                            borderLeft: dayIsToday ? "3px solid #533afd" : "none",
-                            backgroundColor: dayIsToday ? (darkMode ? "#533afd18" : "#533afd08") : cardBg }}>
+                            borderLeft: dayIsToday ? "3px solid #58a6ff" : "none",
+                            backgroundColor: dayIsToday ? (darkMode ? "#58a6ff18" : "#58a6ff08") : cardBg }}>
                             {/* Day header */}
                             <div style={{ padding:"8px 8px 4px",borderBottom:`1px solid ${borderColor}` }}>
                               <div style={{ fontSize:10,fontWeight:700,color:textSecondary,textTransform:"uppercase",letterSpacing:"0.06em" }}>{dayNames[i]}</div>
                               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-                                <span style={{ fontSize:16,fontWeight:dayIsToday?800:600,color:dayIsToday?"#533afd":textPrimary }}>{day.getDate()}</span>
+                                <span style={{ fontSize:16,fontWeight:dayIsToday?800:600,color:dayIsToday?"#58a6ff":textPrimary }}>{day.getDate()}</span>
                                 {capMins > 0 && (
                                   <span style={{ fontSize:9,fontWeight:700,color:capacityColor(capMins),background:capacityColor(capMins)+"18",padding:"2px 6px",borderRadius:10 }}>
                                     {capHrs < 1 ? `${capMins}m` : `${capHrs % 1 === 0 ? capHrs : capHrs.toFixed(1)}h`}
@@ -15454,7 +15466,7 @@ function BOMManager({ user }) {
                             {/* Builds */}
                             <div style={{ padding:4,flex:1,overflowY:"auto" }}>
                               {builds.length === 0 && (
-                                <div style={{ fontSize:10,color:darkMode?"#48484a":"#c7c7cc",textAlign:"center",padding:"12px 0" }}>—</div>
+                                <div style={{ fontSize:10,color:darkMode?"#48484a":"#b8bfcc",textAlign:"center",padding:"12px 0" }}>—</div>
                               )}
                               {builds.map(bo => renderBuildCard(bo))}
                             </div>
@@ -15482,12 +15494,12 @@ function BOMManager({ user }) {
                           const capHrs = capMins / 60;
                           return (
                             <div key={i} onClick={() => setCalendarSelectedDay(dayObj.date)}
-                              style={{ background: isSelected ? (darkMode ? "#533afd20" : "#533afd10") : cardBg,
+                              style={{ background: isSelected ? (darkMode ? "#58a6ff20" : "#58a6ff10") : cardBg,
                                 minHeight:64, padding:"4px 6px", cursor:"pointer", opacity: dayObj.outside ? 0.35 : 1,
-                                borderLeft: dayIsToday ? "3px solid #533afd" : "none",
+                                borderLeft: dayIsToday ? "3px solid #58a6ff" : "none",
                                 transition: "background 0.15s" }}>
                               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2 }}>
-                                <span style={{ fontSize:12,fontWeight:dayIsToday?800:500,color:dayIsToday?"#533afd":textPrimary }}>{dayObj.date.getDate()}</span>
+                                <span style={{ fontSize:12,fontWeight:dayIsToday?800:500,color:dayIsToday?"#58a6ff":textPrimary }}>{dayObj.date.getDate()}</span>
                                 {capMins > 0 && (
                                   <span style={{ fontSize:8,fontWeight:700,color:capacityColor(capMins) }}>
                                     {capHrs < 1 ? `${capMins}m` : `${capHrs % 1 === 0 ? capHrs : capHrs.toFixed(1)}h`}
@@ -15502,7 +15514,7 @@ function BOMManager({ user }) {
                                     const isOverdue = fmtISO(dayObj.date) < fmtISO(todayDate) && bo.status !== "completed";
                                     return (
                                       <div key={bo.id} style={{ width:8,height:8,borderRadius:"50%",
-                                        background: isOverdue ? "#ff3b30" : (prod?.color || "#533afd"),
+                                        background: isOverdue ? "#ff3b30" : (prod?.color || "#58a6ff"),
                                         border: bo.priority === "urgent" ? "1px solid #ff3b30" : "none" }} />
                                     );
                                   })}
@@ -15519,7 +15531,7 @@ function BOMManager({ user }) {
                         const capMins = dayCapacityMinutes(calendarSelectedDay);
                         const capHrs = capMins / 60;
                         return (
-                          <div style={{ marginTop:12,padding:"12px 16px",background:darkMode?"#2c2c2e":"#f6f9fc",borderRadius:10 }}>
+                          <div style={{ marginTop:12,padding:"12px 16px",background:darkMode?"#161a22":"#f6f9fc",borderRadius:10 }}>
                             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
                               <span style={{ fontSize:14,fontWeight:700,color:textPrimary }}>
                                 {calendarSelectedDay.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
@@ -15561,7 +15573,7 @@ function BOMManager({ user }) {
                     shortages.push({
                       boId: bo.id,
                       productName: prod?.name || "Unknown",
-                      productColor: prod?.color || "#533afd",
+                      productColor: prod?.color || "#58a6ff",
                       dueDate: bo.due_date,
                       partMPN: part.mpn || part.reference || "?",
                       needed,
@@ -15573,13 +15585,13 @@ function BOMManager({ user }) {
               }
               if (shortages.length === 0) return null;
               return (
-                <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                   <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:4 }}>Materials Check</div>
                   <div style={{ fontSize:12,color:"#64748d",marginBottom:12 }}>Parts shortages for builds due in the next 2 weeks.</div>
                   <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
                     {shortages.slice(0,20).map((s, i) => (
                       <div key={i} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderRadius:8,
-                        background:darkMode?"#2c2c2e":"#fff5f5",border:"1px solid #ff3b3030",fontSize:12 }}>
+                        background:darkMode?"#161a22":"#fff5f5",border:"1px solid #ff3b3030",fontSize:12 }}>
                         <div style={{ width:8,height:8,borderRadius:"50%",background:s.productColor,flexShrink:0 }} />
                         <span style={{ fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{s.productName}</span>
                         <span style={{ color:"#64748d" }}>x{s.needed / (parseInt(parts.find(p => (p.mpn||p.reference) === s.partMPN)?.quantity)||1)}</span>
@@ -15615,12 +15627,12 @@ function BOMManager({ user }) {
               enriched.sort((a, b) => b.qualityScore - a.qualityScore);
 
               return (
-              <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                 <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:14 }}>Team Performance</div>
                 <div style={{ overflowX:"auto" }}>
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                   <thead>
-                    <tr style={{ borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                    <tr style={{ borderBottom:"2px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                       {["#","Name","Role",...(isAdmin?["$/hr"]:[]),"Builds","Units","Scrap","Yield %","Avg Time/Unit","Quality Score",...(isAdmin?["Labor Cost/Unit"]:[])].map(h=>(
                         <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#64748d",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
                       ))}
@@ -15628,7 +15640,7 @@ function BOMManager({ user }) {
                   </thead>
                   <tbody>
                     {enriched.map((m, i) => (
-                      <tr key={m.id} style={{ borderBottom:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2") }}>
+                      <tr key={m.id} style={{ borderBottom:"1px solid "+(darkMode?"#161a22":"#f0f0f2") }}>
                         <td style={{ padding:"10px 12px",fontWeight:800,fontSize:16,color:i===0?"#ffd700":i===1?"#c0c0c0":i===2?"#cd7f32":"#64748d" }}>{i+1}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{m.name}</td>
                         <td style={{ padding:"10px 12px",color:"#64748d",textTransform:"capitalize" }}>{m.role}</td>
@@ -15642,7 +15654,7 @@ function BOMManager({ user }) {
                         <td style={{ padding:"10px 12px",fontWeight:700,color:m.avgPerUnit > 0 ? (darkMode?"#f6f9fc":"#061b31") : "#64748d" }}>
                           {m.avgPerUnit > 0 ? `${m.avgPerUnit.toFixed(1)} min` : "—"}
                         </td>
-                        <td style={{ padding:"10px 12px",fontWeight:800,color:m.qualityScore >= 90 ? "#34c759" : m.qualityScore >= 70 ? "#533afd" : "#ff9500" }}>
+                        <td style={{ padding:"10px 12px",fontWeight:800,color:m.qualityScore >= 90 ? "#34c759" : m.qualityScore >= 70 ? "#58a6ff" : "#ff9500" }}>
                           {m.qualityScore.toFixed(0)}
                         </td>
                         {isAdmin && <td style={{ padding:"10px 12px",fontWeight:700,color:"#ff9500" }}>
@@ -15658,7 +15670,7 @@ function BOMManager({ user }) {
             })()}
 
             {/* ── Team Members (collapsible) ── */}
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setProdTeamCollapsed(!prodTeamCollapsed)}>
                 <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>Team Members ({activeMembers.length} active)</div>
@@ -15703,17 +15715,17 @@ function BOMManager({ user }) {
                       style={{ height:37,whiteSpace:"nowrap" }}>+ Add Member</button>
                   </div>
                   {teamMembers.length > 0 && (
-                    <div style={{ borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",paddingTop:12 }}>
+                    <div style={{ borderTop:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",paddingTop:12 }}>
                       {teamMembers.map(member => (
                         <div key={member.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 4px",
-                          borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f2f2f7",opacity:member.active===false?0.5:1 }}>
+                          borderBottom:darkMode?"1px solid #161a22":"1px solid #f2f2f7",opacity:member.active===false?0.5:1 }}>
                           <div style={{ flex:1,fontSize:14,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{member.name}</div>
                           <div style={{ fontSize:12,color:"#64748d",textTransform:"capitalize",minWidth:80 }}>{member.role || "—"}</div>
                           <div style={{ fontSize:12,color:"#64748d",minWidth:110 }}>{member.phone || "—"}</div>
                           <div style={{ fontSize:12,color:"#64748d",minWidth:160 }}>{member.email || "—"}</div>
                           {isAdmin && <div style={{ minWidth:70 }}>
-                            <input style={{ width:60,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",
-                              fontSize:11,background:darkMode?"#2c2c2e":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31",textAlign:"center" }}
+                            <input style={{ width:60,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
+                              fontSize:11,background:darkMode?"#161a22":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31",textAlign:"center" }}
                               type="number" step="0.50" min="0" placeholder="$/hr" defaultValue={member.hourly_rate || ""}
                               onBlur={async (e) => {
                                 const val = parseFloat(e.target.value) || null;
@@ -15723,8 +15735,8 @@ function BOMManager({ user }) {
                               }} />
                           </div>}
                           <div style={{ minWidth:70 }}>
-                            <input style={{ width:60,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",
-                              fontSize:11,background:darkMode?"#2c2c2e":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31",textAlign:"center" }}
+                            <input style={{ width:60,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
+                              fontSize:11,background:darkMode?"#161a22":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31",textAlign:"center" }}
                               placeholder="PIN" maxLength={6} defaultValue={member.pin_code || ""}
                               onChange={e => {
                                 const val = e.target.value.replace(/\D/g,"");
@@ -15742,8 +15754,8 @@ function BOMManager({ user }) {
                             {member.active !== false ? "Active" : "Inactive"}
                           </button>
                           {isAdmin && <button onClick={() => handleDeleteTeamMember(member.id)}
-                            style={{ background:"none",border:"none",cursor:"pointer",color:"#c7c7cc",fontSize:14,padding:"2px 6px" }}
-                            onMouseOver={e=>e.target.style.color="#ff3b30"} onMouseOut={e=>e.target.style.color="#c7c7cc"}>✕</button>}
+                            style={{ background:"none",border:"none",cursor:"pointer",color:"#b8bfcc",fontSize:14,padding:"2px 6px" }}
+                            onMouseOver={e=>e.target.style.color="#ff3b30"} onMouseOut={e=>e.target.style.color="#b8bfcc"}>✕</button>}
                         </div>
                       ))}
                     </div>
@@ -15754,7 +15766,7 @@ function BOMManager({ user }) {
 
             {/* ── Load Demo Data ── */}
             {products.length === 0 && buildOrders.length === 0 && (
-              <div style={{ background:darkMode?"#2c2c2e":"#fff8e1",borderRadius:14,padding:"20px 22px",marginBottom:20,border:"2px dashed #ff9500",textAlign:"center" }}>
+              <div style={{ background:darkMode?"#161a22":"#fff8e1",borderRadius:14,padding:"20px 22px",marginBottom:20,border:"2px dashed #ff9500",textAlign:"center" }}>
                 <div style={{ fontSize:15,fontWeight:700,color:"#ff9500",marginBottom:6 }}>No production data yet</div>
                 <p style={{ fontSize:13,color:"#64748d",marginBottom:14 }}>Load demo products and build orders to explore the production workflow.</p>
                 <button onClick={async () => {
@@ -15765,7 +15777,7 @@ function BOMManager({ user }) {
                       { name:"El Guapo", color:"#5856d6", brand:"Jackson Audio", serial_prefix:"ELGUAPO", serial_start:1 },
                       { name:"Modular Fuzz", color:"#ff9500", brand:"Jackson Audio", serial_prefix:"MODFUZZ", serial_start:1 },
                       { name:"Golden Boy", color:"#34c759", brand:"Jackson Audio", serial_prefix:"GB", serial_start:1 },
-                      { name:"Asabi", color:"#533afd", brand:"Jackson Audio", serial_prefix:"ASABI", serial_start:1 },
+                      { name:"Asabi", color:"#58a6ff", brand:"Jackson Audio", serial_prefix:"ASABI", serial_start:1 },
                       { name:"Belle Aire", color:"#ff2d55", brand:"Jackson Audio", serial_prefix:"BELLE", serial_start:1 },
                       { name:"OCD", color:"#b22222", brand:"Fulltone USA", serial_prefix:"OCD", serial_start:1 },
                       { name:"Full-Drive 3", color:"#e44d26", brand:"Fulltone USA", serial_prefix:"FD3", serial_start:1 },
@@ -15798,7 +15810,7 @@ function BOMManager({ user }) {
             )}
 
             {/* ── Create Build Order ── */}
-            <div id="create-build-order-section" style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+            <div id="create-build-order-section" style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
               <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:16 }}>Create Build Order</div>
               <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:12,marginBottom:12 }}>
                 <div>
@@ -15861,11 +15873,11 @@ function BOMManager({ user }) {
                       : outstandingOrders;
                     if (filtered.length === 0) return null;
                     return (
-                      <div className="order-dropdown" style={{ display:"none",position:"absolute",top:"100%",left:0,right:0,zIndex:999,background:darkMode?"#2c2c2e":"#fff",border:darkMode?"1px solid #3a3a3c":"1px solid #e3e8ee",borderRadius:10,maxHeight:180,overflowY:"auto",boxShadow:"0 4px 16px rgba(0,0,0,0.15)" }}>
+                      <div className="order-dropdown" style={{ display:"none",position:"absolute",top:"100%",left:0,right:0,zIndex:999,background:darkMode?"#161a22":"#fff",border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",borderRadius:10,maxHeight:180,overflowY:"auto",boxShadow:"0 4px 16px rgba(0,0,0,0.15)" }}>
                         {filtered.map((o, i) => (
-                          <div key={i} style={{ padding:"8px 12px",cursor:"pointer",borderBottom:i<filtered.length-1?(darkMode?"1px solid #3a3a3c":"1px solid #f0f0f2"):"none",fontSize:13 }}
+                          <div key={i} style={{ padding:"8px 12px",cursor:"pointer",borderBottom:i<filtered.length-1?(darkMode?"1px solid #1f2530":"1px solid #f0f0f2"):"none",fontSize:13 }}
                             onMouseDown={() => setNewBuildOrder({...newBuildOrder, for_order:o.value})}
-                            onMouseEnter={e => e.currentTarget.style.background=darkMode?"#3a3a3c":"#f6f9fc"}
+                            onMouseEnter={e => e.currentTarget.style.background=darkMode?"#1f2530":"#f6f9fc"}
                             onMouseLeave={e => e.currentTarget.style.background="transparent"}>
                             <div style={{ fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{o.label}</div>
                             {o.sub && <div style={{ fontSize:11,color:"#64748d" }}>{o.sub}</div>}
@@ -15890,8 +15902,8 @@ function BOMManager({ user }) {
             <div style={{ marginBottom:20 }}>
               <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:14 }}>Active Build Orders ({activeOrders.length})</div>
               {activeOrders.length === 0 ? (
-                <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"40px 22px",textAlign:"center",
-                  boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"40px 22px",textAlign:"center",
+                  boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                   <div style={{ fontSize:32,marginBottom:8 }}>🏭</div>
                   <div style={{ fontSize:14,color:"#64748d" }}>No active build orders. Create one above to get started.</div>
                 </div>
@@ -15914,12 +15926,12 @@ function BOMManager({ user }) {
                     const hasReservations = boReservations.length > 0;
 
                     return (
-                      <div key={bo.id} style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,
-                        boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:isOverdue?`2px solid #ff3b30`:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
+                      <div key={bo.id} style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,
+                        boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:isOverdue?`2px solid #ff3b30`:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",
                         overflow:"hidden" }}>
                         {/* Progress bar at top */}
-                        <div style={{ height:4,background:darkMode?"#2c2c2e":"#e5e5ea" }}>
-                          <div style={{ height:"100%",background:pct>=100?"#34c759":"#533afd",width:`${Math.min(pct,100)}%`,
+                        <div style={{ height:4,background:darkMode?"#161a22":"#e5e5ea" }}>
+                          <div style={{ height:"100%",background:pct>=100?"#34c759":"#58a6ff",width:`${Math.min(pct,100)}%`,
                             transition:"width 0.3s",borderRadius:"0 2px 2px 0" }} />
                         </div>
 
@@ -15927,7 +15939,7 @@ function BOMManager({ user }) {
                           {/* Header row */}
                           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
                             <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                              {prod && <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#533afd",flexShrink:0 }} />}
+                              {prod && <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#58a6ff",flexShrink:0 }} />}
                               <div>
                                 <div style={{ fontSize:17,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>{prod?.name || "Unknown"}</div>
                                 {bo.for_order && (
@@ -15960,22 +15972,22 @@ function BOMManager({ user }) {
                           <div style={{ display:"flex",alignItems:"center",gap:16,marginBottom:14,flexWrap:"wrap" }}>
                             <div style={{ flex:1,minWidth:200 }}>
                               <div style={{ display:"flex",justifyContent:"space-between",marginBottom:6 }}>
-                                <span style={{ fontSize:24,fontWeight:800,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                                <span style={{ fontSize:24,fontWeight:800,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                   {done} <span style={{ fontSize:14,fontWeight:400,color:"#64748d" }}>of</span> {total}
                                 </span>
-                                <span style={{ fontSize:18,fontWeight:700,color:pct>=100?"#34c759":"#533afd" }}>{pct}%</span>
+                                <span style={{ fontSize:18,fontWeight:700,color:pct>=100?"#34c759":"#58a6ff" }}>{pct}%</span>
                               </div>
                               {/* Visual progress bar */}
-                              <div style={{ height:10,background:darkMode?"#2c2c2e":"#e5e5ea",borderRadius:5,overflow:"hidden" }}>
-                                <div style={{ height:"100%",background:pct>=100?"#34c759":"#533afd",width:`${Math.min(pct,100)}%`,
+                              <div style={{ height:10,background:darkMode?"#161a22":"#e5e5ea",borderRadius:5,overflow:"hidden" }}>
+                                <div style={{ height:"100%",background:pct>=100?"#34c759":"#58a6ff",width:`${Math.min(pct,100)}%`,
                                   transition:"width 0.3s ease",borderRadius:5 }} />
                               </div>
                             </div>
                             {/* Check off button — big and easy to tap */}
                             <button onClick={() => handleCheckOffUnit(bo)} disabled={prodBusy || done >= total}
                               style={{ width:64,height:64,borderRadius:16,border:"none",cursor:done>=total?"not-allowed":"pointer",
-                                background:done>=total?"#34c759":"#533afd",color:"#fff",fontSize:24,fontWeight:800,
-                                fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",
+                                background:done>=total?"#34c759":"#58a6ff",color:"#fff",fontSize:24,fontWeight:800,
+                                fontFamily:"'IBM Plex Sans',system-ui,sans-serif",
                                 display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
                                 boxShadow:"0 2px 8px rgba(0,0,0,0.15)",transition:"transform 0.1s",opacity:done>=total?0.6:1 }}
                               onMouseDown={e=>{if(done<total)e.currentTarget.style.transform="scale(0.92)"}}
@@ -15990,25 +16002,25 @@ function BOMManager({ user }) {
                             {assignedMember && <span>Builder: <strong style={{ color:darkMode?"#f6f9fc":"#061b31" }}>{assignedMember.name}</strong></span>}
                             {dueDate && <span>Due: {dueDate.toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>}
                             {startedAt && <span>Elapsed: <strong style={{ color:"#ff9500" }}>{fmtHours(elapsed)}</strong></span>}
-                            {startedAt && done > 0 && <span>Pace: <strong style={{ color:"#533afd" }}>{(elapsed/done*60).toFixed(1)} min/unit</strong></span>}
+                            {startedAt && done > 0 && <span>Pace: <strong style={{ color:"#58a6ff" }}>{(elapsed/done*60).toFixed(1)} min/unit</strong></span>}
                             {bo.notes && bo.notes !== bo.for_order && <span style={{ fontStyle:"italic" }}>{bo.notes}</span>}
                           </div>
 
                           {/* Scrap Form (inline) */}
                           {scrapFormOpen === bo.id && (
-                            <div style={{ background:darkMode?"#2c2c2e":"#f6f9fc",borderRadius:10,padding:"14px 16px",marginTop:12,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                            <div style={{ background:darkMode?"#161a22":"#f6f9fc",borderRadius:10,padding:"14px 16px",marginTop:12,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                               <div style={{ fontSize:13,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:10 }}>Log Scrap / Waste</div>
                               <div style={{ display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end" }}>
                                 <div style={{ flex:"0 0 80px" }}>
                                   <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Qty</label>
                                   <input type="number" min="1" value={scrapForm.quantity}
                                     onChange={e => setScrapForm(f=>({...f,quantity:parseInt(e.target.value)||1}))}
-                                    style={{ ...inputStyle, background:darkMode?"#1c1c1e":"#fff" }} />
+                                    style={{ ...inputStyle, background:darkMode?"#0f1218":"#fff" }} />
                                 </div>
                                 <div style={{ flex:"1 1 180px" }}>
                                   <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Category</label>
                                   <select value={scrapForm.category} onChange={e => setScrapForm(f=>({...f,category:e.target.value}))}
-                                    style={{ ...selectStyle, background:darkMode?"#1c1c1e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
+                                    style={{ ...selectStyle, background:darkMode?"#0f1218":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
                                     <option value="solder defect">Solder Defect</option>
                                     <option value="wrong part">Wrong Part</option>
                                     <option value="ESD damage">ESD Damage</option>
@@ -16020,7 +16032,7 @@ function BOMManager({ user }) {
                                 <div style={{ flex:"2 1 200px" }}>
                                   <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Notes</label>
                                   <input value={scrapForm.notes} onChange={e => setScrapForm(f=>({...f,notes:e.target.value}))}
-                                    placeholder="Optional details" style={{ ...inputStyle, background:darkMode?"#1c1c1e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                                    placeholder="Optional details" style={{ ...inputStyle, background:darkMode?"#0f1218":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                                 </div>
                                 <button className="btn-primary btn-sm" disabled={prodBusy} onClick={async () => {
                                   setProdBusy(true);
@@ -16052,7 +16064,7 @@ function BOMManager({ user }) {
                           {/* Reservation info */}
                           {hasReservations && (
                             <div style={{ marginTop:8,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
-                              <span style={{ fontSize:11,padding:"2px 10px",borderRadius:100,background:"#533afd18",color:"#533afd",fontWeight:700 }}>
+                              <span style={{ fontSize:11,padding:"2px 10px",borderRadius:100,background:"#58a6ff18",color:"#58a6ff",fontWeight:700 }}>
                                 {boReservations.length} parts reserved
                               </span>
                               {releaseHoldConfirm === bo.id ? (
@@ -16063,13 +16075,13 @@ function BOMManager({ user }) {
                                     Confirm
                                   </button>
                                   <button onClick={() => setReleaseHoldConfirm(null)}
-                                    style={{ fontSize:11,padding:"3px 12px",borderRadius:100,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",cursor:"pointer",fontWeight:600,background:"transparent",color:darkMode?"#f6f9fc":"#061b31" }}>
+                                    style={{ fontSize:11,padding:"3px 12px",borderRadius:100,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",cursor:"pointer",fontWeight:600,background:"transparent",color:darkMode?"#f6f9fc":"#061b31" }}>
                                     Cancel
                                   </button>
                                 </>
                               ) : (
                                 <button onClick={() => setReleaseHoldConfirm(bo.id)}
-                                  style={{ fontSize:11,padding:"3px 12px",borderRadius:100,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",cursor:"pointer",fontWeight:600,background:"transparent",color:darkMode?"#f6f9fc":"#061b31" }}>
+                                  style={{ fontSize:11,padding:"3px 12px",borderRadius:100,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",cursor:"pointer",fontWeight:600,background:"transparent",color:darkMode?"#f6f9fc":"#061b31" }}>
                                   Release Hold
                                 </button>
                               )}
@@ -16077,7 +16089,7 @@ function BOMManager({ user }) {
                           )}
 
                           {/* Actions */}
-                          <div style={{ display:"flex",gap:8,borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",paddingTop:12,marginTop:12 }}>
+                          <div style={{ display:"flex",gap:8,borderTop:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",paddingTop:12,marginTop:12 }}>
                             {(bo.status === "pending" || bo.status === "assigned") && (
                               <button className="btn-primary btn-sm" onClick={() => handleStartBuild(bo)} disabled={prodBusy}>Start Build</button>
                             )}
@@ -16095,7 +16107,7 @@ function BOMManager({ user }) {
             </div>
 
             {/* ── Completed Orders (collapsible) ── */}
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setProdCompletedCollapsed(!prodCompletedCollapsed)}>
                 <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>Completed Orders ({completedOrders.length})</div>
@@ -16120,10 +16132,10 @@ function BOMManager({ user }) {
                           ? (new Date(assignment.completed_at) - new Date(assignment.started_at)) / 3600000 : null;
                         return (
                           <div key={bo.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 4px",
-                            borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f2f2f7" }}>
-                            {prod && <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color||"#533afd",flexShrink:0 }} />}
+                            borderBottom:darkMode?"1px solid #161a22":"1px solid #f2f2f7" }}>
+                            {prod && <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color||"#58a6ff",flexShrink:0 }} />}
                             <div style={{ flex:1,fontSize:13,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{prod?.name || "—"}</div>
-                            <div style={{ fontSize:13,fontWeight:700,color:"#533afd",minWidth:50 }}>×{bo.quantity}</div>
+                            <div style={{ fontSize:13,fontWeight:700,color:"#58a6ff",minWidth:50 }}>×{bo.quantity}</div>
                             <div style={{ fontSize:12,color:"#64748d",minWidth:100 }}>{member?.name || "—"}</div>
                             {duration !== null && <div style={{ fontSize:12,fontWeight:600,color:"#34c759",minWidth:60 }}>{fmtHours(duration)}</div>}
                             {duration !== null && bo.quantity > 0 && (
@@ -16152,12 +16164,12 @@ function BOMManager({ user }) {
             ...profileTesters.filter(pt => !playTesters.some(t => t.id === pt.id || t.name === pt.name)),
           ];
           const statusLabels = { assigned:"Assigned", shipped:"Shipped", in_testing:"In Testing", feedback_received:"Feedback Received", returned:"Returned" };
-          const statusColors = { assigned:"#533afd", shipped:"#ff9500", in_testing:"#5856d6", feedback_received:"#34c759", returned:"#64748d" };
+          const statusColors = { assigned:"#58a6ff", shipped:"#ff9500", in_testing:"#5856d6", feedback_received:"#34c759", returned:"#64748d" };
           const statusFlow = ["assigned","shipped","in_testing","feedback_received","returned"];
-          const inputStyle = { fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee", outline:"none", width:"100%", background:darkMode?"#2c2c2e":"#fff", color:darkMode?"#f6f9fc":"#061b31" };
+          const inputStyle = { fontFamily:"'IBM Plex Sans',system-ui,sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee", outline:"none", width:"100%", background:darkMode?"#161a22":"#fff", color:darkMode?"#f6f9fc":"#061b31" };
           const selectStyle = { ...inputStyle, cursor:"pointer" };
-          const cardBg = darkMode ? "#1c1c1e" : "#fff";
-          const cardBorder = darkMode ? "1px solid #3a3a3e" : "1px solid #e5e5ea";
+          const cardBg = darkMode ? "#0f1218" : "#fff";
+          const cardBorder = darkMode ? "1px solid #1f2530" : "1px solid #e5e5ea";
           const textPrimary = darkMode ? "#f6f9fc" : "#061b31";
 
           const filteredTests = playTestFilter === "active" ? activeTests : playTestFilter === "returned" ? returnedTests : playTests;
@@ -16214,21 +16226,21 @@ function BOMManager({ user }) {
 
           return (
           <div style={{ maxWidth:"100%" }}>
-            <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Play Testing</h2>
+            <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Play Testing</h2>
             <p style={{ fontSize:14,color:"#64748d",marginBottom:20 }}>Assign finished builds to testers and track feedback.</p>
 
             {/* ── Summary cards ── */}
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))",gap:16,marginBottom:28 }}>
               {[
                 { label:"Active Tests", value:activeTests.length, color:activeTests.length>0?"#ff9500":"#34c759" },
-                { label:"Testers", value:activeTesters.length, color:"#533afd" },
+                { label:"Testers", value:activeTesters.length, color:"#58a6ff" },
                 { label:"Awaiting Feedback", value:playTests.filter(t=>t.status==="in_testing").length, color:"#5856d6" },
                 { label:"Returned", value:returnedTests.length, color:"#64748d" },
                 { label:"Avg Rating", value: (() => { const rated = playTests.filter(t=>t.rating); return rated.length ? (rated.reduce((s,t)=>s+t.rating,0)/rated.length).toFixed(1) : "—"; })(), color:"#34c759" },
               ].map(card => (
                 <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:cardBorder }}>
                   <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
-                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
+                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
                 </div>
               ))}
             </div>
@@ -16272,8 +16284,8 @@ function BOMManager({ user }) {
                   {/* Tester list */}
                   {playTesters.length === 0 && <div style={{ fontSize:13,color:"#64748d",textAlign:"center",padding:20 }}>No play testers yet. Add one above.</div>}
                   {playTesters.map(tester => (
-                    <div key={tester.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderTop:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2" }}>
-                      <div style={{ width:32,height:32,borderRadius:"50%",background:tester.active !== false?"#533afd":"#64748d",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:13,fontWeight:700,flexShrink:0 }}>
+                    <div key={tester.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderTop:darkMode?"1px solid #161a22":"1px solid #f0f0f2" }}>
+                      <div style={{ width:32,height:32,borderRadius:"50%",background:tester.active !== false?"#58a6ff":"#64748d",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:13,fontWeight:700,flexShrink:0 }}>
                         {tester.name.charAt(0).toUpperCase()}
                       </div>
                       <div style={{ flex:1,minWidth:0 }}>
@@ -16290,7 +16302,7 @@ function BOMManager({ user }) {
                         await updatePlayTester(tester.id, { active: !tester.active });
                         setPlayTesters(prev => prev.map(t => t.id === tester.id ? { ...t, active: !t.active } : t));
                       }} style={{ fontSize:11,padding:"4px 10px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:600,
-                        background:tester.active !== false ? (darkMode?"#2c2c2e":"#f0f0f2") : "#533afd",
+                        background:tester.active !== false ? (darkMode?"#161a22":"#f0f0f2") : "#58a6ff",
                         color:tester.active !== false ? "#64748d" : "#fff" }}>
                         {tester.active !== false ? "Deactivate" : "Activate"}
                       </button>
@@ -16367,7 +16379,7 @@ function BOMManager({ user }) {
               ].map(f => (
                 <button key={f.id} onClick={() => setPlayTestFilter(f.id)}
                   style={{ padding:"6px 16px",borderRadius:100,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",
-                    background: playTestFilter === f.id ? "#533afd" : (darkMode?"#2c2c2e":"#f0f0f2"),
+                    background: playTestFilter === f.id ? "#58a6ff" : (darkMode?"#161a22":"#f0f0f2"),
                     color: playTestFilter === f.id ? "#fff" : (darkMode?"#f6f9fc":"#061b31") }}>
                   {f.label}
                 </button>
@@ -16412,7 +16424,7 @@ function BOMManager({ user }) {
                       {test.notes && <div style={{ fontSize:12,color:"#64748d",marginTop:4,fontStyle:"italic" }}>{test.notes}</div>}
                       {/* Feedback display */}
                       {(test.rating || test.passed !== null || test.feedback) && (
-                        <div style={{ marginTop:8,padding:"8px 12px",borderRadius:8,background:darkMode?"#2c2c2e":"#fafbfc",fontSize:12 }}>
+                        <div style={{ marginTop:8,padding:"8px 12px",borderRadius:8,background:darkMode?"#161a22":"#fafbfc",fontSize:12 }}>
                           <div style={{ display:"flex",gap:12,alignItems:"center",flexWrap:"wrap" }}>
                             {test.rating && <span style={{ color:"#ff9500" }}>{"★".repeat(test.rating)}{"☆".repeat(5-test.rating)}</span>}
                             {test.passed !== null && <span style={{ fontWeight:700,color:test.passed?"#34c759":"#ff3b30" }}>{test.passed?"PASS":"FAIL"}</span>}
@@ -16435,7 +16447,7 @@ function BOMManager({ user }) {
                           if (isEditing) { setEditingPlayTest(null); }
                           else { setEditingPlayTest(test.id); setPlayTestFeedback({ rating: test.rating || 0, passed: test.passed, feedback: test.feedback || "" }); }
                         }} style={{ fontSize:11,padding:"6px 14px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:600,
-                          background:darkMode?"#2c2c2e":"#f0f0f2",color:textPrimary }}>
+                          background:darkMode?"#161a22":"#f0f0f2",color:textPrimary }}>
                           {isEditing ? "Cancel" : "Feedback"}
                         </button>
                       )}
@@ -16462,7 +16474,7 @@ function BOMManager({ user }) {
                   </div>
                   {/* Inline feedback form */}
                   {isEditing && (
-                    <div style={{ marginTop:14,padding:"14px 16px",borderRadius:10,background:darkMode?"#2c2c2e":"#fafbfc",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                    <div style={{ marginTop:14,padding:"14px 16px",borderRadius:10,background:darkMode?"#161a22":"#fafbfc",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                       <div style={{ fontSize:13,fontWeight:700,color:textPrimary,marginBottom:10 }}>Record Feedback</div>
                       <div style={{ display:"grid",gridTemplateColumns:"auto auto 1fr",gap:12,alignItems:"center" }}>
                         <div>
@@ -16504,7 +16516,7 @@ function BOMManager({ user }) {
                           Save Feedback
                         </button>
                         <button onClick={() => { setEditingPlayTest(null); setPlayTestFeedback({ rating:0, passed:null, feedback:"" }); }}
-                          style={{ fontSize:12,padding:"7px 18px",borderRadius:100,border:"none",cursor:"pointer",background:darkMode?"#3a3a3e":"#e5e5ea",color:textPrimary }}>
+                          style={{ fontSize:12,padding:"7px 18px",borderRadius:100,border:"none",cursor:"pointer",background:darkMode?"#1f2530":"#e5e5ea",color:textPrimary }}>
                           Cancel
                         </button>
                       </div>
@@ -16522,13 +16534,13 @@ function BOMManager({ user }) {
           const activeTasks = boxingTasks.filter(t => t.status !== "completed");
           const completedTasks = boxingTasks.filter(t => t.status === "completed");
           const activeMembers = teamMembers.filter(t => t.active !== false);
-          const priorityColors = { low:"#64748d", normal:"#533afd", high:"#ff9500", urgent:"#ff3b30" };
+          const priorityColors = { low:"#64748d", normal:"#58a6ff", high:"#ff9500", urgent:"#ff3b30" };
           const statusColors = { pending:"#64748d", in_progress:"#ff9500", completed:"#34c759" };
           const statusLabels = { pending:"Pending", in_progress:"In Progress", completed:"Completed" };
-          const inputStyle = { fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee", outline:"none", width:"100%", background:darkMode?"#2c2c2e":"#fff", color:darkMode?"#f6f9fc":"#061b31" };
+          const inputStyle = { fontFamily:"'IBM Plex Sans',system-ui,sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee", outline:"none", width:"100%", background:darkMode?"#161a22":"#fff", color:darkMode?"#f6f9fc":"#061b31" };
           const selectStyle = { ...inputStyle, cursor:"pointer" };
-          const cardBg = darkMode ? "#1c1c1e" : "#fff";
-          const cardBorder = darkMode ? "1px solid #3a3a3e" : "1px solid #e5e5ea";
+          const cardBg = darkMode ? "#0f1218" : "#fff";
+          const cardBorder = darkMode ? "1px solid #1f2530" : "1px solid #e5e5ea";
           const textPrimary = darkMode ? "#f6f9fc" : "#061b31";
 
           const filteredTasks = boxingFilter === "active" ? activeTasks : boxingFilter === "completed" ? completedTasks : boxingTasks;
@@ -16578,21 +16590,21 @@ function BOMManager({ user }) {
 
           return (
           <div style={{ maxWidth:"100%" }}>
-            <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Boxing</h2>
+            <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Boxing</h2>
             <p style={{ fontSize:14,color:"#64748d",marginBottom:20 }}>Package completed, play-tested units into boxes for shipping. Units must be built and play tested before boxing.</p>
 
             {/* ── Summary cards ── */}
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))",gap:16,marginBottom:28 }}>
               {[
                 { label:"Pending", value:boxingTasks.filter(t=>t.status==="pending").length, color:boxingTasks.filter(t=>t.status==="pending").length>0?"#ff9500":"#34c759" },
-                { label:"In Progress", value:boxingTasks.filter(t=>t.status==="in_progress").length, color:"#533afd" },
+                { label:"In Progress", value:boxingTasks.filter(t=>t.status==="in_progress").length, color:"#58a6ff" },
                 { label:"Boxed Today", value:todayBoxed, color:"#34c759" },
                 { label:"Ready to Box", value:eligibleBuildOrders.length, color:"#5856d6" },
                 { label:"Total Completed", value:completedTasks.reduce((s,t)=>s+(t.completed_count||t.quantity||0),0), color:"#64748d" },
               ].map(card => (
                 <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:cardBorder }}>
                   <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
-                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
+                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
                 </div>
               ))}
             </div>
@@ -16601,7 +16613,7 @@ function BOMManager({ user }) {
             <div style={{ background:cardBg,borderRadius:14,padding:"18px 22px",marginBottom:20,border:cardBorder }}>
               <div style={{ fontSize:16,fontWeight:700,color:textPrimary,marginBottom:14 }}>New Boxing Task</div>
               {eligibleBuildOrders.length === 0 ? (
-                <div style={{ padding:20,textAlign:"center",color:"#64748d",fontSize:13,background:darkMode?"#2c2c2e":"#fafbfc",borderRadius:10 }}>
+                <div style={{ padding:20,textAlign:"center",color:"#64748d",fontSize:13,background:darkMode?"#161a22":"#fafbfc",borderRadius:10 }}>
                   No build orders are ready for boxing. A build order must be <strong>completed</strong> and its product must have at least one <strong>play test with feedback</strong> before it can be boxed.
                 </div>
               ) : (
@@ -16683,11 +16695,11 @@ function BOMManager({ user }) {
                           : outstandingOrders;
                         if (filtered.length === 0) return null;
                         return (
-                          <div className="boxing-order-dropdown" style={{ display:"none",position:"absolute",top:"100%",left:0,right:0,zIndex:999,background:darkMode?"#2c2c2e":"#fff",border:darkMode?"1px solid #3a3a3c":"1px solid #e3e8ee",borderRadius:10,maxHeight:180,overflowY:"auto",boxShadow:"0 4px 16px rgba(0,0,0,0.15)" }}>
+                          <div className="boxing-order-dropdown" style={{ display:"none",position:"absolute",top:"100%",left:0,right:0,zIndex:999,background:darkMode?"#161a22":"#fff",border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",borderRadius:10,maxHeight:180,overflowY:"auto",boxShadow:"0 4px 16px rgba(0,0,0,0.15)" }}>
                             {filtered.map((o, i) => (
-                              <div key={i} style={{ padding:"8px 12px",cursor:"pointer",borderBottom:i<filtered.length-1?(darkMode?"1px solid #3a3a3c":"1px solid #f0f0f2"):"none",fontSize:13 }}
+                              <div key={i} style={{ padding:"8px 12px",cursor:"pointer",borderBottom:i<filtered.length-1?(darkMode?"1px solid #1f2530":"1px solid #f0f0f2"):"none",fontSize:13 }}
                                 onMouseDown={() => setNewBoxingTask(f=>({...f, for_order:o.value}))}
-                                onMouseEnter={e => e.currentTarget.style.background=darkMode?"#3a3a3c":"#f6f9fc"}
+                                onMouseEnter={e => e.currentTarget.style.background=darkMode?"#1f2530":"#f6f9fc"}
                                 onMouseLeave={e => e.currentTarget.style.background="transparent"}>
                                 <div style={{ fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{o.label}</div>
                                 {o.sub && <div style={{ fontSize:11,color:"#64748d" }}>{o.sub}</div>}
@@ -16713,7 +16725,7 @@ function BOMManager({ user }) {
               ].map(f => (
                 <button key={f.id} onClick={() => setBoxingFilter(f.id)}
                   style={{ padding:"6px 16px",borderRadius:100,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",
-                    background: boxingFilter === f.id ? "#533afd" : (darkMode?"#2c2c2e":"#f0f0f2"),
+                    background: boxingFilter === f.id ? "#58a6ff" : (darkMode?"#161a22":"#f0f0f2"),
                     color: boxingFilter === f.id ? "#fff" : (darkMode?"#f6f9fc":"#061b31") }}>
                   {f.label}
                 </button>
@@ -16760,10 +16772,10 @@ function BOMManager({ user }) {
                       {/* Progress bar */}
                       {task.quantity > 0 && (
                         <div style={{ marginTop:10,display:"flex",alignItems:"center",gap:10 }}>
-                          <div style={{ flex:1,height:8,borderRadius:4,background:darkMode?"#2c2c2e":"#e5e5ea",overflow:"hidden" }}>
-                            <div style={{ height:"100%",borderRadius:4,background:pct>=100?"#34c759":"#533afd",width:`${Math.min(pct,100)}%`,transition:"width 0.3s" }} />
+                          <div style={{ flex:1,height:8,borderRadius:4,background:darkMode?"#161a22":"#e5e5ea",overflow:"hidden" }}>
+                            <div style={{ height:"100%",borderRadius:4,background:pct>=100?"#34c759":"#58a6ff",width:`${Math.min(pct,100)}%`,transition:"width 0.3s" }} />
                           </div>
-                          <span style={{ fontSize:12,fontWeight:700,color:pct>=100?"#34c759":"#533afd",minWidth:40 }}>{pct}%</span>
+                          <span style={{ fontSize:12,fontWeight:700,color:pct>=100?"#34c759":"#58a6ff",minWidth:40 }}>{pct}%</span>
                         </div>
                       )}
                     </div>
@@ -16818,14 +16830,14 @@ function BOMManager({ user }) {
                               } catch (e) { console.warn('[boxing complete] shelf update failed:', e.message); }
                             }
                           }} style={{ fontSize:11,padding:"6px 14px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:600,
-                            background:darkMode?"#2c2c2e":"#f0f0f2",color:textPrimary }}>
+                            background:darkMode?"#161a22":"#f0f0f2",color:textPrimary }}>
                             +N
                           </button>
                           {/* Reassign */}
                           <select value={task.team_member_id || ""} onChange={async (e) => {
                             await updateBoxingTask(task.id, { team_member_id: e.target.value });
                             setBoxingTasks(prev => prev.map(t => t.id === task.id ? { ...t, team_member_id: e.target.value } : t));
-                          }} style={{ fontSize:11,padding:"5px 8px",borderRadius:8,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",background:darkMode?"#2c2c2e":"#fff",color:textPrimary,cursor:"pointer" }}>
+                          }} style={{ fontSize:11,padding:"5px 8px",borderRadius:8,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",background:darkMode?"#161a22":"#fff",color:textPrimary,cursor:"pointer" }}>
                             {activeMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                           </select>
                         </>
@@ -16878,10 +16890,10 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {/* ══ SHELF subtab ══ */}
         {activeView === "shelf" && (() => {
-          const cardBg = darkMode ? "#1c1c1e" : "#fff";
-          const cardBorder = darkMode ? "1px solid #3a3a3e" : "1px solid #e5e5ea";
+          const cardBg = darkMode ? "#0f1218" : "#fff";
+          const cardBorder = darkMode ? "1px solid #1f2530" : "1px solid #e5e5ea";
           const textPrimary = darkMode ? "#f6f9fc" : "#061b31";
-          const inputStyle2 = { fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee", outline:"none", background:darkMode?"#2c2c2e":"#fff", color:textPrimary, width:"100%" };
+          const inputStyle2 = { fontFamily:"'IBM Plex Sans',system-ui,sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee", outline:"none", background:darkMode?"#161a22":"#fff", color:textPrimary, width:"100%" };
 
           // Build a map of productId → finishedGoods row
           const fgMap = {};
@@ -16974,7 +16986,7 @@ function BOMManager({ user }) {
 
           return (
           <div style={{ maxWidth:"100%" }}>
-            <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Finished Goods Shelf</h2>
+            <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Finished Goods Shelf</h2>
             <p style={{ fontSize:14,color:"#64748d",marginBottom:20 }}>Track completed units on the shelf. Units are added automatically when boxing tasks complete.</p>
 
             {/* ── Restock Needed ── */}
@@ -17019,7 +17031,7 @@ function BOMManager({ user }) {
                 <div style={{ background:darkMode?"#1e1400":"#fff8ee",border:`2px solid ${darkMode?"#b86e00":"#ff9500"}`,borderRadius:14,padding:"20px 24px",marginBottom:24 }}>
                   <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:16 }}>
                     <span style={{ fontSize:20 }}>⚠️</span>
-                    <div style={{ fontSize:16,fontWeight:800,color:darkMode?"#ffb340":"#bf6800",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>
+                    <div style={{ fontSize:16,fontWeight:800,color:darkMode?"#ffb340":"#bf6800",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                       Restock Needed — {suggestions.length} product{suggestions.length !== 1 ? "s" : ""} at or below minimum
                     </div>
                     <div style={{ marginLeft:"auto",fontSize:10,color:darkMode?"#ffb340":"#bf6800",fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase" }}>sorted by urgency</div>
@@ -17031,7 +17043,7 @@ function BOMManager({ user }) {
                       const hasShortfall = top5Parts.some(p => p.shortfall > 0);
                       const rstStatus = restockStatusMap[prod.id];
                       return (
-                      <div key={prod.id} style={{ background:darkMode?"#2c2c2e":"#fff",borderRadius:10,padding:"16px 18px",border:darkMode?"1px solid #3a3a3e":"1px solid #ffd580",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                      <div key={prod.id} style={{ background:darkMode?"#161a22":"#fff",borderRadius:10,padding:"16px 18px",border:darkMode?"1px solid #1f2530":"1px solid #ffd580",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                         <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
                           <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#ff9500",flexShrink:0 }} />
                           <div style={{ fontSize:14,fontWeight:700,color:textPrimary }}>{prod.name}</div>
@@ -17145,10 +17157,10 @@ function BOMManager({ user }) {
                                   ? `Parts needed (${top5Parts.filter(p=>p.shortfall>0).length} short)`
                                   : "Parts available ✓"}
                               </summary>
-                              <div style={{ borderRadius:8,overflow:"hidden",border:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2" }}>
+                              <div style={{ borderRadius:8,overflow:"hidden",border:darkMode?"1px solid #1f2530":"1px solid #f0f0f2" }}>
                                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
                                   <thead>
-                                    <tr style={{ background:darkMode?"#1c1c1e":"#fafbfc",borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                                    <tr style={{ background:darkMode?"#0f1218":"#fafbfc",borderBottom:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                                       <th style={{ textAlign:"left",padding:"5px 8px",fontWeight:700,color:"#64748d",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Part</th>
                                       <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#64748d",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Have</th>
                                       <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#64748d",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Need</th>
@@ -17157,7 +17169,7 @@ function BOMManager({ user }) {
                                   </thead>
                                   <tbody>
                                     {top5Parts.map((p, i) => (
-                                      <tr key={p.part.id} style={{ borderBottom: i < top5Parts.length-1 ? `1px solid ${darkMode?"#3a3a3e":"#f0f0f2"}` : "none" }}>
+                                      <tr key={p.part.id} style={{ borderBottom: i < top5Parts.length-1 ? `1px solid ${darkMode?"#1f2530":"#f0f0f2"}` : "none" }}>
                                         <td style={{ padding:"5px 8px",fontWeight:600,color:textPrimary,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
                                           {p.part.mpn || p.part.description || p.part.reference || "?"}
                                         </td>
@@ -17203,14 +17215,14 @@ function BOMManager({ user }) {
             {/* Summary cards */}
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))",gap:16,marginBottom:28 }}>
               {[
-                { label:"Total Products", value:products.length, color:"#533afd" },
+                { label:"Total Products", value:products.length, color:"#58a6ff" },
                 { label:"Total On Shelf", value:finishedGoods.reduce((s,r)=>s+(r.quantity_on_hand||0),0), color:"#34c759" },
                 { label:"Below Min Stock", value:finishedGoods.filter(r=>r.min_stock!=null&&(r.quantity_on_hand||0)<=r.min_stock).length, color:"#ff3b30" },
                 { label:"At/Above Target", value:finishedGoods.filter(r=>r.target_stock!=null&&(r.quantity_on_hand||0)>=r.target_stock).length, color:"#34c759" },
               ].map(card => (
                 <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:cardBorder }}>
                   <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
-                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
+                  <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
                 </div>
               ))}
             </div>
@@ -17223,7 +17235,7 @@ function BOMManager({ user }) {
                   <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>Calculates max units buildable per product based on available stock (minus reservations).</div>
                 </div>
                 <button onClick={handleFeasibilityCheck} disabled={feasibilityLoading}
-                  style={{ padding:"10px 24px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#533afd",color:"#fff",fontFamily:"inherit",whiteSpace:"nowrap" }}>
+                  style={{ padding:"10px 24px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#58a6ff",color:"#fff",fontFamily:"inherit",whiteSpace:"nowrap" }}>
                   {feasibilityLoading ? "Calculating…" : "Check Now"}
                 </button>
               </div>
@@ -17233,12 +17245,12 @@ function BOMManager({ user }) {
               {feasibilityResults && feasibilityResults.length > 0 && (
                 <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14 }}>
                   {feasibilityResults.map(r => (
-                    <div key={r.product.id} style={{ background:darkMode?"#2c2c2e":"#fafbfc",borderRadius:12,padding:"16px 18px",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                    <div key={r.product.id} style={{ background:darkMode?"#161a22":"#fafbfc",borderRadius:12,padding:"16px 18px",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                       <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:8 }}>
-                        <div style={{ width:8,height:8,borderRadius:"50%",background:r.product.color||"#533afd" }} />
+                        <div style={{ width:8,height:8,borderRadius:"50%",background:r.product.color||"#58a6ff" }} />
                         <div style={{ fontSize:14,fontWeight:700,color:textPrimary }}>{r.product.name}</div>
                       </div>
-                      <div style={{ fontSize:26,fontWeight:800,color:r.maxBuildable>0?"#34c759":"#ff3b30",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",marginBottom:6 }}>
+                      <div style={{ fontSize:26,fontWeight:800,color:r.maxBuildable>0?"#34c759":"#ff3b30",fontFamily:"'IBM Plex Sans',system-ui,sans-serif",marginBottom:6 }}>
                         {r.maxBuildable} <span style={{ fontSize:13,fontWeight:400,color:"#64748d" }}>can build</span>
                       </div>
                       {r.maxBuildable === 0 && r.blockingParts.length > 0 && (
@@ -17256,7 +17268,7 @@ function BOMManager({ user }) {
                         <button onClick={() => {
                           setNewBuildOrder(f => ({ ...f, product_id: r.product.id, quantity: String(r.maxBuildable) }));
                           setProdSubTab("builds");
-                        }} style={{ marginTop:10,padding:"6px 16px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#533afd",color:"#fff",fontFamily:"inherit" }}>
+                        }} style={{ marginTop:10,padding:"6px 16px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,background:"#58a6ff",color:"#fff",fontFamily:"inherit" }}>
                           Start Build
                         </button>
                       )}
@@ -17430,7 +17442,7 @@ function BOMManager({ user }) {
                   <summary style={{ listStyle:"none",cursor:"pointer",userSelect:"none",
                     fontSize:11,fontWeight:700,color:"#64748d",letterSpacing:"0.08em",textTransform:"uppercase",
                     padding:"8px 14px",background:darkMode?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)",
-                    borderRadius:10,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",
+                    borderRadius:10,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",
                     display:"flex",alignItems:"center",gap:6 }}>
                     <span style={{ fontSize:10,transition:"transform 0.15s" }}>▶</span>
                     {brand} — {brandGroups[brand].length} product{brandGroups[brand].length !== 1 ? "s" : ""}
@@ -17438,11 +17450,11 @@ function BOMManager({ user }) {
                   <div style={{ background:cardBg,border:cardBorder,borderTop:"none",borderRadius:"0 0 10px 10px",overflow:"hidden",marginBottom:2 }}>
                     <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                       <thead>
-                        <tr style={{ borderBottom:`1px solid ${darkMode?"#3a3a3e":"#e5e5ea"}` }}>
+                        <tr style={{ borderBottom:`1px solid ${darkMode?"#1f2530":"#e5e5ea"}` }}>
                           {["","Product","On Hand","Target","Min","Status","Actions"].map(h => (
                             <th key={h} style={{ textAlign:"left",padding:"8px 14px",fontSize:10,fontWeight:700,color:"#64748d",
                               letterSpacing:"0.06em",textTransform:"uppercase",
-                              fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",whiteSpace:"nowrap" }}>{h}</th>
+                              fontFamily:"'IBM Plex Sans',system-ui,sans-serif",whiteSpace:"nowrap" }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -17462,11 +17474,11 @@ function BOMManager({ user }) {
                           return (
                             <tr key={prod.id} style={{ borderBottom:"1px solid #f0f0f2",background: idx%2===0 ? "transparent" : (darkMode?"rgba(255,255,255,0.02)":"rgba(0,0,0,0.01)") }}>
                               <td style={{ padding:"10px 14px",width:28 }}>
-                                <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color||"#533afd" }} />
+                                <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color||"#58a6ff" }} />
                               </td>
                               <td style={{ padding:"10px 14px",fontWeight:600,color:textPrimary }}>{prod.name}</td>
                               <td style={{ padding:"10px 14px" }}>
-                                <span style={{ fontWeight:800,fontSize:18,color,fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",letterSpacing:"-0.5px" }}>{qty}</span>
+                                <span style={{ fontWeight:800,fontSize:18,color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>{qty}</span>
                                 {burnLabel && <div style={{ fontSize:10,color:burnColor,fontWeight:600,marginTop:2 }}>{burnLabel}</div>}
                               </td>
                               <td style={{ padding:"8px 14px" }}>
@@ -17474,14 +17486,14 @@ function BOMManager({ user }) {
                                   onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { target: e.target.value, min: prev[prod.id]?.min ?? (fg?.min_stock != null ? String(fg.min_stock) : "") } }))}
                                   onBlur={() => { if (shelfTargetEdit[prod.id] != null) handleShelfTargetSave(prod.id); }}
                                   onKeyDown={e => { if (e.key === "Enter") { e.target.blur(); } }}
-                                  style={{ width:64,padding:"5px 8px",borderRadius:7,border:isDirty?"1px solid #533afd":"1px solid #e3e8ee",fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none",fontFamily:"inherit",textAlign:"center" }} />
+                                  style={{ width:64,padding:"5px 8px",borderRadius:7,border:isDirty?"1px solid #58a6ff":"1px solid #e3e8ee",fontSize:13,background:darkMode?"#161a22":"#fff",color:textPrimary,outline:"none",fontFamily:"inherit",textAlign:"center" }} />
                               </td>
                               <td style={{ padding:"8px 14px" }}>
                                 <input type="number" placeholder="—" value={minVal} min="0"
                                   onChange={e => setShelfTargetEdit(prev => ({ ...prev, [prod.id]: { min: e.target.value, target: prev[prod.id]?.target ?? (fg?.target_stock != null ? String(fg.target_stock) : "") } }))}
                                   onBlur={() => { if (shelfTargetEdit[prod.id] != null) handleShelfTargetSave(prod.id); }}
                                   onKeyDown={e => { if (e.key === "Enter") { e.target.blur(); } }}
-                                  style={{ width:64,padding:"5px 8px",borderRadius:7,border:isDirty?"1px solid #533afd":"1px solid #e3e8ee",fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:textPrimary,outline:"none",fontFamily:"inherit",textAlign:"center" }} />
+                                  style={{ width:64,padding:"5px 8px",borderRadius:7,border:isDirty?"1px solid #58a6ff":"1px solid #e3e8ee",fontSize:13,background:darkMode?"#161a22":"#fff",color:textPrimary,outline:"none",fontFamily:"inherit",textAlign:"center" }} />
                               </td>
                               <td style={{ padding:"10px 14px" }}>
                                 <span style={{ display:"inline-block",padding:"3px 10px",borderRadius:100,fontSize:11,fontWeight:600,background:darkMode?`${color}35`:`${color}18`,color }}>
@@ -17513,7 +17525,7 @@ function BOMManager({ user }) {
               return (
                 <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
                   onClick={(e) => { if (e.target === e.currentTarget) setShelfAddModal(null); }}>
-                  <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:16,padding:"28px 28px",minWidth:340,maxWidth:420,boxShadow:"0 8px 40px rgba(0,0,0,0.3)" }}>
+                  <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:16,padding:"28px 28px",minWidth:340,maxWidth:420,boxShadow:"0 8px 40px rgba(0,0,0,0.3)" }}>
                     <div style={{ fontSize:18,fontWeight:700,color:textPrimary,marginBottom:20 }}>
                       {shelfAddModal.action === 'add' ? 'Add to Shelf' : 'Remove from Shelf'} — {prod?.name}
                     </div>
@@ -17554,12 +17566,12 @@ function BOMManager({ user }) {
               return (
                 <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:"20px" }}
                   onClick={e => { if (e.target===e.currentTarget) setRestockPreflight(null); }}>
-                  <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:18,padding:"28px 28px 24px",width:"100%",maxWidth:700,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 16px 64px rgba(0,0,0,0.4)" }}>
+                  <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:18,padding:"28px 28px 24px",width:"100%",maxWidth:700,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 16px 64px rgba(0,0,0,0.4)" }}>
 
                     {/* Header */}
                     <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20 }}>
                       <div>
-                        <div style={{ fontSize:20,fontWeight:800,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",marginBottom:4 }}>
+                        <div style={{ fontSize:20,fontWeight:800,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif",marginBottom:4 }}>
                           Parts Pre-Flight — {product.name}
                         </div>
                         <div style={{ fontSize:13,color:"#64748d" }}>
@@ -17574,7 +17586,7 @@ function BOMManager({ user }) {
 
                     {/* Status banner */}
                     {bomRows.length === 0 ? (
-                      <div style={{ background:darkMode?"#2c2c2e":"#fafbfc",border:"1px solid #e3e8ee",borderRadius:12,padding:"16px",marginBottom:18,textAlign:"center" }}>
+                      <div style={{ background:darkMode?"#161a22":"#fafbfc",border:"1px solid #e3e8ee",borderRadius:12,padding:"16px",marginBottom:18,textAlign:"center" }}>
                         <div style={{ fontSize:14,fontWeight:700,color:"#64748d" }}>⚠ No BOM found for this product</div>
                         <div style={{ fontSize:12,color:"#64748d",marginTop:4 }}>Add components in the Products tab before creating a build order.</div>
                       </div>
@@ -17669,7 +17681,7 @@ function BOMManager({ user }) {
                       <div style={{ fontSize:11,fontWeight:700,color:"#5856d6",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8 }}>
                         Internal Work Orders — queue alongside parts
                       </div>
-                      <div style={{ border:`1px solid ${darkMode?"#3a3a3e":"#e5e5ea"}`,borderRadius:10,overflow:"hidden" }}>
+                      <div style={{ border:`1px solid ${darkMode?"#1f2530":"#e5e5ea"}`,borderRadius:10,overflow:"hidden" }}>
                         {[
                           { key:"pcb",           label:"PCB Shop",                 desc:"Populate printed circuit boards for this build", color:"#5856d6", icon:"🔲" },
                           { key:"sheet_metal",   label:"Sheet Metal Shop",         desc:"Fabricate chassis / enclosures",                  color:"#ff6b35", icon:"🔩" },
@@ -17680,7 +17692,7 @@ function BOMManager({ user }) {
                           return (
                             <div key={shop.key} onClick={() => setRestockPreflight(prev => ({ ...prev, internalChecked: { ...(prev.internalChecked||{}), [shop.key]: !prev.internalChecked?.[shop.key] } }))}
                               style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
-                                borderBottom:i<2?`1px solid ${darkMode?"#3a3a3e":"#f0f0f2"}`:"none",
+                                borderBottom:i<2?`1px solid ${darkMode?"#1f2530":"#f0f0f2"}`:"none",
                                 cursor:"pointer",background:checked?(darkMode?"rgba(88,86,214,0.1)":"rgba(88,86,214,0.06)"):"transparent",
                                 transition:"background 0.1s" }}>
                               <div style={{ width:18,height:18,borderRadius:5,border:`2px solid ${checked?shop.color:"#e3e8ee"}`,
@@ -17761,7 +17773,7 @@ function BOMManager({ user }) {
                               setProdSubTab("builds");
                               setTimeout(() => { document.getElementById("create-build-order-section")?.scrollIntoView({ behavior:"smooth", block:"start" }); }, 100);
                             }}
-                            style={{ flex:1,padding:"14px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#533afd",color:"#fff",fontFamily:"inherit",minWidth:180 }}>
+                            style={{ flex:1,padding:"14px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#58a6ff",color:"#fff",fontFamily:"inherit",minWidth:180 }}>
                             Build {maxBuildable} Now (parts available)
                           </button>
                         )}
@@ -17803,13 +17815,13 @@ function BOMManager({ user }) {
             PIPELINE — Unit Tracking & Packing Lists
         ══════════════════════════════════════ */}
         {activeView === "pipeline" && (() => {
-          const cardBg = darkMode ? "#1c1c1e" : "#fff";
-          const cardBorder = darkMode ? "1px solid #3a3a3e" : "1px solid #e5e5ea";
+          const cardBg = darkMode ? "#0f1218" : "#fff";
+          const cardBorder = darkMode ? "1px solid #1f2530" : "1px solid #e5e5ea";
           const textPrimary = darkMode ? "#f6f9fc" : "#061b31";
-          const inputStyle = { fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee", outline:"none", background:darkMode?"#2c2c2e":"#fff", color:textPrimary };
+          const inputStyle = { fontFamily:"'IBM Plex Sans',system-ui,sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee", outline:"none", background:darkMode?"#161a22":"#fff", color:textPrimary };
 
           const statusLabels = { built:"Built", awaiting_playtest:"Awaiting Play Test", in_playtest:"In Play Test", playtest_passed:"Play Test Passed", playtest_failed:"Play Test FAILED", boxing:"Boxing", boxed:"Boxed", shipped:"Shipped", destroyed:"☠ Destroyed" };
-          const statusColors = { built:"#64748d", awaiting_playtest:"#ff9500", in_playtest:"#5856d6", playtest_passed:"#34c759", playtest_failed:"#ff3b30", boxing:"#533afd", boxed:"#00c7be", shipped:"#64748d", destroyed:"#8B0000" };
+          const statusColors = { built:"#64748d", awaiting_playtest:"#ff9500", in_playtest:"#5856d6", playtest_passed:"#34c759", playtest_failed:"#ff3b30", boxing:"#58a6ff", boxed:"#00c7be", shipped:"#64748d", destroyed:"#8B0000" };
 
           // Status counts for pipeline summary
           const statusCounts = {};
@@ -17845,7 +17857,7 @@ function BOMManager({ user }) {
 
           return (
           <div style={{ maxWidth:"100%" }}>
-            <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Pipeline</h2>
+            <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Pipeline</h2>
             <p style={{ fontSize:14,color:"#64748d",marginBottom:20 }}>Track every serialized unit from build through play test, boxing, and shipment. Auto-assigned through the pipeline.</p>
 
             {/* ── Pipeline Summary ── */}
@@ -17856,7 +17868,7 @@ function BOMManager({ user }) {
                     boxShadow:"0 1px 4px rgba(0,0,0,0.06)", border: pipelineFilter === status ? `2px solid ${statusColors[status]}` : cardBorder,
                     cursor:"pointer",transition:"all 0.15s" }}>
                   <div style={{ fontSize:9,color:statusColors[status],fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:6 }}>{statusLabels[status]}</div>
-                  <div style={{ fontSize:24,fontWeight:800,color:statusColors[status],fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" }}>{statusCounts[status] || 0}</div>
+                  <div style={{ fontSize:24,fontWeight:800,color:statusColors[status],fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>{statusCounts[status] || 0}</div>
                 </div>
               ))}
             </div>
@@ -17912,7 +17924,7 @@ function BOMManager({ user }) {
             {simMode && (() => {
               const simProductOptions = products.filter(p => p.name);
               return (
-              <div style={{ background:darkMode?"#2c2c2e":"#fff8e1",borderRadius:14,padding:"20px 24px",marginBottom:20,border:"2px solid #ff9500",boxShadow:"0 2px 12px rgba(255,149,0,0.15)" }}>
+              <div style={{ background:darkMode?"#161a22":"#fff8e1",borderRadius:14,padding:"20px 24px",marginBottom:20,border:"2px solid #ff9500",boxShadow:"0 2px 12px rgba(255,149,0,0.15)" }}>
                 <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12 }}>
                   <div>
                     <div style={{ fontSize:15,fontWeight:700,color:"#ff9500" }}>Pipeline Simulator</div>
@@ -18008,7 +18020,7 @@ function BOMManager({ user }) {
                     await updatePedalUnit(unit.id, { status: "shipped", shipped_at: new Date().toISOString(), customer_name: "Sim Customer", dealer_name: "Sim Dealer", customer_order: "SIM-PO-001" });
                     setPedalUnits(prev => prev.map(u => u.id === unit.id ? { ...u, status: "shipped", shipped_at: new Date().toISOString(), customer_name: "Sim Customer", dealer_name: "Sim Dealer", customer_order: "SIM-PO-001" } : u));
                     setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: `${unit.serial_number} SHIPPED to Sim Customer / Sim Dealer`, color: "#64748d" }]);
-                  }} style={{ fontSize:11,padding:"6px 14px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:700,background:"#636366",color:"#fff" }}>
+                  }} style={{ fontSize:11,padding:"6px 14px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:700,background:"#5a6373",color:"#fff" }}>
                     5. Ship
                   </button>
 
@@ -18028,7 +18040,7 @@ function BOMManager({ user }) {
 
                 {/* Simulation log */}
                 {simLog.length > 0 && (
-                  <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:10,padding:12,maxHeight:180,overflowY:"auto",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+                  <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:10,padding:12,maxHeight:180,overflowY:"auto",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                     <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em" }}>Simulation Log</div>
                     {simLog.map((entry, i) => (
                       <div key={i} style={{ fontSize:11,color:entry.color || textPrimary,marginBottom:3,fontFamily:"SF Mono,Menlo,monospace" }}>
@@ -18155,8 +18167,8 @@ function BOMManager({ user }) {
             {/* ══════════════════════════════════════
                 PACKING LIST
             ══════════════════════════════════════ */}
-            <div style={{ borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",paddingTop:28 }}>
-              <h3 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:22,fontWeight:700,color:textPrimary,marginBottom:4 }}>Packing List</h3>
+            <div style={{ borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",paddingTop:28 }}>
+              <h3 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:22,fontWeight:700,color:textPrimary,marginBottom:4 }}>Packing List</h3>
               <p style={{ fontSize:13,color:"#64748d",marginBottom:16 }}>Generate a packing list for an order showing every serial number, who built it, who play tested it, and who boxed it.</p>
 
               <div style={{ display:"flex",gap:10,marginBottom:20,alignItems:"center" }}>
@@ -18202,7 +18214,7 @@ function BOMManager({ user }) {
                       </tr>`;
                     }).join("");
                     w.document.write(`<!DOCTYPE html><html><head><title>Packing List — ${packingListOrder}</title>
-                      <style>body{font-family:Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;margin:40px;color:#061b31}
+                      <style>body{font-family:'IBM Plex Sans',system-ui,sans-serif;margin:40px;color:#061b31}
                       table{border-collapse:collapse;width:100%} th{text-align:left;padding:8px 12px;border-bottom:2px solid #061b31;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#64748d}
                       @media print{body{margin:20px} button{display:none}}</style></head><body>
                       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
@@ -18230,10 +18242,10 @@ function BOMManager({ user }) {
                       </div>
                       <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e5e5ea;display:flex;justify-content:space-between">
                         <div style="font-size:12px;color:#64748d">Generated by Jackson Audio BOM Manager</div>
-                        <button onclick="window.print()" style="padding:8px 20px;border-radius:980px;border:none;background:#533afd;color:#fff;font-weight:600;cursor:pointer;font-size:13px">Print</button>
+                        <button onclick="window.print()" style="padding:8px 20px;border-radius:980px;border:none;background:#58a6ff;color:#fff;font-weight:600;cursor:pointer;font-size:13px">Print</button>
                       </div></body></html>`);
                     w.document.close();
-                  }} style={{ fontSize:12,padding:"8px 18px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:600,background:"#533afd",color:"#fff" }}>
+                  }} style={{ fontSize:12,padding:"8px 18px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:600,background:"#58a6ff",color:"#fff" }}>
                     Print Packing List
                   </button>
                 )}
@@ -18249,7 +18261,7 @@ function BOMManager({ user }) {
                       <thead>
                         <tr>
                           {["Serial Number","Product","Built By","Play Tested By","Boxed By","Customer / Dealer"].map(h => (
-                            <th key={h} style={{ textAlign:"left",padding:"8px 12px",borderBottom:darkMode?"2px solid #3a3a3e":"2px solid #e3e8ee",fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",color:"#64748d",fontWeight:700 }}>{h}</th>
+                            <th key={h} style={{ textAlign:"left",padding:"8px 12px",borderBottom:darkMode?"2px solid #1f2530":"2px solid #e3e8ee",fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",color:"#64748d",fontWeight:700 }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -18261,12 +18273,12 @@ function BOMManager({ user }) {
                           const boxer = teamMembers.find(m => m.id === u.boxed_by);
                           return (
                             <tr key={u.id}>
-                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",fontFamily:"SF Mono,monospace",fontWeight:700,color:textPrimary }}>{u.serial_number}</td>
-                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}>{prod?.name || "?"}</td>
-                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}>{builder?.name || "—"}</td>
-                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}>{tester?.name || "—"}{u.playtest_rating ? ` ${"★".repeat(u.playtest_rating)}` : ""}</td>
-                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}>{boxer?.name || "—"}</td>
-                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}>{u.customer_name || u.dealer_name || "—"}</td>
+                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",fontFamily:"SF Mono,monospace",fontWeight:700,color:textPrimary }}>{u.serial_number}</td>
+                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:textPrimary }}>{prod?.name || "?"}</td>
+                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:textPrimary }}>{builder?.name || "—"}</td>
+                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:textPrimary }}>{tester?.name || "—"}{u.playtest_rating ? ` ${"★".repeat(u.playtest_rating)}` : ""}</td>
+                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:textPrimary }}>{boxer?.name || "—"}</td>
+                              <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:textPrimary }}>{u.customer_name || u.dealer_name || "—"}</td>
                             </tr>
                           );
                         })}
@@ -18280,8 +18292,8 @@ function BOMManager({ user }) {
             {/* ══════════════════════════════════════
                 ORDER FULFILLMENT TRACKER
             ══════════════════════════════════════ */}
-            <div style={{ borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",paddingTop:28,marginTop:32 }}>
-              <h3 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:22,fontWeight:700,color:textPrimary,marginBottom:4 }}>Order → Shipment Tracker</h3>
+            <div style={{ borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",paddingTop:28,marginTop:32 }}>
+              <h3 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:22,fontWeight:700,color:textPrimary,marginBottom:4 }}>Order → Shipment Tracker</h3>
               <p style={{ fontSize:13,color:"#64748d",marginBottom:16 }}>
                 End-to-end thread from customer order through build, test, boxing, and shipping. See exactly where every order stands.
               </p>
@@ -18386,8 +18398,8 @@ function BOMManager({ user }) {
                         <div key={om.ref} style={{ background:cardBg,borderRadius:14,border:om.allShipped?`2px solid #34c759`:cardBorder,
                           overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                           {/* Progress bar */}
-                          <div style={{ height:4,background:darkMode?"#2c2c2e":"#e5e5ea" }}>
-                            <div style={{ height:"100%",width:`${Math.min(pct,100)}%`,background:pct>=100?"#34c759":"#533afd",borderRadius:"0 2px 2px 0",transition:"width 0.3s" }} />
+                          <div style={{ height:4,background:darkMode?"#161a22":"#e5e5ea" }}>
+                            <div style={{ height:"100%",width:`${Math.min(pct,100)}%`,background:pct>=100?"#34c759":"#58a6ff",borderRadius:"0 2px 2px 0",transition:"width 0.3s" }} />
                           </div>
                           <div style={{ padding:"18px 22px" }}>
                             {/* Header */}
@@ -18395,7 +18407,7 @@ function BOMManager({ user }) {
                               <div>
                                 <div style={{ display:"flex",alignItems:"center",gap:8 }}>
                                   <span style={{ fontSize:17,fontWeight:800,color:textPrimary }}>{om.ref}</span>
-                                  {om.source && <span style={{ fontSize:10,padding:"2px 8px",borderRadius:4,background:om.source==="Shopify"?"#533afd18":"#4bc07618",color:om.source==="Shopify"?"#533afd":"#4bc076",fontWeight:600 }}>{om.source}</span>}
+                                  {om.source && <span style={{ fontSize:10,padding:"2px 8px",borderRadius:4,background:om.source==="Shopify"?"#58a6ff18":"#4bc07618",color:om.source==="Shopify"?"#58a6ff":"#4bc076",fontWeight:600 }}>{om.source}</span>}
                                   {!om.source && <span style={{ fontSize:10,padding:"2px 8px",borderRadius:4,background:"#64748d18",color:"#64748d",fontWeight:600 }}>Manual</span>}
                                 </div>
                                 {om.customerName && <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>{om.customerName}</div>}
@@ -18416,7 +18428,7 @@ function BOMManager({ user }) {
                                       if (boxedUnits.find(bu => bu.id === u.id)) return { ...u, status: "shipped", shipped_at: new Date().toISOString(), customer_name: om.customerName || "", customer_order: om.ref, tracking_number: tracking || "", carrier };
                                       return u;
                                     }));
-                                  }} style={{ padding:"7px 18px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:"#533afd",color:"#fff" }}>
+                                  }} style={{ padding:"7px 18px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:"#58a6ff",color:"#fff" }}>
                                     Ship All {om.boxed} Units
                                   </button>
                                 )}
@@ -18429,13 +18441,13 @@ function BOMManager({ user }) {
                             {/* Per-product breakdown table */}
                             <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                               <thead>
-                                <tr style={{ borderBottom:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea" }}>
+                                <tr style={{ borderBottom:darkMode?"2px solid #1f2530":"2px solid #e5e5ea" }}>
                                   <th style={{ textAlign:"left",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Product</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Ordered</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#ff9500",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Building</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#5856d6",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Testing</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#34c759",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Passed</th>
-                                  <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#533afd",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Boxing</th>
+                                  <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#58a6ff",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Boxing</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#00c7be",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Boxed</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Shipped</th>
                                 </tr>
@@ -18447,7 +18459,7 @@ function BOMManager({ user }) {
                                   const failed = pb.statusCounts.playtest_failed||0;
                                   const boxing = pb.statusCounts.boxing||0;
                                   return (
-                                    <tr key={pb.product?.id||"?"} style={{ borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2" }}>
+                                    <tr key={pb.product?.id||"?"} style={{ borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2" }}>
                                       <td style={{ padding:"8px 8px" }}>
                                         <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                                           {pb.product?.color && <div style={{ width:8,height:8,borderRadius:"50%",background:pb.product.color,flexShrink:0 }} />}
@@ -18458,7 +18470,7 @@ function BOMManager({ user }) {
                                       <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:600,color:pb.building>0?"#ff9500":"#e3e8ee" }}>{pb.building||"—"}</td>
                                       <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:600,color:testing>0?"#5856d6":"#e3e8ee" }}>{testing||"—"}{failed>0 && <span style={{ color:"#ff3b30",fontSize:10 }}> ({failed} failed)</span>}</td>
                                       <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:600,color:passed>0?"#34c759":"#e3e8ee" }}>{passed||"—"}</td>
-                                      <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:600,color:boxing>0?"#533afd":"#e3e8ee" }}>{boxing||"—"}</td>
+                                      <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:600,color:boxing>0?"#58a6ff":"#e3e8ee" }}>{boxing||"—"}</td>
                                       <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:600,color:pb.boxed>0?"#00c7be":"#e3e8ee" }}>{pb.boxed||"—"}</td>
                                       <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:600,color:pb.shipped>0?"#64748d":"#e3e8ee" }}>{pb.shipped||"—"}</td>
                                     </tr>
@@ -18478,15 +18490,15 @@ function BOMManager({ user }) {
             {/* ══════════════════════════════════════
                 PRODUCT REGISTRATIONS
             ══════════════════════════════════════ */}
-            <div style={{ borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",paddingTop:28,marginTop:32 }}>
-              <h3 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:22,fontWeight:700,color:textPrimary,marginBottom:4 }}>Product Registrations</h3>
+            <div style={{ borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",paddingTop:28,marginTop:32 }}>
+              <h3 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:22,fontWeight:700,color:textPrimary,marginBottom:4 }}>Product Registrations</h3>
               <p style={{ fontSize:13,color:"#64748d",marginBottom:16 }}>
                 Customers who scanned the QR code on their pedal and registered. Auto-synced to Klaviyo.
                 <span style={{ marginLeft:8,fontWeight:600 }}>{productRegistrations.length} total</span>
               </p>
 
               {productRegistrations.length === 0 ? (
-                <div style={{ textAlign:"center",padding:30,color:"#64748d",fontSize:13,background:darkMode?"#1c1c1e":"#fafbfc",borderRadius:10 }}>
+                <div style={{ textAlign:"center",padding:30,color:"#64748d",fontSize:13,background:darkMode?"#0f1218":"#fafbfc",borderRadius:10 }}>
                   No registrations yet. Once customers scan QR codes on their pedals, their info will appear here and sync to Klaviyo.
                 </div>
               ) : (
@@ -18495,21 +18507,21 @@ function BOMManager({ user }) {
                     <thead>
                       <tr>
                         {["Date","S/N","Product","Brand","Customer","Email","Phone","Purchased From"].map(h => (
-                          <th key={h} style={{ textAlign:"left",padding:"10px 12px",borderBottom:darkMode?"2px solid #3a3a3e":"2px solid #e3e8ee",fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",color:"#64748d",fontWeight:700 }}>{h}</th>
+                          <th key={h} style={{ textAlign:"left",padding:"10px 12px",borderBottom:darkMode?"2px solid #1f2530":"2px solid #e3e8ee",fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",color:"#64748d",fontWeight:700 }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {productRegistrations.slice(0, 50).map(reg => (
                         <tr key={reg.id}>
-                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:"#64748d",fontSize:11,whiteSpace:"nowrap" }}>{new Date(reg.registered_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
-                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",fontFamily:"SF Mono,monospace",fontWeight:700,color:textPrimary,fontSize:11 }}>{reg.serial_number}</td>
-                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}>{reg.product_name}</td>
-                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:"#64748d",fontSize:11 }}>{reg.brand}</td>
-                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary,fontWeight:600 }}>{reg.customer_name}</td>
-                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:textPrimary }}><a href={`mailto:${reg.customer_email}`} style={{ color:"#533afd",textDecoration:"none" }}>{reg.customer_email}</a></td>
-                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:"#64748d" }}>{reg.customer_phone || "—"}</td>
-                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2",color:"#64748d" }}>{reg.purchased_from || "—"}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:"#64748d",fontSize:11,whiteSpace:"nowrap" }}>{new Date(reg.registered_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",fontFamily:"SF Mono,monospace",fontWeight:700,color:textPrimary,fontSize:11 }}>{reg.serial_number}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:textPrimary }}>{reg.product_name}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:"#64748d",fontSize:11 }}>{reg.brand}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:textPrimary,fontWeight:600 }}>{reg.customer_name}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:textPrimary }}><a href={`mailto:${reg.customer_email}`} style={{ color:"#58a6ff",textDecoration:"none" }}>{reg.customer_email}</a></td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:"#64748d" }}>{reg.customer_phone || "—"}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:"#64748d" }}>{reg.purchased_from || "—"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -18528,7 +18540,7 @@ function BOMManager({ user }) {
         {activeView === "repairs" && (() => {
           const STATUS_CFG = {
             intake:      { label:"Intake",       color:"#8e8e93", bg:"#f2f2f7" },
-            diagnosing:  { label:"Diagnosing",   color:"#533afd", bg:"#e8f0fb" },
+            diagnosing:  { label:"Diagnosing",   color:"#58a6ff", bg:"#e8f0fb" },
             repairing:   { label:"Repairing",    color:"#ff9500", bg:"#fff3e0" },
             testing:     { label:"Testing",      color:"#5856d6", bg:"#f0eeff" },
             repaired:    { label:"Repaired",     color:"#34c759", bg:"#e8faed" },
@@ -18631,7 +18643,7 @@ function BOMManager({ user }) {
                     } catch(e) {
                       setGmailScanModal(prev => prev ? { ...prev, status:"error", error:e.message } : null);
                     }
-                  }} style={{ padding:"6px 16px", borderRadius:100, background:"#533afd", color:"#fff", border:"none", fontSize:12, fontWeight:600, cursor:"pointer" }}>
+                  }} style={{ padding:"6px 16px", borderRadius:100, background:"#58a6ff", color:"#fff", border:"none", fontSize:12, fontWeight:600, cursor:"pointer" }}>
                     📬 Scan Support Inbox
                   </button>
                 )}
@@ -18671,7 +18683,7 @@ function BOMManager({ user }) {
                     <button
                       disabled={!repairIntakeSerial.trim() || repairIntakeBusy}
                       onClick={handleOpenRepair}
-                      style={{ padding:"8px 20px", borderRadius:100, background: repairIntakeSerial.trim() ? "#ff3b30" : "#c7c7cc", color:"#fff", border:"none", cursor: repairIntakeSerial.trim() ? "pointer" : "not-allowed", fontSize:13, fontWeight:600 }}
+                      style={{ padding:"8px 20px", borderRadius:100, background: repairIntakeSerial.trim() ? "#ff3b30" : "#b8bfcc", color:"#fff", border:"none", cursor: repairIntakeSerial.trim() ? "pointer" : "not-allowed", fontSize:13, fontWeight:600 }}
                     >
                       {repairIntakeBusy ? "Opening…" : "Open Ticket"}
                     </button>
@@ -18789,10 +18801,10 @@ function BOMManager({ user }) {
           const BRANDS = ["Jackson Audio", "Fulltone USA", "Both"];
           const CARRIERS = ["UPS", "FedEx", "USPS", "DHL", "Freight", "Will Call", "Other"];
           const textPrimary   = darkMode ? "#f6f9fc" : "#061b31";
-          const textSecondary = darkMode ? "#98989d" : "#64748d";
-          const cardBg        = darkMode ? "#2c2c2e" : "#fff";
-          const borderColor   = darkMode ? "#3a3a3e" : "#e5e5ea";
-          const inputStyle    = { padding:"7px 10px", borderRadius:8, border:`1px solid ${borderColor}`, fontSize:13, fontFamily:"inherit", background:darkMode?"#1c1c1e":"#fff", color:textPrimary, width:"100%", boxSizing:"border-box" };
+          const textSecondary = darkMode ? "#8a93a3" : "#64748d";
+          const cardBg        = darkMode ? "#161a22" : "#fff";
+          const borderColor   = darkMode ? "#1f2530" : "#e5e5ea";
+          const inputStyle    = { padding:"7px 10px", borderRadius:8, border:`1px solid ${borderColor}`, fontSize:13, fontFamily:"inherit", background:darkMode?"#0f1218":"#fff", color:textPrimary, width:"100%", boxSizing:"border-box" };
 
           const brandColor = { "Jackson Audio": "#c8a84e", "Fulltone USA": "#b22222" };
           // "Both" dealers appear in BOTH sections
@@ -19172,7 +19184,7 @@ function BOMManager({ user }) {
                       <div>
                         <span style={{ fontWeight:700, fontSize:13, color:textPrimary }}>{title}</span>
                         <span style={{ fontSize:12, color:textSecondary, marginLeft:10 }}>
-                          {newCount > 0 && <span style={{ color:"#533afd", fontWeight:600 }}>{newCount} new</span>}
+                          {newCount > 0 && <span style={{ color:"#58a6ff", fontWeight:600 }}>{newCount} new</span>}
                           {newCount > 0 && updateCount > 0 && " · "}
                           {updateCount > 0 && <span style={{ color:"#ff9500", fontWeight:600 }}>{updateCount} to update</span>}
                           {skipCount > 0 && <span style={{ color:textSecondary }}> · {skipCount} no changes</span>}
@@ -19187,7 +19199,7 @@ function BOMManager({ user }) {
                     </div>
                     <div style={{ maxHeight:320, overflowY:"auto" }}>
                       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                        <thead style={{ position:"sticky", top:0, background:darkMode?"#2c2c2e":"#f6f9fc" }}>
+                        <thead style={{ position:"sticky", top:0, background:darkMode?"#161a22":"#f6f9fc" }}>
                           <tr>
                             <th style={{ padding:"6px 10px", textAlign:"left", borderBottom:`1px solid ${borderColor}` }}>
                               <input type="checkbox"
@@ -19212,13 +19224,13 @@ function BOMManager({ user }) {
                                 </td>
                                 <td style={{ padding:"5px 10px", fontWeight:600, color:textPrimary }}>{c.name}</td>
                                 <td style={{ padding:"5px 10px", color:textSecondary }}>{c.brand}</td>
-                                <td style={{ padding:"5px 10px", color:"#533afd" }}>{c.email}</td>
+                                <td style={{ padding:"5px 10px", color:"#58a6ff" }}>{c.email}</td>
                                 <td style={{ padding:"5px 10px", color:textSecondary }}>{[c.billing_address?.city, c.billing_address?.state].filter(Boolean).join(", ")}</td>
                                 <td style={{ padding:"5px 10px" }}>
                                   {c.alreadyExists ? <span style={{ color:textSecondary }}>Already exists</span>
                                     : c.existing && !c.willUpdate ? <span style={{ color:textSecondary }}>No changes</span>
                                     : c.existing ? <span style={{ color:"#ff9500", fontWeight:600 }}>Update: {Object.keys(c.updates||{}).join(", ")}</span>
-                                    : <span style={{ color:"#533afd", fontWeight:600 }}>New</span>}
+                                    : <span style={{ color:"#58a6ff", fontWeight:600 }}>New</span>}
                                 </td>
                               </tr>
                             );
@@ -19233,7 +19245,7 @@ function BOMManager({ user }) {
               {/* ── New Dealer form */}
               {dealerForm && !dealerForm.id && (
                 <div style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:10, marginBottom:12, overflow:"hidden" }}>
-                  <div style={{ padding:"10px 16px", background:darkMode?"#3a3a3e":"#f6f9fc", borderBottom:`1px solid ${borderColor}` }}>
+                  <div style={{ padding:"10px 16px", background:darkMode?"#1f2530":"#f6f9fc", borderBottom:`1px solid ${borderColor}` }}>
                     <span style={{ fontWeight:700, fontSize:13, color:textPrimary }}>New Dealer</span>
                   </div>
                   <div style={{ padding:"16px", display:"flex", flexDirection:"column", gap:12 }}>
@@ -19270,13 +19282,13 @@ function BOMManager({ user }) {
                   No dealers yet. Use Import from CSV to get started.
                 </div>
               ) : (() => {
-                const thStyle = { padding:"12px 14px", fontSize:11, fontWeight:700, color:darkMode?"#e5e5ea":"#3a3f51", textTransform:"uppercase", letterSpacing:"0.04em", textAlign:"left", whiteSpace:"nowrap", fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" };
+                const thStyle = { padding:"12px 14px", fontSize:11, fontWeight:700, color:darkMode?"#e5e5ea":"#3a3f51", textTransform:"uppercase", letterSpacing:"0.04em", textAlign:"left", whiteSpace:"nowrap", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" };
                 const fmtAddr = (addr) => { if (!addr) return "—"; const c = [addr.city, addr.state].filter(Boolean).join(", "); return c || addr.country || "—"; };
                 return (
                   <div style={{ background:cardBg, border:`1px solid ${borderColor}`, borderRadius:10, overflowX:"auto", overflowY:"auto", maxHeight:"75vh" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                       <thead style={{ position:"sticky", top:0, zIndex:1 }}>
-                        <tr style={{ background:darkMode?"#3a3a3e":"#b8bdd1", color:darkMode?"#e5e5ea":"#3a3f51" }}>
+                        <tr style={{ background:darkMode?"#1f2530":"#b8bdd1", color:darkMode?"#e5e5ea":"#3a3f51" }}>
                           <th style={thStyle}>Name</th>
                           <th style={thStyle}>Contact</th>
                           <th style={thStyle}>Email</th>
@@ -19294,8 +19306,8 @@ function BOMManager({ user }) {
                           const toggleBrand = () => setCollapsedBrands(prev => { const s = new Set(prev); s.has(brand) ? s.delete(brand) : s.add(brand); return s; });
                           const sectionRow = (
                             <tr key={"section-"+brand} style={{ background:darkMode?"#2a2a2e":"#dde0e8", cursor:"pointer", userSelect:"none" }} onClick={toggleBrand}>
-                              <td colSpan={6} style={{ padding:"6px 14px", borderBottom:`1px solid ${darkMode?"#3a3a3e":"#c8ccd6"}`, borderTop: brand==="Fulltone USA"?`1px solid ${darkMode?"#3a3a3e":"#c8ccd6"}`:"none" }}>
-                                <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:11, fontWeight:700, color:darkMode?textPrimary:"#3a3f51", fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", letterSpacing:"0.02em" }}>
+                              <td colSpan={6} style={{ padding:"6px 14px", borderBottom:`1px solid ${darkMode?"#1f2530":"#c8ccd6"}`, borderTop: brand==="Fulltone USA"?`1px solid ${darkMode?"#1f2530":"#c8ccd6"}`:"none" }}>
+                                <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:11, fontWeight:700, color:darkMode?textPrimary:"#3a3f51", fontFamily:"'IBM Plex Sans',system-ui,sans-serif", letterSpacing:"0.02em" }}>
                                   <span style={{ fontSize:9, color:darkMode?textSecondary:"#5a6070", transform:isCollapsed?"rotate(-90deg)":"rotate(0deg)", transition:"transform 0.15s", display:"inline-block" }}>▼</span>
                                   <span style={{ width:7, height:7, borderRadius:"50%", background:color, display:"inline-block" }} />
                                   {brand} <span style={{ fontWeight:400, color:darkMode?textSecondary:"#5a6070" }}>({group.length})</span>
@@ -19320,9 +19332,9 @@ function BOMManager({ user }) {
                                   }
                                 }}
                                 style={{ cursor:"pointer", background: isEditing ? (darkMode?"#1a2a3a":"#f0f6ff") : isExpanded ? (darkMode?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.02)") : "transparent" }}>
-                                <td style={{ ...tdStyle, fontWeight:600, color:"#533afd" }}>{d.name}</td>
+                                <td style={{ ...tdStyle, fontWeight:600, color:"#58a6ff" }}>{d.name}</td>
                                 <td style={{ ...tdStyle, color:textSecondary }}>{d.contact_name || "—"}</td>
-                                <td style={{ ...tdStyle }}>{d.email ? <a href={"mailto:"+d.email} onClick={e=>e.stopPropagation()} style={{ color:"#533afd", textDecoration:"none" }}>{d.email}</a> : <span style={{ color:textSecondary }}>—</span>}</td>
+                                <td style={{ ...tdStyle }}>{d.email ? <a href={"mailto:"+d.email} onClick={e=>e.stopPropagation()} style={{ color:"#58a6ff", textDecoration:"none" }}>{d.email}</a> : <span style={{ color:textSecondary }}>—</span>}</td>
                                 <td style={{ ...tdStyle, color:textSecondary }}>{d.phone || "—"}</td>
                                 <td style={{ ...tdStyle, color:textSecondary }}>{fmtAddr(d.shipping_address || d.billing_address)}</td>
                                 <td style={{ ...tdStyle }}><span style={{ fontSize:10, fontWeight:700, padding:"1px 7px", borderRadius:10, background:(brandColor[d.brand]||"#8e8e93")+"22", color:brandColor[d.brand]||textSecondary }}>{d.brand==="Both"?"Both":d.brand==="Fulltone USA"?"FT":"JA"}</span></td>
@@ -19330,7 +19342,7 @@ function BOMManager({ user }) {
                             );
                             const expandedRow = (isExpanded || isEditing) ? (
                               <tr key={d.id+brand+"-exp"}>
-                                <td colSpan={6} style={{ padding:"14px 20px", background:darkMode?"#1c1c1e":"#fafbfc", borderBottom: isEditing?"2px solid #533afd":`1px solid ${borderColor}` }}>
+                                <td colSpan={6} style={{ padding:"14px 20px", background:darkMode?"#0f1218":"#fafbfc", borderBottom: isEditing?"2px solid #58a6ff":`1px solid ${borderColor}` }}>
                                   {isEditing ? (
                                     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                                       <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 2fr", gap:10 }}>
@@ -19369,10 +19381,10 @@ function BOMManager({ user }) {
                                         <div style={{ fontSize:10, color:"#64748d", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Contact</div>
                                         <div style={{ color:textPrimary, lineHeight:"18px" }}>
                                           {d.contact_name && <div style={{ fontWeight:600 }}>{d.contact_name}</div>}
-                                          {d.email && <div><a href={"mailto:"+d.email} style={{ color:"#533afd", textDecoration:"none" }}>{d.email}</a></div>}
+                                          {d.email && <div><a href={"mailto:"+d.email} style={{ color:"#58a6ff", textDecoration:"none" }}>{d.email}</a></div>}
                                           {d.phone && <div>{d.phone}</div>}
                                           {d.account_number && <div style={{ color:textSecondary }}>Acct: {d.account_number}</div>}
-                                          {d.website && <div><a href={d.website} target="_blank" rel="noopener noreferrer" style={{ color:"#533afd", textDecoration:"none" }}>{d.website}</a></div>}
+                                          {d.website && <div><a href={d.website} target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff", textDecoration:"none" }}>{d.website}</a></div>}
                                           {d.preferred_carrier && <div style={{ color:textSecondary }}>Carrier: {d.preferred_carrier}</div>}
                                           {d.shipping_notes && <div style={{ color:"#ff9500", marginTop:4 }}>⚠ {d.shipping_notes}</div>}
                                           {!d.contact_name && !d.email && !d.phone && <div style={{ color:textSecondary }}>No contact info</div>}
@@ -19424,13 +19436,13 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "shops" && (() => {
           const textPrimary   = darkMode ? "#f6f9fc" : "#061b31";
-          const textSecondary = darkMode ? "#98989d" : "#64748d";
-          const cardBg        = darkMode ? "#2c2c2e" : "#fff";
-          const borderColor   = darkMode ? "#3a3a3e" : "#e5e5ea";
-          const inputStyle    = { padding:"7px 10px", borderRadius:8, border:`1px solid ${borderColor}`, fontSize:13, fontFamily:"inherit", background:darkMode?"#1c1c1e":"#fff", color:textPrimary, width:"100%", boxSizing:"border-box" };
-          const STATUS_COLORS = { pending:"#ff9500", in_progress:"#533afd", completed:"#34c759", cancelled:"#8898aa" };
+          const textSecondary = darkMode ? "#8a93a3" : "#64748d";
+          const cardBg        = darkMode ? "#161a22" : "#fff";
+          const borderColor   = darkMode ? "#1f2530" : "#e5e5ea";
+          const inputStyle    = { padding:"7px 10px", borderRadius:8, border:`1px solid ${borderColor}`, fontSize:13, fontFamily:"inherit", background:darkMode?"#0f1218":"#fff", color:textPrimary, width:"100%", boxSizing:"border-box" };
+          const STATUS_COLORS = { pending:"#ff9500", in_progress:"#58a6ff", completed:"#34c759", cancelled:"#8898aa" };
           const STATUS_LABELS = { pending:"Pending", in_progress:"In Progress", completed:"Completed", cancelled:"Cancelled" };
-          const PRIORITY_COLORS = { low:"#8898aa", normal:"#533afd", high:"#ff9500", urgent:"#ff3b30" };
+          const PRIORITY_COLORS = { low:"#8898aa", normal:"#58a6ff", high:"#ff9500", urgent:"#ff3b30" };
           const SHOP_CFG = {
             pcb:           { label:"PCB Shop",           color:"#5856d6", desc:"Printed circuit board orders — track fab runs, quantities, and which build they feed." },
             sheet_metal:   { label:"Sheet Metal Shop",   color:"#ff6b35", desc:"Enclosures and metalwork — track cutting, bending, and finishing before final assembly." },
@@ -19505,7 +19517,7 @@ function BOMManager({ user }) {
                       {[["open","Open Orders"],["completed","Completed Orders"],["cancelled","Cancelled Orders"],["all","All Orders"]].map(([v,l]) => (
                         <button key={v} onClick={() => setStatusFilter(v)}
                           style={{ padding:"4px 10px", borderRadius:100, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"inherit", border:"none",
-                            background: statusFilter===v ? cfg.color : darkMode?"#3a3a3e":"#e5e5ea",
+                            background: statusFilter===v ? cfg.color : darkMode?"#1f2530":"#e5e5ea",
                             color: statusFilter===v ? "#fff" : textSecondary }}>
                           {l}
                         </button>
@@ -19522,7 +19534,7 @@ function BOMManager({ user }) {
 
                 {shopOrderForm?.shop_type === shopType && (
                   <div style={{ background:cardBg, border:`2px solid ${cfg.color}40`, borderRadius:12, marginBottom:16, overflow:"hidden" }}>
-                    <div style={{ padding:"12px 16px", background:darkMode?"#3a3a3e":"#f6f9fc", borderBottom:`1px solid ${borderColor}` }}>
+                    <div style={{ padding:"12px 16px", background:darkMode?"#1f2530":"#f6f9fc", borderBottom:`1px solid ${borderColor}` }}>
                       <div style={{ fontWeight:700, fontSize:13, color:textPrimary }}>{shopOrderForm.id ? "Edit Work Order" : `New ${cfg.label} Work Order`}</div>
                     </div>
                     <div style={{ padding:"16px", display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr", gap:12 }}>
@@ -19588,7 +19600,7 @@ function BOMManager({ user }) {
                         <div key={order.id} style={{ borderBottom: i < displayed.length-1 ? `1px solid ${borderColor}` : "none" }}>
                           <div onClick={() => setExpandedOrder(isExpanded ? null : order.id)}
                             style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", cursor:"pointer",
-                              background: isOverdue ? "#ff3b3005" : isExpanded ? darkMode?"#3a3a3e":"#f6f9fc" : "transparent",
+                              background: isOverdue ? "#ff3b3005" : isExpanded ? darkMode?"#1f2530":"#f6f9fc" : "transparent",
                               transition:"background 0.15s" }}>
                             <span style={{ fontSize:11, color:textSecondary, transform:isExpanded?"rotate(90deg)":"rotate(0deg)", transition:"transform 0.15s", flexShrink:0 }}>▶</span>
                             <div style={{ flex:1, minWidth:0 }}>
@@ -19607,7 +19619,7 @@ function BOMManager({ user }) {
                             </div>
                           </div>
                           {isExpanded && (
-                            <div style={{ padding:"0 16px 16px 36px", background:darkMode?"#1c1c1e08":"#fafbfc" }}>
+                            <div style={{ padding:"0 16px 16px 36px", background:darkMode?"#0f121808":"#fafbfc" }}>
                               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12, marginBottom:12 }}>
                                 {[
                                   ["Order #",    order.order_number||"—"],
@@ -19635,7 +19647,7 @@ function BOMManager({ user }) {
                               <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                                 {order.status !== "in_progress" && order.status !== "completed" && order.status !== "cancelled" && (
                                   <button onClick={async () => { const u = await updateShopOrder(order.id, { status:"in_progress" }); setShopOrders(prev => prev.map(o => o.id===order.id ? u : o)); }}
-                                    style={{ padding:"5px 12px", borderRadius:8, border:"none", background:"#533afd15", color:"#533afd", cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:600 }}>
+                                    style={{ padding:"5px 12px", borderRadius:8, border:"none", background:"#58a6ff15", color:"#58a6ff", cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:600 }}>
                                     Mark In Progress
                                   </button>
                                 )}
@@ -19646,7 +19658,7 @@ function BOMManager({ user }) {
                                   </button>
                                 )}
                                 <button onClick={() => setShopOrderForm({ ...order })}
-                                  style={{ padding:"5px 12px", borderRadius:8, border:"none", background:"#533afd15", color:"#533afd", cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:600 }}>
+                                  style={{ padding:"5px 12px", borderRadius:8, border:"none", background:"#58a6ff15", color:"#58a6ff", cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:600 }}>
                                   Edit
                                 </button>
                                 {isAdmin && (
@@ -19670,7 +19682,7 @@ function BOMManager({ user }) {
           return (
             <div style={{ maxWidth:"100%" }}>
               <div style={{ marginBottom:20 }}>
-                <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif", fontSize:21, fontWeight:800, marginBottom:4, color:textPrimary }}>Internal Shops</h2>
+                <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif", fontSize:21, fontWeight:800, marginBottom:4, color:textPrimary }}>Internal Shops</h2>
                 <p style={{ color:textSecondary, fontSize:13, margin:0 }}>Work order queues for sub-assembly production before final build. Each shop picks up orders here the same way the build team picks up build orders.</p>
               </div>
               <ShopSection shopType="pcb" />
@@ -19685,12 +19697,12 @@ function BOMManager({ user }) {
         ══════════════════════════════════════ */}
         {activeView === "settings" && (
           <div style={{ maxWidth:"100%" }}>
-            <h2 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontSize:21,fontWeight:800,marginBottom:6,color:"#061b31" }}>Settings</h2>
+            <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:21,fontWeight:800,marginBottom:6,color:"#061b31" }}>Settings</h2>
             <p style={{ color:"#64748d",fontSize:13,marginBottom:16 }}>
               Keys are stored in the shared team database — one set for everyone.
             </p>
             {/* ── Settings Tab Bar ── */}
-            <div style={{ display:"flex", borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea"), marginBottom:20, width:"100%" }}>
+            <div style={{ display:"flex", borderBottom:"2px solid "+(darkMode?"#1f2530":"#e5e5ea"), marginBottom:20, width:"100%" }}>
               {[
                 { id:"suppliers",     label:"Suppliers"     },
                 { id:"integrations",  label:"Integrations"  },
@@ -19707,16 +19719,16 @@ function BOMManager({ user }) {
                       flex: 1,
                       background: active ? (darkMode?"rgba(100,210,255,0.08)":"rgba(83,58,253,0.06)") : "none",
                       border: "none",
-                      borderRight: i < arr.length-1 ? "1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") : "none",
-                      borderBottom: active ? ("2px solid "+(darkMode?"#64d2ff":"#533afd")) : "2px solid transparent",
+                      borderRight: i < arr.length-1 ? "1px solid "+(darkMode?"#1f2530":"#e5e5ea") : "none",
+                      borderBottom: active ? ("2px solid "+(darkMode?"#58a6ff":"#58a6ff")) : "2px solid transparent",
                       marginBottom: -2,
                       cursor: "pointer",
                       padding: "0 8px",
                       height: 36,
-                      fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+                      fontFamily: "'IBM Plex Sans',system-ui,sans-serif",
                       fontSize: 12,
                       fontWeight: active ? 700 : 600,
-                      color: active ? (darkMode?"#64d2ff":"#533afd") : (darkMode?"#d1d1d6":"#3a3f51"),
+                      color: active ? (darkMode?"#58a6ff":"#58a6ff") : (darkMode?"#d1d1d6":"#3a3f51"),
                       transition: "all 0.15s",
                       whiteSpace: "nowrap",
                     }}>
@@ -19730,7 +19742,7 @@ function BOMManager({ user }) {
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("company") ? s.delete("company") : s.add("company"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("company") ? "▶" : "▼"}</span>
                   Company Info — Ship-To Address
                 </div>
@@ -19815,7 +19827,7 @@ function BOMManager({ user }) {
                 <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
                   <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                     onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("distributors") ? s.delete("distributors") : s.add("distributors"); return s; })}>
-                    <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                    <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                       <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("distributors") ? "▶" : "▼"}</span>
                       Distributors ({distKeys.length})
                     </div>
@@ -19889,7 +19901,7 @@ function BOMManager({ user }) {
                     </div>
                     <p style={{ fontSize:11,color:"#64748d",marginTop:8 }}>
                       Order Mode: <strong style={{ color:"#34c759" }}>API</strong> = direct API ordering &middot;
-                      <strong style={{ color:"#533afd" }}> Rep</strong> = email PO to sales rep &middot;
+                      <strong style={{ color:"#58a6ff" }}> Rep</strong> = email PO to sales rep &middot;
                       <strong style={{ color:"#64748d" }}> Manual</strong> = order on supplier website
                     </p>
                     {sectionSaveBtn("distributors", "Distributors")}
@@ -19902,7 +19914,7 @@ function BOMManager({ user }) {
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("nexar") ? s.delete("nexar") : s.add("nexar"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("nexar") ? "▶" : "▼"}</span>
                   Nexar / Octopart — Primary {nexarToken ? "✓" : ""}
                 </div>
@@ -19911,7 +19923,7 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
                   One API covers Mouser, Digi-Key, Arrow, LCSC, Allied + 900 more. Free: 1,000 parts/month.
                   <a href="https://nexar.com" target="_blank" rel="noopener noreferrer"
-                    style={{ marginLeft:6,color:"#533afd",textDecoration:"none",fontWeight:500 }}>nexar.com →</a>
+                    style={{ marginLeft:6,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>nexar.com →</a>
                 </div>
                 <div className="key-input-row">
                   <div><div className="key-label">Client ID</div><div className="key-hint">From your Nexar app</div></div>
@@ -19934,7 +19946,7 @@ function BOMManager({ user }) {
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("mouser") ? s.delete("mouser") : s.add("mouser"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("mouser") ? "▶" : "▼"}</span>
                   Mouser Direct {apiKeys.mouser_api_key ? "✓" : ""}
                 </div>
@@ -19943,7 +19955,7 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
                   Deeper Mouser-specific pricing + Cart/Order API.
                   <a href="https://www.mouser.com/api-hub/" target="_blank" rel="noopener noreferrer"
-                    style={{ marginLeft:6,color:"#533afd",textDecoration:"none",fontWeight:500 }}>mouser.com/api-hub →</a>
+                    style={{ marginLeft:6,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>mouser.com/api-hub →</a>
                 </div>
                 <div className="key-input-row">
                   <div className="key-label">Search API Key</div>
@@ -19966,7 +19978,7 @@ function BOMManager({ user }) {
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("digikey") ? s.delete("digikey") : s.add("digikey"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("digikey") ? "▶" : "▼"}</span>
                   Digi-Key Direct {dkToken ? "✓" : ""}
                 </div>
@@ -19975,7 +19987,7 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
                   OAuth2 client credentials.
                   <a href="https://developer.digikey.com" target="_blank" rel="noopener noreferrer"
-                    style={{ marginLeft:6,color:"#533afd",textDecoration:"none",fontWeight:500 }}>developer.digikey.com →</a>
+                    style={{ marginLeft:6,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>developer.digikey.com →</a>
                 </div>
                 <div className="key-input-row">
                   <div className="key-label">Client ID</div>
@@ -19998,7 +20010,7 @@ function BOMManager({ user }) {
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("arrow") ? s.delete("arrow") : s.add("arrow"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("arrow") ? "▶" : "▼"}</span>
                   Arrow Direct {(apiKeys.arrow_api_key && apiKeys.arrow_login) ? "✓" : ""}
                 </div>
@@ -20007,7 +20019,7 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
                   Requires login + API key.
                   <a href="https://developers.arrow.com" target="_blank" rel="noopener noreferrer"
-                    style={{ marginLeft:6,color:"#533afd",textDecoration:"none",fontWeight:500 }}>developers.arrow.com →</a>
+                    style={{ marginLeft:6,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>developers.arrow.com →</a>
                 </div>
                 <div className="key-input-row">
                   <div className="key-label">Login Email</div>
@@ -20030,7 +20042,7 @@ function BOMManager({ user }) {
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("ti") ? s.delete("ti") : s.add("ti"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("ti") ? "▶" : "▼"}</span>
                   Texas Instruments Direct {(apiKeys.ti_api_key && apiKeys.ti_api_secret) ? "✓" : ""}
                 </div>
@@ -20039,7 +20051,7 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
                   Requires both Client ID (API Key) and Client Secret from your myTI dashboard → API Keys &amp; Access.
                   <a href="https://www.ti.com/myti/docs/overview.page" target="_blank" rel="noopener noreferrer"
-                    style={{ marginLeft:6,color:"#533afd",textDecoration:"none",fontWeight:500 }}>ti.com/myti →</a>
+                    style={{ marginLeft:6,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>ti.com/myti →</a>
                 </div>
                 <div className="key-input-row">
                   <div className="key-label">API Key</div>
@@ -20062,7 +20074,7 @@ function BOMManager({ user }) {
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("lcsc") ? s.delete("lcsc") : s.add("lcsc"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("lcsc") ? "▶" : "▼"}</span>
                   LCSC Electronics Direct {(apiKeys.lcsc_api_key && apiKeys.lcsc_api_secret) ? "✓" : ""}
                 </div>
@@ -20071,7 +20083,7 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
                   Direct pricing and stock from LCSC. Requires formal application — email <strong>support@lcsc.com</strong> with your company info and website. They'll issue a key + secret once approved.
                   <a href="https://www.lcsc.com/docs/index.html" target="_blank" rel="noopener noreferrer"
-                    style={{ marginLeft:6,color:"#533afd",textDecoration:"none",fontWeight:500 }}>LCSC API Docs →</a>
+                    style={{ marginLeft:6,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>LCSC API Docs →</a>
                 </div>
                 <div className="key-input-row">
                   <div className="key-label">API Key</div>
@@ -20094,7 +20106,7 @@ function BOMManager({ user }) {
             {settingsTab === "suppliers" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("mcmaster") ? s.delete("mcmaster") : s.add("mcmaster"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("mcmaster") ? "▶" : "▼"}</span>
                   McMaster-Carr Direct API
                 </div>
@@ -20120,7 +20132,7 @@ function BOMManager({ user }) {
             {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shopify") ? s.delete("shopify") : s.add("shopify"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("shopify") ? "▶" : "▼"}</span>
                   Shopify Stores
                 </div>
@@ -20186,7 +20198,7 @@ function BOMManager({ user }) {
             {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("zoho") ? s.delete("zoho") : s.add("zoho"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("zoho") ? "▶" : "▼"}</span>
                   Zoho Books
                 </div>
@@ -20196,7 +20208,7 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:12,color:"#50617a",marginBottom:14 }}>
                   Zoho only allows <strong>one Self Client</strong> per account — one set of credentials works for all your Zoho Books companies.
                   Get credentials from{" "}
-                  <a href="https://api-console.zoho.com" target="_blank" rel="noopener noreferrer" style={{ color:"#533afd" }}>api-console.zoho.com</a>
+                  <a href="https://api-console.zoho.com" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}>api-console.zoho.com</a>
                   {" "}→ Self Client.
                 </div>
 
@@ -20225,7 +20237,7 @@ function BOMManager({ user }) {
                   </div>
                   {/* Grant code exchange */}
                   <div style={{ padding:"10px 12px",background:"rgba(83,58,253,0.04)",border:"1px solid rgba(83,58,253,0.2)",borderRadius:6 }}>
-                    <div style={{ fontSize:10,color:"#533afd",fontWeight:700,marginBottom:6 }}>↕ Get a fresh Refresh Token — paste your Self Client grant code here:</div>
+                    <div style={{ fontSize:10,color:"#58a6ff",fontWeight:700,marginBottom:6 }}>↕ Get a fresh Refresh Token — paste your Self Client grant code here:</div>
                     <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:4 }}>
                       <select id="zoho_region" defaultValue="com"
                         style={{ padding:"5px 8px",borderRadius:5,fontSize:11,border:"1px solid #e3e8ee",background:"#fff",color:"#061b31" }}>
@@ -20240,7 +20252,7 @@ function BOMManager({ user }) {
                       <input type="text" placeholder="Paste grant code (1000.xxxxx.xxxxx) — valid 10 min" id="zoho_grant_code"
                         style={{ flex:1,padding:"5px 8px",borderRadius:5,fontSize:11,border:"1px solid #e3e8ee",fontFamily:"monospace" }} />
                       <button id="zoho_exchange_btn"
-                        style={{ background:"#533afd",color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap" }}
+                        style={{ background:"#58a6ff",color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap" }}
                         onClick={async () => {
                           const code = document.getElementById("zoho_grant_code")?.value?.trim();
                           const region = document.getElementById("zoho_region")?.value || "com";
@@ -20320,7 +20332,7 @@ function BOMManager({ user }) {
             {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("gmail") ? s.delete("gmail") : s.add("gmail"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("gmail") ? "▶" : "▼"}</span>
                   Gmail — Support Inbox
                 </div>
@@ -20330,9 +20342,9 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
                   Connects to <strong>support@jacksonaudio.net</strong> so you can scan incoming emails and create repair tickets directly.<br />
                   Get credentials from{" "}
-                  <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" style={{ color:"#533afd" }}>Google Cloud Console</a>
+                  <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}>Google Cloud Console</a>
                   {" "}— create an OAuth 2.0 Client ID (Web Application type). Then get your refresh token via{" "}
-                  <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" style={{ color:"#533afd" }}>OAuth Playground</a>
+                  <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}>OAuth Playground</a>
                   {" "}(scope: <code style={{ fontSize:11 }}>https://www.googleapis.com/auth/gmail.readonly</code>).
                 </div>
                 <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
@@ -20363,7 +20375,7 @@ function BOMManager({ user }) {
             {settingsTab === "operations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shipping") ? s.delete("shipping") : s.add("shipping"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("shipping") ? "▶" : "▼"}</span>
                   Shipping Costs
                 </div>
@@ -20401,7 +20413,7 @@ function BOMManager({ user }) {
             {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shipstation") ? s.delete("shipstation") : s.add("shipstation"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("shipstation") ? "▶" : "▼"}</span>
                   ShipStation (Fulfillment) {(shipstationData?.syncedAt && !shipstationData?.error) ? "✓" : ""}
                 </div>
@@ -20464,7 +20476,7 @@ function BOMManager({ user }) {
             {settingsTab === "operations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("tariffs") ? s.delete("tariffs") : s.add("tariffs"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("tariffs") ? "▶" : "▼"}</span>
                   Import Tariff Rates
                 </div>
@@ -20517,7 +20529,7 @@ function BOMManager({ user }) {
             {settingsTab === "notifications" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("email") ? s.delete("email") : s.add("email"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("email") ? "▶" : "▼"}</span>
                   Email Notifications & PO Drafts
                 </div>
@@ -20568,7 +20580,7 @@ function BOMManager({ user }) {
             {settingsTab === "notifications" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("ai") ? s.delete("ai") : s.add("ai"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("ai") ? "▶" : "▼"}</span>
                   AI — Invoice Parsing (Claude)
                 </div>
@@ -20576,7 +20588,7 @@ function BOMManager({ user }) {
               {!collapsedSettings.has("ai") && <div style={{ padding:"16px 20px" }}>
                 <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
                   Upload PDF invoices from suppliers — Claude AI extracts part numbers, quantities, and costs automatically.
-                  Get your API key from <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" style={{ color:"#533afd" }}>console.anthropic.com</a>
+                  Get your API key from <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}>console.anthropic.com</a>
                 </p>
                 <div className="key-input-row">
                   <div><div className="key-label">Anthropic API Key</div><div className="key-hint">sk-ant-api03-…</div></div>
@@ -20590,7 +20602,7 @@ function BOMManager({ user }) {
             {settingsTab === "notifications" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("sms") ? s.delete("sms") : s.add("sms"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("sms") ? "▶" : "▼"}</span>
                   SMS — Builder Notifications
                 </div>
@@ -20606,7 +20618,7 @@ function BOMManager({ user }) {
                     <button key={val} onClick={() => setApiKeys(k => ({...k, sms_provider: val}))}
                       style={{ padding:"6px 16px",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid",fontFamily:"inherit",
                         ...(apiKeys.sms_provider === val || (!apiKeys.sms_provider && val === "twilio")
-                          ? { background:"#533afd",color:"#fff",borderColor:"#533afd" }
+                          ? { background:"#58a6ff",color:"#fff",borderColor:"#58a6ff" }
                           : { background:"none",color:"#64748d",borderColor:"#e3e8ee" }) }}>
                       {label}
                     </button>
@@ -20618,7 +20630,7 @@ function BOMManager({ user }) {
                   <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
                     Simple, reliable SMS via Amazon Web Services. No 10DLC registration needed for transactional messages.
                     Create an IAM user with <code style={{ fontSize:11,background:"#f0f0f0",padding:"1px 4px",borderRadius:3 }}>AmazonSNSFullAccess</code> permission in your{" "}
-                    <a href="https://console.aws.amazon.com/iam/" target="_blank" rel="noopener noreferrer" style={{ color:"#533afd" }}>AWS Console</a>.
+                    <a href="https://console.aws.amazon.com/iam/" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}>AWS Console</a>.
                   </p>
                   <div className="key-input-row">
                     <div><div className="key-label">Access Key ID</div><div className="key-hint">AKIA…</div></div>
@@ -20643,7 +20655,7 @@ function BOMManager({ user }) {
                 {/* Twilio fields */}
                 {(apiKeys.sms_provider !== "aws_sns") && (<>
                   <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
-                    Sign up at <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer" style={{ color:"#533afd" }}>twilio.com</a>. Requires 10DLC campaign registration for US numbers.
+                    Sign up at <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}>twilio.com</a>. Requires 10DLC campaign registration for US numbers.
                   </p>
                   <div className="key-input-row">
                     <div><div className="key-label">Account SID</div><div className="key-hint">AC…</div></div>
@@ -20711,7 +20723,7 @@ function BOMManager({ user }) {
             {settingsTab === "notifications" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("playtest") ? s.delete("playtest") : s.add("playtest"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("playtest") ? "▶" : "▼"}</span>
                   Play Test Failure Alerts
                 </div>
@@ -20736,7 +20748,7 @@ function BOMManager({ user }) {
             {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("klaviyo") ? s.delete("klaviyo") : s.add("klaviyo"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("klaviyo") ? "▶" : "▼"}</span>
                   Klaviyo — Email Newsletter Sync
                 </div>
@@ -20744,7 +20756,7 @@ function BOMManager({ user }) {
               {!collapsedSettings.has("klaviyo") && <div style={{ padding:"16px 20px" }}>
                 <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
                   When a customer registers a product (via QR code on the pedal), their info is automatically pushed to the correct Klaviyo account based on the brand (Jackson Audio or Fulltone USA).
-                  Get your private API keys from <a href="https://www.klaviyo.com/settings/account/api-keys" target="_blank" rel="noopener noreferrer" style={{ color:"#533afd" }}>Klaviyo → Settings → API Keys</a>.
+                  Get your private API keys from <a href="https://www.klaviyo.com/settings/account/api-keys" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}>Klaviyo → Settings → API Keys</a>.
                 </p>
                 <div className="key-input-row" style={{ marginBottom:12 }}>
                   <div><div className="key-label" style={{ color:"#c8a84e" }}>Jackson Audio — Private API Key</div><div className="key-hint">Registrations with brand "Jackson Audio" sync to this account</div></div>
@@ -20762,7 +20774,7 @@ function BOMManager({ user }) {
             {settingsTab === "integrations" && <div style={{ background:"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("facebook") ? s.delete("facebook") : s.add("facebook"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("facebook") ? "▶" : "▼"}</span>
                   Facebook / Meta — Ad Spend Tracking
                 </div>
@@ -20770,10 +20782,10 @@ function BOMManager({ user }) {
               {!collapsedSettings.has("facebook") && <div style={{ padding:"16px 20px" }}>
                 <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
                   Pull actual ad spend per campaign from Facebook. Get your access token from the
-                  <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" style={{ color:"#533afd" }}> Graph API Explorer</a>.
+                  <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}> Graph API Explorer</a>.
                   Your Ad Account ID is in Facebook Ads Manager → Settings (format: act_XXXXXXXXX).
                 </p>
-                <div style={{ fontWeight:700,fontSize:13,color:"#533afd",marginBottom:10,marginTop:16 }}>Jackson Audio</div>
+                <div style={{ fontWeight:700,fontSize:13,color:"#58a6ff",marginBottom:10,marginTop:16 }}>Jackson Audio</div>
                 <div className="key-input-row">
                   <div><div className="key-label">Access Token</div><div className="key-hint">Jackson Audio Facebook token</div></div>
                   <input type="password" value={apiKeys.fb_ja_access_token||""} onChange={e=>setApiKeys(k=>({...k,fb_ja_access_token:e.target.value}))} placeholder="EAAxxxxxxx..." style={{ padding:"8px 12px",borderRadius:8 }} />
@@ -20796,10 +20808,10 @@ function BOMManager({ user }) {
             </div>}
 
             {/* ── Shipping Boxes Config ── */}
-            {settingsTab === "operations" && <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+            {settingsTab === "operations" && <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("shipping_boxes") ? s.delete("shipping_boxes") : s.add("shipping_boxes"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("shipping_boxes") ? "▶" : "▼"}</span>
                   Shipping Boxes — Sizes & Dimensions
                 </div>
@@ -20808,23 +20820,23 @@ function BOMManager({ user }) {
               {!collapsedSettings.has("shipping_boxes") && <div style={{ padding:"16px 20px" }}>
                 <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>Define the shipping boxes you stock. These are used by the packing optimizer to efficiently load orders.</p>
                 {shippingBoxesConfig.filter(b => b.active !== false).map(box => (
-                  <div key={box.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2"),flexWrap:"wrap" }}>
+                  <div key={box.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid "+(darkMode?"#1f2530":"#f0f0f2"),flexWrap:"wrap" }}>
                     {editingShipBox?.id === box.id ? (<>
                       <input value={editingShipBox.name} onChange={e => setEditingShipBox(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Name" style={{ width:100,padding:"4px 8px",borderRadius:6,border:"1px solid #e3e8ee",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                        placeholder="Name" style={{ width:100,padding:"4px 8px",borderRadius:6,border:"1px solid #e3e8ee",fontSize:12,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                       {["length_in","width_in","height_in"].map((f,i) => (
                         <span key={f} style={{ display:"flex",alignItems:"center",gap:2 }}>
                           {i > 0 && <span style={{ color:"#e3e8ee",fontSize:10 }}>×</span>}
                           <input type="number" step="0.25" value={editingShipBox[f] || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, [f]: e.target.value }))}
-                            placeholder={["L","W","H"][i]} style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                            placeholder={["L","W","H"][i]} style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                         </span>
                       ))}
                       <span style={{ fontSize:9,color:"#64748d" }}>in</span>
                       <input type="number" step="0.5" value={editingShipBox.max_weight_lbs || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, max_weight_lbs: e.target.value }))}
-                        placeholder="Max lbs" style={{ width:56,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                        placeholder="Max lbs" style={{ width:56,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                       <span style={{ fontSize:9,color:"#64748d" }}>lbs max</span>
                       <input type="number" step="0.01" value={editingShipBox.cost || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, cost: e.target.value }))}
-                        placeholder="$" style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                        placeholder="$" style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                       <span style={{ fontSize:9,color:"#64748d" }}>$/box</span>
                       <button onClick={async () => {
                         try {
@@ -20841,7 +20853,7 @@ function BOMManager({ user }) {
                       <span style={{ fontSize:10,color:"#8898aa" }}>({(box.length_in * box.width_in * box.height_in).toFixed(0)} cu.in)</span>
                       {box.max_weight_lbs > 0 && <span style={{ fontSize:10,color:"#64748d" }}>max {box.max_weight_lbs} lbs</span>}
                       {box.cost > 0 && <span style={{ fontSize:10,color:"#64748d" }}>${parseFloat(box.cost).toFixed(2)}/ea</span>}
-                      <button onClick={() => setEditingShipBox({ ...box })} style={{ padding:"3px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:"pointer",border:"1px solid #e3e8ee",background:"transparent",color:"#533afd",marginLeft:"auto" }}>Edit</button>
+                      <button onClick={() => setEditingShipBox({ ...box })} style={{ padding:"3px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:"pointer",border:"1px solid #e3e8ee",background:"transparent",color:"#58a6ff",marginLeft:"auto" }}>Edit</button>
                       <button onClick={async () => {
                         if (!confirm(`Delete "${box.name}"?`)) return;
                         try { await deleteShippingBoxConfig(box.id); setShippingBoxesConfig(prev => prev.filter(b => b.id !== box.id)); } catch (err) { console.error(err); }
@@ -20852,20 +20864,20 @@ function BOMManager({ user }) {
                 {editingShipBox?.id === "new" ? (
                   <div style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 0",flexWrap:"wrap" }}>
                     <input value={editingShipBox.name} onChange={e => setEditingShipBox(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Box name (e.g. Small, Medium)" style={{ width:160,padding:"4px 8px",borderRadius:6,border:"1px solid #e3e8ee",fontSize:12,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                      placeholder="Box name (e.g. Small, Medium)" style={{ width:160,padding:"4px 8px",borderRadius:6,border:"1px solid #e3e8ee",fontSize:12,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                     {["length_in","width_in","height_in"].map((f,i) => (
                       <span key={f} style={{ display:"flex",alignItems:"center",gap:2 }}>
                         {i > 0 && <span style={{ color:"#e3e8ee",fontSize:10 }}>×</span>}
                         <input type="number" step="0.25" value={editingShipBox[f] || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, [f]: e.target.value }))}
-                          placeholder={["L","W","H"][i]} style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                          placeholder={["L","W","H"][i]} style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                       </span>
                     ))}
                     <span style={{ fontSize:9,color:"#64748d" }}>in</span>
                     <input type="number" step="0.5" value={editingShipBox.max_weight_lbs || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, max_weight_lbs: e.target.value }))}
-                      placeholder="Max lbs" style={{ width:56,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                      placeholder="Max lbs" style={{ width:56,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                     <span style={{ fontSize:9,color:"#64748d" }}>lbs max</span>
                     <input type="number" step="0.01" value={editingShipBox.cost || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, cost: e.target.value }))}
-                      placeholder="$" style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                      placeholder="$" style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                     <span style={{ fontSize:9,color:"#64748d" }}>$/box</span>
                     <button onClick={async () => {
                       try {
@@ -20879,7 +20891,7 @@ function BOMManager({ user }) {
                   </div>
                 ) : (
                   <button onClick={() => setEditingShipBox({ id:"new", name:"", length_in:"", width_in:"", height_in:"", max_weight_lbs:"", cost:"" })}
-                    style={{ marginTop:10,padding:"6px 16px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px dashed #e3e8ee",background:"transparent",color:"#533afd" }}>
+                    style={{ marginTop:10,padding:"6px 16px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px dashed #e3e8ee",background:"transparent",color:"#58a6ff" }}>
                     + Add Shipping Box Size
                   </button>
                 )}
@@ -20887,10 +20899,10 @@ function BOMManager({ user }) {
             </div>}
 
             {/* Admin Access */}
-            {settingsTab === "admin" && isAdmin && <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden",border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+            {settingsTab === "admin" && isAdmin && <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginTop:24,overflow:"hidden",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
               <div style={{ background:"#b8bdd1",padding:"14px 20px",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("admin_access") ? s.delete("admin_access") : s.add("admin_access"); return s; })}>
-                <div style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("admin_access") ? "▶" : "▼"}</span>
                   Admin Access
                 </div>
@@ -20898,8 +20910,8 @@ function BOMManager({ user }) {
               {!collapsedSettings.has("admin_access") && <div style={{ padding:"16px 20px" }}>
                 <label style={{ display:"block",fontSize:13,fontWeight:600,color:darkMode?"#f6f9fc":"#3a3f51",marginBottom:6 }}>Admin Email Addresses</label>
                 <p style={{ fontSize:12,color:"#64748d",marginBottom:10 }}>Comma-separated list of email addresses that have admin access (can see the Admin tab, hourly rates, and labor costs).</p>
-                <input style={{ width:"100%",padding:"8px 12px",border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",borderRadius:8,fontSize:14,marginBottom:14,boxSizing:"border-box",
-                  background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}
+                <input style={{ width:"100%",padding:"8px 12px",border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",borderRadius:8,fontSize:14,marginBottom:14,boxSizing:"border-box",
+                  background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}
                   value={apiKeys.admin_emails||""} onChange={e=>setApiKeys(k=>({...k,admin_emails:e.target.value}))} placeholder="brad@jacksonaudio.net, admin@example.com" />
                 {sectionSaveBtn("admin_access", "Admin Access")}
               </div>}
@@ -20907,9 +20919,9 @@ function BOMManager({ user }) {
 
             {/* ── Team Tab ── */}
             {settingsTab === "team" && (() => {
-              const IS = { width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#48484a":"#e3e8ee"),background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31",fontSize:13,boxSizing:"border-box",fontFamily:"inherit" };
+              const IS = { width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#48484a":"#e3e8ee"),background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31",fontSize:13,boxSizing:"border-box",fontFamily:"inherit" };
               const LS = { fontSize:12,fontWeight:600,color:darkMode?"#8898aa":"#50617a",display:"block",marginBottom:4 };
-              const RC = { admin:["#ff3b30","rgba(255,59,48,0.1)"], manager:["#5856d6","rgba(88,86,214,0.1)"], editor:["#533afd","rgba(83,58,253,0.1)"], employee:["#34c759","rgba(52,199,89,0.1)"], builder:["#ff9500","rgba(255,149,0,0.1)"] };
+              const RC = { admin:["#ff3b30","rgba(255,59,48,0.1)"], manager:["#5856d6","rgba(88,86,214,0.1)"], editor:["#58a6ff","rgba(83,58,253,0.1)"], employee:["#34c759","rgba(52,199,89,0.1)"], builder:["#ff9500","rgba(255,149,0,0.1)"] };
               return (
                 <div>
                   <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16 }}>
@@ -20917,7 +20929,7 @@ function BOMManager({ user }) {
                       <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>Team Directory</div>
                       <div style={{ fontSize:13,color:"#64748d",marginTop:2 }}>Contact info, pay rates, and product approvals for each team member.</div>
                     </div>
-                    <button style={{ background:"#533afd",color:"#fff",border:"none",borderRadius:100,padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer" }}
+                    <button style={{ background:"#58a6ff",color:"#fff",border:"none",borderRadius:100,padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer" }}
                       onClick={() => setProfileForm({ id:"", full_name:"", email:"", phone:"", role:"employee", hourly_rate:"", approved_products:[] })}>
                       + Add Member
                     </button>
@@ -20925,12 +20937,12 @@ function BOMManager({ user }) {
                   {profiles.length === 0 ? (
                     <div style={{ padding:"40px 0",textAlign:"center",color:"#64748d",fontSize:13 }}>No team members yet — click "+ Add Member" above.</div>
                   ) : (
-                    <div style={{ border:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2",borderRadius:10,overflow:"hidden" }}>
+                    <div style={{ border:darkMode?"1px solid #1f2530":"1px solid #f0f0f2",borderRadius:10,overflow:"hidden" }}>
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                         <thead>
-                          <tr style={{ background:darkMode?"#2c2c2e":"#fafbfc" }}>
+                          <tr style={{ background:darkMode?"#161a22":"#fafbfc" }}>
                             {["Name","Email","Phone","Role","$/hr","Approved to Build",""].map((h,i) => (
-                              <th key={i} style={{ padding:"9px 14px",textAlign:"left",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"#64748d",borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{h}</th>
+                              <th key={i} style={{ padding:"9px 14px",textAlign:"left",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"#64748d",borderBottom:darkMode?"1px solid #1f2530":"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{h}</th>
                             ))}
                           </tr>
                         </thead>
@@ -20940,23 +20952,23 @@ function BOMManager({ user }) {
                             const approvedNames = products.filter(pr => (p.approved_products||[]).includes(pr.id)).map(pr => pr.name);
                             const isAdminEmail = (apiKeys.admin_emails||"").split(",").map(e=>e.trim().toLowerCase()).includes((p.email||"").toLowerCase());
                             return (
-                              <tr key={p.id} style={{ background:idx%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafbfc"),borderBottom:darkMode?"1px solid #3a3a3e":"1px solid #f0f0f2",cursor:"pointer" }}
+                              <tr key={p.id} style={{ background:idx%2===0?(darkMode?"#0f1218":"#fff"):(darkMode?"#161a22":"#fafbfc"),borderBottom:darkMode?"1px solid #1f2530":"1px solid #f0f0f2",cursor:"pointer" }}
                                 onClick={() => setProfileForm({ id:p.id, full_name:p.full_name||"", email:p.email||"", phone:p.phone||"", role:p.role||"employee", hourly_rate:p.hourly_rate||"", approved_products:p.approved_products||[] })}>
                                 <td style={{ padding:"10px 14px",fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>
                                   {p.full_name||"—"}
                                   {isAdminEmail && <span style={{ marginLeft:6,fontSize:10,padding:"1px 5px",borderRadius:4,background:"rgba(255,59,48,0.1)",color:"#ff3b30",fontWeight:700 }}>ADMIN</span>}
                                 </td>
-                                <td style={{ padding:"10px 14px",color:darkMode?"#c7c7cc":"#50617a" }}>{p.email||"—"}</td>
-                                <td style={{ padding:"10px 14px",color:darkMode?"#c7c7cc":"#50617a",whiteSpace:"nowrap" }}>{p.phone||"—"}</td>
+                                <td style={{ padding:"10px 14px",color:darkMode?"#b8bfcc":"#50617a" }}>{p.email||"—"}</td>
+                                <td style={{ padding:"10px 14px",color:darkMode?"#b8bfcc":"#50617a",whiteSpace:"nowrap" }}>{p.phone||"—"}</td>
                                 <td style={{ padding:"10px 14px" }}><span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:rbg,color:rc,fontWeight:600 }}>{p.role||"employee"}</span></td>
-                                <td style={{ padding:"10px 14px",color:darkMode?"#c7c7cc":"#50617a",whiteSpace:"nowrap" }}>{p.hourly_rate?`$${p.hourly_rate}/hr`:"—"}</td>
+                                <td style={{ padding:"10px 14px",color:darkMode?"#b8bfcc":"#50617a",whiteSpace:"nowrap" }}>{p.hourly_rate?`$${p.hourly_rate}/hr`:"—"}</td>
                                 <td style={{ padding:"10px 14px" }}>
                                   {approvedNames.length===0
                                     ? <span style={{ color:"#64748d",fontSize:12 }}>All products</span>
-                                    : <div style={{ display:"flex",flexWrap:"wrap",gap:4 }}>{approvedNames.map(n=><span key={n} style={{ fontSize:11,padding:"2px 7px",borderRadius:5,background:"rgba(83,58,253,0.1)",color:"#533afd",fontWeight:600 }}>{n}</span>)}</div>
+                                    : <div style={{ display:"flex",flexWrap:"wrap",gap:4 }}>{approvedNames.map(n=><span key={n} style={{ fontSize:11,padding:"2px 7px",borderRadius:5,background:"rgba(83,58,253,0.1)",color:"#58a6ff",fontWeight:600 }}>{n}</span>)}</div>
                                   }
                                 </td>
-                                <td style={{ padding:"10px 14px",textAlign:"right",color:"#533afd",fontSize:12,fontWeight:600 }}>Edit →</td>
+                                <td style={{ padding:"10px 14px",textAlign:"right",color:"#58a6ff",fontSize:12,fontWeight:600 }}>Edit →</td>
                               </tr>
                             );
                           })}
@@ -20968,10 +20980,10 @@ function BOMManager({ user }) {
                   {profileForm !== null && (
                     <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center" }}
                       onClick={e=>{if(e.target===e.currentTarget)setProfileForm(null);}}>
-                      <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"32px 36px",width:520,maxWidth:"92vw",maxHeight:"88vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
+                      <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:20,padding:"32px 36px",width:520,maxWidth:"92vw",maxHeight:"88vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
                         <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:22 }}>
                           <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>{profileForm.id?"Edit Team Member":"Add Team Member"}</div>
-                          <button onClick={()=>setProfileForm(null)} style={{ background:darkMode?"#2c2c2e":"#f6f9fc",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:"#64748d" }}>×</button>
+                          <button onClick={()=>setProfileForm(null)} style={{ background:darkMode?"#161a22":"#f6f9fc",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:"#64748d" }}>×</button>
                         </div>
                         <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#64748d",marginBottom:10 }}>Contact Info</div>
                         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16 }}>
@@ -20995,7 +21007,7 @@ function BOMManager({ user }) {
                           </select>
                         </div>
                         {profileForm.email && (
-                          <div style={{ marginBottom:16,display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,background:darkMode?"#2c2c2e":"#f6f9fc",border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                          <div style={{ marginBottom:16,display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,background:darkMode?"#161a22":"#f6f9fc",border:"1px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                             <input type="checkbox" id="adminChk"
                               checked={(apiKeys.admin_emails||"").split(",").map(e=>e.trim().toLowerCase()).includes((profileForm.email||"").toLowerCase())}
                               onChange={e=>{
@@ -21011,7 +21023,7 @@ function BOMManager({ user }) {
                         )}
                         <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#64748d",marginBottom:6 }}>Approved to Build</div>
                         <p style={{ fontSize:12,color:"#64748d",marginBottom:8,marginTop:0 }}>Leave all unchecked = approved for everything.</p>
-                        <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:160,overflowY:"auto",padding:"8px 10px",borderRadius:8,border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),marginBottom:22 }}>
+                        <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:160,overflowY:"auto",padding:"8px 10px",borderRadius:8,border:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),marginBottom:22 }}>
                           {products.map(pr=>{
                             const chk=(profileForm.approved_products||[]).includes(pr.id);
                             return (
@@ -21045,7 +21057,7 @@ function BOMManager({ user }) {
                             await saveAllApiKeys(apiKeys,user.id);
                             setProfileForm(null);
                             showToast("Team member saved","#34c759");
-                          }} style={{ flex:2,padding:"10px",borderRadius:100,border:"none",background:"#533afd",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer" }}>
+                          }} style={{ flex:2,padding:"10px",borderRadius:100,border:"none",background:"#58a6ff",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer" }}>
                             Save
                           </button>
                         </div>
@@ -21121,12 +21133,12 @@ function BOMManager({ user }) {
           const withMaxMargin = rows.filter(r => r.marginMax != null);
           const directMargin = withMaxMargin.length > 0 ? withMaxMargin.reduce((s,r) => s + r.marginMax, 0) / withMaxMargin.length : null;
           const thStyle = { padding:"10px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em",
-            borderBottom:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",background:darkMode?"#2c2c2e":"#fafbfc",whiteSpace:"nowrap" };
-          const tdStyle = { padding:"10px 12px",fontSize:13,borderBottom:darkMode?"1px solid #2c2c2e":"1px solid #f0f0f2" };
-          const cardStyle = { background:darkMode?"#1c1c1e":"#fff",borderRadius:12,padding:"16px 20px",flex:1,
-            border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" };
-          const thGroupBorder = { borderLeft:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea" };
-          const tdGroupBorder = { borderLeft:darkMode?"2px solid #2c2c2e":"2px solid #f0f0f2" };
+            borderBottom:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",background:darkMode?"#161a22":"#fafbfc",whiteSpace:"nowrap" };
+          const tdStyle = { padding:"10px 12px",fontSize:13,borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2" };
+          const cardStyle = { background:darkMode?"#0f1218":"#fff",borderRadius:12,padding:"16px 20px",flex:1,
+            border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" };
+          const thGroupBorder = { borderLeft:darkMode?"2px solid #1f2530":"2px solid #e5e5ea" };
+          const tdGroupBorder = { borderLeft:darkMode?"2px solid #161a22":"2px solid #f0f0f2" };
           // Debounced sales price save
           const saveSalesPrice = (() => {
             const timers = {};
@@ -21159,14 +21171,14 @@ function BOMManager({ user }) {
           <div style={{ maxWidth:"100%" }}>
 
             {/* ── Team Hourly Rates ── */}
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
               <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:14 }}>Team Hourly Rates</div>
               {teamMembers.length === 0 ? (
                 <p style={{ fontSize:13,color:"#64748d" }}>No team members yet. Add team members in the Production tab.</p>
               ) : (
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                   <thead>
-                    <tr style={{ borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                    <tr style={{ borderBottom:"2px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                       {["Name","Role","Hourly Rate","Avg Time/Unit","Labor Cost/Unit"].map(h=>(
                         <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#64748d",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
                       ))}
@@ -21176,14 +21188,14 @@ function BOMManager({ user }) {
                     {teamMembers.map(member => {
                       const stats = adminMemberStats.find(s => s.id === member.id);
                       return (
-                        <tr key={member.id} style={{ borderBottom:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2"),opacity:member.active===false?0.5:1 }}>
+                        <tr key={member.id} style={{ borderBottom:"1px solid "+(darkMode?"#161a22":"#f0f0f2"),opacity:member.active===false?0.5:1 }}>
                           <td style={{ padding:"10px 12px",fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{member.name}</td>
                           <td style={{ padding:"10px 12px",color:"#64748d",textTransform:"capitalize" }}>{member.role || "—"}</td>
                           <td style={{ padding:"10px 12px" }}>
                             <div style={{ display:"flex",alignItems:"center",gap:4 }}>
                               <span style={{ fontSize:13,color:"#64748d" }}>$</span>
-                              <input style={{ width:70,padding:"4px 8px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",
-                                fontSize:13,background:darkMode?"#2c2c2e":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31",textAlign:"center" }}
+                              <input style={{ width:70,padding:"4px 8px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
+                                fontSize:13,background:darkMode?"#161a22":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31",textAlign:"center" }}
                                 type="number" step="0.50" min="0" placeholder="25" defaultValue={member.hourly_rate || ""}
                                 onBlur={async (e) => {
                                   const val = parseFloat(e.target.value) || null;
@@ -21194,7 +21206,7 @@ function BOMManager({ user }) {
                               <span style={{ fontSize:12,color:"#64748d" }}>/hr</span>
                             </div>
                           </td>
-                          <td style={{ padding:"10px 12px",fontWeight:600,color:"#533afd" }}>
+                          <td style={{ padding:"10px 12px",fontWeight:600,color:"#58a6ff" }}>
                             {stats && stats.avgPerUnit > 0 ? `${stats.avgPerUnit.toFixed(1)} min` : "—"}
                           </td>
                           <td style={{ padding:"10px 12px",fontWeight:700,color:"#ff9500" }}>
@@ -21243,20 +21255,20 @@ function BOMManager({ user }) {
               const totalPayout = incentiveRows.reduce((s,r) => s + r.bonus, 0);
 
               return (
-              <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                 <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:14 }}>Team Incentives</div>
                 <div style={{ display:"flex",gap:12,marginBottom:16,flexWrap:"wrap",alignItems:"flex-end" }}>
                   <div>
                     <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Weekly Target (pts)</label>
                     <input type="number" min="0" value={apiKeys.weekly_target_points||""} placeholder="500"
                       onChange={e => setApiKeys(k=>({...k,weekly_target_points:e.target.value}))}
-                      style={{ width:100,padding:"6px 10px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",fontSize:13,background:darkMode?"#2c2c2e":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31" }} />
+                      style={{ width:100,padding:"6px 10px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",fontSize:13,background:darkMode?"#161a22":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31" }} />
                   </div>
                   <div>
                     <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Bonus $/pt above target</label>
                     <input type="number" min="0" step="0.01" value={apiKeys.bonus_per_point||""} placeholder="0.50"
                       onChange={e => setApiKeys(k=>({...k,bonus_per_point:e.target.value}))}
-                      style={{ width:100,padding:"6px 10px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",fontSize:13,background:darkMode?"#2c2c2e":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31" }} />
+                      style={{ width:100,padding:"6px 10px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",fontSize:13,background:darkMode?"#161a22":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31" }} />
                   </div>
                   <button className="btn-primary btn-sm" onClick={async () => {
                     try {
@@ -21266,7 +21278,7 @@ function BOMManager({ user }) {
                 </div>
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                   <thead>
-                    <tr style={{ borderBottom:"2px solid "+(darkMode?"#3a3a3e":"#e5e5ea") }}>
+                    <tr style={{ borderBottom:"2px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                       {["Builder","Points This Week","Target","Surplus","Bonus Earned"].map(h=>(
                         <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#64748d",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
                       ))}
@@ -21274,9 +21286,9 @@ function BOMManager({ user }) {
                   </thead>
                   <tbody>
                     {incentiveRows.map(r => (
-                      <tr key={r.id} style={{ borderBottom:"1px solid "+(darkMode?"#2c2c2e":"#f0f0f2") }}>
+                      <tr key={r.id} style={{ borderBottom:"1px solid "+(darkMode?"#161a22":"#f0f0f2") }}>
                         <td style={{ padding:"10px 12px",fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{r.name}</td>
-                        <td style={{ padding:"10px 12px",fontWeight:700,color:"#533afd" }}>{r.pts.toLocaleString()}</td>
+                        <td style={{ padding:"10px 12px",fontWeight:700,color:"#58a6ff" }}>{r.pts.toLocaleString()}</td>
                         <td style={{ padding:"10px 12px",color:"#64748d" }}>{weeklyTarget.toLocaleString()}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600,color:r.surplus > 0 ? "#34c759" : "#64748d" }}>{r.surplus > 0 ? `+${r.surplus.toLocaleString()}` : "0"}</td>
                         <td style={{ padding:"10px 12px",fontWeight:700,color:r.bonus > 0 ? "#34c759" : "#64748d" }}>{r.bonus > 0 ? `$${r.bonus.toFixed(2)}` : "—"}</td>
@@ -21310,7 +21322,7 @@ function BOMManager({ user }) {
               monthScrap.forEach(s => { byCat[s.category||"other"] = (byCat[s.category||"other"]||0) + (s.quantity||0); });
               const catEntries = Object.entries(byCat).sort((a,b) => b[1] - a[1]);
               const maxCat = catEntries.length > 0 ? catEntries[0][1] : 1;
-              const catColors = { "solder defect":"#ff3b30","wrong part":"#ff9500","ESD damage":"#5856d6","assembly error":"#533afd","component failure":"#ff2d55","other":"#64748d" };
+              const catColors = { "solder defect":"#ff3b30","wrong part":"#ff9500","ESD damage":"#5856d6","assembly error":"#58a6ff","component failure":"#ff2d55","other":"#64748d" };
               // By builder
               const byBuilder = {};
               monthScrap.forEach(s => { const name = teamMembers.find(m => m.id === s.team_member_id)?.name || "Unknown"; byBuilder[name] = (byBuilder[name]||0) + (s.quantity||0); });
@@ -21323,19 +21335,19 @@ function BOMManager({ user }) {
               const maxProd = prodEntries.length > 0 ? prodEntries[0][1] : 1;
 
               return (
-              <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+              <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                 <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:14 }}>Waste & Scrap</div>
                 {/* Summary cards */}
                 <div style={{ display:"flex",gap:16,marginBottom:20,flexWrap:"wrap" }}>
-                  <div style={{ background:darkMode?"#2c2c2e":"#f6f9fc",borderRadius:10,padding:"14px 18px",flex:1,minWidth:120 }}>
+                  <div style={{ background:darkMode?"#161a22":"#f6f9fc",borderRadius:10,padding:"14px 18px",flex:1,minWidth:120 }}>
                     <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Scrapped (Month)</div>
                     <div style={{ fontSize:28,fontWeight:800,color:"#ff3b30" }}>{totalScrapped}</div>
                   </div>
-                  <div style={{ background:darkMode?"#2c2c2e":"#f6f9fc",borderRadius:10,padding:"14px 18px",flex:1,minWidth:120 }}>
+                  <div style={{ background:darkMode?"#161a22":"#f6f9fc",borderRadius:10,padding:"14px 18px",flex:1,minWidth:120 }}>
                     <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>$ Value Lost</div>
                     <div style={{ fontSize:28,fontWeight:800,color:"#ff9500" }}>${totalCost.toFixed(2)}</div>
                   </div>
-                  <div style={{ background:darkMode?"#2c2c2e":"#f6f9fc",borderRadius:10,padding:"14px 18px",flex:1,minWidth:120 }}>
+                  <div style={{ background:darkMode?"#161a22":"#f6f9fc",borderRadius:10,padding:"14px 18px",flex:1,minWidth:120 }}>
                     <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>This Week vs Last</div>
                     <div style={{ fontSize:28,fontWeight:800,color:thisWeekQty > lastWeekQty ? "#ff3b30" : "#34c759" }}>
                       {thisWeekQty} <span style={{ fontSize:14,color:"#64748d" }}>vs {lastWeekQty}</span>
@@ -21398,14 +21410,14 @@ function BOMManager({ user }) {
             })()}
 
             {/* ── Profit Analysis ── */}
-            <h3 style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",fontSize:20,fontWeight:700,letterSpacing:"-0.3px",marginBottom:4 }}>Profit Analysis</h3>
+            <h3 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,letterSpacing:"-0.3px",marginBottom:4 }}>Profit Analysis</h3>
             <p style={{ fontSize:14,color:"#64748d",marginBottom:24 }}>Margins, markup, and profitability across all products{hasShopifyPrices ? " — with Shopify actual pricing data" : ""}.</p>
 
             {/* Summary Cards */}
             <div style={{ display:"flex",gap:16,marginBottom:24,flexWrap:"wrap" }}>
               <div style={cardStyle}>
                 <div style={{ fontSize:11,color:"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Total Products</div>
-                <div style={{ fontSize:28,fontWeight:700,color:"#533afd" }}>{rows.length}</div>
+                <div style={{ fontSize:28,fontWeight:700,color:"#58a6ff" }}>{rows.length}</div>
               </div>
               <div style={cardStyle}>
                 <div style={{ fontSize:11,color:"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Avg MSRP Margin</div>
@@ -21456,7 +21468,7 @@ function BOMManager({ user }) {
                   <div style={{ fontSize:11,color:"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Dealer (Shopify min price)</div>
                   <div style={{ fontSize:28,fontWeight:700,color:marginColor(dealerMargin) }}>{dealerMargin != null ? `${dealerMargin.toFixed(1)}%` : "—"}</div>
                 </div>}
-                <div style={{ ...cardStyle,borderColor:"#533afd" }}>
+                <div style={{ ...cardStyle,borderColor:"#58a6ff" }}>
                   <div style={{ fontSize:11,color:"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Blended (weighted avg)</div>
                   <div style={{ fontSize:28,fontWeight:700,color:marginColor(combinedBlended) }}>{combinedBlended != null ? `${combinedBlended.toFixed(1)}%` : "—"}</div>
                 </div>
@@ -21467,15 +21479,15 @@ function BOMManager({ user }) {
             {/* Controls row */}
             <div style={{ display:"flex",alignItems:"center",gap:16,marginBottom:20,flexWrap:"wrap" }}>
               {/* Labor Rate Config */}
-              <div style={{ display:"flex",alignItems:"center",gap:12,background:darkMode?"#1c1c1e":"#fff",
-                border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:12,background:darkMode?"#0f1218":"#fff",
+                border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
                 <label style={{ fontSize:13,fontWeight:600 }}>Labor Rate:</label>
                 <span style={{ fontSize:13,color:"#64748d" }}>$</span>
                 <input type="number" step="0.50" min="0"
                   value={apiKeys.labor_rate_hourly || "25"}
                   onChange={(e) => setApiKeys(k => ({ ...k, labor_rate_hourly: e.target.value }))}
-                  style={{ width:70,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",
-                    fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                  style={{ width:70,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
+                    fontSize:13,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                 <span style={{ fontSize:12,color:"#64748d" }}>/hr</span>
                 <button className="btn-primary" style={{ fontSize:11,padding:"5px 14px" }}
                   onClick={async () => {
@@ -21485,38 +21497,38 @@ function BOMManager({ user }) {
                   }}>Save</button>
               </div>
               {/* Ad Spend % */}
-              <div style={{ display:"flex",alignItems:"center",gap:8,background:darkMode?"#1c1c1e":"#fff",
-                border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:8,background:darkMode?"#0f1218":"#fff",
+                border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
                 <label style={{ fontSize:13,fontWeight:600 }}>Ad Spend:</label>
                 <input type="number" step="1" min="0" max="100"
                   value={apiKeys.ad_spend_pct || "0"}
                   onChange={(e) => setApiKeys(k => ({ ...k, ad_spend_pct: e.target.value }))}
-                  style={{ width:60,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",
-                    fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                  style={{ width:60,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
+                    fontSize:13,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                 <span style={{ fontSize:12,color:"#64748d" }}>% of sale</span>
               </div>
               {/* BOM Multiplier */}
-              <div style={{ display:"flex",alignItems:"center",gap:8,background:darkMode?"#1c1c1e":"#fff",
-                border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:8,background:darkMode?"#0f1218":"#fff",
+                border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
                 <label style={{ fontSize:13,fontWeight:600 }}>SRP Multiplier:</label>
                 <span style={{ fontSize:13,color:"#64748d" }}>BOM ×</span>
                 <input type="number" step="0.1" min="1"
                   value={apiKeys.bom_multiplier || "5"}
                   onChange={(e) => setApiKeys(k => ({ ...k, bom_multiplier: e.target.value }))}
-                  style={{ width:60,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",
-                    fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                  style={{ width:60,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
+                    fontSize:13,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                 <span style={{ fontSize:12,color:"#64748d" }}>= suggested retail</span>
               </div>
               {/* Shipping Cost */}
-              <div style={{ display:"flex",alignItems:"center",gap:8,background:darkMode?"#1c1c1e":"#fff",
-                border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:8,background:darkMode?"#0f1218":"#fff",
+                border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
                 <label style={{ fontSize:13,fontWeight:600 }}>Shipping:</label>
                 <span style={{ fontSize:13,color:"#64748d" }}>$</span>
                 <input type="number" step="0.50" min="0"
                   value={apiKeys.shipping_cost_per_unit || "0"}
                   onChange={(e) => setApiKeys(k => ({ ...k, shipping_cost_per_unit: e.target.value }))}
-                  style={{ width:70,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",
-                    fontSize:13,background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                  style={{ width:70,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
+                    fontSize:13,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                 <span style={{ fontSize:12,color:"#64748d" }}>/unit</span>
               </div>
               {/* Fetch Shopify Prices */}
@@ -21538,7 +21550,7 @@ function BOMManager({ user }) {
             )}
 
             {/* Profit Table */}
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:12,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",overflow:"hidden" }}>
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:12,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",overflow:"hidden" }}>
               <div style={{ overflowX:"auto",maxHeight:"70vh",overflowY:"auto" }}>
                 <table style={{ width:"100%",borderCollapse:"collapse",minWidth:hasShopifyPrices?1600:1100 }}>
                   <thead style={{ position:"sticky",top:0,zIndex:10 }}>
@@ -21567,7 +21579,7 @@ function BOMManager({ user }) {
                   <tbody>
                     {rows.map((r) => (
                       <tr key={r.id} style={{ transition:"background 0.15s" }}
-                        onMouseEnter={e=>e.currentTarget.style.background=darkMode?"#2c2c2e":"#f6f9fc"}
+                        onMouseEnter={e=>e.currentTarget.style.background=darkMode?"#161a22":"#f6f9fc"}
                         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                         <td style={{ ...tdStyle,fontWeight:600 }}>
                           <div style={{ display:"flex",alignItems:"center",gap:8 }}>
@@ -21620,8 +21632,8 @@ function BOMManager({ user }) {
                                 setProducts(prev => prev.map(p => p.id === r.id ? { ...p, salesPrice: val } : p));
                                 saveSalesPrice(r.id, val);
                               }}
-                              style={{ width:85,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",
-                                fontSize:13,textAlign:"right",background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
+                              style={{ width:85,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
+                                fontSize:13,textAlign:"right",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                           </div>
                         </td>
                         <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,color:r.profit!=null?(r.profit>=0?"#34c759":"#ff3b30"):"#64748d" }}>
@@ -21660,59 +21672,59 @@ function BOMManager({ user }) {
                     ))}
                   </tbody>
                   {rows.length > 0 && <tfoot>
-                    <tr style={{ background:darkMode?"#2c2c2e":"#fafbfc" }}>
-                      <td style={{ ...tdStyle,fontWeight:700,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
+                    <tr style={{ background:darkMode?"#161a22":"#fafbfc" }}>
+                      <td style={{ ...tdStyle,fontWeight:700,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none" }}>
                         Averages / Totals
                       </td>
-                      <td style={{ ...tdStyle,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }} />
-                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
+                      <td style={{ ...tdStyle,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none" }} />
+                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none" }}>
                         ${fmtDollar(rows.reduce((s,r)=>s+r.bomCost,0)/rows.length)}
                       </td>
-                      <td style={{ ...tdStyle,textAlign:"right",color:"#64748d",borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
+                      <td style={{ ...tdStyle,textAlign:"right",color:"#64748d",borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none" }}>
                         {rows.filter(r=>r.buildMins).length > 0 ? `${(rows.reduce((s,r)=>s+r.buildMins,0)/rows.filter(r=>r.buildMins).length).toFixed(0)} min` : "—"}
                       </td>
-                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none" }}>
+                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none" }}>
                         ${fmtDollar(rows.reduce((s,r)=>s+r.totalCost,0)/rows.length)}
                       </td>
                       {/* MSRP avg */}
-                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",...tdGroupBorder }}>
+                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none",...tdGroupBorder }}>
                         {withMargin.length > 0 ? `$${fmtDollar(withMargin.reduce((s,r)=>s+r.salesPrice,0)/withMargin.length)}` : "—"}
                       </td>
-                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",
+                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none",
                         color:withMargin.length>0?(withMargin.reduce((s,r)=>s+r.profit,0)/withMargin.length>=0?"#34c759":"#ff3b30"):"#64748d" }}>
                         {withMargin.length > 0 ? `$${fmtDollar(withMargin.reduce((s,r)=>s+r.profit,0)/withMargin.length)}` : "—"}
                       </td>
-                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:700,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",
+                      <td style={{ ...tdStyle,textAlign:"right",fontWeight:700,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none",
                         color:marginColor(avgMargin) }}>
                         {withMargin.length > 0 ? `${avgMargin.toFixed(1)}%` : "—"}
                       </td>
                       {hasShopifyPrices && <>
                         {/* Avg actual averages */}
-                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",...tdGroupBorder }}>
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none",...tdGroupBorder }}>
                           {withAvgMargin.length > 0 ? `$${fmtDollar(withAvgMargin.reduce((s,r)=>s+r.avgActual,0)/withAvgMargin.length)}` : "—"}
                         </td>
-                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none",
                           color:withAvgMargin.length>0?(withAvgMargin.reduce((s,r)=>s+r.profitAvg,0)/withAvgMargin.length>=0?"#34c759":"#ff3b30"):"#64748d" }}>
                           {withAvgMargin.length > 0 ? `$${fmtDollar(withAvgMargin.reduce((s,r)=>s+r.profitAvg,0)/withAvgMargin.length)}` : "—"}
                         </td>
-                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:700,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:700,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none",
                           color:marginColor(blendedMargin) }}>
                           {blendedMargin != null ? `${blendedMargin.toFixed(1)}%` : "—"}
                         </td>
                         {/* Min (dealer) averages */}
-                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",...tdGroupBorder }}>
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none",...tdGroupBorder }}>
                           {withMinMargin.length > 0 ? `$${fmtDollar(withMinMargin.reduce((s,r)=>s+r.minActual,0)/withMinMargin.length)}` : "—"}
                         </td>
-                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none",
                           color:withMinMargin.length>0?(withMinMargin.reduce((s,r)=>s+r.profitMin,0)/withMinMargin.length>=0?"#34c759":"#ff3b30"):"#64748d" }}>
                           {withMinMargin.length > 0 ? `$${fmtDollar(withMinMargin.reduce((s,r)=>s+r.profitMin,0)/withMinMargin.length)}` : "—"}
                         </td>
-                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:700,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:700,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none",
                           color:marginColor(dealerMargin) }}>
                           {dealerMargin != null ? `${dealerMargin.toFixed(1)}%` : "—"}
                         </td>
                         {/* Total units */}
-                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #3a3a3e":"2px solid #e5e5ea",borderBottom:"none",...tdGroupBorder }}>
+                        <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none",...tdGroupBorder }}>
                           {rows.filter(r=>r.unitsSold!=null).reduce((s,r)=>s+(r.unitsSold||0),0).toLocaleString()}
                         </td>
                       </>}
@@ -21722,7 +21734,7 @@ function BOMManager({ user }) {
               </div>
             </div>
             {/* ── Database Backup — Export All Data ── */}
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea" }}>
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
               <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:6 }}>Database Backup</div>
               <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
                 Download a complete JSON backup of your entire database — parts, products, pricing, orders, build history, API keys (masked), team members, and all settings. Keep this file safe as a disaster recovery backup.
@@ -21774,8 +21786,8 @@ function BOMManager({ user }) {
         {confirmModal && (
           <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:99999,display:"flex",alignItems:"center",justifyContent:"center",padding:"20px" }}
             onClick={e => { if (e.target===e.currentTarget) { confirmModal.resolve(false); setConfirmModal(null); } }}>
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:18,padding:"32px 32px 28px",width:"100%",maxWidth:480,boxShadow:"0 20px 80px rgba(0,0,0,0.5)" }}>
-              <div style={{ fontSize:22,fontWeight:800,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",marginBottom:12,letterSpacing:"-0.3px" }}>
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:18,padding:"32px 32px 28px",width:"100%",maxWidth:480,boxShadow:"0 20px 80px rgba(0,0,0,0.5)" }}>
+              <div style={{ fontSize:22,fontWeight:800,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif",marginBottom:12,letterSpacing:"-0.3px" }}>
                 {confirmModal.title}
               </div>
               <div style={{ fontSize:15,color:"#64748d",lineHeight:"22px",marginBottom:28 }}>
@@ -21891,8 +21903,8 @@ function BOMManager({ user }) {
                         setGmailAddAllBusy(false);
                         showToast(`${created.length} ticket${created.length!==1?"s":""} created`, "#34c759");
                       }}
-                      onMouseEnter={e=>{ if(!gmailAddAllBusy) e.currentTarget.style.background="#005bbf"; }} onMouseLeave={e=>e.currentTarget.style.background="#533afd"}
-                      style={{ padding:"6px 18px",borderRadius:100,background:"#533afd",color:"#fff",border:"none",fontSize:12,fontWeight:600,cursor:gmailAddAllBusy?"default":"pointer",whiteSpace:"nowrap",transition:"background 0.15s" }}>
+                      onMouseEnter={e=>{ if(!gmailAddAllBusy) e.currentTarget.style.background="#005bbf"; }} onMouseLeave={e=>e.currentTarget.style.background="#58a6ff"}
+                      style={{ padding:"6px 18px",borderRadius:100,background:"#58a6ff",color:"#fff",border:"none",fontSize:12,fontWeight:600,cursor:gmailAddAllBusy?"default":"pointer",whiteSpace:"nowrap",transition:"background 0.15s" }}>
                         {gmailAddAllBusy ? "Creating…" : `+ Add All (${newMsgs.length})`}
                       </button>
                     );
@@ -21909,7 +21921,7 @@ function BOMManager({ user }) {
                     return `${d}d ago`;
                   })();
                   return (
-                    <div key={msg.id} style={{ marginBottom:8, borderRadius:10, border:`1px solid ${isExpanded?"#533afd":"#e5e5ea"}`, overflow:"hidden" }}>
+                    <div key={msg.id} style={{ marginBottom:8, borderRadius:10, border:`1px solid ${isExpanded?"#58a6ff":"#e5e5ea"}`, overflow:"hidden" }}>
                       {/* Email row */}
                       <div style={{ padding:"12px 16px", display:"flex", gap:12, alignItems:"center", cursor:"pointer", background:isExpanded?"#f0f6ff":"#fff" }}
                         onClick={async () => {
@@ -21922,7 +21934,7 @@ function BOMManager({ user }) {
                             setGmailScanModal(prev => prev ? { ...prev, expandedBody:d.body||d.snippet||"", expandedLoading:false } : null);
                           } catch { setGmailScanModal(prev => prev ? { ...prev, expandedBody:"Failed to load email body.", expandedLoading:false } : null); }
                         }}>
-                        {msg.isUnread && <span style={{ width:8,height:8,borderRadius:"50%",background:"#533afd",flexShrink:0 }}></span>}
+                        {msg.isUnread && <span style={{ width:8,height:8,borderRadius:"50%",background:"#58a6ff",flexShrink:0 }}></span>}
                         {!msg.isUnread && <span style={{ width:8,flexShrink:0 }}></span>}
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ display:"flex", gap:8, alignItems:"baseline" }}>
@@ -21937,7 +21949,7 @@ function BOMManager({ user }) {
                         {msg.detectedSerials.length > 0 && (
                           <div style={{ display:"flex",gap:4,flexShrink:0 }}>
                             {msg.detectedSerials.slice(0,2).map(s => (
-                              <span key={s} style={{ background:"#e8f0fb",color:"#533afd",borderRadius:6,padding:"2px 7px",fontSize:10,fontWeight:700,fontFamily:"monospace",whiteSpace:"nowrap" }}>{s}</span>
+                              <span key={s} style={{ background:"#e8f0fb",color:"#58a6ff",borderRadius:6,padding:"2px 7px",fontSize:10,fontWeight:700,fontFamily:"monospace",whiteSpace:"nowrap" }}>{s}</span>
                             ))}
                           </div>
                         )}
@@ -21945,7 +21957,7 @@ function BOMManager({ user }) {
                           ? <span style={{ fontSize:11,color:"#34c759",fontWeight:700,whiteSpace:"nowrap",flexShrink:0 }}>✓ Ticketed</span>
                           : existingRepair
                           ? <button onClick={e => { e.stopPropagation(); setGmailScanModal(null); openRepairDetail(existingRepair); }}
-                              style={{ padding:"5px 12px",borderRadius:100,background:"#e8f0fb",color:"#533afd",border:"1px solid #cce0ff",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0 }}>
+                              style={{ padding:"5px 12px",borderRadius:100,background:"#e8f0fb",color:"#58a6ff",border:"1px solid #cce0ff",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0 }}>
                               📋 Open Ticket
                             </button>
                           : (
@@ -21981,7 +21993,7 @@ function BOMManager({ user }) {
                                 setGmailScanModal(prev => prev ? { ...prev, ticketed: new Set([...prev.ticketed, msg.id]), ticketing: null } : null);
                                 showToast(`Repair ticket opened for ${sn || msg.fromName}`, "#34c759");
                               } catch(err) { setGmailScanModal(prev => prev ? { ...prev, ticketing: null } : null); alert("Failed: " + err.message); }
-                            }} disabled={gmailScanModal?.ticketing === msg.id} style={{ padding:"5px 12px",borderRadius:100,background: gmailScanModal?.ticketing === msg.id ? "#c7c7cc" : "#ff3b30",color:"#fff",border:"none",fontSize:11,fontWeight:600,cursor: gmailScanModal?.ticketing === msg.id ? "default" : "pointer",whiteSpace:"nowrap",flexShrink:0 }}>
+                            }} disabled={gmailScanModal?.ticketing === msg.id} style={{ padding:"5px 12px",borderRadius:100,background: gmailScanModal?.ticketing === msg.id ? "#b8bfcc" : "#ff3b30",color:"#fff",border:"none",fontSize:11,fontWeight:600,cursor: gmailScanModal?.ticketing === msg.id ? "default" : "pointer",whiteSpace:"nowrap",flexShrink:0 }}>
                               {gmailScanModal?.ticketing === msg.id ? "Fetching…" : "→ Ticket"}
                             </button>
                           )
@@ -21997,7 +22009,7 @@ function BOMManager({ user }) {
                           <div style={{ marginTop:12,display:"flex",gap:8,alignItems:"center" }}>
                             <span style={{ fontSize:11,color:"#64748d" }}>From: {msg.fromEmail}</span>
                             {msg.detectedSerials.length > 0 && (
-                              <span style={{ fontSize:11,color:"#533afd" }}>Serials detected: {msg.detectedSerials.join(", ")}</span>
+                              <span style={{ fontSize:11,color:"#58a6ff" }}>Serials detected: {msg.detectedSerials.join(", ")}</span>
                             )}
                           </div>
                         </div>
@@ -22016,7 +22028,7 @@ function BOMManager({ user }) {
       {repairModal && (() => {
         const STATUS_CFG = {
           intake:      { label:"Intake",       color:"#8e8e93", bg:"#f2f2f7" },
-          diagnosing:  { label:"Diagnosing",   color:"#533afd", bg:"#e8f0fb" },
+          diagnosing:  { label:"Diagnosing",   color:"#58a6ff", bg:"#e8f0fb" },
           repairing:   { label:"Repairing",    color:"#ff9500", bg:"#fff3e0" },
           testing:     { label:"Testing",      color:"#5856d6", bg:"#f0eeff" },
           repaired:    { label:"Repaired",     color:"#34c759", bg:"#e8faed" },
@@ -22103,7 +22115,7 @@ function BOMManager({ user }) {
                   const isPast = STATUS_FLOW.indexOf(repairModalEdits.status) > i;
                   return (
                     <button key={s} onClick={() => advanceStatus(s)}
-                      style={{ flex:"1 1 auto",padding:"6px 4px",borderRadius:8,border:`1.5px solid ${isCurrent?sc.color:isPast?"#c7c7cc":"#e5e5ea"}`,background:isCurrent?sc.bg:isPast?"#fafbfc":"#fff",color:isCurrent?sc.color:isPast?"#8e8e93":"#8898aa",fontSize:11,fontWeight:isCurrent?700:400,cursor:"pointer",transition:"all 0.15s",whiteSpace:"nowrap" }}>
+                      style={{ flex:"1 1 auto",padding:"6px 4px",borderRadius:8,border:`1.5px solid ${isCurrent?sc.color:isPast?"#b8bfcc":"#e5e5ea"}`,background:isCurrent?sc.bg:isPast?"#fafbfc":"#fff",color:isCurrent?sc.color:isPast?"#8e8e93":"#8898aa",fontSize:11,fontWeight:isCurrent?700:400,cursor:"pointer",transition:"all 0.15s",whiteSpace:"nowrap" }}>
                       {i>0 && <span style={{ marginRight:3, opacity:0.5 }}>›</span>}{sc.label}
                     </button>
                   );
@@ -22191,7 +22203,7 @@ function BOMManager({ user }) {
                             showToast("Reply sent", "#34c759");
                           } catch(e) { alert("Failed to send reply: " + e.message); }
                         }}
-                        style={{ padding:"7px 18px",borderRadius:100,background:"#533afd",color:"#fff",border:"none",fontSize:13,fontWeight:600,cursor:"pointer" }}>
+                        style={{ padding:"7px 18px",borderRadius:100,background:"#58a6ff",color:"#fff",border:"none",fontSize:13,fontWeight:600,cursor:"pointer" }}>
                         Send Reply
                       </button>
                       <button
@@ -22240,7 +22252,7 @@ function BOMManager({ user }) {
               {/* Action buttons */}
               <div style={{ display:"flex",gap:10,marginTop:4 }}>
                 <button onClick={saveRepair} disabled={repairModalBusy}
-                  style={{ flex:1,padding:"10px 0",borderRadius:100,background:"#533afd",color:"#fff",border:"none",fontSize:14,fontWeight:600,cursor:"pointer" }}>
+                  style={{ flex:1,padding:"10px 0",borderRadius:100,background:"#58a6ff",color:"#fff",border:"none",fontSize:14,fontWeight:600,cursor:"pointer" }}>
                   {repairModalBusy ? "Saving…" : "Save Changes"}
                 </button>
                 {["repaired","shipped_back"].includes(repairModalEdits.status) && (
@@ -22379,7 +22391,7 @@ function BOMManager({ user }) {
                   {[
                     { label:"Matched", val: reelFillModal.enrichedCount || 0, color:"#34c759" },
                     { label:"Not Found", val: reelFillModal.notFoundCount || 0, color:"#ff3b30" },
-                    { label:"Pricing", val: reelFillModal.pricingCount || 0, color:"#533afd" },
+                    { label:"Pricing", val: reelFillModal.pricingCount || 0, color:"#58a6ff" },
                     { label:"In Stock", val: reelFillModal.stockCount || 0, color:"#5856d6" },
                     { label:"Images", val: reelFillModal.imageCount || 0, color:"#ff9500" },
                     { label:"Reel Qtys", val: reelFillModal.apiCount || 0, color:"#061b31" },
@@ -22412,7 +22424,7 @@ function BOMManager({ user }) {
                         <td style={{ padding:"6px 8px",fontWeight:600,color:"#061b31" }}>{row.part.mpn || "—"}</td>
                         <td style={{ padding:"6px 8px",color:"#50617a",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{row.part.description || row.part.value || "—"}</td>
                         <td style={{ padding:"6px 8px",textAlign:"center",color:"#64748d" }}>{row.part.reelQty || "—"}</td>
-                        <td style={{ padding:"6px 8px",textAlign:"center",fontWeight:row.detected?700:400,color:row.detected?"#34c759":"#c7c7cc" }}>
+                        <td style={{ padding:"6px 8px",textAlign:"center",fontWeight:row.detected?700:400,color:row.detected?"#34c759":"#b8bfcc" }}>
                           {row.detected ? row.detected.toLocaleString() : "Not found"}
                         </td>
                         <td style={{ padding:"6px 8px",color:"#64748d",fontSize:11 }}>{row.source || "—"}</td>
@@ -22424,7 +22436,7 @@ function BOMManager({ user }) {
                                 next.has(row.part.id) ? next.delete(row.part.id) : next.add(row.part.id);
                                 return { ...prev, checkedIds: next };
                               })}
-                              style={{ width:14,height:14,accentColor:"#533afd",cursor:"pointer" }} />
+                              style={{ width:14,height:14,accentColor:"#58a6ff",cursor:"pointer" }} />
                           ) : null}
                         </td>
                       </tr>
@@ -22447,7 +22459,7 @@ function BOMManager({ user }) {
                     }
                     setReelFillModal(null);
                   }}
-                  style={{ padding:"8px 20px",borderRadius:100,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#533afd",color:"#fff" }}>
+                  style={{ padding:"8px 20px",borderRadius:100,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:"#58a6ff",color:"#fff" }}>
                   Save {reelFillModal.checkedIds.size} reel {reelFillModal.checkedIds.size === 1 ? "quantity" : "quantities"}
                 </button>
               </div>
@@ -22482,10 +22494,10 @@ function BOMManager({ user }) {
             {/* Select all / deselect all */}
             <div style={{ display:"flex",gap:12,marginBottom:10 }}>
               <button onClick={() => setValueFillModal(prev => ({ ...prev, checkedIds: new Set(prev.rows.map(r => r.part.id)) }))}
-                style={{ fontSize:12,color:"#533afd",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit" }}>Select all</button>
+                style={{ fontSize:12,color:"#58a6ff",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit" }}>Select all</button>
               <span style={{ color:"#e3e8ee",fontSize:12 }}>·</span>
               <button onClick={() => setValueFillModal(prev => ({ ...prev, checkedIds: new Set() }))}
-                style={{ fontSize:12,color:"#533afd",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit" }}>Deselect all</button>
+                style={{ fontSize:12,color:"#58a6ff",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit" }}>Deselect all</button>
             </div>
             {/* Table */}
             <div style={{ overflowY:"auto",flex:1,marginBottom:16,borderRadius:12,border:"1px solid #f0f0f2" }}>
@@ -22519,10 +22531,10 @@ function BOMManager({ user }) {
                       onMouseLeave={e => e.currentTarget.style.background=i%2===0?"#fff":"#fafbfc"}>
                       <td style={{ padding:"8px 12px",fontWeight:600,color:"#061b31",fontFamily:"monospace",fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2" }} title={row.part.mpn}>{row.part.mpn || "—"}</td>
                       <td style={{ padding:"8px 12px",color:"#50617a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2",fontSize:11 }} title={row.part.description}>{row.part.description || "—"}</td>
-                      <td style={{ padding:"8px 12px",color:"#c7c7cc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.part.value || <span style={{ fontStyle:"italic",fontSize:10 }}>blank</span>}</td>
-                      <td style={{ padding:"8px 12px",fontWeight:row.detectedValue?700:400,color:row.detectedValue?"#5856d6":"#c7c7cc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.detectedValue || <span style={{ color:"#e3e8ee",fontSize:10 }}>—</span>}</td>
-                      <td style={{ padding:"8px 12px",color:"#c7c7cc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.part.voltage_rating || <span style={{ fontStyle:"italic",fontSize:10 }}>blank</span>}</td>
-                      <td style={{ padding:"8px 12px",fontWeight:row.detectedVoltage?700:400,color:row.detectedVoltage?"#ff9f0a":"#c7c7cc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.detectedVoltage || <span style={{ color:"#e3e8ee",fontSize:10 }}>—</span>}</td>
+                      <td style={{ padding:"8px 12px",color:"#b8bfcc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.part.value || <span style={{ fontStyle:"italic",fontSize:10 }}>blank</span>}</td>
+                      <td style={{ padding:"8px 12px",fontWeight:row.detectedValue?700:400,color:row.detectedValue?"#5856d6":"#b8bfcc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.detectedValue || <span style={{ color:"#e3e8ee",fontSize:10 }}>—</span>}</td>
+                      <td style={{ padding:"8px 12px",color:"#b8bfcc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.part.voltage_rating || <span style={{ fontStyle:"italic",fontSize:10 }}>blank</span>}</td>
+                      <td style={{ padding:"8px 12px",fontWeight:row.detectedVoltage?700:400,color:row.detectedVoltage?"#ff9f0a":"#b8bfcc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.detectedVoltage || <span style={{ color:"#e3e8ee",fontSize:10 }}>—</span>}</td>
                       <td style={{ padding:"8px 12px",color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2",fontSize:11 }} title={row.part.manufacturer}>{row.part.manufacturer || "—"}</td>
                       <td style={{ padding:"8px 12px",textAlign:"center",borderBottom:"1px solid #f0f0f2" }}>
                         <input type="checkbox" checked={valueFillModal.checkedIds.has(row.part.id)}
@@ -22568,7 +22580,7 @@ function BOMManager({ user }) {
                   setParts(prev => prev.map(p => updateMap[p.id] ? { ...p, ...updateMap[p.id] } : p));
                   setValueFillModal(null);
                 }}
-                style={{ padding:"9px 22px",borderRadius:100,fontSize:13,fontWeight:600,cursor: valueFillModal.checkedIds.size===0?"not-allowed":"pointer",fontFamily:"inherit",border:"none",background: valueFillModal.checkedIds.size===0?"#c7c7cc":"#5856d6",color:"#fff",transition:"all 0.15s" }}
+                style={{ padding:"9px 22px",borderRadius:100,fontSize:13,fontWeight:600,cursor: valueFillModal.checkedIds.size===0?"not-allowed":"pointer",fontFamily:"inherit",border:"none",background: valueFillModal.checkedIds.size===0?"#b8bfcc":"#5856d6",color:"#fff",transition:"all 0.15s" }}
                 onMouseEnter={e => { if(valueFillModal.checkedIds.size>0) e.currentTarget.style.background="#4240c4"; }}
                 onMouseLeave={e => { if(valueFillModal.checkedIds.size>0) e.currentTarget.style.background="#5856d6"; }}>
                 Apply {valueFillModal.checkedIds.size} part{valueFillModal.checkedIds.size !== 1 ? "s" : ""}
@@ -22598,7 +22610,7 @@ function BOMManager({ user }) {
                   <div style={{ flex:1 }}>
                     <div style={{ fontWeight:700,fontSize:13,color:"#061b31" }}>{d.supplier}</div>
                     <div style={{ fontSize:11,color:"#64748d" }}>
-                      {d.email ? <span style={{ color:"#533afd" }}>{d.email}</span> : <span style={{ color:"#ff9500" }}>No email set</span>}
+                      {d.email ? <span style={{ color:"#58a6ff" }}>{d.email}</span> : <span style={{ color:"#ff9500" }}>No email set</span>}
                       {" · "}{d.itemCount} parts · {d.draft.subject}
                     </div>
                   </div>
@@ -22632,7 +22644,7 @@ function BOMManager({ user }) {
                         });
                       }}
                       style={{ padding:"6px 12px",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer",border:"none",
-                        background: d.sent ? "#34c759" : "#533afd",color:"#fff",textDecoration:"none",display:"inline-block" }}>
+                        background: d.sent ? "#34c759" : "#58a6ff",color:"#fff",textDecoration:"none",display:"inline-block" }}>
                       {d.sent ? "✓ Sent" : "Send"}
                     </a>
                   </div>
@@ -22658,7 +22670,7 @@ function BOMManager({ user }) {
             {/* Header */}
             <div style={{ padding:"20px 24px 12px",borderBottom:"1px solid #e5e5ea",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
               <div>
-                <div style={{ fontSize:16,fontWeight:800,color:"#061b31",fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                <div style={{ fontSize:16,fontWeight:800,color:"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                   Ship It
                 </div>
                 <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>
@@ -22742,10 +22754,10 @@ function BOMManager({ user }) {
                       {shipModal.rates.map((r, i) => (
                         <div key={i} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",fontSize:12,
                           cursor:"pointer",fontWeight: r.serviceCode === shipModal.form.serviceCode ? 700 : 400,
-                          color: r.serviceCode === shipModal.form.serviceCode ? "#533afd" : "#3a3f51" }}
+                          color: r.serviceCode === shipModal.form.serviceCode ? "#58a6ff" : "#3a3f51" }}
                           onClick={() => setShipModal(prev => ({ ...prev, form: { ...prev.form, serviceCode: r.serviceCode } }))}>
                           <span>{r.serviceName}</span>
-                          <span style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",fontWeight:700 }}>
+                          <span style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700 }}>
                             ${(r.shipmentCost + (r.otherCost || 0)).toFixed(2)}
                           </span>
                         </div>
@@ -22829,7 +22841,7 @@ function BOMManager({ user }) {
         return (
           <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
             onClick={() => setImportMatchModal(null)}>
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"28px 32px",maxWidth:520,width:"92%",maxHeight:"80vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:20,padding:"28px 32px",maxWidth:520,width:"92%",maxHeight:"80vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16 }}>
                 <div>
@@ -22840,21 +22852,21 @@ function BOMManager({ user }) {
                     {part.footprint && <span style={{ color:"#64748d",marginLeft:6 }}>· {part.footprint}</span>}
                   </div>
                 </div>
-                <button onClick={() => setImportMatchModal(null)} style={{ background:darkMode?"#2c2c2e":"#f6f9fc",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:"#64748d" }}>×</button>
+                <button onClick={() => setImportMatchModal(null)} style={{ background:darkMode?"#161a22":"#f6f9fc",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:"#64748d" }}>×</button>
               </div>
               <input
                 autoFocus
                 placeholder="Search value, MPN, description…"
                 value={importMatchSearch}
                 onChange={e => setImportMatchSearch(e.target.value)}
-                style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#3a3a3e":"#e3e8ee"),background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31",fontSize:13,boxSizing:"border-box",fontFamily:"inherit",marginBottom:12,outline:"none" }} />
+                style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#1f2530":"#e3e8ee"),background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31",fontSize:13,boxSizing:"border-box",fontFamily:"inherit",marginBottom:12,outline:"none" }} />
               {matchResults.length === 0 && q.length >= 2 && (
                 <div style={{ padding:"16px 0",textAlign:"center",color:"#64748d",fontSize:13 }}>No parts found — this will be imported as a new part.</div>
               )}
               {matchResults.length > 0 && (
-                <div style={{ border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),borderRadius:10,overflow:"hidden" }}>
+                <div style={{ border:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),borderRadius:10,overflow:"hidden" }}>
                   {matchResults.map((r, ri) => (
-                    <div key={r.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:ri%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafbfc"),cursor:"pointer",borderBottom:ri<matchResults.length-1?"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2"):"none" }}
+                    <div key={r.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:ri%2===0?(darkMode?"#0f1218":"#fff"):(darkMode?"#161a22":"#fafbfc"),cursor:"pointer",borderBottom:ri<matchResults.length-1?"1px solid "+(darkMode?"#1f2530":"#f0f0f2"):"none" }}
                       onClick={() => {
                         setImportPreview(prev => ({
                           ...prev,
@@ -22871,7 +22883,7 @@ function BOMManager({ user }) {
                           {r.description && <span style={{ fontSize:11,color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160 }}>{r.description}</span>}
                         </div>
                       </div>
-                      <span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:"rgba(83,58,253,0.1)",color:"#533afd",fontWeight:600,flexShrink:0 }}>Use</span>
+                      <span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:"rgba(83,58,253,0.1)",color:"#58a6ff",fontWeight:600,flexShrink:0 }}>Use</span>
                     </div>
                   ))}
                 </div>
@@ -22901,7 +22913,7 @@ function BOMManager({ user }) {
         return (
           <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
             onClick={() => setPdImportMatchModal(null)}>
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"28px 32px",maxWidth:520,width:"92%",maxHeight:"80vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:20,padding:"28px 32px",maxWidth:520,width:"92%",maxHeight:"80vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16 }}>
                 <div>
@@ -22913,21 +22925,21 @@ function BOMManager({ user }) {
                     {part.footprint && <span style={{ color:"#64748d",marginLeft:6 }}>· {part.footprint}</span>}
                   </div>
                 </div>
-                <button onClick={() => setPdImportMatchModal(null)} style={{ background:darkMode?"#2c2c2e":"#f6f9fc",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:"#64748d" }}>×</button>
+                <button onClick={() => setPdImportMatchModal(null)} style={{ background:darkMode?"#161a22":"#f6f9fc",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:"#64748d" }}>×</button>
               </div>
               <input
                 autoFocus
                 placeholder="Search value, MPN, description…"
                 value={pdImportMatchSearch}
                 onChange={e => setPdImportMatchSearch(e.target.value)}
-                style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#3a3a3e":"#e3e8ee"),background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31",fontSize:13,boxSizing:"border-box",fontFamily:"inherit",marginBottom:12,outline:"none" }} />
+                style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#1f2530":"#e3e8ee"),background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31",fontSize:13,boxSizing:"border-box",fontFamily:"inherit",marginBottom:12,outline:"none" }} />
               {matchResults.length === 0 && q.length >= 2 && (
                 <div style={{ padding:"16px 0",textAlign:"center",color:"#64748d",fontSize:13 }}>No matching parts — type an MPN directly into the MPN field in the preview table.</div>
               )}
               {matchResults.length > 0 && (
-                <div style={{ border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),borderRadius:10,overflow:"hidden" }}>
+                <div style={{ border:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),borderRadius:10,overflow:"hidden" }}>
                   {matchResults.map((r, ri) => (
-                    <div key={r.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:ri%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafbfc"),cursor:"pointer",borderBottom:ri<matchResults.length-1?"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2"):"none" }}
+                    <div key={r.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:ri%2===0?(darkMode?"#0f1218":"#fff"):(darkMode?"#161a22":"#fafbfc"),cursor:"pointer",borderBottom:ri<matchResults.length-1?"1px solid "+(darkMode?"#1f2530":"#f0f0f2"):"none" }}
                       onClick={() => {
                         setPdImportPreview(prev => ({
                           ...prev,
@@ -22952,7 +22964,7 @@ function BOMManager({ user }) {
                           {r.description && <span style={{ fontSize:11,color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160 }}>{r.description}</span>}
                         </div>
                       </div>
-                      <span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:"rgba(83,58,253,0.1)",color:"#533afd",fontWeight:600,flexShrink:0 }}>Use</span>
+                      <span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:"rgba(83,58,253,0.1)",color:"#58a6ff",fontWeight:600,flexShrink:0 }}>Use</span>
                     </div>
                   ))}
                 </div>
@@ -22995,7 +23007,7 @@ function BOMManager({ user }) {
         return (
           <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
             onClick={() => setNoMpnMatchModal(null)}>
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"28px 32px",maxWidth:560,width:"92%",maxHeight:"85vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:20,padding:"28px 32px",maxWidth:560,width:"92%",maxHeight:"85vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
               onClick={e => e.stopPropagation()}>
 
               {/* ── Header ── */}
@@ -23009,9 +23021,9 @@ function BOMManager({ user }) {
                   </div>
                 </div>
                 <button onClick={() => setNoMpnMatchModal(null)}
-                  style={{ background:darkMode?"#2c2c2e":"#f5f5f7",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:"#64748d",flexShrink:0 }}
-                  onMouseEnter={e=>e.currentTarget.style.background=darkMode?"#3a3a3e":"#e8e8ed"}
-                  onMouseLeave={e=>e.currentTarget.style.background=darkMode?"#2c2c2e":"#f5f5f7"}>×</button>
+                  style={{ background:darkMode?"#161a22":"#f5f5f7",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:"#64748d",flexShrink:0 }}
+                  onMouseEnter={e=>e.currentTarget.style.background=darkMode?"#1f2530":"#e8e8ed"}
+                  onMouseLeave={e=>e.currentTarget.style.background=darkMode?"#161a22":"#f5f5f7"}>×</button>
               </div>
 
               {/* ── Search / URL paste input ── */}
@@ -23023,8 +23035,8 @@ function BOMManager({ user }) {
                 placeholder="Search value, MPN… or paste a Mouser/DigiKey URL"
                 value={noMpnMatchSearch}
                 onChange={e => setNoMpnMatchSearch(e.target.value)}
-                style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#3a3a3e":"#e3e8ee"),
-                  background:darkMode?"#2c2c2e":"#fff",color:darkMode?"#f6f9fc":"#061b31",
+                style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#1f2530":"#e3e8ee"),
+                  background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31",
                   fontSize:13,boxSizing:"border-box",fontFamily:"inherit",marginBottom:8,outline:"none" }} />
 
               {/* ── URL detected — show extracted MPN + one-click assign ── */}
@@ -23032,7 +23044,7 @@ function BOMManager({ user }) {
                 <div style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,
                   background:darkMode?"rgba(83,58,253,0.12)":"rgba(83,58,253,0.06)",border:"1px solid rgba(83,58,253,0.2)",marginBottom:12 }}>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontSize:10,fontWeight:700,color:"#533afd",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2 }}>MPN extracted from URL</div>
+                    <div style={{ fontSize:10,fontWeight:700,color:"#58a6ff",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2 }}>MPN extracted from URL</div>
                     <div style={{ fontSize:14,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"monospace" }}>{urlParsedMpn}</div>
                   </div>
                   <button
@@ -23040,9 +23052,9 @@ function BOMManager({ user }) {
                       await updatePart(partId, "mpn", urlParsedMpn);
                       setNoMpnMatchModal(null);
                     }}
-                    style={{ padding:"6px 16px",borderRadius:100,border:"none",background:"#533afd",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap" }}
+                    style={{ padding:"6px 16px",borderRadius:100,border:"none",background:"#58a6ff",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap" }}
                     onMouseEnter={e=>e.currentTarget.style.background="#3d2adb"}
-                    onMouseLeave={e=>e.currentTarget.style.background="#533afd"}>
+                    onMouseLeave={e=>e.currentTarget.style.background="#58a6ff"}>
                     Assign MPN
                   </button>
                 </div>
@@ -23051,10 +23063,10 @@ function BOMManager({ user }) {
               {/* ── Search Mouser button ── */}
               {mouserSearchTerm && (
                 <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:10,
-                  background:darkMode?"#2c2c2e":"#fafbfc",border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),marginBottom:12 }}>
+                  background:darkMode?"#161a22":"#fafbfc",border:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),marginBottom:12 }}>
                   <div>
                     <div style={{ fontSize:10,fontWeight:700,color:"#e8500a",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:1 }}>Not in library?</div>
-                    <div style={{ fontSize:12,color:darkMode?"#c7c7cc":"#50617a" }}>Search Mouser for <strong style={{ color:darkMode?"#f6f9fc":"#061b31" }}>{mouserSearchTerm}</strong></div>
+                    <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a" }}>Search Mouser for <strong style={{ color:darkMode?"#f6f9fc":"#061b31" }}>{mouserSearchTerm}</strong></div>
                   </div>
                   <a href={mouserSearchUrl} target="_blank" rel="noopener noreferrer"
                     style={{ padding:"6px 14px",borderRadius:100,border:"1px solid #e8500a",background:"#fff",color:"#e8500a",
@@ -23074,15 +23086,15 @@ function BOMManager({ user }) {
                 <div style={{ padding:"12px 0",textAlign:"center",color:"#64748d",fontSize:12 }}>Type at least 2 characters to search the library…</div>
               )}
               {!urlParsedMpn && matchResults.length > 0 && (
-                <div style={{ border:"1px solid "+(darkMode?"#3a3a3e":"#e5e5ea"),borderRadius:10,overflow:"hidden" }}>
+                <div style={{ border:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),borderRadius:10,overflow:"hidden" }}>
                   {matchResults.map((r, ri) => (
                     <div key={r.id}
                       style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",
-                        background:ri%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafbfc"),
-                        cursor:"pointer",borderBottom:ri<matchResults.length-1?"1px solid "+(darkMode?"#3a3a3e":"#f0f0f2"):"none",
+                        background:ri%2===0?(darkMode?"#0f1218":"#fff"):(darkMode?"#161a22":"#fafbfc"),
+                        cursor:"pointer",borderBottom:ri<matchResults.length-1?"1px solid "+(darkMode?"#1f2530":"#f0f0f2"):"none",
                         transition:"background 0.1s" }}
                       onMouseEnter={e=>e.currentTarget.style.background=darkMode?"rgba(83,58,253,0.15)":"#f0f6ff"}
-                      onMouseLeave={e=>e.currentTarget.style.background=ri%2===0?(darkMode?"#1c1c1e":"#fff"):(darkMode?"#2c2c2e":"#fafbfc")}
+                      onMouseLeave={e=>e.currentTarget.style.background=ri%2===0?(darkMode?"#0f1218":"#fff"):(darkMode?"#161a22":"#fafbfc")}
                       onClick={async () => {
                         await updatePart(partId, "mpn", r.mpn);
                         if (r.value && !part.value)             await updatePart(partId, "value",         r.value);
@@ -23102,7 +23114,7 @@ function BOMManager({ user }) {
                           {r.description && <span style={{ fontSize:11,color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180 }}>{r.description}</span>}
                         </div>
                       </div>
-                      <span style={{ fontSize:11,padding:"3px 10px",borderRadius:100,background:"rgba(83,58,253,0.1)",color:"#533afd",fontWeight:700,flexShrink:0,border:"1px solid rgba(83,58,253,0.2)" }}>
+                      <span style={{ fontSize:11,padding:"3px 10px",borderRadius:100,background:"rgba(83,58,253,0.1)",color:"#58a6ff",fontWeight:700,flexShrink:0,border:"1px solid rgba(83,58,253,0.2)" }}>
                         Assign
                       </span>
                     </div>
@@ -23112,9 +23124,9 @@ function BOMManager({ user }) {
 
               <div style={{ marginTop:16,display:"flex",justifyContent:"flex-end" }}>
                 <button onClick={() => setNoMpnMatchModal(null)}
-                  style={{ padding:"7px 20px",borderRadius:100,border:"1px solid "+(darkMode?"#3a3a3e":"#e3e8ee"),background:"transparent",
+                  style={{ padding:"7px 20px",borderRadius:100,border:"1px solid "+(darkMode?"#1f2530":"#e3e8ee"),background:"transparent",
                     color:darkMode?"#f6f9fc":"#061b31",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit" }}
-                  onMouseEnter={e=>e.currentTarget.style.background=darkMode?"#2c2c2e":"#f5f5f7"}
+                  onMouseEnter={e=>e.currentTarget.style.background=darkMode?"#161a22":"#f5f5f7"}
                   onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                   Cancel
                 </button>
@@ -23131,7 +23143,7 @@ function BOMManager({ user }) {
         return (
           <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
             onClick={() => setDestroyUnitModal(null)}>
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"32px 36px",maxWidth:440,width:"90%",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:20,padding:"32px 36px",maxWidth:440,width:"90%",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize:20,fontWeight:700,color:"#8B0000",marginBottom:4 }}>☠ Destroy Serial Number</div>
               <div style={{ fontSize:13,color:"#64748d",marginBottom:20 }}>
@@ -23142,7 +23154,7 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Reason for destruction</div>
                 <textarea value={destroyReason} onChange={e => setDestroyReason(e.target.value)} autoFocus
                   placeholder="e.g. cracked PCB, failed transformer, irreparable board damage…"
-                  style={{ width:"100%",padding:"10px 12px",borderRadius:10,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",background:darkMode?"#2c2c2e":"#f6f9fc",color:textPrimary,fontSize:13,fontFamily:"inherit",resize:"vertical",minHeight:80,outline:"none",boxSizing:"border-box" }} />
+                  style={{ width:"100%",padding:"10px 12px",borderRadius:10,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",background:darkMode?"#161a22":"#f6f9fc",color:textPrimary,fontSize:13,fontFamily:"inherit",resize:"vertical",minHeight:80,outline:"none",boxSizing:"border-box" }} />
               </div>
               <div style={{ display:"flex",gap:10 }}>
                 <button onClick={() => setDestroyUnitModal(null)}
@@ -23167,7 +23179,7 @@ function BOMManager({ user }) {
         return (
           <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center" }}
             onClick={() => setFailModal(null)}>
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"32px 36px",maxWidth:440,width:"90%",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:20,padding:"32px 36px",maxWidth:440,width:"90%",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize:20,fontWeight:700,color:"#ff3b30",marginBottom:4 }}>✗ Play Test Fail</div>
               <div style={{ fontSize:13,color:"#64748d",marginBottom:20 }}>
@@ -23178,7 +23190,7 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>What's wrong with this pedal?</div>
                 <textarea value={failReason} onChange={e => setFailReason(e.target.value)} autoFocus
                   placeholder="e.g. no output on channel 2, LED not working, noisy pots…"
-                  style={{ width:"100%",padding:"10px 12px",borderRadius:10,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",background:darkMode?"#2c2c2e":"#f6f9fc",color:textPrimary,fontSize:13,fontFamily:"inherit",resize:"vertical",minHeight:80,outline:"none",boxSizing:"border-box" }} />
+                  style={{ width:"100%",padding:"10px 12px",borderRadius:10,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",background:darkMode?"#161a22":"#f6f9fc",color:textPrimary,fontSize:13,fontFamily:"inherit",resize:"vertical",minHeight:80,outline:"none",boxSizing:"border-box" }} />
               </div>
               <div style={{ display:"flex",gap:10 }}>
                 <button onClick={() => setFailModal(null)}
@@ -23217,31 +23229,31 @@ function BOMManager({ user }) {
         return (
           <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(4px)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center" }}
             onClick={() => setBatchStickerModal(false)}>
-            <div style={{ background:darkMode?"#1c1c1e":"#fff",borderRadius:20,padding:"32px 36px",maxWidth:520,width:"90%",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
+            <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:20,padding:"32px 36px",maxWidth:520,width:"90%",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
                 <div style={{ fontSize:20,fontWeight:700,color:textPrimary }}>Batch Print Stickers</div>
                 <button onClick={() => setBatchStickerModal(false)}
-                  style={{ width:30,height:30,borderRadius:"50%",border:"none",background:darkMode?"#3a3a3e":"#f6f9fc",color:textPrimary,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit" }}>×</button>
+                  style={{ width:30,height:30,borderRadius:"50%",border:"none",background:darkMode?"#1f2530":"#f6f9fc",color:textPrimary,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit" }}>×</button>
               </div>
 
               <div style={{ display:"flex",gap:12,marginBottom:16,flexWrap:"wrap" }}>
                 <div style={{ flex:2,minWidth:160 }}>
                   <div style={{ fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>Product</div>
                   <select value={batchProductId} onChange={e => setBatchProductId(e.target.value)}
-                    style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",background:darkMode?"#2c2c2e":"#fff",color:textPrimary,fontSize:13,fontFamily:"inherit" }}>
+                    style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",background:darkMode?"#161a22":"#fff",color:textPrimary,fontSize:13,fontFamily:"inherit" }}>
                     {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div style={{ flex:1,minWidth:80 }}>
                   <div style={{ fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>From S/N #</div>
                   <input type="number" min="1" placeholder="e.g. 200" value={batchFromSerial} onChange={e => setBatchFromSerial(e.target.value)}
-                    style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",background:darkMode?"#2c2c2e":"#fff",color:textPrimary,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }} />
+                    style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",background:darkMode?"#161a22":"#fff",color:textPrimary,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }} />
                 </div>
                 <div style={{ flex:1,minWidth:80 }}>
                   <div style={{ fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>To S/N #</div>
                   <input type="number" min="1" placeholder="e.g. 250" value={batchToSerial} onChange={e => setBatchToSerial(e.target.value)}
-                    style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:darkMode?"1px solid #3a3a3e":"1px solid #e3e8ee",background:darkMode?"#2c2c2e":"#fff",color:textPrimary,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }} />
+                    style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",background:darkMode?"#161a22":"#fff",color:textPrimary,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }} />
                 </div>
               </div>
 
@@ -23254,13 +23266,13 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",gap:10,marginBottom:20 }}>
                 <button onClick={() => setBatchStickerTab("pedal")}
                   style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,fontSize:12,fontFamily:"inherit",
-                    background:batchStickerTab==="pedal"?"#c8a84e":darkMode?"#2c2c2e":"#f0f0f2",
+                    background:batchStickerTab==="pedal"?"#c8a84e":darkMode?"#161a22":"#f0f0f2",
                     color:batchStickerTab==="pedal"?"#fff":textPrimary }}>
                   Pedal Bottom Sticker
                 </button>
                 <button onClick={() => setBatchStickerTab("box")}
                   style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,fontSize:12,fontFamily:"inherit",
-                    background:batchStickerTab==="box"?"#533afd":darkMode?"#2c2c2e":"#f0f0f2",
+                    background:batchStickerTab==="box"?"#58a6ff":darkMode?"#161a22":"#f0f0f2",
                     color:batchStickerTab==="box"?"#fff":textPrimary }}>
                   Box Label (UPC + QR)
                 </button>
@@ -23288,7 +23300,7 @@ function BOMManager({ user }) {
                     }
                   }}
                   style={{ flex:2,padding:"10px 0",borderRadius:100,border:"none",
-                    background:batchUnits.length===0?"#c7c7cc":batchStickerTab==="pedal"?"#c8a84e":"#533afd",
+                    background:batchUnits.length===0?"#b8bfcc":batchStickerTab==="pedal"?"#c8a84e":"#58a6ff",
                     color:"#fff",
                     fontSize:13,fontWeight:700,cursor:batchUnits.length===0?"not-allowed":"pointer",fontFamily:"inherit" }}>
                   Print {batchUnits.length} {batchStickerTab==="pedal"?"Pedal Sticker":"Box Label"}{batchUnits.length!==1?"s":""}
@@ -23310,12 +23322,12 @@ function BOMManager({ user }) {
         />
       )}
 
-      <footer style={{ position:"fixed",bottom:0,left:0,right:0,zIndex:999,borderTop:darkMode?"1px solid #3a3a3e":"1px solid #e5e5ea",padding:"7px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#8898aa",
+      <footer style={{ position:"fixed",bottom:0,left:0,right:0,zIndex:999,borderTop:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",padding:"7px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#8898aa",
         background:darkMode?"rgba(28,28,30,0.92)":"rgba(255,255,255,0.92)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)" }}>
-        <span style={{ fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>Jackson Audio BOM Manager {APP_VERSION} — deployed {new Date(BUILD_TIME).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+        <span style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>Jackson Audio BOM Manager {APP_VERSION} — deployed {new Date(BUILD_TIME).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span style={{ display:"flex",alignItems:"center",gap:12 }}>
-          <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color:"#8898aa",textDecoration:"none" }} onMouseOver={e=>e.currentTarget.style.color="#533afd"} onMouseOut={e=>e.currentTarget.style.color="#8898aa"}>Privacy</a>
-          <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color:"#8898aa",textDecoration:"none" }} onMouseOver={e=>e.currentTarget.style.color="#533afd"} onMouseOut={e=>e.currentTarget.style.color="#8898aa"}>Terms</a>
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color:"#8898aa",textDecoration:"none" }} onMouseOver={e=>e.currentTarget.style.color="#58a6ff"} onMouseOut={e=>e.currentTarget.style.color="#8898aa"}>Privacy</a>
+          <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color:"#8898aa",textDecoration:"none" }} onMouseOver={e=>e.currentTarget.style.color="#58a6ff"} onMouseOut={e=>e.currentTarget.style.color="#8898aa"}>Terms</a>
           <span style={{ color:"#8898aa" }}>{new Date(BUILD_TIME).toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
         </span>
       </footer>
@@ -23327,7 +23339,7 @@ function BOMManager({ user }) {
             <div key={t.id} style={{
               background:t.color||"#34c759",color:"#fff",padding:"12px 20px",borderRadius:12,
               fontSize:13,fontWeight:600,boxShadow:"0 4px 16px rgba(0,0,0,0.2)",
-              fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+              fontFamily:"'IBM Plex Sans',system-ui,sans-serif",
               maxWidth:360,animation:"fadeInUp 0.2s ease",
             }}>
               {t.message}

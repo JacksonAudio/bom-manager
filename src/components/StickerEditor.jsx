@@ -240,7 +240,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
               Test Print
             </button>
             <button onClick={handleApply}
-              style={{ padding: '8px 18px', borderRadius: 980, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', background: '#533afd', color: '#fff' }}>
+              style={{ padding: '8px 18px', borderRadius: 980, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', background: '#58a6ff', color: '#fff' }}>
               Apply Design
             </button>
             <button onClick={onClose}
@@ -269,7 +269,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
             {/* Add element buttons */}
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={handleAddText}
-                style={{ fontSize: 11, padding: '5px 14px', borderRadius: 980, border: 'none', cursor: 'pointer', fontWeight: 600, background: '#533afd', color: '#fff' }}>
+                style={{ fontSize: 11, padding: '5px 14px', borderRadius: 980, border: 'none', cursor: 'pointer', fontWeight: 600, background: '#58a6ff', color: '#fff' }}>
                 + Add Text
               </button>
               <button onClick={handleAddImage}
@@ -297,7 +297,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
                     left: elem.x, top: elem.y,
                     width: elem.w, height: elem.h,
                     cursor: dragState?.elemId === elem.id ? 'grabbing' : 'grab',
-                    outline: selectedId === elem.id ? '2px solid #533afd' : '1px dashed transparent',
+                    outline: selectedId === elem.id ? '2px solid #58a6ff' : '1px dashed transparent',
                     outlineOffset: 1,
                     borderRadius: 2,
                     display: 'flex', alignItems: 'center',
@@ -348,8 +348,8 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
                 <div key={elem.id} onClick={() => setSelectedId(elem.id)}
                   style={{
                     padding: '6px 10px', borderRadius: 8, marginBottom: 4, cursor: 'pointer',
-                    background: selectedId === elem.id ? '#533afd18' : '#f6f9fc',
-                    border: selectedId === elem.id ? '1px solid #533afd' : '1px solid transparent',
+                    background: selectedId === elem.id ? '#58a6ff18' : '#f6f9fc',
+                    border: selectedId === elem.id ? '1px solid #58a6ff' : '1px solid transparent',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: '#061b31', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -535,7 +535,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
                   <span style={{ fontSize: 12, fontWeight: 500, color: '#061b31' }}>{name}</span>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button onClick={() => handleLoadTemplate(name)}
-                      style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, border: 'none', background: '#533afd', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                      style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, border: 'none', background: '#58a6ff', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
                       Load
                     </button>
                     <button onClick={() => handleDeleteTemplate(name)}

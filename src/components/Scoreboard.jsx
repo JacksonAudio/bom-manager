@@ -8,7 +8,7 @@ import { supabase } from "../lib/supabase.js";
 
 const THEMES = {
   dark: { bg: "#0a0a0f", card: "#12121a", border: "#1e1e2e", text: "#e0e0e0", textDim: "#6b6b80", textMuted: "#4a4a5a", white: "#ffffff", accent: "#f8d377", hover: "rgba(255,255,255,0.05)" },
-  light: { bg: "#f0f0f5", card: "#ffffff", border: "#e3e8ee", text: "#061b31", textDim: "#64748d", textMuted: "#8898aa", white: "#061b31", accent: "#533afd", hover: "rgba(0,0,0,0.03)" },
+  light: { bg: "#f0f0f5", card: "#ffffff", border: "#e3e8ee", text: "#061b31", textDim: "#64748d", textMuted: "#8898aa", white: "#061b31", accent: "#58a6ff", hover: "rgba(0,0,0,0.03)" },
 };
 
 function formatBuildTime(minutes) {
@@ -214,7 +214,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
   if (!loaded) {
     return (
       <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ color: T.accent, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif", fontSize: 24 }}>Loading Scoreboard...</div>
+        <div style={{ color: T.accent, fontFamily: "'IBM Plex Sans', system-ui, sans-serif", fontSize: 24 }}>Loading Scoreboard...</div>
       </div>
     );
   }
@@ -222,7 +222,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
   return (
     <div style={{
       background: T.bg, minHeight: "100vh", color: T.text,
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif", padding: standalone ? "24px 32px" : "20px 24px",
+      fontFamily: "'IBM Plex Sans', system-ui, sans-serif", padding: standalone ? "24px 32px" : "20px 24px",
       display: "flex", flexDirection: "column", overflow: "hidden",
       animation: "scoreboardFadeIn 0.8s ease-out", transition: "background 0.3s, color 0.3s",
     }}>
@@ -311,7 +311,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
                         <span style={{
                           fontSize: standalone ? 13 : 10, fontWeight: 700, padding: "2px 8px", borderRadius: 12,
                           background: builder.qualityScore >= 90 ? "rgba(52,199,89,0.18)" : builder.qualityScore >= 70 ? "rgba(83,58,253,0.18)" : "rgba(255,149,0,0.18)",
-                          color: builder.qualityScore >= 90 ? "#34c759" : builder.qualityScore >= 70 ? "#533afd" : "#ff9500",
+                          color: builder.qualityScore >= 90 ? "#34c759" : builder.qualityScore >= 70 ? "#58a6ff" : "#ff9500",
                         }}>
                           Q:{builder.qualityScore.toFixed(0)}
                         </span>
@@ -341,7 +341,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
                           <div style={{
                             width: `${progressPct}%`,
                             height: "100%",
-                            background: `linear-gradient(90deg, ${T.accent}, #533afd)`,
+                            background: `linear-gradient(90deg, ${T.accent}, #58a6ff)`,
                             borderRadius: 4,
                             animation: "progressGrow 1s ease-out",
                             transition: "width 0.5s ease",
@@ -402,7 +402,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
                     <div style={{ flex: 1, height: 6, background: theme==="dark"?"#1a1a28":"#e5e5ea", borderRadius: 3, overflow: "hidden" }}>
                       <div style={{
                         width: `${pct}%`, height: "100%",
-                        background: pct >= 80 ? "#34c759" : pct >= 40 ? "#533afd" : "#5856d6",
+                        background: pct >= 80 ? "#34c759" : pct >= 40 ? "#58a6ff" : "#5856d6",
                         borderRadius: 3, transition: "width 0.5s ease",
                       }} />
                     </div>

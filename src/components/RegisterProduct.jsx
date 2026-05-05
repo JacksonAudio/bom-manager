@@ -111,7 +111,7 @@ export default function RegisterProduct() {
     borderRadius: 10,
     border: '1px solid #e3e8ee',
     outline: 'none',
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif",
+    fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
     transition: 'border-color 0.2s',
     boxSizing: 'border-box',
   }
@@ -130,7 +130,7 @@ export default function RegisterProduct() {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: cfg.bgGradient, padding: 20,
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" }}>
+        fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }}>
         <div style={{ background: '#fff', borderRadius: 24, padding: '60px 40px', maxWidth: 500,
           width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>✓</div>
@@ -163,7 +163,7 @@ export default function RegisterProduct() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: cfg.bgGradient, padding: 20,
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" }}>
+      fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }}>
       <div style={{ background: '#fff', borderRadius: 24, maxWidth: 560, width: '100%',
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
 
@@ -286,7 +286,7 @@ export default function RegisterProduct() {
             style={{ width: '100%', padding: '14px 28px', borderRadius: 980, border: 'none',
               background: cfg.accentColor, color: '#fff', fontSize: 16, fontWeight: 700,
               cursor: submitting ? 'wait' : 'pointer', opacity: submitting ? 0.7 : 1,
-              fontFamily: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif",
+              fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
               transition: 'opacity 0.2s' }}>
             {submitting ? 'Registering…' : 'Register My Product'}
           </button>

@@ -6,14 +6,14 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
 export default function ScannerView({ parts, products, updatePart, darkMode, onStockAdjust, userId, onReorder }) {
-  const bg = darkMode ? '#1c1c1e' : '#fff'
-  const border = darkMode ? '#3a3a3e' : '#e5e5ea'
-  const borderLight = darkMode ? '#2c2c2e' : '#f0f0f2'
+  const bg = darkMode ? '#0f1218' : '#fff'
+  const border = darkMode ? '#1f2530' : '#e5e5ea'
+  const borderLight = darkMode ? '#161a22' : '#f0f0f2'
   const text = darkMode ? '#f6f9fc' : '#061b31'
-  const textSub = darkMode ? '#98989d' : '#64748d'
-  const textMuted = darkMode ? '#636366' : '#8898aa'
-  const inputBorder = darkMode ? '#3a3a3e' : '#e3e8ee'
-  const hoverBg = darkMode ? '#2c2c2e' : '#f6f9fc'
+  const textSub = darkMode ? '#8a93a3' : '#64748d'
+  const textMuted = darkMode ? '#5a6373' : '#8898aa'
+  const inputBorder = darkMode ? '#1f2530' : '#e3e8ee'
+  const hoverBg = darkMode ? '#161a22' : '#f6f9fc'
 
   const [scanning, setScanning]     = useState(false)
   const [scannedPart, setScannedPart] = useState(null)
@@ -167,7 +167,7 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
-      <h2 style={{ fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif",
+      <h2 style={{ fontFamily: "'IBM Plex Sans',system-ui,sans-serif",
         fontSize: 28, fontWeight: 700, letterSpacing: '-0.5px', color: text, marginBottom: 4 }}>
         Scan
       </h2>
@@ -181,8 +181,8 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
           onClick={() => { setScanning(!scanning); setScanError(''); setCameraError(''); }}
           style={{ padding: '12px 28px', borderRadius: 980, fontSize: 14, fontWeight: 600,
             cursor: 'pointer', border: 'none',
-            background: scanning ? '#ff3b30' : '#0a84ff', color: '#fff',
-            fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif",
+            background: scanning ? '#ff3b30' : '#58a6ff', color: '#fff',
+            fontFamily: "'IBM Plex Sans',system-ui,sans-serif",
             display: 'flex', alignItems: 'center', gap: 8 }}>
           {scanning ? '■ Stop Scanner' : '📷 Start Scanner'}
         </button>
@@ -216,19 +216,19 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
       {scannedPart && (
         <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 16,
           padding: 24, marginBottom: 20, boxShadow: `0 2px 8px rgba(0,0,0,${darkMode ? 0.3 : 0.06})` }}>
-          <div style={{ fontSize: 10, color: '#30d158', fontWeight: 700, letterSpacing: '0.1em',
+          <div style={{ fontSize: 10, color: '#3fb950', fontWeight: 700, letterSpacing: '0.1em',
             marginBottom: 10, textTransform: 'uppercase' }}>
             Part Found
           </div>
           <div style={{ fontSize: 20, fontWeight: 700, color: text,
-            fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+            fontFamily: "'IBM Plex Sans',system-ui,sans-serif" }}>
             {scannedPart.mpn || scannedPart.reference || '—'}
           </div>
           <div style={{ fontSize: 13, color: textSub, marginTop: 4 }}>
             {[scannedPart.description, scannedPart.value, scannedPart.manufacturer].filter(Boolean).join(' — ') || 'No description'}
           </div>
           {getProductName(scannedPart.projectId) && (
-            <div style={{ fontSize: 12, color: '#0a84ff', marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: '#58a6ff', marginTop: 4 }}>
               {getProductName(scannedPart.projectId)}
             </div>
           )}
@@ -243,7 +243,7 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
               <button onClick={() => onReorder(scannedPart)}
                 style={{ padding: '6px 16px', borderRadius: 980, border: 'none', cursor: 'pointer', fontWeight: 700,
                   fontSize: 12, background: '#ff9500', color: '#fff',
-                  fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                  fontFamily: "'IBM Plex Sans',system-ui,sans-serif" }}>
                 🛒 Place Order
               </button>
             )}
@@ -272,9 +272,9 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
             <button onClick={applyUpdate}
               disabled={updating || !qty || parseInt(qty) <= 0}
               style={{ padding: '10px 24px', borderRadius: 980, fontSize: 14, fontWeight: 600,
-                cursor: 'pointer', border: 'none', background: '#30d158', color: '#fff',
+                cursor: 'pointer', border: 'none', background: '#3fb950', color: '#fff',
                 opacity: (!qty || parseInt(qty) <= 0) ? 0.4 : 1,
-                fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                fontFamily: "'IBM Plex Sans',system-ui,sans-serif" }}>
               {updating ? 'Updating…' : 'Update Stock'}
             </button>
           </div>
@@ -282,7 +282,7 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
           {/* Preview */}
           {qty && parseInt(qty) > 0 && (
             <div style={{ marginTop: 12, fontSize: 13, color: textSub,
-              fontFamily: "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+              fontFamily: "'IBM Plex Sans',system-ui,sans-serif" }}>
               {(() => {
                 const old = parseInt(scannedPart.stockQty) || 0
                 const q = parseInt(qty)
@@ -314,9 +314,9 @@ export default function ScannerView({ parts, products, updatePart, darkMode, onS
                 fontSize: 13 }}>
                 <span style={{ color: textMuted, fontSize: 11, minWidth: 60 }}>{fmtTime(h.timestamp)}</span>
                 <span style={{ fontWeight: 600, color: text, flex: 1 }}>{h.mpn}</span>
-                {h.product && <span style={{ fontSize: 11, color: '#0a84ff' }}>{h.product}</span>}
+                {h.product && <span style={{ fontSize: 11, color: '#58a6ff' }}>{h.product}</span>}
                 <span style={{ fontWeight: 700, fontSize: 14,
-                  color: h.delta == null ? '#0a84ff' : h.delta > 0 ? '#30d158' : '#ff453a' }}>
+                  color: h.delta == null ? '#58a6ff' : h.delta > 0 ? '#3fb950' : '#ff453a' }}>
                   {h.delta == null ? `= ${h.newQty}` : h.delta > 0 ? `+${h.delta}` : h.delta}
                 </span>
                 <span style={{ color: textMuted, fontSize: 11 }}>{h.oldQty} → {h.newQty}</span>
@@ -372,7 +372,7 @@ function ManualLookup({ parts, products, onSelect, bg, border, text, textSub, in
                 {[m.value, m.description].filter(Boolean).join(' · ') || 'No details'}
                 {m.projectId && (() => {
                   const prod = products.find(x => x.id === m.projectId)
-                  return prod ? <span style={{ color: '#0a84ff' }}> — {prod.name}</span> : null
+                  return prod ? <span style={{ color: '#58a6ff' }}> — {prod.name}</span> : null
                 })()}
               </div>
             </div>

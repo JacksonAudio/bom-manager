@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase.js";
 
-const FONT = "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif";
+const FONT = "'IBM Plex Sans',system-ui,sans-serif";
 
 export default function InvoiceView() {
   const [apiKey, setApiKey] = useState("");
@@ -213,7 +213,7 @@ export default function InvoiceView() {
           />
           <canvas ref={canvasRef} style={{ display: "none" }} />
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "20px 16px", display: "flex", gap: 12, background: "linear-gradient(transparent, rgba(0,0,0,0.8))" }}>
-            <button onClick={stopCamera} style={{ ...styles.actionBtn, background: "#3a3a3e", flex: 1 }}>
+            <button onClick={stopCamera} style={{ ...styles.actionBtn, background: "#1f2530", flex: 1 }}>
               Cancel
             </button>
             <button onClick={capturePhoto} style={{ ...styles.actionBtn, background: "#ff453a", flex: 2 }}>
@@ -236,13 +236,13 @@ export default function InvoiceView() {
         </p>
 
         {error && (
-          <div style={{ color: "#ff453a", fontSize: 14, fontFamily: FONT, marginBottom: 16, padding: "12px 14px", background: "#1c1c1e", borderRadius: 12, textAlign: "center" }}>
+          <div style={{ color: "#ff453a", fontSize: 14, fontFamily: FONT, marginBottom: 16, padding: "12px 14px", background: "#0f1218", borderRadius: 12, textAlign: "center" }}>
             {error}
           </div>
         )}
 
         {savedCount !== null && (
-          <div style={{ color: "#34c759", fontSize: 16, fontWeight: 700, fontFamily: FONT, marginBottom: 20, padding: "16px", background: "#1c1c1e", borderRadius: 12, textAlign: "center" }}>
+          <div style={{ color: "#34c759", fontSize: 16, fontWeight: 700, fontFamily: FONT, marginBottom: 20, padding: "16px", background: "#0f1218", borderRadius: 12, textAlign: "center" }}>
             Saved {savedCount} items to inventory
           </div>
         )}
@@ -290,7 +290,7 @@ export default function InvoiceView() {
               disabled={saving}
               style={{
                 width: "100%", padding: "18px 24px", borderRadius: 16, border: "none",
-                background: saving ? "#2c2c2e" : "#34c759", color: "#fff",
+                background: saving ? "#161a22" : "#34c759", color: "#fff",
                 fontSize: 18, fontWeight: 800, fontFamily: FONT, cursor: saving ? "default" : "pointer",
                 opacity: saving ? 0.6 : 1,
               }}
@@ -325,7 +325,7 @@ export default function InvoiceView() {
         {(result || savedCount !== null) && !parsing && (
           <button
             onClick={() => { setResult(null); setSavedCount(null); setError(""); }}
-            style={{ width: "100%", padding: "14px", borderRadius: 12, border: "1px solid #3a3a3e", background: "transparent", color: "#64748d", fontSize: 15, fontWeight: 600, fontFamily: FONT, cursor: "pointer", marginTop: 14 }}
+            style={{ width: "100%", padding: "14px", borderRadius: 12, border: "1px solid #1f2530", background: "transparent", color: "#64748d", fontSize: 15, fontWeight: 600, fontFamily: FONT, cursor: "pointer", marginTop: 14 }}
           >
             Scan Another Invoice
           </button>
@@ -355,8 +355,8 @@ const styles = {
     justifyContent: "center",
     padding: "28px 24px",
     borderRadius: 16,
-    border: "1px solid #3a3a3e",
-    background: "#1c1c1e",
+    border: "1px solid #1f2530",
+    background: "#0f1218",
     color: "#f6f9fc",
     fontFamily: FONT,
     fontSize: 20,
@@ -376,9 +376,9 @@ const styles = {
     cursor: "pointer",
   },
   itemCard: {
-    background: "#1c1c1e",
+    background: "#0f1218",
     borderRadius: 12,
     padding: "14px 16px",
-    border: "1px solid #2c2c2e",
+    border: "1px solid #161a22",
   },
 };

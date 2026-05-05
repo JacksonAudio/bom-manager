@@ -138,7 +138,7 @@ export default function StickerPrintModal({ units, products, playTesters, teamMe
           alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10 }}>
           <div>
             <div style={{ fontSize:18,fontWeight:700,color:'#061b31',
-              fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+              fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
               Serial Number Stickers
             </div>
             <div style={{ fontSize:12,color:'#64748d',marginTop:2 }}>
@@ -160,7 +160,7 @@ export default function StickerPrintModal({ units, products, playTesters, teamMe
             <button onClick={handlePrint}
               disabled={selectedUnits.size === 0}
               style={{ padding:'8px 18px',borderRadius:100,fontSize:13,fontWeight:600,cursor:'pointer',
-                border:'none',background:'#533afd',color:'#fff',
+                border:'none',background:'#58a6ff',color:'#fff',
                 opacity: selectedUnits.size === 0 ? 0.4 : 1 }}>
               Print {selectedUnits.size} Sticker{selectedUnits.size !== 1 ? 's' : ''}
             </button>
@@ -183,7 +183,7 @@ export default function StickerPrintModal({ units, products, playTesters, teamMe
               return (
                 <div key={unit.id} onClick={() => toggleUnit(unit.id)}
                   style={{ width: `${sz.width * 96}px`, minHeight: `${sz.height * 96}px`,
-                    border: selected ? '2px solid #533afd' : '1px solid #e3e8ee',
+                    border: selected ? '2px solid #58a6ff' : '1px solid #e3e8ee',
                     borderRadius:8, padding:'6px 10px', display:'flex', flexDirection:'column',
                     alignItems:'center', justifyContent:'center', textAlign:'center', gap:2,
                     background: selected ? '#fff' : '#fafbfc', cursor:'pointer',

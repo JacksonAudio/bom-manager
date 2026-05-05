@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabase.js";
 
-const FONT = "Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif";
+const FONT = "'IBM Plex Sans',system-ui,sans-serif";
 
 export default function BuildView({ standalone = false }) {
   const [teamMembers, setTeamMembers] = useState([]);
@@ -166,9 +166,9 @@ export default function BuildView({ standalone = false }) {
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
               <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
                 {[0,1,2,3,4,5].map(i => (
-                  <div key={i} style={{ width: 44, height: 52, borderRadius: 10, border: "2px solid " + (pinValue.length > i ? "#533afd" : "#3a3a3e"),
+                  <div key={i} style={{ width: 44, height: 52, borderRadius: 10, border: "2px solid " + (pinValue.length > i ? "#58a6ff" : "#1f2530"),
                     display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700,
-                    color: "#f6f9fc", fontFamily: FONT, background: "#1c1c1e" }}>
+                    color: "#f6f9fc", fontFamily: FONT, background: "#0f1218" }}>
                     {pinValue.length > i ? "\u2022" : ""}
                   </div>
                 ))}
@@ -181,7 +181,7 @@ export default function BuildView({ standalone = false }) {
                       if (d === "del") { setPinValue(v => v.slice(0, -1)); setPinError(""); }
                       else if (pinValue.length < 6) { setPinValue(v => v + d); setPinError(""); }
                     }}
-                    style={{ width: 72, height: 56, borderRadius: 12, border: "1px solid #3a3a3e", background: "#1c1c1e",
+                    style={{ width: 72, height: 56, borderRadius: 12, border: "1px solid #1f2530", background: "#0f1218",
                       color: "#f6f9fc", fontSize: d === "del" ? 16 : 24, fontWeight: 600, fontFamily: FONT, cursor: "pointer",
                       display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {d === "del" ? "\u232B" : d}
@@ -192,13 +192,13 @@ export default function BuildView({ standalone = false }) {
               {pinError && <div style={{ color: "#ff453a", fontSize: 14, fontFamily: FONT, fontWeight: 600 }}>{pinError}</div>}
               <button onClick={handlePinSubmit}
                 disabled={pinValue.length < 4}
-                style={{ padding: "14px 48px", borderRadius: 980, border: "none", background: pinValue.length >= 4 ? "#533afd" : "#2c2c2e",
+                style={{ padding: "14px 48px", borderRadius: 980, border: "none", background: pinValue.length >= 4 ? "#58a6ff" : "#161a22",
                   color: "#fff", fontSize: 16, fontWeight: 700, fontFamily: FONT, cursor: pinValue.length >= 4 ? "pointer" : "default",
                   opacity: pinValue.length >= 4 ? 1 : 0.5, marginTop: 8 }}>
                 Sign In
               </button>
               <button onClick={() => { setPinMode(false); setPinValue(""); setPinError(""); }}
-                style={{ background: "none", border: "none", color: "#533afd", fontSize: 14, fontFamily: FONT, cursor: "pointer", fontWeight: 600 }}>
+                style={{ background: "none", border: "none", color: "#58a6ff", fontSize: 14, fontFamily: FONT, cursor: "pointer", fontWeight: 600 }}>
                 Use Name Instead
               </button>
             </div>
@@ -228,7 +228,7 @@ export default function BuildView({ standalone = false }) {
               {teamMembers.some(m => m.pin_code) && (
                 <button onClick={() => setPinMode(true)}
                   style={{ display: "block", margin: "24px auto 0", padding: "12px 32px", borderRadius: 980,
-                    border: "1px solid #3a3a3e", background: "transparent", color: "#533afd", fontSize: 14,
+                    border: "1px solid #1f2530", background: "transparent", color: "#58a6ff", fontSize: 14,
                     fontWeight: 600, fontFamily: FONT, cursor: "pointer" }}>
                   Use PIN Instead
                 </button>
@@ -259,7 +259,7 @@ export default function BuildView({ standalone = false }) {
           <button
             onClick={() => setSelectedMember(null)}
             style={{
-              padding: "10px 18px", borderRadius: 980, border: "1px solid #3a3a3e",
+              padding: "10px 18px", borderRadius: 980, border: "1px solid #1f2530",
               background: "transparent", color: "#64748d", fontSize: 13, fontWeight: 600,
               fontFamily: FONT, cursor: "pointer",
             }}
@@ -269,7 +269,7 @@ export default function BuildView({ standalone = false }) {
         </div>
 
         {error && (
-          <div style={{ color: "#ff453a", fontSize: 13, fontFamily: FONT, marginBottom: 12, padding: "8px 12px", background: "#1c1c1e", borderRadius: 10 }}>
+          <div style={{ color: "#ff453a", fontSize: 13, fontFamily: FONT, marginBottom: 12, padding: "8px 12px", background: "#0f1218", borderRadius: 10 }}>
             {error}
           </div>
         )}
@@ -314,7 +314,7 @@ export default function BuildView({ standalone = false }) {
                         {Math.round(pct)}%
                       </span>
                     </div>
-                    <div style={{ height: 10, background: "#2c2c2e", borderRadius: 5, overflow: "hidden" }}>
+                    <div style={{ height: 10, background: "#161a22", borderRadius: 5, overflow: "hidden" }}>
                       <div
                         style={{
                           height: "100%",
@@ -336,7 +336,7 @@ export default function BuildView({ standalone = false }) {
                       height: 80,
                       borderRadius: 16,
                       border: "none",
-                      background: completed >= total ? "#2c2c2e" : "#34c759",
+                      background: completed >= total ? "#161a22" : "#34c759",
                       color: completed >= total ? "#64748d" : "#fff",
                       fontSize: 28,
                       fontWeight: 800,
@@ -391,8 +391,8 @@ const styles = {
     justifyContent: "center",
     padding: "20px 24px",
     borderRadius: 16,
-    border: "1px solid #3a3a3e",
-    background: "#1c1c1e",
+    border: "1px solid #1f2530",
+    background: "#0f1218",
     color: "#f6f9fc",
     fontFamily: FONT,
     cursor: "pointer",
@@ -400,9 +400,9 @@ const styles = {
     WebkitTapHighlightColor: "transparent",
   },
   orderCard: {
-    background: "#1c1c1e",
+    background: "#0f1218",
     borderRadius: 16,
     padding: "18px 18px 16px",
-    border: "1px solid #2c2c2e",
+    border: "1px solid #161a22",
   },
 };

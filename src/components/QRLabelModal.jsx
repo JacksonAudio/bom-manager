@@ -73,7 +73,7 @@ export default function QRLabelModal({ parts, products, onClose }) {
           ${part.manufacturer ? `<div style="font-size:${subFont}px;color:#888">${part.manufacturer}</div>` : ''}
           ${part.value ? `<div style="font-size:${subFont}px;color:#333">${part.value}</div>` : ''}
           ${part.description ? `<div style="font-size:${subFont}px;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${part.description}</div>` : ''}
-          ${prodName ? `<div style="font-size:${subFont}px;color:#533afd">${prodName}</div>` : ''}
+          ${prodName ? `<div style="font-size:${subFont}px;color:#58a6ff">${prodName}</div>` : ''}
         </div>
       </div>`
     }).join('')
@@ -122,7 +122,7 @@ export default function QRLabelModal({ parts, products, onClose }) {
           alignItems:'center',justifyContent:'space-between' }}>
           <div>
             <div style={{ fontSize:18,fontWeight:700,color:'#061b31',
-              fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+              fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
               QR Labels
             </div>
             <div style={{ fontSize:12,color:'#64748d',marginTop:2 }}>
@@ -139,9 +139,9 @@ export default function QRLabelModal({ parts, products, onClose }) {
             <button onClick={handlePrint}
               disabled={Object.keys(qrImages).length === 0}
               style={{ padding:'8px 18px',borderRadius:100,fontSize:13,fontWeight:600,cursor:'pointer',
-                border:'none',background:'#533afd',color:'#fff',
+                border:'none',background:'#58a6ff',color:'#fff',
                 opacity: Object.keys(qrImages).length === 0 ? 0.4 : 1,
-                fontFamily:"Inter,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+                fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
               Print Labels
             </button>
             <button onClick={onClose}
@@ -182,7 +182,7 @@ export default function QRLabelModal({ parts, products, onClose }) {
                     </div>
                   )}
                   {getProductName(part.projectId) && labelSize !== '5167' && (
-                    <div style={{ fontSize:9,color:'#533afd',marginTop:1 }}>{getProductName(part.projectId)}</div>
+                    <div style={{ fontSize:9,color:'#58a6ff',marginTop:1 }}>{getProductName(part.projectId)}</div>
                   )}
                 </div>
               </div>
