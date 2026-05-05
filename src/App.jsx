@@ -1,8 +1,23 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.41
-// Tuesday, May 5, 2026 - 2:58PM
+// src/App.jsx — Jackson Audio BOM Manager v10.42
+// Tuesday, May 5, 2026 - 3:08PM
 //
 // Changelog:
+//   [v10.42] Removed dark-mode background panels behind two page headers
+//       that Brad flagged as cohesion-breaking hard-edge rectangles:
+//       (a) Products tab — outer wrapper + the "2 Products" header bubble
+//           both rendered #0f1218 panels with a hardcoded "1px solid
+//           #e5e5ea" border + drop shadow that looked like a stray light-
+//           mode artifact in dark mode.
+//       (b) Product detail — same outer wrapper, which created two visually
+//           distinct horizontal stripes around the title row and the
+//           Brand/Build Time/SN/UPC/Box Dims controls underneath.
+//       Made the wrapper backgrounds + borders + shadows conditional:
+//       transparent in dark mode so the page bg shows through (the buttons
+//       and titles "pop" against the dark page); kept the existing soft
+//       white card look in light mode where it was deliberate. Other
+//       #0f1218 cards across the app are untouched — they're intentional
+//       dashboard tiles, not chrome-over-chrome.
 //   [v10.41] Product detail title section — dark-mode cohesion. Three
 //       <select> inputs (Brand, Shopify, Zoho) had hardcoded "1px solid
 //       #e5e5ea" borders that always rendered light, mismatching the
@@ -148,8 +163,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.41";
-const BUILD_TIME   = "2026-05-05T14:58:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.42";
+const BUILD_TIME   = "2026-05-05T15:08:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -10945,9 +10960,9 @@ function BOMManager({ user }) {
             PRODUCTS
         ══════════════════════════════════════ */}
         {activeView === "projects" && !selectedProduct && (
-          <div style={{ background:darkMode?"#0f1218":"#f6f9fc",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
+          <div style={{ background:darkMode?"transparent":"#f6f9fc",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
             {/* Header bubble */}
-            <div style={{ marginBottom:16,padding:"18px 22px",background:darkMode?"#0f1218":"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+            <div style={{ marginBottom:16,padding:"18px 22px",background:darkMode?"transparent":"#fff",borderRadius:14,border:darkMode?"none":"1px solid #e5e5ea",boxShadow:darkMode?"none":"0 1px 4px rgba(0,0,0,0.06)" }}>
               <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#7ab8d4",color:"#fff",fontSize:12,fontWeight:800 }}>2</span>
                 <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",margin:0 }}>Products</h2>
@@ -11959,7 +11974,7 @@ function BOMManager({ user }) {
           const allProdSelected = prodParts.length > 0 && prodParts.every(p => selectedParts.has(p.id));
 
           return (
-          <div style={{ background:darkMode?"#0f1218":"#f6f9fc",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
+          <div style={{ background:darkMode?"transparent":"#f6f9fc",borderRadius:16,padding:"28px 24px",margin:"-8px -4px",minHeight:"60vh" }}>
 
             {/* Back button */}
             <button onClick={() => { setSelectedProduct(null); selectNone(); }}
