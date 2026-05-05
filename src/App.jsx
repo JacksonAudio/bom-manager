@@ -1,8 +1,18 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.40
-// Tuesday, May 5, 2026 - 2:49PM
+// src/App.jsx — Jackson Audio BOM Manager v10.41
+// Tuesday, May 5, 2026 - 2:58PM
 //
 // Changelog:
+//   [v10.41] Product detail title section — dark-mode cohesion. Three
+//       <select> inputs (Brand, Shopify, Zoho) had hardcoded "1px solid
+//       #e5e5ea" borders that always rendered light, mismatching the
+//       surrounding inputs which already used a darkMode ternary. The two
+//       "×" separators in the Box Dims row were color:"#e3e8ee" hardcoded
+//       and effectively invisible on dark. The Duplicate / Delete /
+//       Preview Sticker / Preview Box Label buttons each had onMouseOut
+//       handlers that snapped borderColor (and color, for Delete) back to
+//       the light-mode hex on hover-out — so every hover/unhover broke
+//       the dark theme. Threaded darkMode through all of these.
 //   [v10.40] CRITICAL FIX: product-page BOM import was silently dropping
 //       any row whose MPN already existed in the global parts table — even
 //       if that MPN was only on a different product's BOM. Root cause:
@@ -138,8 +148,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.40";
-const BUILD_TIME   = "2026-05-05T14:49:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.41";
+const BUILD_TIME   = "2026-05-05T14:58:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -12023,7 +12033,7 @@ function BOMManager({ user }) {
                     style={{ background:"none",border:`1px solid ${darkMode?"#1f2530":"#e3e8ee"}`,borderRadius:6,cursor:"pointer",padding:"4px 10px",
                       fontSize:12,color:darkMode?"#8a93a3":"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
                     onMouseOver={e=>e.currentTarget.style.borderColor="#58a6ff"}
-                    onMouseOut={e=>e.currentTarget.style.borderColor="#e3e8ee"}>
+                    onMouseOut={e=>e.currentTarget.style.borderColor=darkMode?"#1f2530":"#e3e8ee"}>
                     Duplicate
                   </button>
                   <button title="Delete product"
@@ -12043,7 +12053,7 @@ function BOMManager({ user }) {
                     style={{ background:"none",border:`1px solid ${darkMode?"#1f2530":"#e3e8ee"}`,borderRadius:6,cursor:"pointer",padding:"4px 10px",
                       fontSize:12,color:darkMode?"#8a93a3":"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
                     onMouseOver={e=>{e.currentTarget.style.borderColor="#ff3b30";e.currentTarget.style.color="#ff3b30"}}
-                    onMouseOut={e=>{e.currentTarget.style.borderColor="#e3e8ee";e.currentTarget.style.color="#64748d"}}>
+                    onMouseOut={e=>{e.currentTarget.style.borderColor=darkMode?"#1f2530":"#e3e8ee";e.currentTarget.style.color=darkMode?"#8a93a3":"#64748d"}}>
                     Delete
                   </button>
                   <div style={{ width:1,height:20,background:darkMode?"#1f2530":"#e3e8ee",margin:"0 4px" }} />
@@ -12057,7 +12067,7 @@ function BOMManager({ user }) {
                     style={{ background:"none",border:`1px solid ${darkMode?"#1f2530":"#e3e8ee"}`,borderRadius:6,cursor:"pointer",padding:"4px 10px",
                       fontSize:12,color:darkMode?"#8a93a3":"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
                     onMouseOver={e=>e.currentTarget.style.borderColor="#7ab8d4"}
-                    onMouseOut={e=>e.currentTarget.style.borderColor="#e3e8ee"}>
+                    onMouseOut={e=>e.currentTarget.style.borderColor=darkMode?"#1f2530":"#e3e8ee"}>
                     Preview Sticker
                   </button>
                   <button title="Preview box label"
@@ -12070,7 +12080,7 @@ function BOMManager({ user }) {
                     style={{ background:"none",border:`1px solid ${darkMode?"#1f2530":"#e3e8ee"}`,borderRadius:6,cursor:"pointer",padding:"4px 10px",
                       fontSize:12,color:darkMode?"#8a93a3":"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
                     onMouseOver={e=>e.currentTarget.style.borderColor="#7ab8d4"}
-                    onMouseOut={e=>e.currentTarget.style.borderColor="#e3e8ee"}>
+                    onMouseOut={e=>e.currentTarget.style.borderColor=darkMode?"#1f2530":"#e3e8ee"}>
                     Preview Box Label
                   </button>
                 </div>
@@ -12094,7 +12104,7 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
                 <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                   <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>Brand:</span>
-                  <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#161a22":"#fff",minWidth:120 }}
+                  <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:`1px solid ${darkMode?"#1f2530":"#e5e5ea"}`,color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#161a22":"#fff",minWidth:120 }}
                     value={prod.brand || "Jackson Audio"}
                     onChange={async (e) => {
                       const val = e.target.value;
@@ -12161,7 +12171,7 @@ function BOMManager({ user }) {
                 {shopifyProducts.length > 0 && (
                   <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                     <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>Shopify:</span>
-                    <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#161a22":"#fff",minWidth:120 }}
+                    <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:`1px solid ${darkMode?"#1f2530":"#e5e5ea"}`,color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#161a22":"#fff",minWidth:120 }}
                       value={prod.shopifyProductId || ""}
                       onChange={async (e) => {
                         const val = e.target.value || null;
@@ -12179,7 +12189,7 @@ function BOMManager({ user }) {
                 {zohoDemand?.products?.length > 0 && (
                   <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                     <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>Zoho:</span>
-                    <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#161a22":"#fff",minWidth:120 }}
+                    <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:`1px solid ${darkMode?"#1f2530":"#e5e5ea"}`,color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#161a22":"#fff",minWidth:120 }}
                       value={prod.zohoProductId || ""}
                       onChange={async (e) => {
                         const val = e.target.value || null;
@@ -12220,9 +12230,9 @@ function BOMManager({ user }) {
                     <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",padding:"6px 0",borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                       <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>Box Dims:</span>
                       {dimInput("L", "length_in", "in")}
-                      <span style={{ color:"#e3e8ee",fontSize:10 }}>×</span>
+                      <span style={{ color:darkMode?"#3a3f51":"#e3e8ee",fontSize:10 }}>×</span>
                       {dimInput("W", "width_in", "in")}
-                      <span style={{ color:"#e3e8ee",fontSize:10 }}>×</span>
+                      <span style={{ color:darkMode?"#3a3f51":"#e3e8ee",fontSize:10 }}>×</span>
                       {dimInput("H", "height_in", "in")}
                       {dimInput("Wt", "weight_lbs", "lbs")}
                       {(pkg.length_in > 0 && pkg.width_in > 0 && pkg.height_in > 0) && (
