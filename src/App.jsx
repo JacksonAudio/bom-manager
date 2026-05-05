@@ -1,8 +1,11 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.43
-// Tuesday, May 5, 2026 - 5:27PM
+// src/App.jsx — Jackson Audio BOM Manager v10.44
+// Tuesday, May 5, 2026 - 5:35PM
 //
 // Changelog:
+//   [v10.44] slack-test endpoint now accepts { slack_user_id } to bypass
+//       the email lookup. Useful when the bot only has chat:write but not
+//       users:read.email — paste a user's Slack member ID and DM directly.
 //   [v10.43] Slack notification plumbing added to api/notifications.js.
 //       Two new ?type= cases:
 //         - "slack-test": fires a DM to a recipient (default brad@) so we
@@ -175,8 +178,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.43";
-const BUILD_TIME   = "2026-05-05T17:27:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.44";
+const BUILD_TIME   = "2026-05-05T17:35:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";

@@ -414,16 +414,29 @@ async function slackPostDm(token, slackUserId, text) {
 }
 
 // ── Slack Test — confirm bot can DM Brad end-to-end ─────────────────────────
+// Accepts either { email } (requires users:read.email scope on the bot) or
+// { slack_user_id } (bypasses lookup; works with just chat:write).
 async function handleSlackTest(req, res) {
   const recipientEmail = (req.body && req.body.email) || "brad@jacksonaudio.net";
+  const slackUserIdOverride = req.body && req.body.slack_user_id;
   const { token, error: tokenErr } = await getSlackBotToken();
   if (!token) return res.status(500).json({ ok: false, step: "token", error: tokenErr });
-  const lookup = await slackLookupUserId(token, recipientEmail);
-  if (!lookup.ok) return res.status(500).json({ ok: false, step: "lookup", error: lookup.error, recipientEmail });
+
+  let userId, name;
+  if (slackUserIdOverride) {
+    userId = slackUserIdOverride;
+    name = "(direct ID)";
+  } else {
+    const lookup = await slackLookupUserId(token, recipientEmail);
+    if (!lookup.ok) return res.status(500).json({ ok: false, step: "lookup", error: lookup.error, recipientEmail });
+    userId = lookup.userId;
+    name = lookup.name;
+  }
+
   const text = `:bell: Test DM from BOM Manager — login alerts are wired up. If you see this, Slack notifications work end-to-end. (${new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" })} CT)`;
-  const slackResp = await slackPostDm(token, lookup.userId, text);
+  const slackResp = await slackPostDm(token, userId, text);
   if (!slackResp.ok) return res.status(500).json({ ok: false, step: "post", error: slackResp.error, slack_response: slackResp });
-  return res.status(200).json({ ok: true, recipient: recipientEmail, slack_user: lookup.userId, slack_name: lookup.name, ts: slackResp.ts });
+  return res.status(200).json({ ok: true, recipient: slackUserIdOverride ? "(direct ID)" : recipientEmail, slack_user: userId, slack_name: name, ts: slackResp.ts });
 }
 
 // ── Auth Login Alert — fired by Postgres trigger when a watched user logs in
