@@ -1,8 +1,13 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.47
-// Tuesday, May 5, 2026 - 6:01PM
+// src/App.jsx — Jackson Audio BOM Manager v10.48
+// Tuesday, May 5, 2026 - 6:18PM
 //
 // Changelog:
+//   [v10.48] Slack section moved from Integrations tab → Admin tab AND gated
+//       to brad@jacksonaudio.net only. Other admins (Juan, future admins)
+//       cannot see or edit the bot token or the member ID that controls
+//       where DMs are routed. Email-based gate, not role-based, so it
+//       can't be bypassed by escalating someone to admin.
 //   [v10.47] Slack section copy sanitized. Removed any reference to "login
 //       alerts" / "watch list" from the visible description and field help
 //       so the section reads as a generic notifications integration. The
@@ -191,8 +196,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.47";
-const BUILD_TIME   = "2026-05-05T18:01:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.48";
+const BUILD_TIME   = "2026-05-05T18:18:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -21069,8 +21074,16 @@ function BOMManager({ user }) {
               </div>}
             </div>}
 
-            {/* ── Slack — Notifications */}
-            {settingsTab === "integrations" && <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+            {/* ── Slack — Notifications (Admin tab, owner-only)
+                Owner-only: this card is intentionally hidden from every other
+                user, including admins. The slack_alert_user_id field controls
+                where DMs from this app are routed — letting any admin edit it
+                would let them redirect alerts to themselves. Owner email is
+                hardcoded rather than role-based so the gate can't be lifted
+                via a team_members role change. Lives on the Admin tab (not
+                Integrations) so it doesn't even appear in the list of cards
+                non-owners scroll past. */}
+            {settingsTab === "admin" && user?.email?.toLowerCase() === "brad@jacksonaudio.net" && <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
               <div style={{ background:darkMode?"#161a22":"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("slack") ? s.delete("slack") : s.add("slack"); return s; })}>
                 <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:darkMode?"#e8ebf0":"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
