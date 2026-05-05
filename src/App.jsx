@@ -1,8 +1,15 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.48
-// Tuesday, May 5, 2026 - 6:18PM
+// src/App.jsx — Jackson Audio BOM Manager v10.49
+// Tuesday, May 5, 2026 - 6:32PM
 //
 // Changelog:
+//   [v10.49] Slack section save now protects the bot token. Custom save
+//       handler strips slack_bot_token from the payload when the field is
+//       empty (which is its default rendered state — password inputs never
+//       display saved values). Prevents clobbering the saved token by
+//       clicking Save without typing one. Added inline help text and a
+//       hint that reads "Bot token field is empty — saved token stays
+//       untouched."
 //   [v10.48] Slack section moved from Integrations tab → Admin tab AND gated
 //       to brad@jacksonaudio.net only. Other admins (Juan, future admins)
 //       cannot see or edit the bot token or the member ID that controls
@@ -196,8 +203,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.48";
-const BUILD_TIME   = "2026-05-05T18:18:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.49";
+const BUILD_TIME   = "2026-05-05T18:32:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -21099,14 +21106,48 @@ function BOMManager({ user }) {
                   Find your member ID in Slack: click your avatar → <em>Profile</em> → <em>…</em> menu → <em>Copy member ID</em>. Format: <code>U12ABCD3456</code>.
                 </p>
                 <div className="key-input-row">
-                  <div><div className="key-label">Bot token</div><div className="key-hint">xoxb-... (Slack app → OAuth & Permissions)</div></div>
+                  <div><div className="key-label">Bot token</div><div className="key-hint">xoxb-... (leave blank to keep the saved token)</div></div>
                   <input type="password" value={apiKeys.slack_bot_token||""} onChange={e=>setApiKeys(k=>({...k,slack_bot_token:e.target.value}))} placeholder="xoxb-..." style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
                 <div className="key-input-row">
                   <div><div className="key-label">Your Slack member ID</div><div className="key-hint">Where Slack DMs from this app are sent</div></div>
                   <input type="text" value={apiKeys.slack_alert_user_id||""} onChange={e=>setApiKeys(k=>({...k,slack_alert_user_id:e.target.value}))} placeholder="U06GNFC0JA3" style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
-                {sectionSaveBtn("slack", "Slack Settings")}
+                {/* Custom Save button — protects against the password field "looks empty" UX gotcha.
+                    <input type="password"> never displays a saved value, so the Bot token field
+                    appears blank on every page load even when api_keys has a token. Calling
+                    saveAllApiKeys with apiKeys.slack_bot_token === "" would clobber the saved
+                    token. We strip it from the payload when empty so the DB row is left alone. */}
+                <div style={{ marginTop:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap" }}>
+                  <button className="btn-primary" style={{ fontSize:12,padding:"7px 18px" }}
+                    disabled={settingsSaving === "slack"}
+                    onClick={async () => {
+                      setSettingsSaving("slack"); setSettingsSaved("");
+                      try {
+                        const payload = { ...apiKeys };
+                        if (!apiKeys.slack_bot_token || !apiKeys.slack_bot_token.trim()) {
+                          delete payload.slack_bot_token; // don't overwrite saved value with empty
+                        }
+                        await saveAllApiKeys(payload, user.id);
+                        authenticateAPIs();
+                        setSettingsSaved("slack");
+                        setTimeout(() => setSettingsSaved(s => s === "slack" ? "" : s), 3000);
+                      } catch (e) {
+                        console.error("Slack save failed:", e);
+                        alert("Save failed: " + e.message);
+                      } finally {
+                        setSettingsSaving("");
+                      }
+                    }}>
+                    {settingsSaving === "slack" ? "Saving…" : "Save Slack Settings"}
+                  </button>
+                  {settingsSaved === "slack" && <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>✓ Saved</span>}
+                  {!apiKeys.slack_bot_token && (
+                    <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontStyle:"italic" }}>
+                      Bot token field is empty — saved token stays untouched.
+                    </span>
+                  )}
+                </div>
                 <div style={{ marginTop:10,display:"flex",alignItems:"center",gap:10 }}>
                   <button style={{ fontSize:12,padding:"7px 18px",borderRadius:100,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${darkMode?"#1f2530":"#e3e8ee"}`,background:"transparent",color:darkMode?"#7ab8d4":"#1a7a8a" }}
                     disabled={!apiKeys.slack_alert_user_id || apiTestResult.slack?.status === "testing"}
