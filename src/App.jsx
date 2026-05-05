@@ -1,8 +1,17 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.35
+// src/App.jsx — Jackson Audio BOM Manager v10.36
 // Tuesday, May 5, 2026
 //
 // Changelog:
+//   [v10.36] Safari 100%-zoom layout fix on the product detail header.
+//       The title row was a flex container without flex-wrap, so when
+//       the brand pill + Duplicate/Delete/Preview-Sticker/Preview-Box-
+//       Label buttons exceeded the available width, Safari shrank the
+//       <h2> below its natural word-break threshold and rendered "Custom
+//       Shop OCD V1.4 - New" one word per line. Added flex-wrap:wrap so
+//       the trailing buttons drop to a second line when narrow; added
+//       whiteSpace:nowrap on the <h2> so it never breaks mid-name; and
+//       flexShrink:0 on the brand color dot so it stays a circle.
 //   [v10.35] Dark-mode contrast hotfixes for v10.34 + brand-pill cleanup:
 //       (a) Shelf Status tile bg #fafbfc wasn't caught by the dark
 //           background overrides — tiles stayed near-white and washed
@@ -41,8 +50,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.35";
-const BUILD_TIME   = "2026-05-05T02:15:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.36";
+const BUILD_TIME   = "2026-05-05T02:30:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -11827,9 +11836,17 @@ function BOMManager({ user }) {
             {/* Header */}
             <div style={{ display:"flex",alignItems:"flex-start",gap:16,marginBottom:28,flexWrap:"wrap" }}>
               <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
-                  <span style={{ display:"inline-block",width:12,height:12,borderRadius:"50%",background:prod.color }} />
-                  <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f6f9fc":"#061b31",margin:0 }}>
+                {/* Title row: wraps so the brand pill + Duplicate / Delete /
+                    Preview Sticker / Preview Box Label buttons drop to a
+                    second line when the viewport is narrow, instead of
+                    squishing the <h2> past its word-break point. Safari
+                    at 100% zoom on a 13" laptop hit that threshold and
+                    rendered "Custom Shop OCD V1.4 - New" one word per
+                    line — flex-wrap: wrap fixes it. The h2 also gets
+                    whiteSpace:nowrap so it never word-breaks itself. */}
+                <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6,flexWrap:"wrap" }}>
+                  <span style={{ display:"inline-block",width:12,height:12,borderRadius:"50%",background:prod.color,flexShrink:0 }} />
+                  <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f6f9fc":"#061b31",margin:0,whiteSpace:"nowrap" }}>
                     {prod.name}
                   </h2>
                   {prod.brand && prod.brand !== "Jackson Audio" && (() => {
