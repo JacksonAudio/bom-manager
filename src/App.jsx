@@ -1,8 +1,31 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.34
+// src/App.jsx — Jackson Audio BOM Manager v10.35
 // Tuesday, May 5, 2026
 //
 // Changelog:
+//   [v10.35] Dark-mode contrast hotfixes for v10.34 + brand-pill cleanup:
+//       (a) Shelf Status tile bg #fafbfc wasn't caught by the dark
+//           background overrides — tiles stayed near-white and washed
+//           out the colored numbers. Added selectors for fafbfc, f6f9fc,
+//           fafafa, f8f9fa (every near-white shade BOM uses inline).
+//       (b) The blanket dark-text rule was forcing every span/div to
+//           ink-100 with !important, which killed the deliberate inline
+//           status colors on numbers. Switched to :not([style*="color"])
+//           so inline colors survive — Shelf Status numbers now show
+//           in their semantic blue/green/orange.
+//       (c) Warning copy used #bf6800 (dim coffee-orange) which read fine
+//           on white but disappeared on dark. Mapped to #d29922 status-okay
+//           in dark mode so urgency reads at a glance. Also lifted #ff9500
+//           one tick brighter (#ffa940) for the same reason.
+//       (d) Product header brand pill ("Fulltone USA" badge next to the
+//           product title) was a saturated purple-violet (#5856d6) that
+//           didn't fit the BM design language. Switched to a brand-aware
+//           tinted pill: colored text on rgba(brand,0.15) bg with a
+//           faint brand-color border. Fulltone gold (#c9a45c), Jackson
+//           blue (#7ab8d4) — matches BM's status-pill pattern.
+//       (e) 110 leftover #5856d6 occurrences (chart palettes, secondary
+//           accents, misc badges) → #7ab8d4. Drops the purple from the
+//           app entirely per Brad's standing "no purple" rule.
 //   [v10.34] Visual unification with Marketing Manager + Business Manager.
 //       Dark mode now uses the BM "mission-control" palette: canvas-900
 //       (#0a0c10) deepest bg, canvas-800 (#0f1218) cards, canvas-700
@@ -18,8 +41,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.34";
-const BUILD_TIME   = "2026-05-05T01:55:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.35";
+const BUILD_TIME   = "2026-05-05T02:15:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -234,7 +257,7 @@ const isLockedSupplier = (supplier) => supplier && LOCKED_SUPPLIERS.has(supplier
 // Derive where a part's data came from based on which pricing keys are populated
 function getPartDataSource(part) {
   const p = part.pricing || {};
-  if (p.nexar?.lastFetched)              return { label:"Nexar API", color:"#5856d6" };
+  if (p.nexar?.lastFetched)              return { label:"Nexar API", color:"#7ab8d4" };
   if (p.mouser?.mouserPartNumber)        return { label:"Mouser API", color:"#e8251a" };
   if (p.digikey?.digiKeyPartNumber || p.digikey?.url) return { label:"DigiKey API", color:"#c41230" };
   if (p.lcsc?.lcscPartNumber || p.lcsc?.url) return { label:"LCSC API", color:"#2cb5ea" };
@@ -1551,10 +1574,18 @@ const CSS = `
   /* Product/pricing/purchasing row items */
   .dark main div[style] { border-color: #161a22 !important; }
 
-  /* All white backgrounds → dark */
+  /* All white / very-light backgrounds → dark.
+     Need to catch ALL the near-white shades BOM uses inline for tiles,
+     panels, alt-row stripes etc. Without these, light tiles stayed white
+     in dark mode and washed out the colored numbers on top. */
   .dark [style*="background"][style*="fff"] { background: #0f1218 !important; }
+  .dark [style*="background"][style*="#fff"] { background: #0f1218 !important; }
+  .dark [style*="background"][style*="fafbfc"] { background: #161a22 !important; }
+  .dark [style*="background"][style*="f6f9fc"] { background: #161a22 !important; }
   .dark [style*="background"][style*="f5f5f7"] { background: #0a0c10 !important; }
   .dark [style*="background"][style*="f5f5f7"] > div { background: #0f1218 !important; }
+  .dark [style*="background"][style*="fafafa"] { background: #161a22 !important; }
+  .dark [style*="background"][style*="f8f9fa"] { background: #161a22 !important; }
 
   /* Borders */
   .dark [style*="border"][style*="e5e5ea"] { border-color: #1f2530 !important; }
@@ -1564,18 +1595,42 @@ const CSS = `
   /* Box shadows */
   .dark [style*="box-shadow"] { box-shadow: 0 1px 4px rgba(0,0,0,0.4) !important; }
 
-  /* Force ALL text inside dark mode to be light */
-  .dark main div, .dark main span, .dark main a, .dark main li, .dark main ol,
-  .dark main td, .dark main th, .dark main label, .dark footer div, .dark footer span {
-    color: #f6f9fc !important;
+  /* Force most text inside dark mode to be light — but NOT elements that
+     already have an inline color set, otherwise we kill the deliberate
+     status colors (the colored Shelf-Status numbers, the orange "needs
+     restock" warning text, the red error indicators, etc.) The
+     :not([style*="color"]) attribute selector preserves any inline color. */
+  .dark main div:not([style*="color"]), .dark main span:not([style*="color"]),
+  .dark main a:not([style*="color"]), .dark main li:not([style*="color"]),
+  .dark main ol:not([style*="color"]),
+  .dark main td:not([style*="color"]), .dark main th:not([style*="color"]),
+  .dark main label:not([style*="color"]),
+  .dark footer div:not([style*="color"]), .dark footer span:not([style*="color"]) {
+    color: #e8ebf0 !important;
   }
-  /* Restore subdued text for items that should be dimmer — exclude buttons
-     so their explicit color:#fff isn't overridden by !important */
-  .dark main :not(button)[style*="font-size: 12px"], .dark main :not(button)[style*="fontSize:12"],
-  .dark main :not(button)[style*="font-size: 11px"], .dark main :not(button)[style*="fontSize:11"],
-  .dark main :not(button)[style*="font-size: 10px"], .dark main :not(button)[style*="fontSize:10"],
-  .dark main :not(button)[style*="font-size: 9px"],  .dark main :not(button)[style*="fontSize:9"] {
+  /* Subdued text for small font sizes — same exclusion so an inline
+     accent color (orange warning, etc.) isn't squashed to dim gray. */
+  .dark main :not(button):not([style*="color"])[style*="font-size: 12px"],
+  .dark main :not(button):not([style*="color"])[style*="fontSize:12"],
+  .dark main :not(button):not([style*="color"])[style*="font-size: 11px"],
+  .dark main :not(button):not([style*="color"])[style*="fontSize:11"],
+  .dark main :not(button):not([style*="color"])[style*="font-size: 10px"],
+  .dark main :not(button):not([style*="color"])[style*="fontSize:10"],
+  .dark main :not(button):not([style*="color"])[style*="font-size: 9px"],
+  .dark main :not(button):not([style*="color"])[style*="fontSize:9"] {
     color: #8a93a3 !important;
+  }
+  /* Brighten too-dark inline warning oranges so they pop on the canvas-900
+     background. The light-mode design used #bf6800 (a dim coffee-orange)
+     for "needs restock" body copy — that's nearly invisible on dark. Map
+     it to status-okay so the urgency reads at a glance. */
+  .dark main [style*="color: #bf6800"], .dark main [style*="color:#bf6800"] {
+    color: #d29922 !important;
+  }
+  /* And lift the brand orange one tick brighter on dark for the same
+     reason — the source value is fine in light, slightly muddy on dark. */
+  .dark main [style*="color: #ff9500"], .dark main [style*="color:#ff9500"] {
+    color: #ffa940 !important;
   }
   /* ALL buttons in dark mode get white text */
   #root .dark main button { color: #fff !important; }
@@ -3691,7 +3746,7 @@ function BOMManager({ user }) {
   // ── Add a new Product (writes to DB, realtime updates all sessions)
   const addProduct = async () => {
     if (!newProjName.trim()) return;
-    const colors = ["#ff9500","#5856d6","#ff3b30","#34c759","#58a6ff","#ff9500","#ff2d55"];
+    const colors = ["#ff9500","#7ab8d4","#ff3b30","#34c759","#58a6ff","#ff9500","#ff2d55"];
     const color  = colors[products.length % colors.length];
     const name   = newProjName.trim();
     setNewProjName(""); // clear immediately for responsiveness
@@ -5655,7 +5710,7 @@ function BOMManager({ user }) {
         {[
           { id:"dashboard", label:"Dashboard", step:null, color:null },
           { id:"bom",       label:`Parts (${parts.length})`, step:1, color:"#58a6ff" },
-          { id:"projects",  label:"Products",   step:2, color:"#5856d6" },
+          { id:"projects",  label:"Products",   step:2, color:"#7ab8d4" },
           { id:"pricing",   label:`Pricing${pricedCount>0?` (${pricedCount}/${parts.length})`:""}`, step:3, color:"#ff9500" },
           { id:"demand",    label:`Orders${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)?` (${(shopifyDemand?.totalOrders||0)+(zohoDemand?.totalOrders||0)})`:""}`, step:4, color:"#34c759" },
           { id:"purchasing",label:`Purchasing${buildQueue.length>0?` (${buildQueue.length})`:""}`, step:5, color:"#ff3b30" },
@@ -5698,7 +5753,7 @@ function BOMManager({ user }) {
                 { label:"Inventory Value", value:`$${fmtDollar(inventoryValue)}`, sub:`${totalStockParts} parts, ${totalStockUnits.toLocaleString()} units`, color:"#58a6ff", nav:"bom" },
                 { label:"Parts Stocked", value:parts.filter(p=>(parseInt(p.stockQty)||0)>0).length, sub:"Parts with stock on hand", color:"#34c759", nav:"bom" },
                 { label:"Parts to Order", value:poPartCount, sub:poPartCount>0?`across ${Object.keys(purchaseOrders).length} suppliers`:"No orders pending", color:poPartCount>0?"#ff9500":"#34c759", nav:"purchasing" },
-                { label:"Products", value:products.length, sub:`${pricedCount}/${parts.length} parts priced`, color:"#5856d6", nav:"projects" },
+                { label:"Products", value:products.length, sub:`${pricedCount}/${parts.length} parts priced`, color:"#7ab8d4", nav:"projects" },
                 ...(shopifyDemand?.totalOrders ? [{ label:"Shopify Orders", value:shopifyDemand.totalOrders, sub:"Direct / consumer", color:"#96bf48", nav:"demand" }] : []),
                 ...(zohoDemand?.totalOrders ? [{ label:"Zoho Orders", value:zohoDemand.totalOrders, sub:"Dealer / wholesale", color:"#4bc076", nav:"demand" }] : []),
               ].map((card) => (
@@ -5762,7 +5817,7 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",flexWrap:"wrap",alignItems:"flex-start",gap:0 }}>
                 {[
                   { step:1, title:"Add Parts", desc:"Import CSV, use Component Library, or Quick Add from a supplier URL to auto-fetch pricing, datasheets, and specs.", tab:"bom", color:"#58a6ff" },
-                  { step:2, title:"Create Products", desc:"Group parts into products (pedals, amps, etc). Assign each part to the product it belongs to.", tab:"projects", color:"#5856d6" },
+                  { step:2, title:"Create Products", desc:"Group parts into products (pedals, amps, etc). Assign each part to the product it belongs to.", tab:"projects", color:"#7ab8d4" },
                   { step:3, title:"Get Pricing", desc:"Live quotes from 900+ distributors. Landed costs include tariffs by country of origin. Mouser preferred within 5% of cheapest.", tab:"pricing", color:"#ff9500" },
                   { step:4, title:"Track Orders", desc:"Shopify + Zoho customer orders with due dates, fulfillment tracking, and ShipStation shipment data. See shelf coverage at a glance.", tab:"demand", color:"#34c759" },
                   { step:5, title:"Review & Purchase", desc:"Aggregated POs by supplier with tariff visibility and reel-aware ordering. Expensive reel parts prompt full reel vs. cut tape decisions with burn-time estimates.", tab:"purchasing", color:"#ff3b30" },
@@ -5970,7 +6025,7 @@ function BOMManager({ user }) {
               <div style={{ fontSize:16,fontWeight:700,color:"#061b31",marginBottom:14,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>Quick Actions</div>
               <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
                 <button className="btn-primary" onClick={()=>{setActiveView("bom");setShowImport(true);}}>Import BOM</button>
-                <button className="btn-primary" style={{ background:"#5856d6" }} onClick={()=>setActiveView("scan")}>Scan Parts</button>
+                <button className="btn-primary" style={{ background:"#7ab8d4" }} onClick={()=>setActiveView("scan")}>Scan Parts</button>
                 <button className="btn-ghost" onClick={()=>setActiveView("purchasing")}>View Purchase Orders</button>
                 <button className="btn-ghost" onClick={() => {
                   // Export full inventory report
@@ -6050,7 +6105,7 @@ function BOMManager({ user }) {
                               <td style={{ padding:"10px 12px",fontSize:12,color:darkMode?"#e2e8f0":"#061b31",fontWeight:600 }}>{snap.label || "Untitled"}</td>
                               <td style={{ padding:"10px 12px",fontSize:12 }}>
                                 {s.product_id
-                                  ? <span style={{ padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:600,background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>
+                                  ? <span style={{ padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:600,background:"rgba(88,86,214,0.1)",color:"#7ab8d4" }}>
                                       {(s.products && s.products[0]?.name) || "Product"}
                                     </span>
                                   : <span style={{ padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:600,background:"rgba(83,58,253,0.08)",color:"#58a6ff" }}>
@@ -6129,7 +6184,7 @@ function BOMManager({ user }) {
                                   {c.mpn}:
                                   {c.qtyDiff && <span style={{ color:"#58a6ff" }}> qty {c.oldQty}{"\u2192"}{c.newQty}</span>}
                                   {c.stockDiff && <span style={{ color:"#ff9500" }}> stock {c.oldStock}{"\u2192"}{c.newStock}</span>}
-                                  {c.priceDiff && <span style={{ color:"#5856d6" }}> price ${parseFloat(c.oldPrice||0).toFixed(4)}{"\u2192"}${parseFloat(c.newPrice||0).toFixed(4)}</span>}
+                                  {c.priceDiff && <span style={{ color:"#7ab8d4" }}> price ${parseFloat(c.oldPrice||0).toFixed(4)}{"\u2192"}${parseFloat(c.newPrice||0).toFixed(4)}</span>}
                                 </div>
                               ))}
                               {changed.length > 30 && <div style={{ fontSize:11,color:"#64748d" }}>...and {changed.length - 30} more</div>}
@@ -6202,7 +6257,7 @@ function BOMManager({ user }) {
                   <div style={{ marginBottom:16,padding:"16px 20px",background:darkMode?"#0f1218":"#f6f9fc",borderRadius:12,
                     border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                     <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10 }}>
-                      <div style={{ width:20,height:20,border:"3px solid #e3e8ee",borderTopColor:"#5856d6",borderRadius:"50%",animation:"spin 0.7s linear infinite" }} />
+                      <div style={{ width:20,height:20,border:"3px solid #e3e8ee",borderTopColor:"#7ab8d4",borderRadius:"50%",animation:"spin 0.7s linear infinite" }} />
                       <span style={{ fontSize:14,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>
                         {bulkInvoiceProgress
                           ? `Processing invoice ${bulkInvoiceProgress.done + 1} of ${bulkInvoiceProgress.total}...`
@@ -6229,7 +6284,7 @@ function BOMManager({ user }) {
                       <>
                         <div style={{ fontSize:12,color:"#64748d" }}>This may take 10-30 seconds for multi-page PDFs. Do not close this page.</div>
                         <div style={{ marginTop:10,height:4,background:darkMode?"#161a22":"#e5e5ea",borderRadius:2,overflow:"hidden" }}>
-                          <div style={{ height:"100%",background:"linear-gradient(90deg,#5856d6,#58a6ff)",borderRadius:2,
+                          <div style={{ height:"100%",background:"linear-gradient(90deg,#7ab8d4,#58a6ff)",borderRadius:2,
                             animation:"progressIndeterminate 1.5s ease-in-out infinite",width:"40%" }} />
                         </div>
                       </>
@@ -6241,7 +6296,7 @@ function BOMManager({ user }) {
                 <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:16 }}>
                   <label style={{ display:"inline-flex",alignItems:"center",gap:8,padding:"10px 20px",borderRadius:100,
                     fontSize:13,fontWeight:600,cursor:invoiceParsing?"not-allowed":"pointer",border:"none",
-                    background:invoiceParsing?"#8898aa":"#5856d6",color:"#fff",
+                    background:invoiceParsing?"#8898aa":"#7ab8d4",color:"#fff",
                     fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                     {invoiceParsing ? "Processing..." : "Upload Invoice"}
                     <input type="file" accept=".pdf,.csv,.txt,.tsv,.png,.jpg,.jpeg,.gif,.webp,image/*" style={{ display:"none" }}
@@ -6305,7 +6360,7 @@ function BOMManager({ user }) {
                 {/* Results */}
                 {invoiceResult && (
                   <div style={{ background:darkMode?"#0f1218":"#fff",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",borderRadius:12,overflow:"hidden",marginBottom:16 }}>
-                    <div style={{ background:"#5856d6",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                    <div style={{ background:"#7ab8d4",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                       <div>
                         <div style={{ fontWeight:700,fontSize:13,color:"#fff" }}>{invoiceResult.fileName}</div>
                         <div style={{ fontSize:11,color:"rgba(255,255,255,0.7)",marginTop:2 }}>
@@ -6332,7 +6387,7 @@ function BOMManager({ user }) {
                           const allChecked = invoiceResult.items.every(i=>i.apply);
                           setInvoiceResult(prev=>({...prev,items:prev.items.map(it=>({...it,apply:!allChecked}))}));
                         }}
-                        style={{ width:16,height:16,cursor:"pointer",accentColor:"#5856d6" }} />
+                        style={{ width:16,height:16,cursor:"pointer",accentColor:"#7ab8d4" }} />
                       <span style={{ fontSize:12,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>
                         Select All ({invoiceResult.items.length})
                       </span>
@@ -6342,7 +6397,7 @@ function BOMManager({ user }) {
                         borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",fontSize:13 }}>
                         <input type="checkbox" checked={item.apply}
                           onChange={()=>setInvoiceResult(prev=>({...prev,items:prev.items.map((it,i)=>i===idx?{...it,apply:!it.apply}:it)}))}
-                          style={{ width:16,height:16,cursor:"pointer",accentColor:"#5856d6",flexShrink:0 }} />
+                          style={{ width:16,height:16,cursor:"pointer",accentColor:"#7ab8d4",flexShrink:0 }} />
                         <div style={{ flex:1,minWidth:0 }}>
                           <div style={{ fontWeight:600 }}>{item.mpn||"—"}</div>
                           <div style={{ fontSize:11,color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{item.description||""}</div>
@@ -6417,7 +6472,7 @@ function BOMManager({ user }) {
                     const isProductImport = imp.import_type === "product-import";
                     const typeLabel = imp.import_type === "invoice-import" ? "Invoice" : isProductImport ? "Product BOM" : "Library";
                     const typeBg = imp.import_type === "invoice-import" ? "rgba(52,199,89,0.12)" : isProductImport ? "rgba(88,86,214,0.12)" : "rgba(0,122,255,0.1)";
-                    const typeColor = imp.import_type === "invoice-import" ? "#34c759" : isProductImport ? "#5856d6" : "#58a6ff";
+                    const typeColor = imp.import_type === "invoice-import" ? "#34c759" : isProductImport ? "#7ab8d4" : "#58a6ff";
                     return (
                       <div key={imp.id}>
                         <div style={{ display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:idx%2===0?(darkMode?"#0f1218":"#fff"):(darkMode?"#161a22":"#fafbfc"),cursor:"pointer",borderBottom:isExpanded?"none":(darkMode?"1px solid #1f2530":"1px solid #f0f0f2") }}
@@ -6693,7 +6748,7 @@ function BOMManager({ user }) {
               <span style={{ color:"#8898aa",fontSize:12,marginLeft:"auto" }}>{visibleParts.length}/{parts.length} parts</span>
               <button className="btn-ghost btn-sm" onClick={()=>setShowImport(!showImport)}>{showImport ? "Close Import" : "+ Import"}</button>
               <button className="btn-ghost btn-sm" onClick={()=>{ setShowQuickUrl(!showQuickUrl); if(showQuickUrl){ setQuickUrlResult(null); setQuickUrlError(""); }}} style={{ color:"#34c759" }}>{showQuickUrl ? "Close Quick Add" : "Quick Add URL"}</button>
-              <button className="btn-ghost btn-sm" onClick={()=>setShowResGen(!showResGen)} style={{ color:"#5856d6" }}>{showResGen ? "Close Component Library" : "Component Library"}</button>
+              <button className="btn-ghost btn-sm" onClick={()=>setShowResGen(!showResGen)} style={{ color:"#7ab8d4" }}>{showResGen ? "Close Component Library" : "Component Library"}</button>
               <button className="btn-ghost btn-sm" style={{ color:"#e8500a" }} onClick={async () => {
                 // Phase 1: scan pricing cache for FactoryPackQty / MultPackQty
                 setReelFillModal({ phase:"scanning", rows:[], checkedIds:new Set(), apiCount:0, cacheCount:0 });
@@ -6797,7 +6852,7 @@ function BOMManager({ user }) {
                   setReelFillModal(prev => prev ? { ...prev, phase:"preview" } : null);
                 }
               }}>Auto-Fill Reel Quantities</button>
-              <button className="btn-ghost btn-sm" style={{ color:"#5856d6" }} onClick={async () => {
+              <button className="btn-ghost btn-sm" style={{ color:"#7ab8d4" }} onClick={async () => {
                 // Backfill footprint + voltage_rating from already-stored pricing.mouser data — no API calls
                 // Also derive caseCode via extractPackageCode if not stored (older cached data)
                 const toUpdate = parts.filter(p => {
@@ -6848,7 +6903,7 @@ function BOMManager({ user }) {
                   setReelTestModal({ status:"error", mpn: TEST_MPN, result: null, error: e.message, source:"Mouser" });
                 }
               }}>🧪 Test Mouser API</button>
-              <button className="btn-ghost btn-sm" style={{ color:"#5856d6" }} onClick={async () => {
+              <button className="btn-ghost btn-sm" style={{ color:"#7ab8d4" }} onClick={async () => {
                 const TEST_MPN = "0603WAF2204T5E";
                 if (!apiKeys.nexar_client_id || !apiKeys.nexar_client_secret) {
                   setReelTestModal({ status:"error", mpn: TEST_MPN, result: null, error: "No Nexar credentials configured. Add nexar_client_id and nexar_client_secret in Settings.", source:"Nexar" });
@@ -6865,7 +6920,7 @@ function BOMManager({ user }) {
                   setReelTestModal({ status:"error", mpn: TEST_MPN, result: null, error: e.message, source:"Nexar" });
                 }
               }}>🧪 Test Nexar API</button>
-              <button className="btn-ghost btn-sm" style={{ color:"#5856d6" }} onClick={() => {
+              <button className="btn-ghost btn-sm" style={{ color:"#7ab8d4" }} onClick={() => {
                 // ── Value formatting rules ──────────────────────────────
                 // Capacitance : always uF/nF/pF (no µ symbol, must be searchable)
                 // Resistance  : <1000Ω → NNR (e.g. 470R, 820R)
@@ -7587,7 +7642,7 @@ function BOMManager({ user }) {
 
               return (
                 <div style={{ marginBottom:12,padding:"16px 20px",background:"#fff",borderRadius:10,border:"1px solid #d5d0f0",boxShadow:"0 1px 4px rgba(88,86,214,0.1)" }}>
-                  <div style={{ fontSize:14,fontWeight:700,marginBottom:4,color:"#5856d6" }}>Component Library</div>
+                  <div style={{ fontSize:14,fontWeight:700,marginBottom:4,color:"#7ab8d4" }}>Component Library</div>
                   <p style={{ color:"#64748d",fontSize:12,marginBottom:10 }}>Quick-import verified libraries or search Nexar for any component.</p>
 
                   {/* Quick Import Buttons */}
@@ -7614,7 +7669,7 @@ function BOMManager({ user }) {
                         }catch(e){alert("Load failed: "+e.message);}
                       }}
                         style={{ padding:"8px 16px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",
-                          border:"1px solid #5856d6",background:"rgba(88,86,214,0.06)",color:"#5856d6" }}>
+                          border:"1px solid #7ab8d4",background:"rgba(88,86,214,0.06)",color:"#7ab8d4" }}>
                         {lib.label} ({lib.count})
                       </button>
                     ))}
@@ -7644,7 +7699,7 @@ function BOMManager({ user }) {
                         <button key={s.id} title={s.tip} onClick={() => setCompSearchSource(s.id)}
                           style={{ padding:"7px 12px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",
                             borderLeft:i>0?"1px solid #e3e8ee":"none",
-                            background:compSearchSource===s.id?"#5856d6":"transparent",
+                            background:compSearchSource===s.id?"#7ab8d4":"transparent",
                             color:compSearchSource===s.id?"#fff":"#64748d",transition:"all 0.15s" }}>
                           {s.label}
                         </button>
@@ -7657,7 +7712,7 @@ function BOMManager({ user }) {
                     </div>
                     <button onClick={handleCompSearch} disabled={compSearchLoading || (!nexarToken && (compSearchSource !== "mouser")) || (compSearchSource === "mouser" && !apiKeys.mouser_api_key)}
                       style={{ padding:"9px 20px",borderRadius:100,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
-                        border:"none",background:"#5856d6",color:"#fff",opacity:compSearchLoading?"0.5":"1",whiteSpace:"nowrap" }}>
+                        border:"none",background:"#7ab8d4",color:"#fff",opacity:compSearchLoading?"0.5":"1",whiteSpace:"nowrap" }}>
                       {compSearchLoading ? "Searching..." : "Search"}
                     </button>
                   </div>
@@ -7735,13 +7790,13 @@ function BOMManager({ user }) {
                       <div style={{ display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:10 }}>
                         <label style={{ display:"flex",alignItems:"center",gap:5,fontSize:12,cursor:"pointer" }}>
                           <input type="checkbox" checked={filteredAllSelected} onChange={toggleFilteredAll}
-                            style={{ width:14,height:14,accentColor:"#5856d6",cursor:"pointer" }} />
+                            style={{ width:14,height:14,accentColor:"#7ab8d4",cursor:"pointer" }} />
                           <span style={{ fontWeight:600 }}>Select All ({displayResults.length})</span>
                         </label>
                         {compSelectedParts.size > 0 && (
                           <button onClick={importSelected}
                             style={{ padding:"7px 18px",borderRadius:100,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
-                              border:"none",background:"#5856d6",color:"#fff" }}>
+                              border:"none",background:"#7ab8d4",color:"#fff" }}>
                             Import Selected ({compSelectedParts.size})
                           </button>
                         )}
@@ -7761,7 +7816,7 @@ function BOMManager({ user }) {
                               ].map(col => (
                                 <th key={col.id} onClick={() => toggleCompSort(col.id)}
                                   style={{ padding:"6px 10px",textAlign:"left",cursor:"pointer",userSelect:"none",whiteSpace:"nowrap",
-                                    color:compSort.field===col.id?"#5856d6":"inherit" }}>
+                                    color:compSort.field===col.id?"#7ab8d4":"inherit" }}>
                                   {col.label} {compSort.field===col.id ? (compSort.asc ? "▲" : "▼") : ""}
                                 </th>
                               ))}
@@ -7775,7 +7830,7 @@ function BOMManager({ user }) {
                                   onClick={()=>toggleOne(p.mpn)}>
                                   <td style={{ padding:"4px 8px",textAlign:"center" }}>
                                     <input type="checkbox" checked={compSelectedParts.has(p.mpn)} onChange={()=>toggleOne(p.mpn)}
-                                      style={{ width:13,height:13,accentColor:"#5856d6",cursor:"pointer" }} />
+                                      style={{ width:13,height:13,accentColor:"#7ab8d4",cursor:"pointer" }} />
                                   </td>
                                   <td style={{ padding:"4px 10px",fontWeight:600,color:"#58a6ff",fontFamily:"'SF Mono',monospace" }}>{p.mpn}</td>
                                   <td style={{ padding:"4px 10px" }}>{p.manufacturer}</td>
@@ -7931,7 +7986,7 @@ function BOMManager({ user }) {
                 </button>}
                 <button
                   onClick={() => { const sel = parts.filter(p => selectedParts.has(p.id)); console.log("[QR] Opening labels for", sel.length, "parts"); setQrModalParts(sel); }}
-                  style={{ background:"#5856d6",color:"#fff",border:"none",borderRadius:6,
+                  style={{ background:"#7ab8d4",color:"#fff",border:"none",borderRadius:6,
                     padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",
                     fontFamily:"'IBM Plex Sans',system-ui,sans-serif",display:"flex",alignItems:"center",gap:7 }}>
                   ⊞ Print QR Labels
@@ -8276,7 +8331,7 @@ function BOMManager({ user }) {
                                       </div>
                                     )}
                                     {part.url && <div>Order URL: <a href={part.url} target="_blank" rel="noopener noreferrer" style={{color:"#58a6ff",fontSize:11}}>Open →</a></div>}
-                                    {part.addedVia && <div>Added via: <span style={{ fontWeight:600,color:"#5856d6" }}>{{
+                                    {part.addedVia && <div>Added via: <span style={{ fontWeight:600,color:"#7ab8d4" }}>{{
                                       "manual":"Manual Entry", "quick-add-url":"Quick Add URL", "csv-import":"CSV/BOM Import",
                                       "invoice-import":"Invoice Scanner", "mouser-history":"Mouser Order History",
                                       "component-library":"Component Library",
@@ -8882,8 +8937,8 @@ function BOMManager({ user }) {
                                 <label style={{ display:"flex",alignItems:"center",gap:8,marginTop:8,marginBottom:10,cursor:"pointer",userSelect:"none" }}>
                                   <input type="checkbox" checked={customSupplierForm.exclusive || false}
                                     onChange={e=>setCustomSupplierForm(f=>({...f,exclusive:e.target.checked}))}
-                                    style={{ width:16,height:16,accentColor:"#5856d6",cursor:"pointer" }} />
-                                  <span style={{ fontSize:12,fontWeight:600,color:"#5856d6",letterSpacing:"0.3px" }}>EXCLUSIVE SUPPLIER</span>
+                                    style={{ width:16,height:16,accentColor:"#7ab8d4",cursor:"pointer" }} />
+                                  <span style={{ fontSize:12,fontWeight:600,color:"#7ab8d4",letterSpacing:"0.3px" }}>EXCLUSIVE SUPPLIER</span>
                                 </label>
 
                                 <div style={{ display:"flex",gap:8,marginTop:4 }}>
@@ -9439,7 +9494,7 @@ function BOMManager({ user }) {
                               {[d.part.description, d.part.value].filter(Boolean).join(" — ") || ""}
                               {d.products.length > 0 && (
                                 <span style={{ marginLeft:6 }}>
-                                  {d.products.map((p,i) => <span key={i} style={{ color:"#5856d6" }}>{i>0?", ":""}{p.name} ×{p.perUnit}</span>)}
+                                  {d.products.map((p,i) => <span key={i} style={{ color:"#7ab8d4" }}>{i>0?", ":""}{p.name} ×{p.perUnit}</span>)}
                                 </span>
                               )}
                             </div>
@@ -9485,7 +9540,7 @@ function BOMManager({ user }) {
                           </div>
                           <div style={{ flex:"0 0 auto",textAlign:"center",minWidth:120 }}>
                             {d.isInternal
-                              ? <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>IN-HOUSE</span>
+                              ? <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,background:"rgba(88,86,214,0.1)",color:"#7ab8d4" }}>IN-HOUSE</span>
                               : d.isSplitOrder
                               ? <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
                                   <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"2px 6px",borderRadius:4,background:"rgba(52,199,89,0.1)",color:"#34c759" }}>SPLIT ORDER</span>
@@ -9540,7 +9595,7 @@ function BOMManager({ user }) {
               {internalItems.length > 0 && (
                 <div style={{ background:"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:16 }}>
                   <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2",display:"flex",alignItems:"center",gap:10 }}>
-                    <span style={{ fontSize:10,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,background:"rgba(88,86,214,0.1)",color:"#5856d6" }}>IN-HOUSE</span>
+                    <span style={{ fontSize:10,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,background:"rgba(88,86,214,0.1)",color:"#7ab8d4" }}>IN-HOUSE</span>
                     <span style={{ fontSize:12,color:"#64748d" }}>{internalItems.length} items to produce internally</span>
                   </div>
                   {internalItems.map((d, idx) => (
@@ -9941,7 +9996,7 @@ function BOMManager({ user }) {
                 <p style={{ color:"#64748d",fontSize:13,marginBottom:8 }}>Track orders across all suppliers. Mouser cart orders are logged automatically.</p>
                 <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
                   <span style={{ fontSize:12,color:"#64748d" }}>Mobile Invoice Scanner:</span>
-                  <code style={{ fontSize:11,color:darkMode?"#f8d377":"#5856d6",background:darkMode?"#0f1218":"#f0f0f2",padding:"3px 8px",borderRadius:5,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
+                  <code style={{ fontSize:11,color:darkMode?"#f8d377":"#7ab8d4",background:darkMode?"#0f1218":"#f0f0f2",padding:"3px 8px",borderRadius:5,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
                     {window.location.origin + "/invoice"}
                   </code>
                   <button onClick={() => { navigator.clipboard.writeText(window.location.origin + "/invoice"); }}
@@ -10621,7 +10676,7 @@ function BOMManager({ user }) {
               {/* Summary stats */}
               <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:16,marginBottom:28 }}>
                 {[
-                  { label:"Total Suppliers", value:allSuppliers.length, color:"#5856d6" },
+                  { label:"Total Suppliers", value:allSuppliers.length, color:"#7ab8d4" },
                   { label:"Total Orders", value:totalOrders, color:"#58a6ff" },
                   { label:"Avg Lead Time", value:overallAvgLead != null ? `${overallAvgLead} days` : "—", color:"#ff9500" },
                   { label:"Best Supplier", value:bestSupplier ? bestSupplier.name.replace(/ Electronics/,"") : "—", sub:bestSupplier ? `${bestSupplier.avgLeadTime}d avg, ${bestSupplier.orderCount} orders` : "Need 3+ orders", color:"#34c759" },
@@ -10750,7 +10805,7 @@ function BOMManager({ user }) {
             {/* Header bubble */}
             <div style={{ marginBottom:16,padding:"18px 22px",background:"#fff",borderRadius:14,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
               <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
-                <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#5856d6",color:"#fff",fontSize:12,fontWeight:800 }}>2</span>
+                <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#7ab8d4",color:"#fff",fontSize:12,fontWeight:800 }}>2</span>
                 <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",margin:0 }}>Products</h2>
               </div>
               <p style={{ fontSize:13,color:"#50617a",lineHeight:"20px",margin:0 }}>
@@ -11486,7 +11541,7 @@ function BOMManager({ user }) {
                             // Create new product
                             const newProd = await createProduct({
                               name: p.displayName,
-                              color: p.isVariant ? "#" + Math.floor(Math.random()*16777215).toString(16).padStart(6,"0") : "#5856d6",
+                              color: p.isVariant ? "#" + Math.floor(Math.random()*16777215).toString(16).padStart(6,"0") : "#7ab8d4",
                               userId: user.id,
                               brand,
                               shopify_product_id: p.shopifyId,
@@ -11777,9 +11832,21 @@ function BOMManager({ user }) {
                   <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f6f9fc":"#061b31",margin:0 }}>
                     {prod.name}
                   </h2>
-                  {prod.brand && prod.brand !== "Jackson Audio" && (
-                    <span style={{ fontSize:11,fontWeight:700,color:"#fff",background:"#5856d6",padding:"3px 10px",borderRadius:100 }}>{prod.brand}</span>
-                  )}
+                  {prod.brand && prod.brand !== "Jackson Audio" && (() => {
+                    // Brand-aware pill: matches the BM design language —
+                    // colored text on a tinted background, rather than a
+                    // saturated solid fill. Fulltone gold; Jackson blue;
+                    // fallback ink-200.
+                    const accent = prod.brand === "Fulltone USA" ? "#c9a45c"
+                                 : prod.brand === "Jackson Audio" ? "#7ab8d4"
+                                 : "#b8bfcc";
+                    const bg = prod.brand === "Fulltone USA" ? "rgba(201,164,92,0.15)"
+                             : prod.brand === "Jackson Audio" ? "rgba(122,184,212,0.15)"
+                             : "rgba(184,191,204,0.12)";
+                    return (
+                      <span style={{ fontSize:11,fontWeight:700,color:accent,background:bg,padding:"3px 10px",borderRadius:100,letterSpacing:"0.02em",border:`1px solid ${accent}33` }}>{prod.brand}</span>
+                    );
+                  })()}
                   {prod.importName && prod.importName !== prod.name && (
                     <span style={{ fontSize:10,color:"#64748d",fontStyle:"italic" }} title="Original import name — used for matching Shopify/Zoho orders">
                       (imported as: {prod.importName})
@@ -11847,7 +11914,7 @@ function BOMManager({ user }) {
                     }}
                     style={{ background:"none",border:"1px solid #e3e8ee",borderRadius:6,cursor:"pointer",padding:"4px 10px",
                       fontSize:12,color:"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
-                    onMouseOver={e=>e.currentTarget.style.borderColor="#5856d6"}
+                    onMouseOver={e=>e.currentTarget.style.borderColor="#7ab8d4"}
                     onMouseOut={e=>e.currentTarget.style.borderColor="#e3e8ee"}>
                     Preview Sticker
                   </button>
@@ -11860,7 +11927,7 @@ function BOMManager({ user }) {
                     }}
                     style={{ background:"none",border:"1px solid #e3e8ee",borderRadius:6,cursor:"pointer",padding:"4px 10px",
                       fontSize:12,color:"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
-                    onMouseOver={e=>e.currentTarget.style.borderColor="#5856d6"}
+                    onMouseOver={e=>e.currentTarget.style.borderColor="#7ab8d4"}
                     onMouseOut={e=>e.currentTarget.style.borderColor="#e3e8ee"}>
                     Preview Box Label
                   </button>
@@ -12068,8 +12135,8 @@ function BOMManager({ user }) {
               {qa._altFor && (
                 <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"6px 12px",
                   background:"rgba(88,86,214,0.08)",border:"1px solid rgba(88,86,214,0.25)",borderRadius:8 }}>
-                  <span style={{ fontSize:9,fontWeight:800,color:"#fff",background:"#5856d6",padding:"1px 5px",borderRadius:3,letterSpacing:"0.04em" }}>ALT</span>
-                  <span style={{ fontSize:12,color:"#5856d6",fontWeight:600 }}>Adding alternate for: {qa._altForMpn}</span>
+                  <span style={{ fontSize:9,fontWeight:800,color:"#fff",background:"#7ab8d4",padding:"1px 5px",borderRadius:3,letterSpacing:"0.04em" }}>ALT</span>
+                  <span style={{ fontSize:12,color:"#7ab8d4",fontWeight:600 }}>Adding alternate for: {qa._altForMpn}</span>
                   <button onClick={() => { setQAField(prod.id, "_altFor", null); setQAField(prod.id, "_altForMpn", null); }}
                     style={{ marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"#64748d",fontSize:11,fontWeight:600 }}
                     onMouseOver={e=>e.currentTarget.style.color="#ff3b30"} onMouseOut={e=>e.currentTarget.style.color="#64748d"}>
@@ -12083,14 +12150,14 @@ function BOMManager({ user }) {
               )}
               <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:16 }}>
                 <div style={{ flex:"1 1 200px",position:"relative" }}>
-                  <div style={{ fontSize:10,color:qa._altFor?"#5856d6":"#64748d",marginBottom:3 }}>{qa._altFor ? "Alternate Part Number" : "Part Number"} <span style={{ color:"#ff3b30" }}>*</span></div>
+                  <div style={{ fontSize:10,color:qa._altFor?"#7ab8d4":"#64748d",marginBottom:3 }}>{qa._altFor ? "Alternate Part Number" : "Part Number"} <span style={{ color:"#ff3b30" }}>*</span></div>
                   <input type="text" placeholder={qa._altFor ? "Alternate MPN..." : "e.g. LOP-300-24"} data-qa-pn="true"
                     value={qa.pn || ""}
                     onChange={(e) => setQAField(prod.id, "pn", e.target.value)}
                     onKeyDown={(e) => { if(e.key==="Enter") quickAddPart(prod.id); }}
                     onFocus={() => setQAField(prod.id, "_focused", true)}
                     onBlur={() => setTimeout(() => setQAField(prod.id, "_focused", false), 200)}
-                    style={{ padding:"8px 12px",borderRadius:6,width:"100%",fontSize:13,fontWeight:600,background:darkMode?"#1f2530":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(qa._altFor?"#5856d6":darkMode?"#48484a":"#e3e8ee") }} />
+                    style={{ padding:"8px 12px",borderRadius:6,width:"100%",fontSize:13,fontWeight:600,background:darkMode?"#1f2530":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(qa._altFor?"#7ab8d4":darkMode?"#48484a":"#e3e8ee") }} />
                   {/* Autocomplete dropdown */}
                   {qa._focused && qa.pn && qa.pn.trim().length >= 2 && (() => {
                     const q = qa.pn.trim().toLowerCase();
@@ -12178,8 +12245,8 @@ function BOMManager({ user }) {
                   <div style={{ display:"flex",alignItems:"center",gap:6,paddingTop:14 }}>
                     <input type="checkbox" checked={qa.isInternal || false}
                       onChange={(e) => setQAField(prod.id, "isInternal", e.target.checked)}
-                      style={{ width:14,height:14,accentColor:"#5856d6",cursor:"pointer" }} />
-                    <span style={{ fontSize:11,color:"#5856d6",fontWeight:600 }}>In-House</span>
+                      style={{ width:14,height:14,accentColor:"#7ab8d4",cursor:"pointer" }} />
+                    <span style={{ fontSize:11,color:"#7ab8d4",fontWeight:600 }}>In-House</span>
                   </div>
                 </div>
               )}
@@ -12236,7 +12303,7 @@ function BOMManager({ user }) {
                           <span style={{ fontWeight:700,color:"#58a6ff" }}>{selectedCount} of {pdImportPreview.parts.length} parts selected to import</span>
                           {pdImportPreview.skipped > 0 && <span style={{ color:"#64748d",marginLeft:8 }}>{pdImportPreview.skipped} exact match{pdImportPreview.skipped>1?"es":""} pre-unchecked</span>}
                           {pdImportPreview.skippedDNI > 0 && <span style={{ color:"#ff9500",marginLeft:8 }}>{pdImportPreview.skippedDNI} DNI skipped</span>}
-                          {(() => { const sugg = pdImportPreview.parts.filter(p=>p._matchStatus==="suggested").length; return sugg > 0 ? <span style={{ color:"#5856d6",marginLeft:8 }}>{sugg} auto-matched — review below</span> : null; })()}
+                          {(() => { const sugg = pdImportPreview.parts.filter(p=>p._matchStatus==="suggested").length; return sugg > 0 ? <span style={{ color:"#7ab8d4",marginLeft:8 }}>{sugg} auto-matched — review below</span> : null; })()}
                           {hasNoMPN && <span style={{ color:"#ff9500",marginLeft:8 }}>⚠ {pdImportPreview.parts.filter(p=>p._matchStatus==="no-mpn").length} still need match</span>}
                         </div>
                         <div style={{ display:"flex",gap:6,alignItems:"center" }}>
@@ -12315,7 +12382,7 @@ function BOMManager({ user }) {
                                     ? (() => {
                                         const s = p._suggestedPart;
                                         const score = s._score || 0;
-                                        const conf = score >= 9 ? { label:"Strong", color:"#34c759" } : score >= 6 ? { label:"Good", color:"#5856d6" } : { label:"Possible", color:"#ff9500" };
+                                        const conf = score >= 9 ? { label:"Strong", color:"#34c759" } : score >= 6 ? { label:"Good", color:"#7ab8d4" } : { label:"Possible", color:"#ff9500" };
                                         return (
                                           <div style={{ display:"flex",flexDirection:"column",gap:3,minWidth:200,padding:"6px 8px",borderRadius:8,border:`1px solid ${conf.color}33`,background:`${conf.color}0a` }}>
                                             <div style={{ display:"flex",alignItems:"center",gap:5 }}>
@@ -12372,7 +12439,7 @@ function BOMManager({ user }) {
                   Delete Selected
                 </button>
                 <button onClick={() => { const sel = parts.filter(p => selectedParts.has(p.id) && p.projectId === prod.id); setQrModalParts(sel); }}
-                  style={{ background:"#5856d6",color:"#fff",border:"none",borderRadius:6,
+                  style={{ background:"#7ab8d4",color:"#fff",border:"none",borderRadius:6,
                     padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:7 }}>
                   Print QR Labels
                 </button>
@@ -12571,10 +12638,10 @@ function BOMManager({ user }) {
                                   setTimeout(() => document.querySelector('[data-qa-pn]')?.focus(), 100);
                                 }}
                                 title="Add alternate part"
-                                style={{ background:"none",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee"),cursor:"pointer",color:"#5856d6",fontSize:10,fontWeight:700,
+                                style={{ background:"none",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee"),cursor:"pointer",color:"#7ab8d4",fontSize:10,fontWeight:700,
                                   padding:"2px 7px",borderRadius:4,transition:"all 0.15s",marginRight:4 }}
-                                onMouseOver={e=>{e.currentTarget.style.background="#5856d6";e.currentTarget.style.color="#fff";e.currentTarget.style.borderColor="#5856d6";}}
-                                onMouseOut={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color="#5856d6";e.currentTarget.style.borderColor=darkMode?"#48484a":"#e3e8ee";}}>
+                                onMouseOver={e=>{e.currentTarget.style.background="#7ab8d4";e.currentTarget.style.color="#fff";e.currentTarget.style.borderColor="#7ab8d4";}}
+                                onMouseOut={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color="#7ab8d4";e.currentTarget.style.borderColor=darkMode?"#48484a":"#e3e8ee";}}>
                                 + Alt
                               </button>
                               <button onClick={async (e)=>{ e.stopPropagation(); if(await showConfirm("Remove Part", `Remove "${part.mpn||part.reference}" from this product?`, "Remove", "#ff3b30")) { updatePart(part.id,"projectId",null); alts.forEach(a => updatePart(a.id,"alternateOf",null)); } }}
@@ -12670,12 +12737,12 @@ function BOMManager({ user }) {
                                 background:selectedParts.has(alt.id)?(darkMode?"rgba(88,86,214,0.15)":"rgba(88,86,214,0.04)"):(darkMode?"rgba(88,86,214,0.06)":"rgba(88,86,214,0.02)") }}>
                                 <td style={{ padding:"8px 10px" }}>
                                   <input type="checkbox" checked={selectedParts.has(alt.id)} onChange={()=>toggleSelect(alt.id)}
-                                    style={{ width:15,height:15,cursor:"pointer",accentColor:"#5856d6" }} />
+                                    style={{ width:15,height:15,cursor:"pointer",accentColor:"#7ab8d4" }} />
                                 </td>
                                 <td style={{ padding:"8px 10px" }}>
                                   <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                                    <span style={{ color:"#5856d6",fontSize:13,flexShrink:0 }}>&#8627;</span>
-                                    <span style={{ fontSize:9,fontWeight:800,color:"#fff",background:"#5856d6",padding:"1px 5px",borderRadius:3,flexShrink:0,letterSpacing:"0.04em" }}>ALT</span>
+                                    <span style={{ color:"#7ab8d4",fontSize:13,flexShrink:0 }}>&#8627;</span>
+                                    <span style={{ fontSize:9,fontWeight:800,color:"#fff",background:"#7ab8d4",padding:"1px 5px",borderRadius:3,flexShrink:0,letterSpacing:"0.04em" }}>ALT</span>
                                     <input type="text" value={alt.mpn||""} onChange={e=>updatePart(alt.id,"mpn",e.target.value)}
                                       style={{ border:"none",background:"transparent",fontWeight:700,fontSize:13,width:"100%",color:darkMode?"#f6f9fc":"#061b31",fontFamily:"inherit",outline:"none" }}
                                       onFocus={e=>{e.target.style.background=darkMode?"#1f2530":"#f6f9fc";e.target.style.borderRadius="4px";e.target.style.padding="2px 4px";}}
@@ -12744,7 +12811,7 @@ function BOMManager({ user }) {
                                     title="Unlink — make this a standalone primary part"
                                     style={{ background:"none",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee"),cursor:"pointer",color:"#64748d",fontSize:10,fontWeight:600,
                                       padding:"2px 7px",borderRadius:4,transition:"all 0.15s",marginRight:4 }}
-                                    onMouseOver={e=>{e.currentTarget.style.borderColor="#5856d6";e.currentTarget.style.color="#5856d6";}}
+                                    onMouseOver={e=>{e.currentTarget.style.borderColor="#7ab8d4";e.currentTarget.style.color="#7ab8d4";}}
                                     onMouseOut={e=>{e.currentTarget.style.borderColor=darkMode?"#48484a":"#e3e8ee";e.currentTarget.style.color="#64748d";}}>
                                     unlink
                                   </button>
@@ -12941,7 +13008,7 @@ function BOMManager({ user }) {
                         </div>
                       </div>
 
-                      <div style={{ fontSize:10,color:"#5856d6",fontWeight:700,letterSpacing:"0.06em",marginBottom:6 }}>QUANTITY COMPARISON (Smart Consolidated)</div>
+                      <div style={{ fontSize:10,color:"#7ab8d4",fontWeight:700,letterSpacing:"0.06em",marginBottom:6 }}>QUANTITY COMPARISON (Smart Consolidated)</div>
                       <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",overflow:"hidden" }}>
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                         <thead>
@@ -13138,7 +13205,7 @@ function BOMManager({ user }) {
                     { label:"Direct Orders (Shopify)", value:shopifyDemand?.totalOrders || 0, color:"#58a6ff" },
                     { label:"Dealer Orders (Zoho)", value:zohoDemand?.totalOrders || 0, color:"#4bc076" },
                     { label:"Units Shipped (ShipStation)", value:shipstationData?.totalUnitsShipped || 0, color:"#00c7be" },
-                    { label:"Products in Demand", value:(shopifyDemand?.products?.length || 0) + (zohoDemand?.products?.length || 0), color:"#5856d6" },
+                    { label:"Products in Demand", value:(shopifyDemand?.products?.length || 0) + (zohoDemand?.products?.length || 0), color:"#7ab8d4" },
                     { label:"Parts Needed", value:partsDemand.length, color:"#ff9500" },
                     { label:"Parts Short", value:partsDemand.filter(d => d.needed > (parseInt(d.part.stockQty) || 0)).length, color:"#ff3b30" },
                   ].map(c => (
@@ -13900,7 +13967,7 @@ function BOMManager({ user }) {
                       </div>
                       <button className="btn-ghost" style={{ fontSize:10,fontWeight:700,color:"#ff9500" }}
                         onClick={async () => {
-                          const colors = ["#ff9500","#5856d6","#ff3b30","#34c759","#58a6ff","#ff2d55"];
+                          const colors = ["#ff9500","#7ab8d4","#ff3b30","#34c759","#58a6ff","#ff2d55"];
                           for (let i = 0; i < unmapped.length; i++) {
                             const u = unmapped[i];
                             const color = colors[(products.length + i) % colors.length];
@@ -13919,7 +13986,7 @@ function BOMManager({ user }) {
                         <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
                           onClick={async (e) => {
                             const btn = e.currentTarget;
-                            const colors = ["#ff9500","#5856d6","#ff3b30","#34c759","#58a6ff","#ff2d55"];
+                            const colors = ["#ff9500","#7ab8d4","#ff3b30","#34c759","#58a6ff","#ff2d55"];
                             const color = colors[(products.length + i) % colors.length];
                             try {
                               await createProduct({ name: u.title, color, userId: user.id, shopify_product_id: u.shopifyProductId });
@@ -13944,7 +14011,7 @@ function BOMManager({ user }) {
                       </div>
                       <button className="btn-ghost" style={{ fontSize:10,fontWeight:700,color:"#4bc076" }}
                         onClick={async () => {
-                          const colors = ["#4bc076","#5856d6","#ff3b30","#34c759","#58a6ff","#ff2d55"];
+                          const colors = ["#4bc076","#7ab8d4","#ff3b30","#34c759","#58a6ff","#ff2d55"];
                           for (let i = 0; i < unmappedZoho.length; i++) {
                             const u = unmappedZoho[i];
                             const color = colors[(products.length + i) % colors.length];
@@ -13965,7 +14032,7 @@ function BOMManager({ user }) {
                           <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
                             onClick={async (e) => {
                               const btn = e.currentTarget;
-                              const colors = ["#4bc076","#5856d6","#ff3b30","#34c759","#58a6ff","#ff2d55"];
+                              const colors = ["#4bc076","#7ab8d4","#ff3b30","#34c759","#58a6ff","#ff2d55"];
                               const color = colors[(products.length) % colors.length];
                               try {
                                 await createProduct({ name: u.title, color, userId: user.id });
@@ -14286,7 +14353,7 @@ function BOMManager({ user }) {
                                         <div style={{ fontWeight:600,color:"#061b31" }}>{f.title}</div>
                                         <div style={{ fontSize:10,color:"#64748d" }}>
                                           {f.totalOrdered.toLocaleString()} sold over {f.daySpan} days
-                                          {f.storeName && <span style={{ color:"#5856d6",fontWeight:600,marginLeft:4 }}>{f.storeName}</span>}
+                                          {f.storeName && <span style={{ color:"#7ab8d4",fontWeight:600,marginLeft:4 }}>{f.storeName}</span>}
                                         </div>
                                       </td>
                                       <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:600,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
@@ -14573,7 +14640,7 @@ function BOMManager({ user }) {
                     {salesHistory?.fetchedAt && <span style={{ marginLeft:8,fontSize:11 }}>Last loaded: {new Date(salesHistory.fetchedAt).toLocaleString()}</span>}
                   </p>
                 </div>
-                <button className="btn-primary" style={{ background:"#5856d6" }}
+                <button className="btn-primary" style={{ background:"#7ab8d4" }}
                   onClick={fetchSalesHistory}
                   disabled={historyLoading}>
                   {historyLoading ? <><span className="spinner" /> Loading History...</> : salesHistory ? "Refresh History" : "Load Sales History"}
@@ -14593,7 +14660,7 @@ function BOMManager({ user }) {
                   <p style={{ color:"#64748d",fontSize:12,marginBottom:14 }}>
                     Pulls completed orders from Shopify and Zoho going back 24 months. Cached locally after first load.
                   </p>
-                  <button className="btn-primary" style={{ background:"#5856d6" }} onClick={fetchSalesHistory} disabled={historyLoading}>
+                  <button className="btn-primary" style={{ background:"#7ab8d4" }} onClick={fetchSalesHistory} disabled={historyLoading}>
                     Load Sales History
                   </button>
                 </div>
@@ -14743,21 +14810,21 @@ function BOMManager({ user }) {
                         {/* Historical line */}
                         {histLinePath && <path d={histLinePath} fill="none" stroke="#58a6ff" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
                         {/* Forecast line (dashed) */}
-                        {fcastLinePath && <path d={fcastLinePath} fill="none" stroke="#5856d6" strokeWidth="2" strokeDasharray="6,4" strokeLinejoin="round" strokeLinecap="round" />}
+                        {fcastLinePath && <path d={fcastLinePath} fill="none" stroke="#7ab8d4" strokeWidth="2" strokeDasharray="6,4" strokeLinejoin="round" strokeLinecap="round" />}
                         {/* Historical dots */}
                         {histPoints.map((p, i) => (
                           <circle key={`h${i}`} cx={toX(i)} cy={toY(p.value)} r="2.5" fill="#58a6ff" />
                         ))}
                         {/* Forecast dots */}
                         {fcastPoints.map((p, i) => (
-                          <circle key={`f${i}`} cx={toX(fcastStartIdx + i)} cy={toY(p.value)} r="3.5" fill="#5856d6" stroke="#fff" strokeWidth="1.5" />
+                          <circle key={`f${i}`} cx={toX(fcastStartIdx + i)} cy={toY(p.value)} r="3.5" fill="#7ab8d4" stroke="#fff" strokeWidth="1.5" />
                         ))}
                         {/* Legend */}
                         <line x1={padL + 10} y1={12} x2={padL + 30} y2={12} stroke="#58a6ff" strokeWidth="2" />
                         <text x={padL + 34} y={15} fontSize="9" fill="#64748d" fontFamily="'IBM Plex Sans',system-ui,sans-serif">Actual</text>
-                        <line x1={padL + 80} y1={12} x2={padL + 100} y2={12} stroke="#5856d6" strokeWidth="2" strokeDasharray="6,4" />
+                        <line x1={padL + 80} y1={12} x2={padL + 100} y2={12} stroke="#7ab8d4" strokeWidth="2" strokeDasharray="6,4" />
                         <text x={padL + 104} y={15} fontSize="9" fill="#64748d" fontFamily="'IBM Plex Sans',system-ui,sans-serif">Forecast</text>
-                        <rect x={padL + 155} y={6} width={12} height={12} fill="rgba(88,86,214,0.1)" stroke="#5856d6" strokeWidth="0.5" rx="2" />
+                        <rect x={padL + 155} y={6} width={12} height={12} fill="rgba(88,86,214,0.1)" stroke="#7ab8d4" strokeWidth="0.5" rx="2" />
                         <text x={padL + 171} y={15} fontSize="9" fill="#64748d" fontFamily="'IBM Plex Sans',system-ui,sans-serif">Confidence Range</text>
                       </svg>
                     </div>
@@ -14799,7 +14866,7 @@ function BOMManager({ user }) {
                               </td>
                               {p.forecasts.map(f => (
                                 <td key={f.month} style={{ padding:"10px 10px",textAlign:"center" }}>
-                                  <div style={{ fontWeight:800,fontSize:15,color:"#5856d6",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
+                                  <div style={{ fontWeight:800,fontSize:15,color:"#7ab8d4",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                     {f.forecast.toLocaleString()}
                                   </div>
                                   <div style={{ fontSize:9,color:"#64748d" }}>{f.low.toLocaleString()} — {f.high.toLocaleString()}</div>
@@ -15241,7 +15308,7 @@ function BOMManager({ user }) {
             {/* ── Mobile Builder App link ── */}
             <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:24,flexWrap:"wrap" }}>
               <span style={{ fontSize:13,color:"#64748d" }}>Mobile Builder App:</span>
-              <code style={{ fontSize:12,color:darkMode?"#f8d377":"#5856d6",background:darkMode?"#0f1218":"#f0f0f2",padding:"4px 10px",borderRadius:6,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
+              <code style={{ fontSize:12,color:darkMode?"#f8d377":"#7ab8d4",background:darkMode?"#0f1218":"#f0f0f2",padding:"4px 10px",borderRadius:6,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
                 {window.location.origin + "/build"}
               </code>
               <button onClick={() => { navigator.clipboard.writeText(window.location.origin + "/build"); }}
@@ -15260,7 +15327,7 @@ function BOMManager({ user }) {
                 { label:"Active Builds", value:activeOrders.length, color:activeOrders.length>0?"#ff9500":"#34c759" },
                 { label:"Team Members", value:activeMembers.length, color:"#58a6ff" },
                 { label:"Completed Today", value:completedToday, color:"#34c759" },
-                { label:"Completed This Week", value:completedWeek, color:"#5856d6" },
+                { label:"Completed This Week", value:completedWeek, color:"#7ab8d4" },
               ].map(card => (
                 <div key={card.label} style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                   <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
@@ -15774,7 +15841,7 @@ function BOMManager({ user }) {
                     const demoProducts = [
                       { name:"Bloom V2", color:"#c8a84e", brand:"Jackson Audio", serial_prefix:"BLOOM", serial_start:1 },
                       { name:"Broken Arrow V3", color:"#ff3b30", brand:"Jackson Audio", serial_prefix:"BA", serial_start:1 },
-                      { name:"El Guapo", color:"#5856d6", brand:"Jackson Audio", serial_prefix:"ELGUAPO", serial_start:1 },
+                      { name:"El Guapo", color:"#7ab8d4", brand:"Jackson Audio", serial_prefix:"ELGUAPO", serial_start:1 },
                       { name:"Modular Fuzz", color:"#ff9500", brand:"Jackson Audio", serial_prefix:"MODFUZZ", serial_start:1 },
                       { name:"Golden Boy", color:"#34c759", brand:"Jackson Audio", serial_prefix:"GB", serial_start:1 },
                       { name:"Asabi", color:"#58a6ff", brand:"Jackson Audio", serial_prefix:"ASABI", serial_start:1 },
@@ -15943,7 +16010,7 @@ function BOMManager({ user }) {
                               <div>
                                 <div style={{ fontSize:17,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>{prod?.name || "Unknown"}</div>
                                 {bo.for_order && (
-                                  <div style={{ fontSize:13,fontWeight:600,color:"#5856d6",marginTop:2 }}>
+                                  <div style={{ fontSize:13,fontWeight:600,color:"#7ab8d4",marginTop:2 }}>
                                     PO: {bo.for_order}
                                   </div>
                                 )}
@@ -16117,7 +16184,7 @@ function BOMManager({ user }) {
                 <div style={{ marginTop:16 }}>
                   <div style={{ display:"flex",gap:16,marginBottom:16 }}>
                     <div style={{ fontSize:13,color:"#64748d" }}>Today: <strong style={{ color:"#34c759" }}>{completedToday}</strong></div>
-                    <div style={{ fontSize:13,color:"#64748d" }}>This week: <strong style={{ color:"#5856d6" }}>{completedWeek}</strong></div>
+                    <div style={{ fontSize:13,color:"#64748d" }}>This week: <strong style={{ color:"#7ab8d4" }}>{completedWeek}</strong></div>
                     <div style={{ fontSize:13,color:"#64748d" }}>All time: <strong>{completedOrders.length}</strong></div>
                   </div>
                   {completedOrders.length === 0 ? (
@@ -16164,7 +16231,7 @@ function BOMManager({ user }) {
             ...profileTesters.filter(pt => !playTesters.some(t => t.id === pt.id || t.name === pt.name)),
           ];
           const statusLabels = { assigned:"Assigned", shipped:"Shipped", in_testing:"In Testing", feedback_received:"Feedback Received", returned:"Returned" };
-          const statusColors = { assigned:"#58a6ff", shipped:"#ff9500", in_testing:"#5856d6", feedback_received:"#34c759", returned:"#64748d" };
+          const statusColors = { assigned:"#58a6ff", shipped:"#ff9500", in_testing:"#7ab8d4", feedback_received:"#34c759", returned:"#64748d" };
           const statusFlow = ["assigned","shipped","in_testing","feedback_received","returned"];
           const inputStyle = { fontFamily:"'IBM Plex Sans',system-ui,sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee", outline:"none", width:"100%", background:darkMode?"#161a22":"#fff", color:darkMode?"#f6f9fc":"#061b31" };
           const selectStyle = { ...inputStyle, cursor:"pointer" };
@@ -16234,7 +16301,7 @@ function BOMManager({ user }) {
               {[
                 { label:"Active Tests", value:activeTests.length, color:activeTests.length>0?"#ff9500":"#34c759" },
                 { label:"Testers", value:activeTesters.length, color:"#58a6ff" },
-                { label:"Awaiting Feedback", value:playTests.filter(t=>t.status==="in_testing").length, color:"#5856d6" },
+                { label:"Awaiting Feedback", value:playTests.filter(t=>t.status==="in_testing").length, color:"#7ab8d4" },
                 { label:"Returned", value:returnedTests.length, color:"#64748d" },
                 { label:"Avg Rating", value: (() => { const rated = playTests.filter(t=>t.rating); return rated.length ? (rated.reduce((s,t)=>s+t.rating,0)/rated.length).toFixed(1) : "—"; })(), color:"#34c759" },
               ].map(card => (
@@ -16599,7 +16666,7 @@ function BOMManager({ user }) {
                 { label:"Pending", value:boxingTasks.filter(t=>t.status==="pending").length, color:boxingTasks.filter(t=>t.status==="pending").length>0?"#ff9500":"#34c759" },
                 { label:"In Progress", value:boxingTasks.filter(t=>t.status==="in_progress").length, color:"#58a6ff" },
                 { label:"Boxed Today", value:todayBoxed, color:"#34c759" },
-                { label:"Ready to Box", value:eligibleBuildOrders.length, color:"#5856d6" },
+                { label:"Ready to Box", value:eligibleBuildOrders.length, color:"#7ab8d4" },
                 { label:"Total Completed", value:completedTasks.reduce((s,t)=>s+(t.completed_count||t.quantity||0),0), color:"#64748d" },
               ].map(card => (
                 <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:cardBorder }}>
@@ -16859,7 +16926,7 @@ function BOMManager({ user }) {
                           dealerPO: task.for_order || "",
                           shipTo: { name: task.for_order || "", street1: "", city: "", state: "", postalCode: "", country: "US" },
                           lineItems: [{ title: prod?.name || "Product", quantity: task.completed_count || task.quantity || 1, unitPrice: 0 }],
-                        })} style={{ fontSize:11,padding:"6px 14px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:600,background:"#5856d6",color:"#fff" }}>
+                        })} style={{ fontSize:11,padding:"6px 14px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:600,background:"#7ab8d4",color:"#fff" }}>
                           Ship Label
                         </button>
                       </>)}
@@ -17083,7 +17150,7 @@ function BOMManager({ user }) {
                             )}
                             {/* Internal shop order statuses */}
                             {rstStatus.internalOrders && Object.entries(rstStatus.internalOrders).map(([key, io]) => {
-                              const SHOP_COLORS = { pcb:"#5856d6", sheet_metal:"#ff6b35", powder_coating:"#30b050" };
+                              const SHOP_COLORS = { pcb:"#7ab8d4", sheet_metal:"#ff6b35", powder_coating:"#30b050" };
                               const SHOP_ICONS  = { pcb:"🔲", sheet_metal:"🔩", powder_coating:"🎨" };
                               const c = SHOP_COLORS[key] || "#64748d";
                               return (
@@ -17286,7 +17353,7 @@ function BOMManager({ user }) {
                   <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>Remove finished units from shelf when shipping.</div>
                 </div>
                 <button onClick={() => { setShelfScanMode(!shelfScanMode); setShelfScanBarcode(false); setShelfScanProduct(""); setShelfScanQty("1"); }}
-                  style={{ padding:"10px 22px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,background:shelfScanMode?"#ff3b30":"#5856d6",color:"#fff",fontFamily:"inherit",minHeight:44 }}>
+                  style={{ padding:"10px 22px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,background:shelfScanMode?"#ff3b30":"#7ab8d4",color:"#fff",fontFamily:"inherit",minHeight:44 }}>
                   {shelfScanMode ? "Cancel" : "📦 Scan Out"}
                 </button>
               </div>
@@ -17295,13 +17362,13 @@ function BOMManager({ user }) {
                   {/* Mode toggle: dropdown vs camera barcode */}
                   <div style={{ display:"flex",gap:8,marginBottom:16 }}>
                     <button onClick={() => setShelfScanBarcode(false)}
-                      style={{ flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${!shelfScanBarcode?"#5856d6":"#e3e8ee"}`,cursor:"pointer",fontWeight:700,fontSize:13,
-                        background:!shelfScanBarcode?"#5856d618":"transparent",color:!shelfScanBarcode?"#5856d6":textPrimary,fontFamily:"inherit" }}>
+                      style={{ flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${!shelfScanBarcode?"#7ab8d4":"#e3e8ee"}`,cursor:"pointer",fontWeight:700,fontSize:13,
+                        background:!shelfScanBarcode?"#7ab8d418":"transparent",color:!shelfScanBarcode?"#7ab8d4":textPrimary,fontFamily:"inherit" }}>
                       ☰ Select Product
                     </button>
                     <button onClick={() => setShelfScanBarcode(true)}
-                      style={{ flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${shelfScanBarcode?"#5856d6":"#e3e8ee"}`,cursor:"pointer",fontWeight:700,fontSize:13,
-                        background:shelfScanBarcode?"#5856d618":"transparent",color:shelfScanBarcode?"#5856d6":textPrimary,fontFamily:"inherit" }}>
+                      style={{ flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${shelfScanBarcode?"#7ab8d4":"#e3e8ee"}`,cursor:"pointer",fontWeight:700,fontSize:13,
+                        background:shelfScanBarcode?"#7ab8d418":"transparent",color:shelfScanBarcode?"#7ab8d4":textPrimary,fontFamily:"inherit" }}>
                       📷 Scan Barcode
                     </button>
                   </div>
@@ -17678,12 +17745,12 @@ function BOMManager({ user }) {
 
                     {/* Internal Work Orders */}
                     <div style={{ marginBottom:20 }}>
-                      <div style={{ fontSize:11,fontWeight:700,color:"#5856d6",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8 }}>
+                      <div style={{ fontSize:11,fontWeight:700,color:"#7ab8d4",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8 }}>
                         Internal Work Orders — queue alongside parts
                       </div>
                       <div style={{ border:`1px solid ${darkMode?"#1f2530":"#e5e5ea"}`,borderRadius:10,overflow:"hidden" }}>
                         {[
-                          { key:"pcb",           label:"PCB Shop",                 desc:"Populate printed circuit boards for this build", color:"#5856d6", icon:"🔲" },
+                          { key:"pcb",           label:"PCB Shop",                 desc:"Populate printed circuit boards for this build", color:"#7ab8d4", icon:"🔲" },
                           { key:"sheet_metal",   label:"Sheet Metal Shop",         desc:"Fabricate chassis / enclosures",                  color:"#ff6b35", icon:"🔩" },
                           { key:"powder_coating",label:"Powder Coating & Graphics",desc:"Finish and apply graphics to enclosures",         color:"#30b050", icon:"🎨" },
                         ].map((shop, i) => {
@@ -17742,9 +17809,9 @@ function BOMManager({ user }) {
                             });
                             setRestockPreflight(prev => ({ ...prev, internalChecked: {} }));
                             const queuedNames = Object.entries(newInternalOrders).filter(([k]) => checked[k]).map(([,v]) => v.label).join(", ");
-                            showToast(`Internal orders queued: ${queuedNames}`, "#5856d6");
+                            showToast(`Internal orders queued: ${queuedNames}`, "#7ab8d4");
                           }}
-                          style={{ marginTop:10,width:"100%",padding:"10px",borderRadius:10,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#5856d6",color:"#fff",fontFamily:"inherit" }}>
+                          style={{ marginTop:10,width:"100%",padding:"10px",borderRadius:10,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#7ab8d4",color:"#fff",fontFamily:"inherit" }}>
                           Queue Selected Internal Work Orders
                         </button>
                       )}
@@ -17821,7 +17888,7 @@ function BOMManager({ user }) {
           const inputStyle = { fontFamily:"'IBM Plex Sans',system-ui,sans-serif", fontSize:13, padding:"8px 12px", borderRadius:8, border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee", outline:"none", background:darkMode?"#161a22":"#fff", color:textPrimary };
 
           const statusLabels = { built:"Built", awaiting_playtest:"Awaiting Play Test", in_playtest:"In Play Test", playtest_passed:"Play Test Passed", playtest_failed:"Play Test FAILED", boxing:"Boxing", boxed:"Boxed", shipped:"Shipped", destroyed:"☠ Destroyed" };
-          const statusColors = { built:"#64748d", awaiting_playtest:"#ff9500", in_playtest:"#5856d6", playtest_passed:"#34c759", playtest_failed:"#ff3b30", boxing:"#58a6ff", boxed:"#00c7be", shipped:"#64748d", destroyed:"#8B0000" };
+          const statusColors = { built:"#64748d", awaiting_playtest:"#ff9500", in_playtest:"#7ab8d4", playtest_passed:"#34c759", playtest_failed:"#ff3b30", boxing:"#58a6ff", boxed:"#00c7be", shipped:"#64748d", destroyed:"#8B0000" };
 
           // Status counts for pipeline summary
           const statusCounts = {};
@@ -17894,7 +17961,7 @@ function BOMManager({ user }) {
                   {simMode ? "Exit Simulation" : "Simulate Pipeline"}
                 </button>
                 <button onClick={() => setStickerEditorOpen(true)}
-                  style={{ fontSize:11,padding:"6px 14px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:600,background:"#5856d6",color:"#fff" }}>
+                  style={{ fontSize:11,padding:"6px 14px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:600,background:"#7ab8d4",color:"#fff" }}>
                   Edit Sticker
                 </button>
                 <button onClick={() => { setBatchStickerModal(true); setBatchProductId(products[0]?.id || ""); setBatchFromSerial(""); setBatchToSerial(""); }}
@@ -17973,8 +18040,8 @@ function BOMManager({ user }) {
                       return;
                     }
                     await autoAssignPlayTesters(toMove.length > 0 ? toMove : builtUnits);
-                    setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: `Auto-assigned ${toMove.length || builtUnits.length} unit(s) to play testers — status: in_playtest`, color: "#5856d6" }]);
-                  }} style={{ fontSize:11,padding:"6px 14px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:700,background:"#5856d6",color:"#fff" }}>
+                    setSimLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: `Auto-assigned ${toMove.length || builtUnits.length} unit(s) to play testers — status: in_playtest`, color: "#7ab8d4" }]);
+                  }} style={{ fontSize:11,padding:"6px 14px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:700,background:"#7ab8d4",color:"#fff" }}>
                     2. Assign Play Test
                   </button>
 
@@ -18445,7 +18512,7 @@ function BOMManager({ user }) {
                                   <th style={{ textAlign:"left",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Product</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Ordered</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#ff9500",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Building</th>
-                                  <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#5856d6",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Testing</th>
+                                  <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#7ab8d4",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Testing</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#34c759",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Passed</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#58a6ff",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Boxing</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#00c7be",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Boxed</th>
@@ -18468,7 +18535,7 @@ function BOMManager({ user }) {
                                       </td>
                                       <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:700,color:textPrimary }}>{pb.ordered || "—"}</td>
                                       <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:600,color:pb.building>0?"#ff9500":"#e3e8ee" }}>{pb.building||"—"}</td>
-                                      <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:600,color:testing>0?"#5856d6":"#e3e8ee" }}>{testing||"—"}{failed>0 && <span style={{ color:"#ff3b30",fontSize:10 }}> ({failed} failed)</span>}</td>
+                                      <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:600,color:testing>0?"#7ab8d4":"#e3e8ee" }}>{testing||"—"}{failed>0 && <span style={{ color:"#ff3b30",fontSize:10 }}> ({failed} failed)</span>}</td>
                                       <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:600,color:passed>0?"#34c759":"#e3e8ee" }}>{passed||"—"}</td>
                                       <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:600,color:boxing>0?"#58a6ff":"#e3e8ee" }}>{boxing||"—"}</td>
                                       <td style={{ textAlign:"center",padding:"8px 6px",fontWeight:600,color:pb.boxed>0?"#00c7be":"#e3e8ee" }}>{pb.boxed||"—"}</td>
@@ -18542,7 +18609,7 @@ function BOMManager({ user }) {
             intake:      { label:"Intake",       color:"#8e8e93", bg:"#f2f2f7" },
             diagnosing:  { label:"Diagnosing",   color:"#58a6ff", bg:"#e8f0fb" },
             repairing:   { label:"Repairing",    color:"#ff9500", bg:"#fff3e0" },
-            testing:     { label:"Testing",      color:"#5856d6", bg:"#f0eeff" },
+            testing:     { label:"Testing",      color:"#7ab8d4", bg:"#f0eeff" },
             repaired:    { label:"Repaired",     color:"#34c759", bg:"#e8faed" },
             shipped_back:{ label:"Shipped Back", color:"#00c7be", bg:"#e0f8f7" },
             scrapped:    { label:"Scrapped",     color:"#ff3b30", bg:"#ffe5e5" },
@@ -19444,7 +19511,7 @@ function BOMManager({ user }) {
           const STATUS_LABELS = { pending:"Pending", in_progress:"In Progress", completed:"Completed", cancelled:"Cancelled" };
           const PRIORITY_COLORS = { low:"#8898aa", normal:"#58a6ff", high:"#ff9500", urgent:"#ff3b30" };
           const SHOP_CFG = {
-            pcb:           { label:"PCB Shop",           color:"#5856d6", desc:"Printed circuit board orders — track fab runs, quantities, and which build they feed." },
+            pcb:           { label:"PCB Shop",           color:"#7ab8d4", desc:"Printed circuit board orders — track fab runs, quantities, and which build they feed." },
             sheet_metal:   { label:"Sheet Metal Shop",   color:"#ff6b35", desc:"Enclosures and metalwork — track cutting, bending, and finishing before final assembly." },
             powder_coating:{ label:"Powder Coating Shop",color:"#30b050", desc:"Powder coating runs — track color, finish, and which enclosures are in queue." },
           };
@@ -20794,7 +20861,7 @@ function BOMManager({ user }) {
                   <div><div className="key-label">Ad Account ID</div><div className="key-hint">act_XXXXXXXXX</div></div>
                   <input type="text" value={apiKeys.fb_ja_ad_account_id||""} onChange={e=>setApiKeys(k=>({...k,fb_ja_ad_account_id:e.target.value}))} placeholder="act_123456789" style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
-                <div style={{ fontWeight:700,fontSize:13,color:"#5856d6",marginBottom:10,marginTop:20 }}>Fulltone USA</div>
+                <div style={{ fontWeight:700,fontSize:13,color:"#7ab8d4",marginBottom:10,marginTop:20 }}>Fulltone USA</div>
                 <div className="key-input-row">
                   <div><div className="key-label">Access Token</div><div className="key-hint">Fulltone USA Facebook token</div></div>
                   <input type="password" value={apiKeys.fb_ft_access_token||""} onChange={e=>setApiKeys(k=>({...k,fb_ft_access_token:e.target.value}))} placeholder="EAAxxxxxxx..." style={{ padding:"8px 12px",borderRadius:8 }} />
@@ -20921,7 +20988,7 @@ function BOMManager({ user }) {
             {settingsTab === "team" && (() => {
               const IS = { width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#48484a":"#e3e8ee"),background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31",fontSize:13,boxSizing:"border-box",fontFamily:"inherit" };
               const LS = { fontSize:12,fontWeight:600,color:darkMode?"#8898aa":"#50617a",display:"block",marginBottom:4 };
-              const RC = { admin:["#ff3b30","rgba(255,59,48,0.1)"], manager:["#5856d6","rgba(88,86,214,0.1)"], editor:["#58a6ff","rgba(83,58,253,0.1)"], employee:["#34c759","rgba(52,199,89,0.1)"], builder:["#ff9500","rgba(255,149,0,0.1)"] };
+              const RC = { admin:["#ff3b30","rgba(255,59,48,0.1)"], manager:["#7ab8d4","rgba(88,86,214,0.1)"], editor:["#58a6ff","rgba(83,58,253,0.1)"], employee:["#34c759","rgba(52,199,89,0.1)"], builder:["#ff9500","rgba(255,149,0,0.1)"] };
               return (
                 <div>
                   <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16 }}>
@@ -21322,7 +21389,7 @@ function BOMManager({ user }) {
               monthScrap.forEach(s => { byCat[s.category||"other"] = (byCat[s.category||"other"]||0) + (s.quantity||0); });
               const catEntries = Object.entries(byCat).sort((a,b) => b[1] - a[1]);
               const maxCat = catEntries.length > 0 ? catEntries[0][1] : 1;
-              const catColors = { "solder defect":"#ff3b30","wrong part":"#ff9500","ESD damage":"#5856d6","assembly error":"#58a6ff","component failure":"#ff2d55","other":"#64748d" };
+              const catColors = { "solder defect":"#ff3b30","wrong part":"#ff9500","ESD damage":"#7ab8d4","assembly error":"#58a6ff","component failure":"#ff2d55","other":"#64748d" };
               // By builder
               const byBuilder = {};
               monthScrap.forEach(s => { const name = teamMembers.find(m => m.id === s.team_member_id)?.name || "Unknown"; byBuilder[name] = (byBuilder[name]||0) + (s.quantity||0); });
@@ -21395,10 +21462,10 @@ function BOMManager({ user }) {
                       <div key={name} style={{ marginBottom:6 }}>
                         <div style={{ display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2 }}>
                           <span style={{ color:darkMode?"#f6f9fc":"#061b31" }}>{name}</span>
-                          <span style={{ fontWeight:700,color:"#5856d6" }}>{qty}</span>
+                          <span style={{ fontWeight:700,color:"#7ab8d4" }}>{qty}</span>
                         </div>
                         <div style={{ height:6,background:darkMode?"#1a1a28":"#e5e5ea",borderRadius:3,overflow:"hidden" }}>
-                          <div style={{ width:`${(qty/maxProd)*100}%`,height:"100%",background:"#5856d6",borderRadius:3 }} />
+                          <div style={{ width:`${(qty/maxProd)*100}%`,height:"100%",background:"#7ab8d4",borderRadius:3 }} />
                         </div>
                       </div>
                     ))}
@@ -22030,7 +22097,7 @@ function BOMManager({ user }) {
           intake:      { label:"Intake",       color:"#8e8e93", bg:"#f2f2f7" },
           diagnosing:  { label:"Diagnosing",   color:"#58a6ff", bg:"#e8f0fb" },
           repairing:   { label:"Repairing",    color:"#ff9500", bg:"#fff3e0" },
-          testing:     { label:"Testing",      color:"#5856d6", bg:"#f0eeff" },
+          testing:     { label:"Testing",      color:"#7ab8d4", bg:"#f0eeff" },
           repaired:    { label:"Repaired",     color:"#34c759", bg:"#e8faed" },
           shipped_back:{ label:"Shipped Back", color:"#00c7be", bg:"#e0f8f7" },
           scrapped:    { label:"Scrapped",     color:"#ff3b30", bg:"#ffe5e5" },
@@ -22392,7 +22459,7 @@ function BOMManager({ user }) {
                     { label:"Matched", val: reelFillModal.enrichedCount || 0, color:"#34c759" },
                     { label:"Not Found", val: reelFillModal.notFoundCount || 0, color:"#ff3b30" },
                     { label:"Pricing", val: reelFillModal.pricingCount || 0, color:"#58a6ff" },
-                    { label:"In Stock", val: reelFillModal.stockCount || 0, color:"#5856d6" },
+                    { label:"In Stock", val: reelFillModal.stockCount || 0, color:"#7ab8d4" },
                     { label:"Images", val: reelFillModal.imageCount || 0, color:"#ff9500" },
                     { label:"Reel Qtys", val: reelFillModal.apiCount || 0, color:"#061b31" },
                   ].map(s => (
@@ -22517,7 +22584,7 @@ function BOMManager({ user }) {
                     <th style={{ textAlign:"left",padding:"10px 12px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>MPN</th>
                     <th style={{ textAlign:"left",padding:"10px 12px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Description</th>
                     <th style={{ textAlign:"left",padding:"10px 12px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Cur. Value</th>
-                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#5856d6",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Det. Value</th>
+                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#7ab8d4",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Det. Value</th>
                     <th style={{ textAlign:"left",padding:"10px 12px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Cur. Voltage</th>
                     <th style={{ textAlign:"left",padding:"10px 12px",color:"#ff9f0a",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Det. Voltage</th>
                     <th style={{ textAlign:"left",padding:"10px 12px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Manufacturer</th>
@@ -22532,7 +22599,7 @@ function BOMManager({ user }) {
                       <td style={{ padding:"8px 12px",fontWeight:600,color:"#061b31",fontFamily:"monospace",fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2" }} title={row.part.mpn}>{row.part.mpn || "—"}</td>
                       <td style={{ padding:"8px 12px",color:"#50617a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2",fontSize:11 }} title={row.part.description}>{row.part.description || "—"}</td>
                       <td style={{ padding:"8px 12px",color:"#b8bfcc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.part.value || <span style={{ fontStyle:"italic",fontSize:10 }}>blank</span>}</td>
-                      <td style={{ padding:"8px 12px",fontWeight:row.detectedValue?700:400,color:row.detectedValue?"#5856d6":"#b8bfcc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.detectedValue || <span style={{ color:"#e3e8ee",fontSize:10 }}>—</span>}</td>
+                      <td style={{ padding:"8px 12px",fontWeight:row.detectedValue?700:400,color:row.detectedValue?"#7ab8d4":"#b8bfcc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.detectedValue || <span style={{ color:"#e3e8ee",fontSize:10 }}>—</span>}</td>
                       <td style={{ padding:"8px 12px",color:"#b8bfcc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.part.voltage_rating || <span style={{ fontStyle:"italic",fontSize:10 }}>blank</span>}</td>
                       <td style={{ padding:"8px 12px",fontWeight:row.detectedVoltage?700:400,color:row.detectedVoltage?"#ff9f0a":"#b8bfcc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.detectedVoltage || <span style={{ color:"#e3e8ee",fontSize:10 }}>—</span>}</td>
                       <td style={{ padding:"8px 12px",color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2",fontSize:11 }} title={row.part.manufacturer}>{row.part.manufacturer || "—"}</td>
@@ -22543,7 +22610,7 @@ function BOMManager({ user }) {
                             next.has(row.part.id) ? next.delete(row.part.id) : next.add(row.part.id);
                             return { ...prev, checkedIds: next };
                           })}
-                          style={{ width:15,height:15,accentColor:"#5856d6",cursor:"pointer" }} />
+                          style={{ width:15,height:15,accentColor:"#7ab8d4",cursor:"pointer" }} />
                       </td>
                     </tr>
                   ))}
@@ -22580,9 +22647,9 @@ function BOMManager({ user }) {
                   setParts(prev => prev.map(p => updateMap[p.id] ? { ...p, ...updateMap[p.id] } : p));
                   setValueFillModal(null);
                 }}
-                style={{ padding:"9px 22px",borderRadius:100,fontSize:13,fontWeight:600,cursor: valueFillModal.checkedIds.size===0?"not-allowed":"pointer",fontFamily:"inherit",border:"none",background: valueFillModal.checkedIds.size===0?"#b8bfcc":"#5856d6",color:"#fff",transition:"all 0.15s" }}
+                style={{ padding:"9px 22px",borderRadius:100,fontSize:13,fontWeight:600,cursor: valueFillModal.checkedIds.size===0?"not-allowed":"pointer",fontFamily:"inherit",border:"none",background: valueFillModal.checkedIds.size===0?"#b8bfcc":"#7ab8d4",color:"#fff",transition:"all 0.15s" }}
                 onMouseEnter={e => { if(valueFillModal.checkedIds.size>0) e.currentTarget.style.background="#4240c4"; }}
-                onMouseLeave={e => { if(valueFillModal.checkedIds.size>0) e.currentTarget.style.background="#5856d6"; }}>
+                onMouseLeave={e => { if(valueFillModal.checkedIds.size>0) e.currentTarget.style.background="#7ab8d4"; }}>
                 Apply {valueFillModal.checkedIds.size} part{valueFillModal.checkedIds.size !== 1 ? "s" : ""}
               </button>
             </div>

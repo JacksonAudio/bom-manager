@@ -402,7 +402,7 @@ export default function Scoreboard({ standalone = false, teamMembers: propTM, bu
                     <div style={{ flex: 1, height: 6, background: theme==="dark"?"#1a1a28":"#e5e5ea", borderRadius: 3, overflow: "hidden" }}>
                       <div style={{
                         width: `${pct}%`, height: "100%",
-                        background: pct >= 80 ? "#34c759" : pct >= 40 ? "#58a6ff" : "#5856d6",
+                        background: pct >= 80 ? "#34c759" : pct >= 40 ? "#58a6ff" : "#7ab8d4",
                         borderRadius: 3, transition: "width 0.5s ease",
                       }} />
                     </div>

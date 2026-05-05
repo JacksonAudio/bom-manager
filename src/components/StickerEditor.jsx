@@ -236,7 +236,7 @@ export default function StickerEditor({ onClose, onApplyTemplate }) {
               Reset
             </button>
             <button onClick={handleTestPrint}
-              style={{ padding: '6px 14px', borderRadius: 980, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: '#5856d6', color: '#fff' }}>
+              style={{ padding: '6px 14px', borderRadius: 980, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: '#7ab8d4', color: '#fff' }}>
               Test Print
             </button>
             <button onClick={handleApply}
