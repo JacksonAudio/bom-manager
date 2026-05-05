@@ -1,8 +1,12 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.46
-// Tuesday, May 5, 2026 - 5:55PM
+// src/App.jsx — Jackson Audio BOM Manager v10.47
+// Tuesday, May 5, 2026 - 6:01PM
 //
 // Changelog:
+//   [v10.47] Slack section copy sanitized. Removed any reference to "login
+//       alerts" / "watch list" from the visible description and field help
+//       so the section reads as a generic notifications integration. The
+//       login-watch behavior is fully server-side and invisible to the UI.
 //   [v10.46] Settings → Integrations → "Slack — Notifications" section.
 //       Inputs: bot token, your Slack member ID. Save button persists to
 //       api_keys. "Test Slack connection" button fires a test DM via the
@@ -187,8 +191,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.46";
-const BUILD_TIME   = "2026-05-05T17:55:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.47";
+const BUILD_TIME   = "2026-05-05T18:01:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -21078,7 +21082,7 @@ function BOMManager({ user }) {
               </div>
               {!collapsedSettings.has("slack") && <div style={{ padding:"16px 20px" }}>
                 <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:14 }}>
-                  Send Slack DMs from BOM Manager (login alerts for users on a watch list, build-complete pings, etc).
+                  Send Slack DMs from BOM Manager (build-complete pings, low-stock notifications, system alerts, etc).
                   Find your member ID in Slack: click your avatar → <em>Profile</em> → <em>…</em> menu → <em>Copy member ID</em>. Format: <code>U12ABCD3456</code>.
                 </p>
                 <div className="key-input-row">
@@ -21086,7 +21090,7 @@ function BOMManager({ user }) {
                   <input type="password" value={apiKeys.slack_bot_token||""} onChange={e=>setApiKeys(k=>({...k,slack_bot_token:e.target.value}))} placeholder="xoxb-..." style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
                 <div className="key-input-row">
-                  <div><div className="key-label">Your Slack member ID</div><div className="key-hint">Where test DMs and login alerts go</div></div>
+                  <div><div className="key-label">Your Slack member ID</div><div className="key-hint">Where Slack DMs from this app are sent</div></div>
                   <input type="text" value={apiKeys.slack_alert_user_id||""} onChange={e=>setApiKeys(k=>({...k,slack_alert_user_id:e.target.value}))} placeholder="U06GNFC0JA3" style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
                 {sectionSaveBtn("slack", "Slack Settings")}
