@@ -440,21 +440,35 @@ async function handleSlackTest(req, res) {
 }
 
 // ── Auth Login Alert — fired by Postgres trigger when a watched user logs in
-// Body: { user_email: string, created_at?: ISO string, watched_by_email?: string }
-// For now: alerts are always sent to brad@jacksonaudio.net.
+// Body: {
+//   user_email:           string,   // who logged in
+//   created_at?:          ISO string,
+//   notify_slack_user_id: string,   // who gets DM'd (e.g. "U06GNFC0JA3")
+//   watched_by_email?:    string,   // fallback if no slack id (needs users:read.email scope)
+// }
 async function handleAuthLoginAlert(req, res) {
-  const { user_email, created_at, watched_by_email } = req.body || {};
+  const { user_email, created_at, watched_by_email, notify_slack_user_id } = req.body || {};
   if (!user_email) return res.status(400).json({ ok: false, error: "missing user_email in body" });
-  const recipient = watched_by_email || "brad@jacksonaudio.net";
   const { token, error: tokenErr } = await getSlackBotToken();
   if (!token) return res.status(500).json({ ok: false, step: "token", error: tokenErr });
-  const lookup = await slackLookupUserId(token, recipient);
-  if (!lookup.ok) return res.status(500).json({ ok: false, step: "lookup", error: lookup.error, recipient });
+
+  let userId, name;
+  if (notify_slack_user_id) {
+    userId = notify_slack_user_id;
+    name = "(direct ID)";
+  } else {
+    const recipient = watched_by_email || "brad@jacksonaudio.net";
+    const lookup = await slackLookupUserId(token, recipient);
+    if (!lookup.ok) return res.status(500).json({ ok: false, step: "lookup", error: lookup.error, recipient });
+    userId = lookup.userId;
+    name = lookup.name;
+  }
+
   const ts = created_at
     ? new Date(created_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" })
     : new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" });
   const text = `:bell: *${user_email}* just logged into BOM Manager (${ts} CT)`;
-  const slackResp = await slackPostDm(token, lookup.userId, text);
+  const slackResp = await slackPostDm(token, userId, text);
   return res.status(200).json({ ok: !!slackResp.ok, slack_response: slackResp });
 }
 
