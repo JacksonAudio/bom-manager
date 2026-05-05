@@ -1,8 +1,20 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.38
+// src/App.jsx — Jackson Audio BOM Manager v10.39
 // Tuesday, May 5, 2026
 //
 // Changelog:
+//   [v10.39] CSV importer accepts a ReelQty column (was previously settable
+//       only via the inline edit on a part row or via Mouser/Nexar API
+//       auto-fill). Aliases: Reel_Qty, Reel Size, PackQty, FactoryPackQty,
+//       full_reel. Wires through to part.reelQty -> DB column reel_qty,
+//       which the PO generator at App.jsx:9223 already consumes —
+//       Math.ceil(rawNet / reelQty) * reelQty rounds every order up to
+//       a full reel. So pasting a CSV with "ReelQty,5000" on each row
+//       guarantees those parts can never be ordered in partial-reel
+//       quantities. Regenerated /tmp/yageo-cfr25-e24.csv with the new
+//       column; all 169 CFR25 resistors are now reel-locked at 5,000.
+//       Format reference docs (both compact and full-width Parts >
+//       Import panels) updated to advertise the new column.
 //   [v10.38] More dark-mode contrast fixes:
 //       (a) Import preview row backgrounds (Parts > Import flow). The
 //           inline ternary i%2===0?"#fff":"#fafbfc" wasn't caught by
@@ -102,8 +114,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.38";
-const BUILD_TIME   = "2026-05-05T03:45:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.39";
+const BUILD_TIME   = "2026-05-05T04:10:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -495,6 +507,11 @@ function parseBOM(raw) {
     preferredSupplier: ["preferredsupplier", "preferred_supplier", "supplier", "vendor"],
     unitCost:     ["unitcost", "unit_cost", "price", "cost"],
     stockQty:     ["stockqty", "stock_qty", "stock", "in stock"],
+    // v10.39: Reel quantity — when set, PO generation rounds order qty up
+    // to the nearest multiple (Math.ceil(net/reelQty)*reelQty at line 9223).
+    // Used to force purchases in full reels for components that only ship
+    // that way (resistors, caps in reel pack, etc.).
+    reelQty:      ["reelqty", "reel_qty", "reel qty", "reel size", "reelsize", "packqty", "pack_qty", "factorypackqty", "factory_pack_qty", "fullreel", "full_reel"],
     addedDate:    ["addeddate", "added_date", "added", "created_at", "date"],
     notes:        ["notes", "purchaseurl", "purchase_url", "sourceurl", "source_url", "reorderurl", "reorder_url"],
   };
@@ -530,6 +547,7 @@ function parseBOM(raw) {
       manufacturer: get("manufacturer"), quantity: qty,
       unitCost: get("unitCost") || "", projectId: null, reorderQty: "",
       stockQty: get("stockQty") || "",
+      reelQty: get("reelQty") || "",
       preferredSupplier: get("preferredSupplier") || "mouser",
       addedDate: get("addedDate") || "",
       notes: get("notes") || "",
@@ -3581,6 +3599,7 @@ function BOMManager({ user }) {
       product_id:        part.projectId || null,
       reorder_qty:       part.reorderQty !== "" ? parseInt(part.reorderQty) || null : null,
       stock_qty:         part.stockQty   !== "" ? parseInt(part.stockQty)   || null : null,
+      reel_qty:          part.reelQty    !== "" && part.reelQty != null ? parseInt(part.reelQty) || null : null,
       preferred_supplier:part.preferredSupplier || "mouser",
       order_qty:         part.orderQty   !== "" ? parseInt(part.orderQty)   || null : null,
       flagged_for_order: part.flaggedForOrder    || false,
@@ -6724,6 +6743,7 @@ function BOMManager({ user }) {
                     { col:"Supplier",    alt:"Vendor, PreferredSupplier",             note:"Preferred distributor — defaults to Mouser" },
                     { col:"UnitCost",    alt:"Price, Cost, Unit_Cost",                note:"Unit price in USD" },
                     { col:"Stock",       alt:"StockQty, Stock_Qty, In Stock",         note:"Current stock on hand" },
+                    { col:"ReelQty",     alt:"Reel_Qty, Reel Size, PackQty, FactoryPackQty", note:"Full-reel size (e.g. 5000). Sets the order multiple — POs round up so partial reels are never purchased." },
                     { col:"Date",        alt:"AddedDate, Added, Created_At",          note:"Import date for historical records" },
                     { col:"PurchaseURL", alt:"Notes, SourceURL, ReorderURL",          note:"Reorder link saved with part (e.g. AliExpress order URL)" },
                   ].map(({ col, alt, note, req }) => (
@@ -7537,6 +7557,7 @@ function BOMManager({ user }) {
                         { col:"Supplier",     alt:"Vendor, PreferredSupplier",           note:"Defaults to Mouser" },
                         { col:"UnitCost",     alt:"Price, Cost, Unit_Cost",              note:"USD" },
                         { col:"Stock",        alt:"StockQty, Stock_Qty, In Stock",       note:"Units on hand" },
+                        { col:"ReelQty",      alt:"Reel_Qty, Reel Size, PackQty",        note:"Forces POs to round up to full reels" },
                       ].map(({ col, alt, note, req }) => (
                         <tr key={col} style={{ borderTop:"1px solid #f6f9fc" }}>
                           <td style={{ padding:"5px 8px",fontWeight:700,color:req?"#58a6ff":"#061b31",fontFamily:"monospace" }}>{col}{req && <span style={{ marginLeft:4,fontSize:9,color:"#58a6ff" }}>required</span>}</td>
