@@ -1,8 +1,14 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.45
-// Tuesday, May 5, 2026 - 5:42PM
+// src/App.jsx — Jackson Audio BOM Manager v10.46
+// Tuesday, May 5, 2026 - 5:55PM
 //
 // Changelog:
+//   [v10.46] Settings → Integrations → "Slack — Notifications" section.
+//       Inputs: bot token, your Slack member ID. Save button persists to
+//       api_keys. "Test Slack connection" button fires a test DM via the
+//       slack-test endpoint and reports inline (and via toast). Status pill
+//       in the section header (✓ Connected / ✗ Error). Same look & feel as
+//       the other Integrations cards.
 //   [v10.45] auth-login-alert endpoint now accepts { notify_slack_user_id }
 //       to bypass email lookup. Pairs with the auth_login_watch table +
 //       trigger that fires this endpoint on every new auth.sessions insert.
@@ -181,8 +187,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.45";
-const BUILD_TIME   = "2026-05-05T17:42:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.46";
+const BUILD_TIME   = "2026-05-05T17:55:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -21056,6 +21062,67 @@ function BOMManager({ user }) {
                   <input type="text" value={apiKeys.fb_ft_ad_account_id||""} onChange={e=>setApiKeys(k=>({...k,fb_ft_ad_account_id:e.target.value}))} placeholder="act_123456789" style={{ padding:"8px 12px",borderRadius:8 }} />
                 </div>
                 {sectionSaveBtn("facebook", "Facebook Settings")}
+              </div>}
+            </div>}
+
+            {/* ── Slack — Notifications */}
+            {settingsTab === "integrations" && <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:16,overflow:"hidden" }}>
+              <div style={{ background:darkMode?"#161a22":"#b8bdd1",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onClick={() => setCollapsedSettings(prev => { const s = new Set(prev); s.has("slack") ? s.delete("slack") : s.add("slack"); return s; })}>
+                <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:13,color:darkMode?"#e8ebf0":"#3a3f51",letterSpacing:"0.04em",textTransform:"uppercase" }}>
+                  <span style={{ display:"inline-block",width:16,fontSize:11,color:darkMode?"#e8ebf0":"#3a3f51" }}>{collapsedSettings.has("slack") ? "▶" : "▼"}</span>
+                  Slack — Notifications
+                </div>
+                {apiTestResult.slack?.status === "ok" && <span style={{ fontSize:11,color:"#34c759",fontWeight:600 }}>✓ Connected</span>}
+                {apiTestResult.slack?.status === "error" && <span style={{ fontSize:11,color:"#ff3b30",fontWeight:600 }}>✗ Error</span>}
+              </div>
+              {!collapsedSettings.has("slack") && <div style={{ padding:"16px 20px" }}>
+                <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:14 }}>
+                  Send Slack DMs from BOM Manager (login alerts for users on a watch list, build-complete pings, etc).
+                  Find your member ID in Slack: click your avatar → <em>Profile</em> → <em>…</em> menu → <em>Copy member ID</em>. Format: <code>U12ABCD3456</code>.
+                </p>
+                <div className="key-input-row">
+                  <div><div className="key-label">Bot token</div><div className="key-hint">xoxb-... (Slack app → OAuth & Permissions)</div></div>
+                  <input type="password" value={apiKeys.slack_bot_token||""} onChange={e=>setApiKeys(k=>({...k,slack_bot_token:e.target.value}))} placeholder="xoxb-..." style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                <div className="key-input-row">
+                  <div><div className="key-label">Your Slack member ID</div><div className="key-hint">Where test DMs and login alerts go</div></div>
+                  <input type="text" value={apiKeys.slack_alert_user_id||""} onChange={e=>setApiKeys(k=>({...k,slack_alert_user_id:e.target.value}))} placeholder="U06GNFC0JA3" style={{ padding:"8px 12px",borderRadius:8 }} />
+                </div>
+                {sectionSaveBtn("slack", "Slack Settings")}
+                <div style={{ marginTop:10,display:"flex",alignItems:"center",gap:10 }}>
+                  <button style={{ fontSize:12,padding:"7px 18px",borderRadius:100,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${darkMode?"#1f2530":"#e3e8ee"}`,background:"transparent",color:darkMode?"#7ab8d4":"#1a7a8a" }}
+                    disabled={!apiKeys.slack_alert_user_id || apiTestResult.slack?.status === "testing"}
+                    onClick={async () => {
+                      setApiTestResult(prev => ({ ...prev, slack: { status: "testing", msg: "Sending test DM…" } }));
+                      try {
+                        const r = await fetch("/api/notifications?type=slack-test", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ slack_user_id: apiKeys.slack_alert_user_id }),
+                        });
+                        const body = await r.json();
+                        if (body.ok) {
+                          setApiTestResult(prev => ({ ...prev, slack: { status: "ok", msg: `Test DM sent to ${body.slack_user}` } }));
+                          showToast("✓ Test Slack DM sent — check your DMs", "#34c759");
+                        } else {
+                          const err = body.error || `failed at ${body.step || "unknown"}`;
+                          setApiTestResult(prev => ({ ...prev, slack: { status: "error", msg: err } }));
+                          showToast(`Slack test failed: ${err}`, "#ff3b30");
+                        }
+                      } catch (e) {
+                        setApiTestResult(prev => ({ ...prev, slack: { status: "error", msg: e.message } }));
+                        showToast(`Slack test error: ${e.message}`, "#ff3b30");
+                      }
+                    }}>
+                    {apiTestResult.slack?.status === "testing" ? "Sending…" : "Test Slack connection"}
+                  </button>
+                  {apiTestResult.slack?.msg && (
+                    <span style={{ fontSize:11,color: apiTestResult.slack.status === "ok" ? "#34c759" : apiTestResult.slack.status === "error" ? "#ff3b30" : darkMode?"#8a93a3":"#64748d" }}>
+                      {apiTestResult.slack.msg}
+                    </span>
+                  )}
+                </div>
               </div>}
             </div>}
 
