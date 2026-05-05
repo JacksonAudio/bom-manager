@@ -1,8 +1,20 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.42
-// Tuesday, May 5, 2026 - 3:08PM
+// src/App.jsx — Jackson Audio BOM Manager v10.43
+// Tuesday, May 5, 2026 - 5:27PM
 //
 // Changelog:
+//   [v10.43] Slack notification plumbing added to api/notifications.js.
+//       Two new ?type= cases:
+//         - "slack-test": fires a DM to a recipient (default brad@) so we
+//           can verify the bot end-to-end. Reads slack_bot_token from
+//           public.api_keys via service-role at runtime — token never
+//           crosses to the client. Returns step-by-step JSON so when
+//           something fails we know whether it was token / lookup / post.
+//         - "auth-login-alert": stub for the upcoming Postgres trigger that
+//           fires when a watched user logs in. Same Slack helpers.
+//       Three shared helpers: getSlackBotToken(), slackLookupUserId(),
+//       slackPostDm(). Both new cases compose them. No UI yet — invoke
+//       via curl POST while we iterate.
 //   [v10.42] Removed dark-mode background panels behind two page headers
 //       that Brad flagged as cohesion-breaking hard-edge rectangles:
 //       (a) Products tab — outer wrapper + the "2 Products" header bubble
@@ -163,8 +175,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.42";
-const BUILD_TIME   = "2026-05-05T15:08:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.43";
+const BUILD_TIME   = "2026-05-05T17:27:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";

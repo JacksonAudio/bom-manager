@@ -25,6 +25,10 @@ export default async function handler(req, res) {
       return await handleBuildAssigned(req, res);
     case "test":
       return await handleTest(req, res);
+    case "slack-test":
+      return await handleSlackTest(req, res);
+    case "auth-login-alert":
+      return await handleAuthLoginAlert(req, res);
     case "gmail-scan":
       return await handleGmailScan(req, res);
     case "gmail-read":
@@ -376,6 +380,69 @@ async function handleTest(req, res) {
   }
 
   return res.status(200).json({ message: "Notification test complete", results });
+}
+
+// ── Slack DM helpers (shared by slack-test + auth-login-alert) ──────────────
+// Reads slack_bot_token from public.api_keys via the service-role client.
+// Service role lives only in Vercel runtime env — never client-side.
+async function getSlackBotToken() {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseKey) return { token: null, error: "missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in Vercel env" };
+  const { createClient } = await import("@supabase/supabase-js");
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  const { data, error } = await supabase.from("api_keys").select("key_value").eq("key_name", "slack_bot_token").maybeSingle();
+  if (error) return { token: null, error: `db read: ${error.message}` };
+  if (!data || !data.key_value) return { token: null, error: "slack_bot_token row missing or empty in api_keys" };
+  return { token: data.key_value, error: null };
+}
+
+async function slackLookupUserId(token, email) {
+  const r = await fetch(`https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`, { headers: { Authorization: `Bearer ${token}` } });
+  const body = await r.json();
+  if (!body.ok) return { ok: false, error: body.error || "lookup failed" };
+  return { ok: true, userId: body.user.id, name: body.user.real_name || body.user.name };
+}
+
+async function slackPostDm(token, slackUserId, text) {
+  const r = await fetch("https://slack.com/api/chat.postMessage", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify({ channel: slackUserId, text }),
+  });
+  return await r.json();
+}
+
+// ── Slack Test — confirm bot can DM Brad end-to-end ─────────────────────────
+async function handleSlackTest(req, res) {
+  const recipientEmail = (req.body && req.body.email) || "brad@jacksonaudio.net";
+  const { token, error: tokenErr } = await getSlackBotToken();
+  if (!token) return res.status(500).json({ ok: false, step: "token", error: tokenErr });
+  const lookup = await slackLookupUserId(token, recipientEmail);
+  if (!lookup.ok) return res.status(500).json({ ok: false, step: "lookup", error: lookup.error, recipientEmail });
+  const text = `:bell: Test DM from BOM Manager — login alerts are wired up. If you see this, Slack notifications work end-to-end. (${new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" })} CT)`;
+  const slackResp = await slackPostDm(token, lookup.userId, text);
+  if (!slackResp.ok) return res.status(500).json({ ok: false, step: "post", error: slackResp.error, slack_response: slackResp });
+  return res.status(200).json({ ok: true, recipient: recipientEmail, slack_user: lookup.userId, slack_name: lookup.name, ts: slackResp.ts });
+}
+
+// ── Auth Login Alert — fired by Postgres trigger when a watched user logs in
+// Body: { user_email: string, created_at?: ISO string, watched_by_email?: string }
+// For now: alerts are always sent to brad@jacksonaudio.net.
+async function handleAuthLoginAlert(req, res) {
+  const { user_email, created_at, watched_by_email } = req.body || {};
+  if (!user_email) return res.status(400).json({ ok: false, error: "missing user_email in body" });
+  const recipient = watched_by_email || "brad@jacksonaudio.net";
+  const { token, error: tokenErr } = await getSlackBotToken();
+  if (!token) return res.status(500).json({ ok: false, step: "token", error: tokenErr });
+  const lookup = await slackLookupUserId(token, recipient);
+  if (!lookup.ok) return res.status(500).json({ ok: false, step: "lookup", error: lookup.error, recipient });
+  const ts = created_at
+    ? new Date(created_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" })
+    : new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" });
+  const text = `:bell: *${user_email}* just logged into BOM Manager (${ts} CT)`;
+  const slackResp = await slackPostDm(token, lookup.userId, text);
+  return res.status(200).json({ ok: !!slackResp.ok, slack_response: slackResp });
 }
 
 // ── Gmail Support Inbox ───────────────────────────────────────────────────────
