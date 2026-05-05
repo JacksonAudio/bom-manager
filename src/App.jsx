@@ -1,8 +1,32 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.37
+// src/App.jsx — Jackson Audio BOM Manager v10.38
 // Tuesday, May 5, 2026
 //
 // Changelog:
+//   [v10.38] More dark-mode contrast fixes:
+//       (a) Import preview row backgrounds (Parts > Import flow). The
+//           inline ternary i%2===0?"#fff":"#fafbfc" wasn't caught by
+//           v10.37's sed. Two render paths exist — the full-width Parts
+//           tab (line 7450) and the smaller compact preview (line 6631).
+//           Both now use darkMode-aware row bg + explicit ink-100 text.
+//       (b) Description column color: was #50617a (slate) which read on
+//           white but vanished on dark. Now darkMode?"#b8bfcc":"#50617a".
+//       (c) Sed swept 852 occurrences of secondary-text colors:
+//             color:"#64748d"  -> darkMode?"#8a93a3":"#64748d"  (ink-300)
+//             color:"#50617a"  -> darkMode?"#b8bfcc":"#50617a"  (ink-200)
+//             color:"#525f7f"  -> darkMode?"#b8bfcc":"#525f7f"  (ink-200)
+//             color:"#8898aa"  -> darkMode?"#8a93a3":"#8898aa"  (ink-300)
+//       (d) Expanded-part-row buttons (QR Label, Delete, Clear API
+//           Pricing) had hardcoded light-only hex codes in their
+//           onMouseEnter/onMouseLeave handlers — after a hover, the
+//           bg locked to #f6f9fc / #fff5f5 regardless of mode. All
+//           three buttons now use darkMode-aware tints (red translucent
+//           for the Delete/Clear danger style).
+//       (e) The global ".dark main button { color: #fff !important; }"
+//           rule was forcing every button to white text, killing
+//           deliberate inline colors (red Delete text on tinted-red bg).
+//           Tightened with :not([style*="color"]) so inline colors
+//           survive — same fix pattern as the v10.35 text rule.
 //   [v10.37] Real dark-mode fix. The CSS attribute-selector approach in
 //       v10.35 was fragile because Safari serializes inline React styles
 //       to rgb() form ("rgb(250, 251, 252)" instead of "#fafbfc"), so the
@@ -78,8 +102,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.37";
-const BUILD_TIME   = "2026-05-05T03:10:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.38";
+const BUILD_TIME   = "2026-05-05T03:45:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -1669,8 +1693,10 @@ const CSS = `
   .dark main [style*="color: #ff9500"], .dark main [style*="color:#ff9500"] {
     color: #ffa940 !important;
   }
-  /* ALL buttons in dark mode get white text */
-  #root .dark main button { color: #fff !important; }
+  /* Buttons in dark mode default to white text — but only when no inline
+     color is set. Some buttons use a tinted accent (Delete = red,
+     Clear API = red, etc.) and need their inline color preserved. */
+  #root .dark main button:not([style*="color"]) { color: #fff !important; }
   #root .dark .btn-ghost { color: #8a93a3 !important; }
   #root .dark .btn-ghost:hover { color: #58a6ff !important; }
 
@@ -5602,7 +5628,7 @@ function BOMManager({ user }) {
     <div style={{ minHeight:"100vh",background:darkMode?"#0a0c10":"#f6f9fc",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14 }}>
       <div style={{ width:36,height:36,border:"3px solid #e3e8ee",borderTopColor:"#58a6ff",borderRadius:"50%",animation:"spin 0.7s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",color:"#8898aa",fontSize:13 }}>Loading workspace…</div>
+      <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",color:darkMode?"#8a93a3":"#8898aa",fontSize:13 }}>Loading workspace…</div>
     </div>
   );
 
@@ -5635,7 +5661,7 @@ function BOMManager({ user }) {
               fontWeight:900,fontSize:14,color:"#fff",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>JA</div>
             <div>
               <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:800,fontSize:14,color:darkMode?"#f6f9fc":"#061b31" }}>Jackson Audio</div>
-              <div style={{ fontSize:9,color:"#8898aa",letterSpacing:"0.15em" }}>BOM MANAGER</div>
+              <div style={{ fontSize:9,color:darkMode?"#8a93a3":"#8898aa",letterSpacing:"0.15em" }}>BOM MANAGER</div>
             </div>
           </div>
 
@@ -5693,7 +5719,7 @@ function BOMManager({ user }) {
               onClick={() => setActiveView(s.nav)}>
               <div style={{ fontSize:17,fontWeight:700,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",
                 color:s.warn&&s.value>0?"#ff3b30":"#58a6ff" }}>{s.value}</div>
-              <div style={{ fontSize:9,color:"#8898aa",letterSpacing:"0.08em" }}>{s.label.toUpperCase()}</div>
+              <div style={{ fontSize:9,color:darkMode?"#8a93a3":"#8898aa",letterSpacing:"0.08em" }}>{s.label.toUpperCase()}</div>
             </div>
           ))}
           {/* API status indicator — click to expand log */}
@@ -5701,7 +5727,7 @@ function BOMManager({ user }) {
             onClick={() => setShowBootLog(prev => !prev)}>
             <div style={{ width:8,height:8,borderRadius:"50%",
               background: tokenStatus==="ok" ? "#34c759" : tokenStatus==="loading" ? "#58a6ff" : tokenStatus==="error" ? "#ff3b30" : "#8898aa" }} />
-            <span style={{ fontSize:10, color:"#8898aa" }}>
+            <span style={{ fontSize:10, color:darkMode?"#8a93a3":"#8898aa" }}>
               {tokenMsg || (tokenStatus==="loading" ? "connecting…" : "no API keys")}
             </span>
             {showBootLog && bootLog.length > 0 && (
@@ -5709,7 +5735,7 @@ function BOMManager({ user }) {
                 fontSize:11,fontFamily:"'SF Mono',Menlo,monospace",lineHeight:1.8,minWidth:360,maxWidth:500,zIndex:9999,
                 boxShadow:"0 4px 20px rgba(0,0,0,0.3)",border:"1px solid #1f2530" }}
                 onClick={e => e.stopPropagation()}>
-                <div style={{ fontWeight:700,marginBottom:6,color:"#8898aa",fontSize:10,textTransform:"uppercase",letterSpacing:"0.5px" }}>API Connection Log</div>
+                <div style={{ fontWeight:700,marginBottom:6,color:darkMode?"#8a93a3":"#8898aa",fontSize:10,textTransform:"uppercase",letterSpacing:"0.5px" }}>API Connection Log</div>
                 {bootLog.map((entry, i) => (
                   <div key={i} style={{ color: entry.ok === true ? "#34c759" : entry.ok === false ? "#ff453a" : "#8898aa" }}>
                     {entry.ok === true ? "✓" : entry.ok === false ? "✗" : "…"} {entry.text}
@@ -5720,7 +5746,7 @@ function BOMManager({ user }) {
           </div>
           {/* User + sign out */}
           <div style={{ display:"flex",alignItems:"center",gap:10,borderLeft:"1px solid #e5e5ea",paddingLeft:14 }}>
-            <span style={{ fontSize:10,color:"#8898aa",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+            <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
               {user.email}
             </span>
             <span style={{ fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:10,
@@ -5782,7 +5808,7 @@ function BOMManager({ user }) {
         {activeView === "dashboard" && (
           <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#e8ebf0":"#061b31",marginBottom:4 }}>Dashboard</h2>
-            <p style={{ fontSize:14,color:"#64748d",marginBottom:24 }}>Overview of your inventory, orders, and production status.</p>
+            <p style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d",marginBottom:24 }}>Overview of your inventory, orders, and production status.</p>
 
             {/* ── Metric cards row */}
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:16,marginBottom:24 }}>
@@ -5799,9 +5825,9 @@ function BOMManager({ user }) {
                     cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",border:"1px solid #e5e5ea" }}
                   onMouseOver={(e)=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.1)"}}
                   onMouseOut={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.06)"}}>
-                  <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
+                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
                   <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
-                  <div style={{ fontSize:12,color:"#64748d",marginTop:4 }}>{card.sub}</div>
+                  <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:4 }}>{card.sub}</div>
                 </div>
               ))}
             </div>
@@ -5820,7 +5846,7 @@ function BOMManager({ user }) {
                       <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                         Shelf Status {shelfHealthy ? "✓" : "⚠"}
                       </div>
-                      <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>Finished goods on the shelf right now</div>
+                      <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>Finished goods on the shelf right now</div>
                     </div>
                     <button className="btn-ghost btn-sm" onClick={() => { setActiveView("shelf"); }}>View Shelf →</button>
                   </div>
@@ -5834,7 +5860,7 @@ function BOMManager({ user }) {
                       <div key={c.label} style={{ textAlign:"center",padding:"12px 8px",borderRadius:10,background:darkMode?"#161a22":"#fafbfc",border:"1px solid #e5e5ea",cursor:"pointer" }}
                         onClick={() => { setActiveView("shelf"); }}>
                         <div style={{ fontSize:24,fontWeight:800,color:c.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>{c.value}</div>
-                        <div style={{ fontSize:10,color:"#64748d",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase",marginTop:2 }}>{c.label}</div>
+                        <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase",marginTop:2 }}>{c.label}</div>
                       </div>
                     ))}
                   </div>
@@ -5850,7 +5876,7 @@ function BOMManager({ user }) {
             {/* ── Workflow Flowchart */}
             <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"24px 28px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
               <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",marginBottom:4,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>How It Works</div>
-              <div style={{ fontSize:12,color:"#64748d",marginBottom:20 }}>Follow this workflow from setup to receiving parts.</div>
+              <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:20 }}>Follow this workflow from setup to receiving parts.</div>
               <div style={{ display:"flex",flexWrap:"wrap",alignItems:"flex-start",gap:0 }}>
                 {[
                   { step:1, title:"Add Parts", desc:"Import CSV, use Component Library, or Quick Add from a supplier URL to auto-fetch pricing, datasheets, and specs.", tab:"bom", color:"#58a6ff" },
@@ -5869,7 +5895,7 @@ function BOMManager({ user }) {
                         display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 8px",
                         fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>{s.step}</div>
                       <div style={{ fontSize:12,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",marginBottom:4 }}>{s.title}</div>
-                      <div style={{ fontSize:10,color:"#64748d",lineHeight:"14px" }}>{s.desc}</div>
+                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",lineHeight:"14px" }}>{s.desc}</div>
                     </div>
                     {i < arr.length - 1 && (
                       <div style={{ display:"flex",alignItems:"center",paddingTop:22,color:"#e3e8ee",fontSize:18,fontWeight:300,userSelect:"none" }}>&rarr;</div>
@@ -5911,7 +5937,7 @@ function BOMManager({ user }) {
               return (
                 <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:"1px solid #e5e5ea" }}>
                   <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",marginBottom:4,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>Product Cost Trends</div>
-                  <div style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>Current BOM cost vs earliest recorded prices</div>
+                  <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:14 }}>Current BOM cost vs earliest recorded prices</div>
                   <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
                     {trends.map(t => (
                       <div key={t.id} style={{ padding:"12px 16px",borderRadius:10,border:"1px solid #e5e5ea",minWidth:200,flex:1,maxWidth:300 }}>
@@ -5929,7 +5955,7 @@ function BOMManager({ user }) {
                           )}
                         </div>
                         {t.pctChange !== 0 && (
-                          <div style={{ fontSize:11,color:"#64748d",marginTop:2 }}>
+                          <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>
                             from ${fmtDollar(t.earliestCost)}
                           </div>
                         )}
@@ -5951,7 +5977,7 @@ function BOMManager({ user }) {
                       <div style={{ width:8,height:8,borderRadius:"50%",background:q.color }} />
                       <div>
                         <div style={{ fontSize:14,fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>{q.name}</div>
-                        <div style={{ fontSize:12,color:"#64748d" }}>Qty: {q.qty}</div>
+                        <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>Qty: {q.qty}</div>
                       </div>
                     </div>
                   ))}
@@ -5965,7 +5991,7 @@ function BOMManager({ user }) {
                 <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
                   <div>
                     <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>PO History</div>
-                    <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>Recent purchase orders</div>
+                    <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>Recent purchase orders</div>
                   </div>
                   <button className="btn-ghost btn-sm" onClick={()=>setActiveView("orders")}>View All</button>
                 </div>
@@ -5973,7 +5999,7 @@ function BOMManager({ user }) {
                   <thead>
                     <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
                       {["Supplier","PO #","Date","Items","Total","Status"].map(h=>(
-                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#64748d",letterSpacing:"0.06em",textTransform:"uppercase",
+                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",letterSpacing:"0.06em",textTransform:"uppercase",
                           fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>{h}</th>
                       ))}
                     </tr>
@@ -5989,9 +6015,9 @@ function BOMManager({ user }) {
                           <td style={{ padding:"10px 12px",fontWeight:600 }}>
                             <span style={{ color:order.supplierColor || "#061b31" }}>{order.supplier || "—"}</span>
                           </td>
-                          <td style={{ padding:"10px 12px",color:"#50617a",fontFamily:"monospace",fontSize:12 }}>{order.poNumber || "—"}</td>
-                          <td style={{ padding:"10px 12px",color:"#50617a" }}>{dateStr}</td>
-                          <td style={{ padding:"10px 12px",color:"#50617a" }}>{itemCount} item{itemCount !== 1 ? "s" : ""}</td>
+                          <td style={{ padding:"10px 12px",color:darkMode?"#b8bfcc":"#50617a",fontFamily:"monospace",fontSize:12 }}>{order.poNumber || "—"}</td>
+                          <td style={{ padding:"10px 12px",color:darkMode?"#b8bfcc":"#50617a" }}>{dateStr}</td>
+                          <td style={{ padding:"10px 12px",color:darkMode?"#b8bfcc":"#50617a" }}>{itemCount} item{itemCount !== 1 ? "s" : ""}</td>
                           <td style={{ padding:"10px 12px",fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>{totalValue > 0 ? `$${fmtDollar(totalValue)}` : "—"}</td>
                           <td style={{ padding:"10px 12px" }}>
                             <span style={{ display:"inline-block",padding:"2px 10px",borderRadius:100,fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",
@@ -6028,7 +6054,7 @@ function BOMManager({ user }) {
                   <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
                     <div>
                       <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>Aging Inventory</div>
-                      <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>Parts with stock not updated in 90+ days</div>
+                      <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>Parts with stock not updated in 90+ days</div>
                     </div>
                     <span style={{ fontSize:12,fontWeight:600,color:"#ff9500" }}>{agingParts.length} part{agingParts.length !== 1 ? "s" : ""}</span>
                   </div>
@@ -6036,7 +6062,7 @@ function BOMManager({ user }) {
                     <thead>
                       <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
                         {["MPN","Description","Stock","Age (days)","Last Updated"].map(h=>(
-                          <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#64748d",letterSpacing:"0.06em",textTransform:"uppercase",
+                          <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",letterSpacing:"0.06em",textTransform:"uppercase",
                             fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>{h}</th>
                         ))}
                       </tr>
@@ -6045,10 +6071,10 @@ function BOMManager({ user }) {
                       {agingParts.slice(0,10).map((p)=>(
                         <tr key={p.id} style={{ borderBottom:"1px solid #f0f0f2" }}>
                           <td style={{ padding:"10px 12px",fontWeight:600,color:"#58a6ff" }}>{p.mpn||p.reference||"—"}</td>
-                          <td style={{ padding:"10px 12px",color:"#50617a" }}>{p.description||p.value||"—"}</td>
+                          <td style={{ padding:"10px 12px",color:darkMode?"#b8bfcc":"#50617a" }}>{p.description||p.value||"—"}</td>
                           <td style={{ padding:"10px 12px",fontWeight:600 }}>{parseInt(p.stockQty)||0}</td>
                           <td style={{ padding:"10px 12px",fontWeight:700,color:p.ageDays>=180?"#ff3b30":p.ageDays>=120?"#ff9500":"#64748d" }}>{p.ageDays}</td>
-                          <td style={{ padding:"10px 12px",color:"#64748d",fontSize:12 }}>{p.updatedAt ? new Date(p.updatedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}</td>
+                          <td style={{ padding:"10px 12px",color:darkMode?"#8a93a3":"#64748d",fontSize:12 }}>{p.updatedAt ? new Date(p.updatedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -6109,14 +6135,14 @@ function BOMManager({ user }) {
                   onClick={() => setBomHistoryOpen(!bomHistoryOpen)}>
                   <div>
                     <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>BOM Version History</div>
-                    <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>{bomSnapshots.length} saved snapshot{bomSnapshots.length!==1?"s":""}</div>
+                    <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>{bomSnapshots.length} saved snapshot{bomSnapshots.length!==1?"s":""}</div>
                   </div>
-                  <span style={{ fontSize:14,color:"#64748d",transform:bomHistoryOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s" }}>{"\u25BC"}</span>
+                  <span style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d",transform:bomHistoryOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s" }}>{"\u25BC"}</span>
                 </div>
                 {bomHistoryOpen && (
                   <div style={{ marginTop:16 }}>
                     {bomSnapshots.length === 0 && (
-                      <div style={{ textAlign:"center",padding:"30px 20px",color:"#64748d",fontSize:13 }}>
+                      <div style={{ textAlign:"center",padding:"30px 20px",color:darkMode?"#8a93a3":"#64748d",fontSize:13 }}>
                         No snapshots saved yet. Click "Save BOM Snapshot" above to capture a version of your current BOM.
                       </div>
                     )}
@@ -6124,7 +6150,7 @@ function BOMManager({ user }) {
                       <thead>
                         <tr style={{ borderBottom:"2px solid " + (darkMode?"#1f2530":"#e5e5ea") }}>
                           {["Date","Label","Scope","Parts","Inventory Value",""].map(h=>(
-                            <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#64748d",letterSpacing:"0.06em",textTransform:"uppercase",
+                            <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",letterSpacing:"0.06em",textTransform:"uppercase",
                               fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>{h}</th>
                           ))}
                         </tr>
@@ -6149,7 +6175,7 @@ function BOMManager({ user }) {
                                       All Products
                                     </span>}
                               </td>
-                              <td style={{ padding:"10px 12px",fontSize:12,color:"#64748d" }}>{snapParts.length}</td>
+                              <td style={{ padding:"10px 12px",fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>{snapParts.length}</td>
                               <td style={{ padding:"10px 12px",fontSize:12,color:"#34c759",fontWeight:600 }}>${fmtDollar(snapValue)}</td>
                               <td style={{ padding:"10px 12px",textAlign:"right" }}>
                                 <button className="btn-ghost btn-sm" style={{ fontSize:11 }}
@@ -6193,7 +6219,7 @@ function BOMManager({ user }) {
                             Changes since "{bomSnapshots[bomCompareIdx].label || "Snapshot"}"
                           </div>
                           {added.length === 0 && removed.length === 0 && changed.length === 0 && (
-                            <div style={{ fontSize:13,color:"#64748d" }}>No differences found.</div>
+                            <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>No differences found.</div>
                           )}
                           {added.length > 0 && (
                             <div style={{ marginBottom:12 }}>
@@ -6201,7 +6227,7 @@ function BOMManager({ user }) {
                               {added.slice(0, 20).map(p => (
                                 <div key={p.id} style={{ fontSize:12,color:darkMode?"#e2e8f0":"#061b31",padding:"3px 0" }}>+ {p.mpn} {p.value ? `(${p.value})` : ""}</div>
                               ))}
-                              {added.length > 20 && <div style={{ fontSize:11,color:"#64748d" }}>...and {added.length - 20} more</div>}
+                              {added.length > 20 && <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>...and {added.length - 20} more</div>}
                             </div>
                           )}
                           {removed.length > 0 && (
@@ -6210,7 +6236,7 @@ function BOMManager({ user }) {
                               {removed.slice(0, 20).map(p => (
                                 <div key={p.id || p.mpn} style={{ fontSize:12,color:darkMode?"#e2e8f0":"#061b31",padding:"3px 0" }}>- {p.mpn} {p.value ? `(${p.value})` : ""}</div>
                               ))}
-                              {removed.length > 20 && <div style={{ fontSize:11,color:"#64748d" }}>...and {removed.length - 20} more</div>}
+                              {removed.length > 20 && <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>...and {removed.length - 20} more</div>}
                             </div>
                           )}
                           {changed.length > 0 && (
@@ -6224,7 +6250,7 @@ function BOMManager({ user }) {
                                   {c.priceDiff && <span style={{ color:"#7ab8d4" }}> price ${parseFloat(c.oldPrice||0).toFixed(4)}{"\u2192"}${parseFloat(c.newPrice||0).toFixed(4)}</span>}
                                 </div>
                               ))}
-                              {changed.length > 30 && <div style={{ fontSize:11,color:"#64748d" }}>...and {changed.length - 30} more</div>}
+                              {changed.length > 30 && <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>...and {changed.length - 30} more</div>}
                             </div>
                           )}
                         </div>
@@ -6248,7 +6274,7 @@ function BOMManager({ user }) {
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#00c7be",color:"#fff",fontSize:12,fontWeight:800 }}>6</span>
                 <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",margin:0 }}>Receive & Scan</h2>
               </div>
-              <p style={{ fontSize:13,color:"#50617a",lineHeight:"20px",margin:0 }}>
+              <p style={{ fontSize:13,color:darkMode?"#b8bfcc":"#50617a",lineHeight:"20px",margin:0 }}>
                 The final step — when parts arrive, scan barcodes to update stock instantly or upload supplier invoices for AI-powered extraction. This closes the loop on your purchase orders, keeps inventory accurate in real time, and means your team on the floor always has the latest stock counts without manual data entry.
               </p>
             </div>
@@ -6286,7 +6312,7 @@ function BOMManager({ user }) {
                   fontSize:20,fontWeight:700,letterSpacing:"-0.3px",color:darkMode?"#f6f9fc":"#061b31",marginBottom:4 }}>
                   Invoice Scanner
                 </h3>
-                <p style={{ fontSize:13,color:"#64748d",marginBottom:16 }}>
+                <p style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginBottom:16 }}>
                   Upload or photograph a supplier invoice — AI extracts all parts, quantities, and prices.
                 </p>
                 {/* Progress indicator */}
@@ -6303,7 +6329,7 @@ function BOMManager({ user }) {
                     </div>
                     {bulkInvoiceProgress ? (
                       <>
-                        <div style={{ fontSize:12,color:"#64748d",marginBottom:4 }}>
+                        <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:4 }}>
                           Current: <strong>{bulkInvoiceProgress.current}</strong>
                           {bulkInvoiceProgress.errors.length > 0 && (
                             <span style={{ marginLeft:8,color:"#ff3b30" }}>{bulkInvoiceProgress.errors.length} error{bulkInvoiceProgress.errors.length !== 1 ? "s" : ""}</span>
@@ -6313,13 +6339,13 @@ function BOMManager({ user }) {
                           <div style={{ height:"100%",background:"linear-gradient(90deg,#e8500a,#ff9500)",borderRadius:3,
                             transition:"width 0.3s",width:`${Math.round((bulkInvoiceProgress.done / bulkInvoiceProgress.total) * 100)}%` }} />
                         </div>
-                        <div style={{ fontSize:11,color:"#8898aa",marginTop:4 }}>
+                        <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#8898aa",marginTop:4 }}>
                           {bulkInvoiceProgress.done}/{bulkInvoiceProgress.total} complete · ~{Math.max(0, (bulkInvoiceProgress.total - bulkInvoiceProgress.done) * 15)}s remaining
                         </div>
                       </>
                     ) : (
                       <>
-                        <div style={{ fontSize:12,color:"#64748d" }}>This may take 10-30 seconds for multi-page PDFs. Do not close this page.</div>
+                        <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>This may take 10-30 seconds for multi-page PDFs. Do not close this page.</div>
                         <div style={{ marginTop:10,height:4,background:darkMode?"#161a22":"#e5e5ea",borderRadius:2,overflow:"hidden" }}>
                           <div style={{ height:"100%",background:"linear-gradient(90deg,#7ab8d4,#58a6ff)",borderRadius:2,
                             animation:"progressIndeterminate 1.5s ease-in-out infinite",width:"40%" }} />
@@ -6437,7 +6463,7 @@ function BOMManager({ user }) {
                           style={{ width:16,height:16,cursor:"pointer",accentColor:"#7ab8d4",flexShrink:0 }} />
                         <div style={{ flex:1,minWidth:0 }}>
                           <div style={{ fontWeight:600 }}>{item.mpn||"—"}</div>
-                          <div style={{ fontSize:11,color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{item.description||""}</div>
+                          <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{item.description||""}</div>
                         </div>
                         <div style={{ fontWeight:600,minWidth:40,textAlign:"right" }}>×{item.quantity}</div>
                         {item.unitPrice > 0 && <div style={{ color:"#34c759",fontWeight:600,minWidth:60,textAlign:"right" }}>${fmtPrice(item.unitPrice)}</div>}
@@ -6470,14 +6496,14 @@ function BOMManager({ user }) {
         {activeView === "import" && (
           <div style={{ maxWidth:780 }}>
             <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Import Bill of Materials</h2>
-            <p style={{ color:"#64748d",fontSize:13,marginBottom:20 }}>CSV/TSV from KiCad, Altium, Eagle, or paste directly.</p>
+            <p style={{ color:darkMode?"#8a93a3":"#64748d",fontSize:13,marginBottom:20 }}>CSV/TSV from KiCad, Altium, Eagle, or paste directly.</p>
 
             {/* ── Undo Last Import */}
             {lastImportBatch && lastImportBatch.ids?.length > 0 && (
               <div style={{ marginBottom:16,padding:"12px 16px",background:"rgba(255,149,0,0.07)",border:"1px solid #ff9500",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
                 <div>
                   <div style={{ fontWeight:700,fontSize:13,color:"#ff9500" }}>↩ Undo available</div>
-                  <div style={{ fontSize:12,color:"#50617a",marginTop:2 }}>
+                  <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginTop:2 }}>
                     Last import: <strong>{lastImportBatch.count} parts</strong>
                     {lastImportBatch.filename ? ` from "${lastImportBatch.filename}"` : ""}
                     {lastImportBatch.importedAt ? ` · ${new Date(lastImportBatch.importedAt).toLocaleString()}` : ""}
@@ -6514,13 +6540,13 @@ function BOMManager({ user }) {
                       <div key={imp.id}>
                         <div style={{ display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:idx%2===0?(darkMode?"#0f1218":"#fff"):(darkMode?"#161a22":"#fafbfc"),cursor:"pointer",borderBottom:isExpanded?"none":(darkMode?"1px solid #1f2530":"1px solid #f0f0f2") }}
                           onClick={() => setExpandedImport(isExpanded ? null : imp.id)}>
-                          <span style={{ fontSize:11,color:"#64748d",flexShrink:0 }}>{isExpanded?"▾":"▸"}</span>
+                          <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",flexShrink:0 }}>{isExpanded?"▾":"▸"}</span>
                           <span style={{ fontSize:12,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
                             {imp.filename || "(pasted)"} · {imp.part_count} part{imp.part_count!==1?"s":""}
                           </span>
                           <span style={{ fontSize:11,color:typeColor,background:typeBg,padding:"2px 7px",borderRadius:5,flexShrink:0,fontWeight:600 }}>{typeLabel}</span>
-                          <span style={{ fontSize:11,color:"#64748d",flexShrink:0,whiteSpace:"nowrap" }}>{importerName}</span>
-                          <span style={{ fontSize:11,color:"#8898aa",flexShrink:0,whiteSpace:"nowrap" }}>{when}</span>
+                          <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",flexShrink:0,whiteSpace:"nowrap" }}>{importerName}</span>
+                          <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#8898aa",flexShrink:0,whiteSpace:"nowrap" }}>{when}</span>
                           <button style={{ background:"transparent",color:"#ff3b30",fontSize:13,fontWeight:700,cursor:"pointer",padding:"2px 8px",flexShrink:0,lineHeight:1,borderRadius:100,border:"1px solid rgba(255,59,48,0.35)" }}
                             title={isProductImport ? "Remove these parts from the product BOM" : "Soft-delete all parts from this import"}
                             onClick={async (e) => {
@@ -6541,7 +6567,7 @@ function BOMManager({ user }) {
                         {isExpanded && (
                           <div style={{ padding:"10px 14px",background:darkMode?"#161618":"#fafbfc",borderBottom:darkMode?"1px solid #1f2530":"1px solid #f0f0f2" }}>
                             {(imp.part_ids || []).length === 0 ? (
-                              <span style={{ fontSize:12,color:"#64748d" }}>No part IDs recorded for this import.</span>
+                              <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>No part IDs recorded for this import.</span>
                             ) : (
                               <div style={{ display:"flex",flexWrap:"wrap",gap:4 }}>
                                 {(imp.part_ids || []).map(pid => {
@@ -6571,13 +6597,13 @@ function BOMManager({ user }) {
               onClick={()=>fileRef.current.click()}>
               <div style={{ fontSize:34,marginBottom:10 }}>📋</div>
               <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:14,marginBottom:6 }}>Drop BOM file here</div>
-              <div style={{ color:"#8898aa",fontSize:12 }}>CSV · TSV · TXT — or click to browse</div>
+              <div style={{ color:darkMode?"#8a93a3":"#8898aa",fontSize:12 }}>CSV · TSV · TXT — or click to browse</div>
               <input ref={fileRef} type="file" accept=".csv,.tsv,.txt" style={{ display:"none" }} onChange={handleFilePick} />
             </div>
 
             <div style={{ display:"flex",alignItems:"center",gap:14,margin:"20px 0" }}>
               <div style={{ flex:1,height:1,background:darkMode?"#0a0c10":"#f6f9fc" }} />
-              <span style={{ color:"#8898aa",fontSize:12 }}>or paste directly</span>
+              <span style={{ color:darkMode?"#8a93a3":"#8898aa",fontSize:12 }}>or paste directly</span>
               <div style={{ flex:1,height:1,background:darkMode?"#0a0c10":"#f6f9fc" }} />
             </div>
 
@@ -6600,9 +6626,9 @@ function BOMManager({ user }) {
                 <div style={{ background:"rgba(0,122,255,0.07)",padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
                   <div>
                     <span style={{ fontWeight:700,fontSize:14,color:"#007aff" }}>Preview — {selectedCount} of {importPreview.parts.length} parts selected</span>
-                    {importPreview.skipped > 0 && <span style={{ fontSize:12,color:"#50617a",marginLeft:10 }}>{importPreview.skipped} duplicate{importPreview.skipped>1?"s":""} skipped</span>}
+                    {importPreview.skipped > 0 && <span style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginLeft:10 }}>{importPreview.skipped} duplicate{importPreview.skipped>1?"s":""} skipped</span>}
                     {importPreview.skippedDNI > 0 && <span style={{ fontSize:12,color:"#ff9500",marginLeft:10 }}>{importPreview.skippedDNI} DNI/fiducial auto-skipped</span>}
-                    {importPreview.filename && <span style={{ fontSize:12,color:"#50617a",marginLeft:10 }}>from "{importPreview.filename}"</span>}
+                    {importPreview.filename && <span style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginLeft:10 }}>from "{importPreview.filename}"</span>}
                   </div>
                   <div style={{ display:"flex",gap:8 }}>
                     <button className="btn-ghost" style={{ fontSize:13 }} onClick={()=>setImportPreview(null)}>Cancel</button>
@@ -6628,16 +6654,24 @@ function BOMManager({ user }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {importPreview.parts.map((p,i)=>(
-                        <tr key={i} style={{ borderBottom:"1px solid #f6f9fc",background:importExcluded.has(i)?"#f8f8f8":i%2===0?"#fff":"#fafbfc",opacity:importExcluded.has(i)?0.45:1 }}>
+                      {importPreview.parts.map((p,i)=>{
+                        // Row bg: dark-mode aware (was inline ternary using
+                        // #fff / #fafbfc which my v10.37 sed couldn't catch).
+                        const rowBg = importExcluded.has(i)
+                          ? (darkMode ? "#161a22" : "#f8f8f8")
+                          : i % 2 === 0
+                            ? (darkMode ? "#0f1218" : "#fff")
+                            : (darkMode ? "#0a0c10" : "#fafbfc");
+                        return (
+                        <tr key={i} style={{ borderBottom:darkMode?"1px solid #1f2530":"1px solid #f6f9fc",background:rowBg,opacity:importExcluded.has(i)?0.45:1,color:darkMode?"#e8ebf0":"inherit" }}>
                           <td style={{ padding:"6px 8px",width:32 }}>
                             <input type="checkbox" checked={!importExcluded.has(i)} onChange={() => {
                               setImportExcluded(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; });
                             }} />
                           </td>
-                          <td style={{ padding:"6px 12px",fontFamily:"monospace",whiteSpace:"nowrap" }}>{p.mpn||"—"}</td>
-                          <td style={{ padding:"6px 12px",whiteSpace:"nowrap" }}>{p.value||"—"}</td>
-                          <td style={{ padding:"6px 12px",color:"#50617a",maxWidth:280,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
+                          <td style={{ padding:"6px 12px",fontFamily:"monospace",whiteSpace:"nowrap",color:darkMode?"#e8ebf0":"#061b31" }}>{p.mpn||"—"}</td>
+                          <td style={{ padding:"6px 12px",whiteSpace:"nowrap",color:darkMode?"#e8ebf0":"#061b31" }}>{p.value||"—"}</td>
+                          <td style={{ padding:"6px 12px",color:darkMode?"#b8bfcc":"#50617a",maxWidth:280,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
                           <td style={{ padding:"6px 12px",whiteSpace:"nowrap" }}>{p.preferredSupplier||"—"}</td>
                           <td style={{ padding:"6px 12px",whiteSpace:"nowrap" }}>
                             {p.mpn
@@ -6654,7 +6688,8 @@ function BOMManager({ user }) {
                             </td>
                           )}
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -6665,7 +6700,7 @@ function BOMManager({ user }) {
             {/* ── CSV Format Reference */}
             <div style={{ marginTop:28,padding:"20px 22px",background:darkMode?"#0f1218":"#fff",borderRadius:12,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
               <div style={{ fontWeight:700,fontSize:14,marginBottom:4 }}>📄 Accepted CSV Format</div>
-              <div style={{ fontSize:12,color:"#50617a",marginBottom:16 }}>
+              <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:16 }}>
                 Files can use commas or tabs as delimiters. Headers are auto-detected — column order doesn't matter.
                 Duplicate MPNs already in the library are skipped automatically.
               </div>
@@ -6696,8 +6731,8 @@ function BOMManager({ user }) {
                       <td style={{ padding:"7px 10px",fontWeight:700,color: req?"#58a6ff":"#061b31",fontFamily:"monospace" }}>
                         {col}{req && <span style={{ marginLeft:4,fontSize:10,color:"#58a6ff",fontWeight:600 }}>required</span>}
                       </td>
-                      <td style={{ padding:"7px 10px",color:"#50617a",fontFamily:"monospace",fontSize:11 }}>{alt}</td>
-                      <td style={{ padding:"7px 10px",color:"#50617a" }}>{note}</td>
+                      <td style={{ padding:"7px 10px",color:darkMode?"#b8bfcc":"#50617a",fontFamily:"monospace",fontSize:11 }}>{alt}</td>
+                      <td style={{ padding:"7px 10px",color:darkMode?"#b8bfcc":"#50617a" }}>{note}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -6726,7 +6761,7 @@ function BOMManager({ user }) {
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#58a6ff",color:"#fff",fontSize:12,fontWeight:800 }}>1</span>
                 <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",margin:0 }}>Parts Library</h2>
               </div>
-              <p style={{ fontSize:13,color:"#50617a",lineHeight:"20px",margin:0 }}>
+              <p style={{ fontSize:13,color:darkMode?"#b8bfcc":"#50617a",lineHeight:"20px",margin:0 }}>
                 This is your master inventory — every component your company uses lives here. Import BOMs from KiCad, Altium, or Eagle, add parts manually, search the Component Library, or use Quick Add URL to paste a Mouser/DigiKey/Arrow link and auto-import the part with pricing, description, datasheet, country of origin, and quantity price breaks. Accurate part data with MPNs, stock levels, and reel quantities keeps purchasing efficient and inventory visible.
               </p>
             </div>
@@ -6736,17 +6771,17 @@ function BOMManager({ user }) {
                 background:darkMode?"#0f1218":"#fff",borderRadius:12,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",
                 flexWrap:"wrap",alignItems:"center" }}>
                 <div>
-                  <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>Inventory Value</div>
+                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>Inventory Value</div>
                   <div style={{ fontSize:24,fontWeight:800,color:darkMode?"#e8ebf0":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>
                     ${fmtDollar(inventoryValue)}
                   </div>
                 </div>
                 <div style={{ borderLeft:"1px solid #e5e5ea",paddingLeft:20 }}>
-                  <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>Parts in Stock</div>
+                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>Parts in Stock</div>
                   <div style={{ fontSize:20,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31" }}>{totalStockParts}</div>
                 </div>
                 <div style={{ borderLeft:"1px solid #e5e5ea",paddingLeft:20 }}>
-                  <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>Total Units</div>
+                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>Total Units</div>
                   <div style={{ fontSize:20,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31" }}>{totalStockUnits.toLocaleString()}</div>
                 </div>
                 <div style={{ marginLeft:"auto",textAlign:"right" }}>
@@ -6774,7 +6809,7 @@ function BOMManager({ user }) {
                 <input type="text" placeholder="Search ref, value, MPN…"
                   value={search} onChange={(e)=>setSearch(e.target.value)}
                   style={{ padding:"5px 10px",paddingRight:search?24:10,borderRadius:5,width:"100%",fontSize:12,boxSizing:"border-box" }} />
-                {search && <span onClick={()=>setSearch("")} style={{ position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#64748d",lineHeight:1 }}>✕</span>}
+                {search && <span onClick={()=>setSearch("")} style={{ position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:darkMode?"#8a93a3":"#64748d",lineHeight:1 }}>✕</span>}
               </div>
               <select value={selProject} onChange={(e)=>setSelProject(e.target.value)}
                 style={{ padding:"5px 8px",borderRadius:5,fontSize:12 }}>
@@ -6782,7 +6817,7 @@ function BOMManager({ user }) {
                 <option value="unassigned">Unassigned</option>
                 {products.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-              <span style={{ color:"#8898aa",fontSize:12,marginLeft:"auto" }}>{visibleParts.length}/{parts.length} parts</span>
+              <span style={{ color:darkMode?"#8a93a3":"#8898aa",fontSize:12,marginLeft:"auto" }}>{visibleParts.length}/{parts.length} parts</span>
               <button className="btn-ghost btn-sm" onClick={()=>setShowImport(!showImport)}>{showImport ? "Close Import" : "+ Import"}</button>
               <button className="btn-ghost btn-sm" onClick={()=>{ setShowQuickUrl(!showQuickUrl); if(showQuickUrl){ setQuickUrlResult(null); setQuickUrlError(""); }}} style={{ color:"#34c759" }}>{showQuickUrl ? "Close Quick Add" : "Quick Add URL"}</button>
               <button className="btn-ghost btn-sm" onClick={()=>setShowResGen(!showResGen)} style={{ color:"#7ab8d4" }}>{showResGen ? "Close Component Library" : "Component Library"}</button>
@@ -7085,11 +7120,11 @@ function BOMManager({ user }) {
                     <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10 }}>
                       <div>
                         <div style={{ fontSize:14,fontWeight:700,color:"#e8500a" }}>Mouser Order History</div>
-                        <div style={{ fontSize:12,color:"#50617a",marginTop:2 }}>
+                        <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginTop:2 }}>
                           {mouserOrderHistory.totalOrders} orders · {allMpns.size} unique parts · {existingCount} already in library · <strong>{missingParts.length} new</strong>
                         </div>
                       </div>
-                      <button className="btn-ghost" style={{ fontSize:10,color:"#64748d" }} onClick={() => setMouserOrderHistory(null)}>Close</button>
+                      <button className="btn-ghost" style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }} onClick={() => setMouserOrderHistory(null)}>Close</button>
                     </div>
 
                     {missingParts.length === 0 ? (
@@ -7102,12 +7137,12 @@ function BOMManager({ user }) {
                           <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
                             <thead style={{ position:"sticky",top:0,background:darkMode?"#0f1218":"#fff",zIndex:1 }}>
                               <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
-                                <th style={{ padding:"6px 10px",textAlign:"left",fontSize:10,color:"#64748d",fontWeight:600 }}>MPN</th>
-                                <th style={{ padding:"6px 10px",textAlign:"left",fontSize:10,color:"#64748d",fontWeight:600 }}>MANUFACTURER</th>
-                                <th style={{ padding:"6px 10px",textAlign:"left",fontSize:10,color:"#64748d",fontWeight:600 }}>DESCRIPTION</th>
-                                <th style={{ padding:"6px 10px",textAlign:"right",fontSize:10,color:"#64748d",fontWeight:600 }}>QTY ORDERED</th>
-                                <th style={{ padding:"6px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>FIRST ORDERED</th>
-                                <th style={{ padding:"6px 10px",textAlign:"right",fontSize:10,color:"#64748d",fontWeight:600 }}>LAST PRICE</th>
+                                <th style={{ padding:"6px 10px",textAlign:"left",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>MPN</th>
+                                <th style={{ padding:"6px 10px",textAlign:"left",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>MANUFACTURER</th>
+                                <th style={{ padding:"6px 10px",textAlign:"left",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>DESCRIPTION</th>
+                                <th style={{ padding:"6px 10px",textAlign:"right",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>QTY ORDERED</th>
+                                <th style={{ padding:"6px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>FIRST ORDERED</th>
+                                <th style={{ padding:"6px 10px",textAlign:"right",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>LAST PRICE</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -7115,10 +7150,10 @@ function BOMManager({ user }) {
                                 <tr key={p.mpn} style={{ borderBottom:"1px solid #f0f0f2" }}>
                                   <td style={{ padding:"6px 10px",fontWeight:700,color:"#e8500a",fontFamily:"monospace" }}>{p.mpn}</td>
                                   <td style={{ padding:"6px 10px",color:"#3a3f51" }}>{p.manufacturer}</td>
-                                  <td style={{ padding:"6px 10px",color:"#64748d",maxWidth:250,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description}</td>
+                                  <td style={{ padding:"6px 10px",color:darkMode?"#8a93a3":"#64748d",maxWidth:250,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description}</td>
                                   <td style={{ padding:"6px 10px",textAlign:"right",fontWeight:600 }}>{p.totalQty.toLocaleString()}</td>
-                                  <td style={{ padding:"6px 10px",color:"#64748d",fontSize:10 }}>{p.firstOrdered ? new Date(p.firstOrdered).toLocaleDateString() : "—"}</td>
-                                  <td style={{ padding:"6px 10px",textAlign:"right",color:"#50617a" }}>{p.unitPrice ? `$${p.unitPrice.toFixed(4)}` : "—"}</td>
+                                  <td style={{ padding:"6px 10px",color:darkMode?"#8a93a3":"#64748d",fontSize:10 }}>{p.firstOrdered ? new Date(p.firstOrdered).toLocaleDateString() : "—"}</td>
+                                  <td style={{ padding:"6px 10px",textAlign:"right",color:darkMode?"#b8bfcc":"#50617a" }}>{p.unitPrice ? `$${p.unitPrice.toFixed(4)}` : "—"}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -7164,7 +7199,7 @@ function BOMManager({ user }) {
             {showQuickUrl && (
               <div style={{ marginBottom:12,padding:"16px 20px",background:"linear-gradient(135deg,#f0fdf4,#ecfdf5)",borderRadius:10,border:"1px solid #bbf7d0",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                 <div style={{ fontSize:14,fontWeight:700,marginBottom:4 }}>Quick Add from URL</div>
-                <p style={{ color:"#50617a",fontSize:12,marginBottom:10 }}>Paste a Mouser, DigiKey, Arrow, LCSC, or any supplier URL — or just a bare MPN. We'll auto-fetch pricing, description, datasheet, and more.</p>
+                <p style={{ color:darkMode?"#b8bfcc":"#50617a",fontSize:12,marginBottom:10 }}>Paste a Mouser, DigiKey, Arrow, LCSC, or any supplier URL — or just a bare MPN. We'll auto-fetch pricing, description, datasheet, and more.</p>
                 <div style={{ display:"flex",gap:8,alignItems:"center" }}>
                   <input type="text" placeholder="https://www.mouser.com/ProductDetail/... or paste MPN"
                     value={quickUrlInput} onChange={e=>setQuickUrlInput(e.target.value)}
@@ -7216,7 +7251,7 @@ function BOMManager({ user }) {
                           ) : quickUrlResult.mpn}
                           {quickUrlResult.url && <a href={quickUrlResult.url} target="_blank" rel="noreferrer" style={{ marginLeft:6,fontSize:11,color:"#007aff",fontWeight:500,textDecoration:"none" }}>View on {quickUrlResult.source || "distributor"} ↗</a>}
                         </div>
-                        <div style={{ fontSize:12,color:"#50617a",marginBottom:4 }}>{quickUrlResult.manufacturer}{quickUrlResult.category ? ` · ${quickUrlResult.category}` : ""}</div>
+                        <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:4 }}>{quickUrlResult.manufacturer}{quickUrlResult.category ? ` · ${quickUrlResult.category}` : ""}</div>
                         {quickUrlResult.description && <div style={{ fontSize:12,color:"#48484a",marginBottom:6 }}>{quickUrlResult.description}</div>}
 
                         <div style={{ display:"flex",gap:16,flexWrap:"wrap",fontSize:12,color:"#48484a" }}>
@@ -7252,7 +7287,7 @@ function BOMManager({ user }) {
                         {/* Price Breaks */}
                         {quickUrlResult.priceBreaks?.length > 1 && (
                           <div style={{ marginTop:8 }}>
-                            <div style={{ fontSize:11,fontWeight:600,color:"#64748d",marginBottom:4 }}>QUANTITY PRICING{quickUrlResult.tariffRate > 0 ? " (pre-tariff → landed)" : ""}</div>
+                            <div style={{ fontSize:11,fontWeight:600,color:darkMode?"#8a93a3":"#64748d",marginBottom:4 }}>QUANTITY PRICING{quickUrlResult.tariffRate > 0 ? " (pre-tariff → landed)" : ""}</div>
                             <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
                               {quickUrlResult.priceBreaks.map((pb,i)=>(
                                 <span key={i} style={{ padding:"2px 8px",background: quickUrlResult.tariffRate > 0 ? "#fff8e1" : "#f6f9fc",borderRadius:4,fontSize:11 }}>
@@ -7303,7 +7338,7 @@ function BOMManager({ user }) {
                               minWidth:32,textAlign:"center" }}>{d.source === "direct" ? "API" : "Nexar"}</span>
                             <span style={{ fontWeight:600,minWidth:65,textAlign:"right" }}>${d.unitPrice.toFixed(4)}</span>
                             {quickUrlResult.tariffRate > 0 && <span style={{ color:"#e65100",fontSize:10,minWidth:75,textAlign:"right" }}>→ ${landed.toFixed(4)}</span>}
-                            <span style={{ color:"#64748d",minWidth:55,textAlign:"right" }}>{d.stock > 0 ? d.stock.toLocaleString() : "—"}</span>
+                            <span style={{ color:darkMode?"#8a93a3":"#64748d",minWidth:55,textAlign:"right" }}>{d.stock > 0 ? d.stock.toLocaleString() : "—"}</span>
                             {d.url ? <a href={d.url} target="_blank" rel="noreferrer" style={{ color:"#007aff",fontSize:10,textDecoration:"none",minWidth:24 }}>↗</a> : <span style={{ minWidth:24 }}/>}
                           </div>
                         );
@@ -7317,7 +7352,7 @@ function BOMManager({ user }) {
                                 Domestic ({domesticAll.length})
                               </div>
                               <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
-                                {domesticAll.length > 0 ? domesticAll.slice(0, 10).map(renderRow) : <span style={{ fontSize:11,color:"#8898aa" }}>No domestic sources</span>}
+                                {domesticAll.length > 0 ? domesticAll.slice(0, 10).map(renderRow) : <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#8898aa" }}>No domestic sources</span>}
                               </div>
                             </div>
                             {/* International column */}
@@ -7333,7 +7368,7 @@ function BOMManager({ user }) {
                             )}
                           </div>
                           {quickUrlResult.tariffRate > 0 && (
-                            <div style={{ marginTop:6,fontSize:10,color:"#50617a",fontStyle:"italic" }}>
+                            <div style={{ marginTop:6,fontSize:10,color:darkMode?"#b8bfcc":"#50617a",fontStyle:"italic" }}>
                               Tariff of {quickUrlResult.tariffRate}% applies to all distributors — based on where the part is manufactured, not who sells it.
                             </div>
                           )}
@@ -7343,7 +7378,7 @@ function BOMManager({ user }) {
 
                     {/* Add to Product */}
                     <div style={{ marginTop:12,display:"flex",gap:8,alignItems:"center",borderTop:"1px solid #f0f0f0",paddingTop:10 }}>
-                      <span style={{ fontSize:12,color:"#50617a" }}>Add to:</span>
+                      <span style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a" }}>Add to:</span>
                       <select id="quickUrlProduct" style={{ padding:"5px 8px",borderRadius:5,fontSize:12,flex:1,maxWidth:220 }}>
                         <option value="">No product (unassigned)</option>
                         {products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
@@ -7362,14 +7397,14 @@ function BOMManager({ user }) {
             {showImport && (
               <div style={{ marginBottom:12,padding:"16px 20px",background:darkMode?"#0f1218":"#fff",borderRadius:10,border:"1px solid #e5e5ea",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                 <div style={{ fontSize:14,fontWeight:700,marginBottom:8 }}>Import Bill of Materials</div>
-                <p style={{ color:"#64748d",fontSize:12,marginBottom:12 }}>CSV/TSV from KiCad, Altium, Eagle, or paste directly.</p>
+                <p style={{ color:darkMode?"#8a93a3":"#64748d",fontSize:12,marginBottom:12 }}>CSV/TSV from KiCad, Altium, Eagle, or paste directly.</p>
 
                 {/* Undo last import */}
                 {lastImportBatch && lastImportBatch.ids?.length > 0 && (
                   <div style={{ marginBottom:12,padding:"10px 14px",background:"rgba(255,149,0,0.07)",border:"1px solid #ff9500",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10 }}>
                     <div style={{ fontSize:12 }}>
                       <strong style={{ color:"#ff9500" }}>↩ Undo available</strong>
-                      <span style={{ color:"#50617a",marginLeft:8 }}>{lastImportBatch.count} parts{lastImportBatch.filename ? ` from "${lastImportBatch.filename}"` : ""}</span>
+                      <span style={{ color:darkMode?"#b8bfcc":"#50617a",marginLeft:8 }}>{lastImportBatch.count} parts{lastImportBatch.filename ? ` from "${lastImportBatch.filename}"` : ""}</span>
                     </div>
                     <button style={{ background:"#ff9500",color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontWeight:700,fontSize:12,cursor:"pointer",whiteSpace:"nowrap" }}
                       onClick={async () => {
@@ -7389,7 +7424,7 @@ function BOMManager({ user }) {
                   onClick={()=>fileRef.current.click()}
                   style={{ padding:"24px 16px",marginBottom:10 }}>
                   <div style={{ fontWeight:700,fontSize:13,marginBottom:4 }}>Drop BOM file here</div>
-                  <div style={{ color:"#8898aa",fontSize:11 }}>CSV · TSV · TXT — or click to browse</div>
+                  <div style={{ color:darkMode?"#8a93a3":"#8898aa",fontSize:11 }}>CSV · TSV · TXT — or click to browse</div>
                   <input ref={fileRef} type="file" accept=".csv,.tsv,.txt" style={{ display:"none" }} onChange={handleFilePick} />
                 </div>
                 <textarea placeholder="Or paste BOM text here…" value={pasteText} onChange={(e)=>setPasteText(e.target.value)}
@@ -7411,7 +7446,7 @@ function BOMManager({ user }) {
                     <div style={{ background:"rgba(0,122,255,0.07)",padding:"10px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap" }}>
                       <div style={{ fontSize:12 }}>
                         <span style={{ fontWeight:700,color:"#007aff" }}>{selectedCount} of {importPreview.parts.length} parts selected</span>
-                        {importPreview.skipped > 0 && <span style={{ color:"#50617a",marginLeft:8 }}>{importPreview.skipped} duplicate{importPreview.skipped>1?"s":""} skipped</span>}
+                        {importPreview.skipped > 0 && <span style={{ color:darkMode?"#b8bfcc":"#50617a",marginLeft:8 }}>{importPreview.skipped} duplicate{importPreview.skipped>1?"s":""} skipped</span>}
                         {importPreview.skippedDNI > 0 && <span style={{ color:"#ff9500",marginLeft:8 }}>{importPreview.skippedDNI} DNI/fiducial skipped</span>}
                       </div>
                       <div style={{ display:"flex",gap:6 }}>
@@ -7438,16 +7473,22 @@ function BOMManager({ user }) {
                           </tr>
                         </thead>
                         <tbody>
-                          {importPreview.parts.map((p,i)=>(
-                            <tr key={i} style={{ borderBottom:"1px solid #f6f9fc",background:importExcluded.has(i)?"#f8f8f8":i%2===0?"#fff":"#fafbfc",opacity:importExcluded.has(i)?0.45:1 }}>
+                          {importPreview.parts.map((p,i)=>{
+                            const rowBg = importExcluded.has(i)
+                              ? (darkMode ? "#161a22" : "#f8f8f8")
+                              : i % 2 === 0
+                                ? (darkMode ? "#0f1218" : "#fff")
+                                : (darkMode ? "#0a0c10" : "#fafbfc");
+                            return (
+                            <tr key={i} style={{ borderBottom:darkMode?"1px solid #1f2530":"1px solid #f6f9fc",background:rowBg,opacity:importExcluded.has(i)?0.45:1,color:darkMode?"#e8ebf0":"inherit" }}>
                               <td style={{ padding:"5px 6px",width:28 }}>
                                 <input type="checkbox" checked={!importExcluded.has(i)} onChange={() => {
                                   setImportExcluded(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; });
                                 }} />
                               </td>
-                              <td style={{ padding:"5px 10px",fontFamily:"monospace",whiteSpace:"nowrap" }}>{p.mpn||"—"}</td>
-                              <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>{p.value||"—"}</td>
-                              <td style={{ padding:"5px 10px",color:"#50617a",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
+                              <td style={{ padding:"5px 10px",fontFamily:"monospace",whiteSpace:"nowrap",color:darkMode?"#e8ebf0":"#061b31" }}>{p.mpn||"—"}</td>
+                              <td style={{ padding:"5px 10px",whiteSpace:"nowrap",color:darkMode?"#e8ebf0":"#061b31" }}>{p.value||"—"}</td>
+                              <td style={{ padding:"5px 10px",color:darkMode?"#b8bfcc":"#50617a",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.description||"—"}</td>
                               <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>{p.preferredSupplier||"—"}</td>
                               <td style={{ padding:"5px 10px",whiteSpace:"nowrap" }}>
                                 {p.mpn
@@ -7464,7 +7505,8 @@ function BOMManager({ user }) {
                                 </td>
                               )}
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -7498,8 +7540,8 @@ function BOMManager({ user }) {
                       ].map(({ col, alt, note, req }) => (
                         <tr key={col} style={{ borderTop:"1px solid #f6f9fc" }}>
                           <td style={{ padding:"5px 8px",fontWeight:700,color:req?"#58a6ff":"#061b31",fontFamily:"monospace" }}>{col}{req && <span style={{ marginLeft:4,fontSize:9,color:"#58a6ff" }}>required</span>}</td>
-                          <td style={{ padding:"5px 8px",color:"#50617a",fontFamily:"monospace",fontSize:10 }}>{alt}</td>
-                          <td style={{ padding:"5px 8px",color:"#50617a" }}>{note}</td>
+                          <td style={{ padding:"5px 8px",color:darkMode?"#b8bfcc":"#50617a",fontFamily:"monospace",fontSize:10 }}>{alt}</td>
+                          <td style={{ padding:"5px 8px",color:darkMode?"#b8bfcc":"#50617a" }}>{note}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -7680,7 +7722,7 @@ function BOMManager({ user }) {
               return (
                 <div style={{ marginBottom:12,padding:"16px 20px",background:darkMode?"#0f1218":"#fff",borderRadius:10,border:"1px solid #d5d0f0",boxShadow:"0 1px 4px rgba(88,86,214,0.1)" }}>
                   <div style={{ fontSize:14,fontWeight:700,marginBottom:4,color:"#7ab8d4" }}>Component Library</div>
-                  <p style={{ color:"#64748d",fontSize:12,marginBottom:10 }}>Quick-import verified libraries or search Nexar for any component.</p>
+                  <p style={{ color:darkMode?"#8a93a3":"#64748d",fontSize:12,marginBottom:10 }}>Quick-import verified libraries or search Nexar for any component.</p>
 
                   {/* Quick Import Buttons */}
                   <div style={{ display:"flex",gap:8,marginBottom:14,flexWrap:"wrap" }}>
@@ -7725,7 +7767,7 @@ function BOMManager({ user }) {
                         onKeyDown={e=>{ if(e.key==="Enter") handleCompSearch(); }}
                         placeholder="Search by MPN prefix or series (e.g. 0603WAF, GRM188R61E)"
                         style={{ width:"100%",padding:"9px 12px",paddingRight:compSearchQuery?28:12,borderRadius:8,fontSize:13,border:"1px solid #e3e8ee",boxSizing:"border-box",fontFamily:"inherit" }} />
-                      {compSearchQuery && <span onClick={()=>{setCompSearchQuery("");setCompSearchResults([]);}} style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#64748d",lineHeight:1 }}>✕</span>}
+                      {compSearchQuery && <span onClick={()=>{setCompSearchQuery("");setCompSearchResults([]);}} style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:darkMode?"#8a93a3":"#64748d",lineHeight:1 }}>✕</span>}
                     </div>
                     <div style={{ display:"flex",borderRadius:100,overflow:"hidden",border:"1px solid #e3e8ee" }}>
                       {[
@@ -7743,7 +7785,7 @@ function BOMManager({ user }) {
                       ))}
                     </div>
                     <div style={{ display:"flex",alignItems:"center",gap:4 }}>
-                      <span style={{ fontSize:10,color:"#64748d" }}>Limit:</span>
+                      <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>Limit:</span>
                       <input type="number" min="1" max="1000" value={compSearchLimit} onChange={e=>setCompSearchLimit(e.target.value)}
                         style={{ width:60,padding:"8px 6px",borderRadius:8,fontSize:13,border:"1px solid #e3e8ee",textAlign:"center",fontFamily:"inherit" }} />
                     </div>
@@ -7777,20 +7819,20 @@ function BOMManager({ user }) {
                       const tariffed = compSearchResults.filter(r => r.countryOfOrigin && getTariffRate(r.countryOfOrigin, clTariffs) > 0);
                       const free = compSearchResults.filter(r => r.countryOfOrigin && getTariffRate(r.countryOfOrigin, clTariffs) === 0);
                       const unknown = compSearchResults.filter(r => !r.countryOfOrigin);
-                      return <span style={{ fontSize:11,color:"#64748d" }}>{free.length} tariff-free · {tariffed.length} tariffed (hidden) · {unknown.length} origin unknown</span>;
+                      return <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>{free.length} tariff-free · {tariffed.length} tariffed (hidden) · {unknown.length} origin unknown</span>;
                     })()}
                   </div>
 
                   {/* Optional overrides */}
                   <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:14 }}>
                     <div style={{ flex:"1 1 160px" }}>
-                      <div style={{ fontSize:10,color:"#64748d",marginBottom:3 }}>Manufacturer Override</div>
+                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:3 }}>Manufacturer Override</div>
                       <input type="text" value={compSearchMfr} onChange={e=>setCompSearchMfr(e.target.value)}
                         placeholder="Auto-filled from results"
                         style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #e3e8ee",boxSizing:"border-box" }} />
                     </div>
                     <div style={{ flex:"2 1 240px" }}>
-                      <div style={{ fontSize:10,color:"#64748d",marginBottom:3 }}>Description Override (replaces all descriptions)</div>
+                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:3 }}>Description Override (replaces all descriptions)</div>
                       <input type="text" value={compSearchDescPrefix} onChange={e=>setCompSearchDescPrefix(e.target.value)}
                         placeholder="e.g. Thick Film Resistor - 0603 - 1% - 0.1W"
                         style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,border:"1px solid #e3e8ee",boxSizing:"border-box" }} />
@@ -7837,7 +7879,7 @@ function BOMManager({ user }) {
                             Import Selected ({compSelectedParts.size})
                           </button>
                         )}
-                        <span style={{ fontSize:12,color:"#64748d" }}>{displayResults.length}{compTariffFreeOnly && displayResults.length !== compSearchResults.length ? ` of ${compSearchResults.length}` : ""} results{compSearchSource === "mouser" || (compSearchSource === "auto" && apiKeys.mouser_api_key) ? " from Mouser" : ` from Nexar · ~${(15000 - nexarUsed).toLocaleString()} pulls remaining`}</span>
+                        <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>{displayResults.length}{compTariffFreeOnly && displayResults.length !== compSearchResults.length ? ` of ${compSearchResults.length}` : ""} results{compSearchSource === "mouser" || (compSearchSource === "auto" && apiKeys.mouser_api_key) ? " from Mouser" : ` from Nexar · ~${(15000 - nexarUsed).toLocaleString()} pulls remaining`}</span>
                       </div>
                       <div style={{ maxHeight:400,overflowY:"auto",border:"1px solid #e5e5ea",borderRadius:8 }}>
                         <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
@@ -7881,7 +7923,7 @@ function BOMManager({ user }) {
                                       </span>
                                     ) : <span style={{ fontSize:9,color:"#b8bfcc" }}>—</span>}
                                   </td>
-                                  <td style={{ padding:"4px 10px",color:"#64748d" }}>{p.description}</td>
+                                  <td style={{ padding:"4px 10px",color:darkMode?"#8a93a3":"#64748d" }}>{p.description}</td>
                                 </tr>
                               );
                             })}
@@ -7892,7 +7934,7 @@ function BOMManager({ user }) {
                   );})()}
 
                   {compSearchLoading && (
-                    <div style={{ textAlign:"center",padding:"20px",color:"#64748d",fontSize:13 }}>Searching {compSearchSource === "mouser" || (compSearchSource === "auto" && apiKeys.mouser_api_key) ? "Mouser" : "Nexar"}...</div>
+                    <div style={{ textAlign:"center",padding:"20px",color:darkMode?"#8a93a3":"#64748d",fontSize:13 }}>Searching {compSearchSource === "mouser" || (compSearchSource === "auto" && apiKeys.mouser_api_key) ? "Mouser" : "Nexar"}...</div>
                   )}
                 </div>
               );
@@ -7904,7 +7946,7 @@ function BOMManager({ user }) {
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,background:"#c8181e",color:"#fff",fontWeight:800,fontSize:11,letterSpacing:"-0.5px",flexShrink:0 }}>MC</span>
                 <div style={{ fontSize:14,fontWeight:700,color:"#c8181e" }}>McMaster-Carr Lookup</div>
               </div>
-              <p style={{ color:"#64748d",fontSize:12,marginBottom:12 }}>Look up a McMaster-Carr part number directly — returns price breaks, description, and a product link. Cert auth is handled server-side.</p>
+              <p style={{ color:darkMode?"#8a93a3":"#64748d",fontSize:12,marginBottom:12 }}>Look up a McMaster-Carr part number directly — returns price breaks, description, and a product link. Cert auth is handled server-side.</p>
               <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
                 <div style={{ flex:1,position:"relative",minWidth:160 }}>
                   <input type="text" value={mmSearchMpn} onChange={e => setMmSearchMpn(e.target.value)}
@@ -7922,7 +7964,7 @@ function BOMManager({ user }) {
                     placeholder="McMaster part number (e.g. 91251A542)"
                     style={{ width:"100%",padding:"9px 12px",paddingRight:mmSearchMpn?28:12,borderRadius:8,fontSize:13,border:"1px solid #f5d0d0",boxSizing:"border-box",fontFamily:"inherit" }} />
                   {mmSearchMpn && <span onClick={() => { setMmSearchMpn(""); setMmSearchResult(null); }}
-                    style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#64748d",lineHeight:1 }}>✕</span>}
+                    style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:darkMode?"#8a93a3":"#64748d",lineHeight:1 }}>✕</span>}
                 </div>
                 <button onClick={() => {
                   if (!mmSearchMpn.trim()) return;
@@ -7946,7 +7988,7 @@ function BOMManager({ user }) {
                   return (
                     <div style={{ marginTop:12,padding:"10px 14px",background:"rgba(255,59,48,0.06)",border:"1px solid rgba(255,59,48,0.2)",borderRadius:8,fontSize:12,color:"#ff3b30" }}>
                       <div>{mmSearchResult.error}</div>
-                      {mmSearchResult.raw && <div style={{ marginTop:6,fontFamily:"monospace",fontSize:11,color:"#64748d",wordBreak:"break-all" }}>{mmSearchResult.raw}</div>}
+                      {mmSearchResult.raw && <div style={{ marginTop:6,fontFamily:"monospace",fontSize:11,color:darkMode?"#8a93a3":"#64748d",wordBreak:"break-all" }}>{mmSearchResult.raw}</div>}
                     </div>
                   );
                 }
@@ -7955,23 +7997,23 @@ function BOMManager({ user }) {
                   <div style={{ marginTop:12,padding:"14px 16px",background:"rgba(200,24,30,0.04)",border:"1px solid rgba(200,24,30,0.15)",borderRadius:8 }}>
                     <div style={{ display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-start" }}>
                       <div style={{ flex:"0 0 auto" }}>
-                        <div style={{ fontSize:10,color:"#64748d",marginBottom:2 }}>Part Number</div>
+                        <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:2 }}>Part Number</div>
                         <div style={{ fontFamily:"'SF Mono',monospace",fontWeight:700,fontSize:14,color:"#c8181e" }}>{r.mpn}</div>
                       </div>
                       <div style={{ flex:"1 1 200px" }}>
-                        <div style={{ fontSize:10,color:"#64748d",marginBottom:2 }}>Description</div>
+                        <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:2 }}>Description</div>
                         <div style={{ fontSize:12,color:darkMode?"#e8ebf0":"#061b31",lineHeight:"18px" }}>{r.description || "—"}</div>
                       </div>
                       <div style={{ flex:"0 0 auto" }}>
-                        <div style={{ fontSize:10,color:"#64748d",marginBottom:2 }}>Unit Price</div>
+                        <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:2 }}>Unit Price</div>
                         <div style={{ fontWeight:700,fontSize:14,color:darkMode?"#e8ebf0":"#061b31" }}>{r.unitPrice > 0 ? `$${r.unitPrice.toFixed(4)}` : "—"}</div>
                       </div>
                       <div style={{ flex:"0 0 auto" }}>
-                        <div style={{ fontSize:10,color:"#64748d",marginBottom:2 }}>MOQ</div>
+                        <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:2 }}>MOQ</div>
                         <div style={{ fontSize:12,color:darkMode?"#e8ebf0":"#061b31" }}>{r.moq ?? "—"}</div>
                       </div>
                       <div style={{ flex:"0 0 auto" }}>
-                        <div style={{ fontSize:10,color:"#64748d",marginBottom:2 }}>Origin</div>
+                        <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:2 }}>Origin</div>
                         <span style={{ fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(52,199,89,0.12)",color:"#34c759" }}>US</span>
                       </div>
                     </div>
@@ -7979,7 +8021,7 @@ function BOMManager({ user }) {
                     {/* Price breaks */}
                     {r.priceBreaks && r.priceBreaks.length > 1 && (
                       <div style={{ marginTop:10 }}>
-                        <div style={{ fontSize:10,color:"#64748d",marginBottom:4 }}>Price Breaks</div>
+                        <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:4 }}>Price Breaks</div>
                         <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
                           {r.priceBreaks.map((pb, i) => (
                             <span key={i} style={{ fontSize:11,padding:"3px 8px",borderRadius:4,background:"rgba(200,24,30,0.06)",color:"#c8181e",fontWeight:600 }}>
@@ -8100,7 +8142,7 @@ function BOMManager({ user }) {
             )}
 
             {parts.length === 0 ? (
-              <div style={{ textAlign:"center",padding:"80px 20px",color:"#8898aa" }}>
+              <div style={{ textAlign:"center",padding:"80px 20px",color:darkMode?"#8a93a3":"#8898aa" }}>
                 <div style={{ fontSize:44,marginBottom:14 }}>🔩</div>
                 <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:15 }}>No parts yet — import a BOM to get started</div>
               </div>
@@ -8204,13 +8246,13 @@ function BOMManager({ user }) {
                             <input type="text" value={part.description||""}
                               onChange={(e)=>updatePart(part.id,"description",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
-                              style={{ ...inputStyle,color:"#50617a",width:"100%" }} placeholder="" />
+                              style={{ ...inputStyle,color:darkMode?"#b8bfcc":"#50617a",width:"100%" }} placeholder="" />
                           </td>
                           <td style={{ padding:"6px 8px",overflow:"hidden" }}>
                             <input type="text" value={part.manufacturer||""}
                               onChange={(e)=>updatePart(part.id,"manufacturer",e.target.value)}
                               onFocus={focusIn} onBlur={focusOut}
-                              style={{ ...inputStyle,width:"100%",color:"#64748d" }} placeholder="" />
+                              style={{ ...inputStyle,width:"100%",color:darkMode?"#8a93a3":"#64748d" }} placeholder="" />
                           </td>
                           {/* ── Qty/Stock — color-coded stock level ── */}
                           <td style={{ padding:"6px 8px",textAlign:"right",whiteSpace:"nowrap",
@@ -8218,7 +8260,7 @@ function BOMManager({ user }) {
                             color: sn === 0 ? "#ff3b30" : (darkMode?"#34c759":"#1a9e3f") }}>
                             {sn}
                           </td>
-                          <td style={{ padding:"6px 8px",whiteSpace:"nowrap",fontSize:11,color:"#64748d",textAlign:"center" }}>
+                          <td style={{ padding:"6px 8px",whiteSpace:"nowrap",fontSize:11,color:darkMode?"#8a93a3":"#64748d",textAlign:"center" }}>
                             {part.createdAt ? new Date(part.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"2-digit"}) : "—"}
                           </td>
                         </tr>
@@ -8226,21 +8268,21 @@ function BOMManager({ user }) {
                             <td colSpan={10} style={{ padding:"12px 20px",background:darkMode?"#0f1218":"#fafbfc",borderBottom:"2px solid #58a6ff" }}>
                               <div style={{ display:"flex",gap:8,marginBottom:12 }}>
                                 <button onClick={(e)=>{e.stopPropagation();setQrModalParts([part]);}}
-                                  style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:"1px solid #e3e8ee",background:darkMode?"#0a0c10":"#f6f9fc",cursor:"pointer",color:darkMode?"#e8ebf0":"#061b31" }}
-                                  onMouseEnter={(e)=>e.currentTarget.style.background="#e3e8ee"}
-                                  onMouseLeave={(e)=>e.currentTarget.style.background="#f6f9fc"}>⊞ QR Label</button>
+                                  style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:`1px solid ${darkMode?"#1f2530":"#e3e8ee"}`,background:darkMode?"#161a22":"#f6f9fc",cursor:"pointer",color:darkMode?"#e8ebf0":"#061b31" }}
+                                  onMouseEnter={(e)=>e.currentTarget.style.background=darkMode?"#1f2530":"#e3e8ee"}
+                                  onMouseLeave={(e)=>e.currentTarget.style.background=darkMode?"#161a22":"#f6f9fc"}>⊞ QR Label</button>
                                 {isAdmin && <button onClick={(e)=>{e.stopPropagation();deletePart(part.id);}}
-                                  style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:"1px solid #ffd0cc",background:"#fff5f5",cursor:"pointer",color:"#ff3b30" }}
-                                  onMouseEnter={(e)=>e.currentTarget.style.background="#ffe0dd"}
-                                  onMouseLeave={(e)=>e.currentTarget.style.background="#fff5f5"}>✕ Delete</button>}
+                                  style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:`1px solid ${darkMode?"rgba(248,81,73,0.35)":"#ffd0cc"}`,background:darkMode?"rgba(248,81,73,0.10)":"#fff5f5",cursor:"pointer",color:darkMode?"#f85149":"#ff3b30" }}
+                                  onMouseEnter={(e)=>e.currentTarget.style.background=darkMode?"rgba(248,81,73,0.18)":"#ffe0dd"}
+                                  onMouseLeave={(e)=>e.currentTarget.style.background=darkMode?"rgba(248,81,73,0.10)":"#fff5f5"}>✕ Delete</button>}
                               </div>
                               <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,fontSize:12 }}>
                                 <div>
-                                  <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Full Description</div>
+                                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Full Description</div>
                                   <div style={{ color:darkMode?"#f6f9fc":"#061b31",lineHeight:1.4 }}>{part.description || "—"}</div>
                                 </div>
                                 <div>
-                                  <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Details</div>
+                                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Details</div>
                                   <div style={{ color:darkMode?"#f6f9fc":"#061b31" }}>
                                     <div>MPN: <strong>{part.mpn || "—"}</strong></div>
                                     <div>Value: {part.value || "—"}</div>
@@ -8250,7 +8292,7 @@ function BOMManager({ user }) {
                                     <div>Voltage Rating: {part.voltage_rating || "—"}</div>
                                     <div>Order URL: {part.url ? <a href={part.url} target="_blank" rel="noopener noreferrer" style={{color:"#58a6ff"}}>{part.url.length > 60 ? part.url.slice(0,60)+"…" : part.url}</a> : "—"}</div>
                                     <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e5e5ea" }}>
-                                      <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>🔒 Locked Vendor</div>
+                                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>🔒 Locked Vendor</div>
                                       <select
                                         value={part.pricing?._lockedVendor || ""}
                                         onChange={async (e) => {
@@ -8266,14 +8308,14 @@ function BOMManager({ user }) {
                                           <option key={v.id} value={v.display_name || v.name}>{v.display_name || v.name}</option>
                                         ))}
                                       </select>
-                                      <div style={{ fontSize:10, color:"#8898aa", marginTop:3 }}>Locks purchasing to one vendor — use for custom parts, sole-source agreements, etc.</div>
+                                      <div style={{ fontSize:10, color:darkMode?"#8a93a3":"#8898aa", marginTop:3 }}>Locks purchasing to one vendor — use for custom parts, sole-source agreements, etc.</div>
                                     </div>
                                     <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e5e5ea" }}>
-                                      <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>
+                                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>
                                         Manual Unit Price {part.pricing?._lockedVendor && <span style={{ color:"#a05000",fontWeight:700 }}>— overrides API</span>}
                                       </div>
                                       <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                                        <span style={{ fontSize:13, color:"#64748d" }}>$</span>
+                                        <span style={{ fontSize:13, color:darkMode?"#8a93a3":"#64748d" }}>$</span>
                                         <input
                                           type="number" step="0.0001" min="0"
                                           value={part.unitCost || ""}
@@ -8282,7 +8324,7 @@ function BOMManager({ user }) {
                                           placeholder="0.0000"
                                           style={{ flex:1, padding:"6px 10px", borderRadius:8, border:"1px solid #e3e8ee", background:darkMode?"#0f1218":"#fff", fontSize:12, fontFamily:"inherit", color: part.pricing?._lockedVendor && (parseFloat(part.unitCost)||0) > 0 ? "#a05000" : "#061b31", fontWeight: part.pricing?._lockedVendor && (parseFloat(part.unitCost)||0) > 0 ? 700 : 400, outline:"none" }} />
                                       </div>
-                                      <div style={{ fontSize:10, color:"#8898aa", marginTop:3 }}>
+                                      <div style={{ fontSize:10, color:darkMode?"#8a93a3":"#8898aa", marginTop:3 }}>
                                         {part.pricing?._lockedVendor
                                           ? "When a vendor is locked, this manual price takes priority over any API pricing data."
                                           : "Fallback price used only when no API pricing data exists."}
@@ -8297,25 +8339,24 @@ function BOMManager({ user }) {
                                             onClick={async (e) => {
                                               e.stopPropagation();
                                               const newPricing = {};
-                                              // Preserve metadata (_lockedVendor, _countryOfOrigin, etc.); drop all API vendor entries
                                               for (const [k, v] of Object.entries(part.pricing || {})) {
                                                 if (k.startsWith("_")) newPricing[k] = v;
                                               }
                                               await updatePart(part.id, "pricing", newPricing);
                                             }}
-                                            style={{ padding:"5px 12px", borderRadius:100, fontSize:11, fontWeight:600, border:"1px solid #ffd0cc", background:"#fff5f5", cursor:"pointer", color:"#ff3b30", fontFamily:"inherit" }}
-                                            onMouseEnter={(e)=>e.currentTarget.style.background="#ffe0dd"}
-                                            onMouseLeave={(e)=>e.currentTarget.style.background="#fff5f5"}>
+                                            style={{ padding:"5px 12px", borderRadius:100, fontSize:11, fontWeight:600, border:`1px solid ${darkMode?"rgba(248,81,73,0.35)":"#ffd0cc"}`, background:darkMode?"rgba(248,81,73,0.10)":"#fff5f5", cursor:"pointer", color:darkMode?"#f85149":"#ff3b30", fontFamily:"inherit" }}
+                                            onMouseEnter={(e)=>e.currentTarget.style.background=darkMode?"rgba(248,81,73,0.18)":"#ffe0dd"}
+                                            onMouseLeave={(e)=>e.currentTarget.style.background=darkMode?"rgba(248,81,73,0.10)":"#fff5f5"}>
                                             ✕ Clear API Pricing Data ({apiEntries.join(", ")})
                                           </button>
-                                          <div style={{ fontSize:10, color:"#8898aa", marginTop:3 }}>Removes Mouser/Nexar/DigiKey API entries. Keeps vendor lock and manual price.</div>
+                                          <div style={{ fontSize:10, color:darkMode?"#8a93a3":"#8898aa", marginTop:3 }}>Removes Mouser/Nexar/DigiKey API entries. Keeps vendor lock and manual price.</div>
                                         </div>
                                       );
                                     })()}
                                   </div>
                                 </div>
                                 <div>
-                                  <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Inventory</div>
+                                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4 }}>Inventory</div>
                                   <div style={{ color:darkMode?"#f6f9fc":"#061b31" }}>
                                     <div>Stock: <strong style={{ color:isLow?"#ff3b30":"#34c759" }}>{sn}</strong></div>
                                     {(() => {
@@ -8382,7 +8423,7 @@ function BOMManager({ user }) {
                                 const usingProducts = products.filter(pr => parts.some(p => p.mpn && p.mpn === part.mpn && p.projectId === pr.id) || (part.projectId === pr.id));
                                 return usingProducts.length > 0 ? (
                                   <div style={{ marginTop:10,paddingTop:10,borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
-                                    <span style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Used in: </span>
+                                    <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Used in: </span>
                                     {usingProducts.map(pr => (
                                       <span key={pr.id} style={{ display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:600,color:"#58a6ff",marginRight:10 }}>
                                         <span style={{ width:6,height:6,borderRadius:"50%",background:pr.color }} />{pr.name}
@@ -8414,29 +8455,29 @@ function BOMManager({ user }) {
                                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
                                       {/* Sourcing */}
                                       <div>
-                                        <div style={{ fontSize:10, fontWeight:700, color:"#64748d", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>Sourcing</div>
+                                        <div style={{ fontSize:10, fontWeight:700, color:darkMode?"#8a93a3":"#64748d", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>Sourcing</div>
                                         <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                                          {m.mouserPartNumber && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>Mouser #</span><span style={{ fontFamily:"monospace", fontWeight:600, color:darkMode?"#e8ebf0":"#061b31" }}>{m.mouserPartNumber}</span></div>}
-                                          {m.stock != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>In Stock</span><span style={{ fontWeight:600, color: m.stock > 1000 ? "#34c759" : m.stock > 0 ? "#ff9500" : "#ff3b30" }}>{m.stock?.toLocaleString()}</span></div>}
-                                          {m.moq != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>MOQ</span><span style={{ fontWeight:600 }}>{m.moq?.toLocaleString()}</span></div>}
-                                          {m.leadTimeDays != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>Lead Time</span><span style={{ fontWeight:600 }}>{m.leadTimeDays} days</span></div>}
-                                          {m.caseCode && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>Package</span><span style={{ fontWeight:600 }}>{m.caseCode}</span></div>}
-                                          {m.packagingType && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>Tape/Reel</span><span style={{ fontWeight:600 }}>{m.packagingType}</span></div>}
+                                          {m.mouserPartNumber && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Mouser #</span><span style={{ fontFamily:"monospace", fontWeight:600, color:darkMode?"#e8ebf0":"#061b31" }}>{m.mouserPartNumber}</span></div>}
+                                          {m.stock != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>In Stock</span><span style={{ fontWeight:600, color: m.stock > 1000 ? "#34c759" : m.stock > 0 ? "#ff9500" : "#ff3b30" }}>{m.stock?.toLocaleString()}</span></div>}
+                                          {m.moq != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>MOQ</span><span style={{ fontWeight:600 }}>{m.moq?.toLocaleString()}</span></div>}
+                                          {m.leadTimeDays != null && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Lead Time</span><span style={{ fontWeight:600 }}>{m.leadTimeDays} days</span></div>}
+                                          {m.caseCode && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Package</span><span style={{ fontWeight:600 }}>{m.caseCode}</span></div>}
+                                          {m.packagingType && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Tape/Reel</span><span style={{ fontWeight:600 }}>{m.packagingType}</span></div>}
                                           {m.url && <div style={{ marginTop:4 }}><a href={m.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#58a6ff", textDecoration:"none", fontWeight:600 }}>View on Mouser →</a></div>}
                                           {m.datasheetUrl && <div style={{ marginTop:2 }}><a href={m.datasheetUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#58a6ff", textDecoration:"none", fontWeight:600 }}>Datasheet →</a></div>}
-                                          {m.lastFetched && <div style={{ fontSize:10, color:"#8898aa", marginTop:2 }}>Updated {new Date(m.lastFetched).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>}
+                                          {m.lastFetched && <div style={{ fontSize:10, color:darkMode?"#8a93a3":"#8898aa", marginTop:2 }}>Updated {new Date(m.lastFetched).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>}
                                         </div>
                                       </div>
                                       {/* Compliance */}
                                       <div>
-                                        <div style={{ fontSize:10, fontWeight:700, color:"#64748d", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>Compliance</div>
+                                        <div style={{ fontSize:10, fontWeight:700, color:darkMode?"#8a93a3":"#64748d", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>Compliance</div>
                                         <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                                          {m.rohsStatus && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, gap:8 }}><span style={{ color:"#64748d", flexShrink:0 }}>RoHS</span><span style={{ fontWeight:600, textAlign:"right" }}>{m.rohsStatus}</span></div>}
-                                          {m.lifecycleStatus && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>Lifecycle</span><span style={{ fontWeight:700, color:lifecycleColor }}>{m.lifecycleStatus}</span></div>}
-                                          {m.countryOfOrigin && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>Origin</span><span style={{ fontWeight:600 }}>{m.countryOfOrigin}</span></div>}
-                                          {m.manufacturer && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>Manufacturer</span><span style={{ fontWeight:600 }}>{m.manufacturer}</span></div>}
-                                          {m.voltageRating && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>Voltage</span><span style={{ fontWeight:600 }}>{m.voltageRating}</span></div>}
-                                          {m.category && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:"#64748d" }}>Category</span><span style={{ fontWeight:600, textAlign:"right" }}>{m.category}</span></div>}
+                                          {m.rohsStatus && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, gap:8 }}><span style={{ color:darkMode?"#8a93a3":"#64748d", flexShrink:0 }}>RoHS</span><span style={{ fontWeight:600, textAlign:"right" }}>{m.rohsStatus}</span></div>}
+                                          {m.lifecycleStatus && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Lifecycle</span><span style={{ fontWeight:700, color:lifecycleColor }}>{m.lifecycleStatus}</span></div>}
+                                          {m.countryOfOrigin && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Origin</span><span style={{ fontWeight:600 }}>{m.countryOfOrigin}</span></div>}
+                                          {m.manufacturer && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Manufacturer</span><span style={{ fontWeight:600 }}>{m.manufacturer}</span></div>}
+                                          {m.voltageRating && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Voltage</span><span style={{ fontWeight:600 }}>{m.voltageRating}</span></div>}
+                                          {m.category && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Category</span><span style={{ fontWeight:600, textAlign:"right" }}>{m.category}</span></div>}
                                         </div>
                                       </div>
                                     </div>
@@ -8465,13 +8506,13 @@ function BOMManager({ user }) {
                                 {txHistoryOpen[part.id] && (
                                   <div style={{ marginTop:8 }}>
                                     {txHistoryLoading[part.id] ? (
-                                      <div style={{ fontSize:12,color:"#64748d" }}>Loading…</div>
+                                      <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>Loading…</div>
                                     ) : (txHistory[part.id] || []).length === 0 ? (
-                                      <div style={{ fontSize:12,color:"#64748d" }}>No transactions recorded yet.</div>
+                                      <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>No transactions recorded yet.</div>
                                     ) : (
                                       <table style={{ width:"100%",fontSize:11,borderCollapse:"collapse" }}>
                                         <thead>
-                                          <tr style={{ color:"#64748d",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em" }}>
+                                          <tr style={{ color:darkMode?"#8a93a3":"#64748d",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em" }}>
                                             <th style={{ textAlign:"left",padding:"4px 6px" }}>Date</th>
                                             <th style={{ textAlign:"left",padding:"4px 6px" }}>Type</th>
                                             <th style={{ textAlign:"right",padding:"4px 6px" }}>Delta</th>
@@ -8486,12 +8527,12 @@ function BOMManager({ user }) {
                                             const deltaColor = delta > 0 ? "#34c759" : delta < 0 ? "#ff3b30" : "#64748d";
                                             return (
                                               <tr key={tx.id} style={{ borderTop:"1px solid "+(darkMode?"#161a22":"#f0f0f2") }}>
-                                                <td style={{ padding:"4px 6px",color:"#64748d" }}>{tx.created_at ? new Date(tx.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "—"}</td>
+                                                <td style={{ padding:"4px 6px",color:darkMode?"#8a93a3":"#64748d" }}>{tx.created_at ? new Date(tx.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "—"}</td>
                                                 <td style={{ padding:"4px 6px",fontWeight:600 }}>{tx.type || "—"}</td>
                                                 <td style={{ padding:"4px 6px",textAlign:"right",fontWeight:700,color:deltaColor }}>{delta > 0 ? "+" : ""}{delta}</td>
-                                                <td style={{ padding:"4px 6px",textAlign:"right",color:"#64748d" }}>{tx.quantity_before ?? "—"}</td>
-                                                <td style={{ padding:"4px 6px",textAlign:"right",color:"#64748d" }}>{tx.quantity_after ?? "—"}</td>
-                                                <td style={{ padding:"4px 6px",color:"#64748d",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{tx.notes || "—"}</td>
+                                                <td style={{ padding:"4px 6px",textAlign:"right",color:darkMode?"#8a93a3":"#64748d" }}>{tx.quantity_before ?? "—"}</td>
+                                                <td style={{ padding:"4px 6px",textAlign:"right",color:darkMode?"#8a93a3":"#64748d" }}>{tx.quantity_after ?? "—"}</td>
+                                                <td style={{ padding:"4px 6px",color:darkMode?"#8a93a3":"#64748d",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{tx.notes || "—"}</td>
                                               </tr>
                                             );
                                           })}
@@ -8523,7 +8564,7 @@ function BOMManager({ user }) {
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#ff9500",color:"#fff",fontSize:12,fontWeight:800 }}>3</span>
                 <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",margin:0 }}>Live Pricing</h2>
               </div>
-              <p style={{ fontSize:13,color:"#50617a",lineHeight:"20px",margin:0 }}>
+              <p style={{ fontSize:13,color:darkMode?"#b8bfcc":"#50617a",lineHeight:"20px",margin:0 }}>
                 Live quotes from 900+ distributors worldwide, powered by Nexar/Octopart. Prices include landed costs with tariff calculations based on each part's country of origin. Mouser is automatically preferred when their price is within 5% of the cheapest option (configurable in Settings). Price breaks are calculated at your actual order quantities so you always see the real cost before committing to a PO.
               </p>
             </div>
@@ -8533,10 +8574,10 @@ function BOMManager({ user }) {
                   <input type="text" placeholder="Search parts…" value={pricingSearch}
                     onChange={(e) => setPricingSearch(e.target.value)}
                     style={{ width:"100%",padding:"8px 30px 8px 34px",borderRadius:100,fontSize:13,border:"1px solid #e3e8ee",fontFamily:"inherit",outline:"none" }} />
-                  <span style={{ position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:"#8898aa",pointerEvents:"none" }}>🔍</span>
+                  <span style={{ position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:darkMode?"#8a93a3":"#8898aa",pointerEvents:"none" }}>🔍</span>
                   {pricingSearch && (
                     <button type="button" onPointerDown={()=>setPricingSearch("")}
-                      style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"#8898aa",fontSize:16,lineHeight:1,padding:0,fontFamily:"inherit" }}>×</button>
+                      style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:darkMode?"#8a93a3":"#8898aa",fontSize:16,lineHeight:1,padding:0,fontFamily:"inherit" }}>×</button>
                   )}
                 </div>
                 {!hasAnyKey && (
@@ -8576,7 +8617,7 @@ function BOMManager({ user }) {
             </div>
 
             {parts.length === 0 ? (
-              <div style={{ textAlign:"center",padding:60,color:"#64748d" }}>
+              <div style={{ textAlign:"center",padding:60,color:darkMode?"#8a93a3":"#64748d" }}>
                 <div style={{ fontSize:14,fontFamily:"-apple-system,sans-serif" }}>Import a BOM first</div>
               </div>
             ) : (
@@ -8670,12 +8711,12 @@ function BOMManager({ user }) {
                               {part.mpn || part.reference}
                               {isTariffDimmed && <span style={{ fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(255,149,0,0.15)",color:"#ff9500" }}>{fmtCountry(partOrigin)} +{partTariffRate}%</span>}
                             </div>
-                            <div style={{ fontSize:12,color:"#64748d",marginTop:1 }}>
+                            <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:1 }}>
                               {[part.description, part.value].filter(Boolean).join(" — ") || "\u00A0"}
                             </div>
                           </div>
                           <div style={{ flex:1,display:"flex",alignItems:"center",gap:6,justifyContent:"center" }}>
-                            <span style={{ fontSize:10,color:"#64748d",fontWeight:500,whiteSpace:"nowrap",letterSpacing:"0.5px",textTransform:"uppercase" }}>Quote Qty</span>
+                            <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,whiteSpace:"nowrap",letterSpacing:"0.5px",textTransform:"uppercase" }}>Quote Qty</span>
                             <input type="text" inputMode="numeric" value={bq}
                               onClick={(e)=>e.stopPropagation()}
                               onChange={(e)=>{e.stopPropagation();const v=e.target.value.replace(/[^0-9]/g,"");setBuyQtys(q=>({...q,[part.id]:parseInt(v)||1}));}}
@@ -8714,9 +8755,9 @@ function BOMManager({ user }) {
                                   ) : partOrigin ? (
                                     <div style={{ fontSize:10,color:"#34c759",marginTop:1 }}>Landed Cost — {fmtCountry(partOrigin)} (0% tariff)</div>
                                   ) : (
-                                    <div style={{ fontSize:10,color:"#64748d",marginTop:1 }}>Origin unknown</div>
+                                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginTop:1 }}>Origin unknown</div>
                                   )}
-                                  <div style={{ fontSize:11,color:"#64748d",marginTop:1 }}>
+                                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:1 }}>
                                     <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#34c759",marginRight:4,verticalAlign:"middle" }}></span>
                                     {filteredBestData?.displayName || filteredBest}
                                   </div>
@@ -8731,7 +8772,7 @@ function BOMManager({ user }) {
                                 </>;
                               })()
                             ) : part.pricingStatus === "loading" ? (
-                              <span style={{ fontSize:12,color:"#64748d" }}>Fetching…</span>
+                              <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>Fetching…</span>
                             ) : part.pricingStatus === "error" ? (
                               <span style={{ fontSize:11,color:"#ff3b30" }}>Error</span>
                             ) : part.pricingStatus === "locked" || isLockedSupplier(part.preferredSupplier) ? (
@@ -8778,13 +8819,13 @@ function BOMManager({ user }) {
                                       transition:"all 0.15s", display:"flex", flexDirection:"column"
                                     }}>
                                       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",minHeight:32 }}>
-                                        <span style={{ fontSize:12,fontWeight:500,color:"#64748d",lineHeight:"16px" }}>{data.displayName}</span>
-                                        <span style={{ fontSize:10,color:"#8898aa",fontWeight:500,flexShrink:0,marginLeft:4 }}>{ctry}</span>
+                                        <span style={{ fontSize:12,fontWeight:500,color:darkMode?"#8a93a3":"#64748d",lineHeight:"16px" }}>{data.displayName}</span>
+                                        <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa",fontWeight:500,flexShrink:0,marginLeft:4 }}>{ctry}</span>
                                       </div>
                                       <div style={{ fontSize:18,fontWeight:700,letterSpacing:"-0.3px",
                                         color:isBest?"#248a3d":"#061b31" }}>{"$"}{fmtPrice(origin ? landedPrice : displayPrice)}</div>
                                       {origin ? (
-                                        <div style={{ fontSize:9,color:"#64748d",fontWeight:400,marginTop:2,lineHeight:"13px" }}>
+                                        <div style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d",fontWeight:400,marginTop:2,lineHeight:"13px" }}>
                                           {"$"}{fmtPrice(displayPrice)} unit{data.originalCurrency ? ` (${data.originalCurrency} → USD)` : ""}
                                           {tariffRate > 0 ? ` + ${tariffRate}% tariff` : ""}
                                         </div>
@@ -8793,7 +8834,7 @@ function BOMManager({ user }) {
                                           Converted from {data.originalCurrency}
                                         </div>
                                       ) : null}
-                                      <div style={{ fontSize:10,marginTop:4 }}><span style={{ color: data.stock < bq ? "#ff3b30" : "#8898aa", fontWeight: data.stock < bq ? 600 : 400 }}>Stock: {data.stock.toLocaleString()}</span><span style={{ color:"#8898aa" }}> · MOQ: {data.moq}</span></div>
+                                      <div style={{ fontSize:10,marginTop:4 }}><span style={{ color: data.stock < bq ? "#ff3b30" : "#8898aa", fontWeight: data.stock < bq ? 600 : 400 }}>Stock: {data.stock.toLocaleString()}</span><span style={{ color:darkMode?"#8a93a3":"#8898aa" }}> · MOQ: {data.moq}</span></div>
                                       {/* Compliance & lifecycle badges */}
                                       <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginTop:4 }}>
                                         {data.rohsStatus && (
@@ -8833,7 +8874,7 @@ function BOMManager({ user }) {
                                           Replacement: {data.suggestedReplacement}
                                         </div>
                                       )}
-                                      <div style={{ fontSize:10,color:"#8898aa",marginTop:2 }}>@ {bq} pcs</div>
+                                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa",marginTop:2 }}>@ {bq} pcs</div>
                                       {data.url && (
                                         <a href={data.url} target="_blank" rel="noopener noreferrer"
                                           style={{ display:"inline-block",marginTop:8,padding:"4px 12px",borderRadius:100,fontSize:10,
@@ -8864,7 +8905,7 @@ function BOMManager({ user }) {
                                 const oosSuppliers = hasPricing ? Object.entries(pricingObj).filter(([k,d]) => k !== "_countryOfOrigin" && d.stock <= 0) : [];
                                 if (oosSuppliers.length === 0 || !part.mpn) return null;
                                 return (
-                                  <div style={{ padding:"8px 16px",fontSize:11,color:"#8898aa",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
+                                  <div style={{ padding:"8px 16px",fontSize:11,color:darkMode?"#8a93a3":"#8898aa",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
                                     <span style={{ color:"#ff3b30",fontWeight:500 }}>{oosSuppliers.length} supplier{oosSuppliers.length > 1 ? "s" : ""} out of stock</span>
                                     <span>({oosSuppliers.map(([,d]) => d.displayName || "Unknown").join(", ")})</span>
                                     <a href={`https://octopart.com/search?q=${encodeURIComponent(part.mpn)}&start=0`}
@@ -8878,7 +8919,7 @@ function BOMManager({ user }) {
                               })()}
                               </>
                             ) : effectiveStatus === "done" ? (
-                              <div style={{ padding:16,textAlign:"center",color:"#8898aa",fontSize:13 }}>
+                              <div style={{ padding:16,textAlign:"center",color:darkMode?"#8a93a3":"#8898aa",fontSize:13 }}>
                                 No suppliers with stock{countryFilter === "us" ? " (US Only filter is on)" : " (international filter is on)"}
                                 {part.mpn && (
                                   <div style={{ marginTop:10 }}>
@@ -8893,7 +8934,7 @@ function BOMManager({ user }) {
                                 )}
                               </div>
                             ) : (
-                              <div style={{ padding:16,textAlign:"center",color:"#8898aa",fontSize:13 }}>No pricing data yet</div>
+                              <div style={{ padding:16,textAlign:"center",color:darkMode?"#8a93a3":"#8898aa",fontSize:13 }}>No pricing data yet</div>
                             )}
 
                             {/* Add Custom Supplier + Refresh */}
@@ -8921,25 +8962,25 @@ function BOMManager({ user }) {
                                 <div style={{ fontSize:12,fontWeight:600,color:darkMode?"#e8ebf0":"#061b31",marginBottom:12 }}>{customSupplierForm.editKey ? "Edit" : "Add"} Custom Supplier</div>
                                 <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:10 }}>
                                   <div>
-                                    <div style={{ fontSize:10,color:"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Supplier Name *</div>
+                                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Supplier Name *</div>
                                     <input type="text" value={customSupplierForm.name} placeholder="e.g. CEdist"
                                       onChange={e=>setCustomSupplierForm(f=>({...f,name:e.target.value}))}
                                       style={{ padding:"7px 10px",border:"1px solid #e3e8ee",borderRadius:8,fontSize:13,fontFamily:"inherit",background:darkMode?"#0f1218":"#fff",color:darkMode?"#e8ebf0":"#061b31",outline:"none",width:140 }} />
                                   </div>
                                   <div>
-                                    <div style={{ fontSize:10,color:"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Website URL</div>
+                                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Website URL</div>
                                     <input type="text" value={customSupplierForm.url} placeholder="https://..."
                                       onChange={e=>setCustomSupplierForm(f=>({...f,url:e.target.value}))}
                                       style={{ padding:"7px 10px",border:"1px solid #e3e8ee",borderRadius:8,fontSize:13,fontFamily:"inherit",background:darkMode?"#0f1218":"#fff",color:darkMode?"#e8ebf0":"#061b31",outline:"none",width:180 }} />
                                   </div>
                                   <div>
-                                    <div style={{ fontSize:10,color:"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Country</div>
+                                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Country</div>
                                     <input type="text" value={customSupplierForm.country} placeholder="US"
                                       onChange={e=>setCustomSupplierForm(f=>({...f,country:e.target.value.toUpperCase()}))}
                                       style={{ padding:"7px 10px",border:"1px solid #e3e8ee",borderRadius:8,fontSize:13,fontFamily:"inherit",background:darkMode?"#0f1218":"#fff",color:darkMode?"#e8ebf0":"#061b31",outline:"none",width:50 }} />
                                   </div>
                                   <div>
-                                    <div style={{ fontSize:10,color:"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Stock</div>
+                                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Stock</div>
                                     <input type="number" value={customSupplierForm.stock} placeholder="∞"
                                       onChange={e=>setCustomSupplierForm(f=>({...f,stock:e.target.value}))}
                                       style={{ padding:"7px 10px",border:"1px solid #e3e8ee",borderRadius:8,fontSize:13,fontFamily:"inherit",background:darkMode?"#0f1218":"#fff",color:darkMode?"#e8ebf0":"#061b31",outline:"none",width:70 }} />
@@ -8947,22 +8988,22 @@ function BOMManager({ user }) {
                                 </div>
 
                                 {/* Price breaks */}
-                                <div style={{ fontSize:10,color:"#64748d",fontWeight:500,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.3px" }}>Price Breaks</div>
+                                <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.3px" }}>Price Breaks</div>
                                 {customSupplierForm.breaks.map((b, i) => (
                                   <div key={i} style={{ display:"flex",gap:8,alignItems:"center",marginBottom:6 }}>
                                     <input type="number" value={b.qty} placeholder="Qty" min="1"
                                       onChange={e=>{const breaks=[...customSupplierForm.breaks];breaks[i]={...breaks[i],qty:parseInt(e.target.value)||0};setCustomSupplierForm(f=>({...f,breaks}));}}
                                       style={{ padding:"6px 8px",border:"1px solid #e3e8ee",borderRadius:6,fontSize:12,fontFamily:"inherit",background:darkMode?"#0f1218":"#fff",color:darkMode?"#e8ebf0":"#061b31",outline:"none",width:70 }} />
-                                    <span style={{ fontSize:11,color:"#64748d" }}>+</span>
+                                    <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>+</span>
                                     <div style={{ position:"relative" }}>
-                                      <span style={{ position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#64748d" }}>$</span>
+                                      <span style={{ position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>$</span>
                                       <input type="number" value={b.price} placeholder="0.00" step="0.001" min="0"
                                         onChange={e=>{const breaks=[...customSupplierForm.breaks];breaks[i]={...breaks[i],price:e.target.value};setCustomSupplierForm(f=>({...f,breaks}));}}
                                         style={{ padding:"6px 8px 6px 20px",border:"1px solid #e3e8ee",borderRadius:6,fontSize:12,fontFamily:"inherit",background:darkMode?"#0f1218":"#fff",color:darkMode?"#e8ebf0":"#061b31",outline:"none",width:90 }} />
                                     </div>
                                     {customSupplierForm.breaks.length > 1 && (
                                       <button onClick={()=>{const breaks=customSupplierForm.breaks.filter((_,j)=>j!==i);setCustomSupplierForm(f=>({...f,breaks}));}}
-                                        style={{ background:"none",border:"none",cursor:"pointer",color:"#8898aa",fontSize:14,padding:"0 4px" }}>✕</button>
+                                        style={{ background:"none",border:"none",cursor:"pointer",color:darkMode?"#8a93a3":"#8898aa",fontSize:14,padding:"0 4px" }}>✕</button>
                                     )}
                                   </div>
                                 ))}
@@ -8994,7 +9035,7 @@ function BOMManager({ user }) {
                                   </button>
                                   <button onClick={()=>setCustomSupplierForm(null)}
                                     style={{ padding:"7px 14px",borderRadius:8,fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
-                                      border:"1px solid #e3e8ee",background:"none",color:"#64748d" }}>
+                                      border:"1px solid #e3e8ee",background:"none",color:darkMode?"#8a93a3":"#64748d" }}>
                                     Cancel
                                   </button>
                                 </div>
@@ -9013,13 +9054,13 @@ function BOMManager({ user }) {
                                 // Auto-load when expanded
                                 loadHistory();
                                 return (
-                                  <div style={{ padding:"12px 16px",background:darkMode?"#161a22":"#fafbfc",borderRadius:12,marginBottom:14,fontSize:12,color:"#64748d" }}>
+                                  <div style={{ padding:"12px 16px",background:darkMode?"#161a22":"#fafbfc",borderRadius:12,marginBottom:14,fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>
                                     Loading price history...
                                   </div>
                                 );
                               }
                               if (history.length === 0) return (
-                                <div style={{ padding:"12px 16px",background:darkMode?"#161a22":"#fafbfc",borderRadius:12,marginBottom:14,fontSize:12,color:"#8898aa" }}>
+                                <div style={{ padding:"12px 16px",background:darkMode?"#161a22":"#fafbfc",borderRadius:12,marginBottom:14,fontSize:12,color:darkMode?"#8a93a3":"#8898aa" }}>
                                   No price history recorded yet
                                 </div>
                               );
@@ -9056,10 +9097,10 @@ function BOMManager({ user }) {
                                   </div>
                                   {/* Stats row */}
                                   <div style={{ display:"flex",gap:16,marginBottom:10,fontSize:11 }}>
-                                    <div><span style={{ color:"#64748d" }}>Min: </span><span style={{ fontWeight:600,color:"#34c759" }}>${fmtPrice(minP)}</span></div>
-                                    <div><span style={{ color:"#64748d" }}>Max: </span><span style={{ fontWeight:600,color:"#ff3b30" }}>${fmtPrice(maxP)}</span></div>
-                                    <div><span style={{ color:"#64748d" }}>Avg: </span><span style={{ fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>${fmtPrice(avgP)}</span></div>
-                                    <div><span style={{ color:"#64748d" }}>Records: </span><span style={{ fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>{history.length}</span></div>
+                                    <div><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Min: </span><span style={{ fontWeight:600,color:"#34c759" }}>${fmtPrice(minP)}</span></div>
+                                    <div><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Max: </span><span style={{ fontWeight:600,color:"#ff3b30" }}>${fmtPrice(maxP)}</span></div>
+                                    <div><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Avg: </span><span style={{ fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>${fmtPrice(avgP)}</span></div>
+                                    <div><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Records: </span><span style={{ fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>{history.length}</span></div>
                                   </div>
                                   {/* Sparkline bar chart */}
                                   {sparkData.length >= 3 && (
@@ -9078,16 +9119,16 @@ function BOMManager({ user }) {
                                     <thead>
                                       <tr style={{ borderBottom:"1px solid #e5e5ea" }}>
                                         {["Date","Price","Supplier","Source"].map(h=>(
-                                          <th key={h} style={{ textAlign:"left",padding:"5px 8px",fontSize:9,fontWeight:700,color:"#64748d",letterSpacing:"0.05em",textTransform:"uppercase" }}>{h}</th>
+                                          <th key={h} style={{ textAlign:"left",padding:"5px 8px",fontSize:9,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",letterSpacing:"0.05em",textTransform:"uppercase" }}>{h}</th>
                                         ))}
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {history.slice(0, 10).map((row, ri) => (
                                         <tr key={row.id || ri} style={{ borderBottom:"1px solid #f0f0f2" }}>
-                                          <td style={{ padding:"5px 8px",color:"#50617a" }}>{new Date(row.recorded_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</td>
+                                          <td style={{ padding:"5px 8px",color:darkMode?"#b8bfcc":"#50617a" }}>{new Date(row.recorded_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</td>
                                           <td style={{ padding:"5px 8px",fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>${fmtPrice(row.unit_price)}</td>
-                                          <td style={{ padding:"5px 8px",color:"#50617a" }}>{row.supplier || "—"}</td>
+                                          <td style={{ padding:"5px 8px",color:darkMode?"#b8bfcc":"#50617a" }}>{row.supplier || "—"}</td>
                                           <td style={{ padding:"5px 8px" }}>
                                             <span style={{ display:"inline-block",padding:"1px 6px",borderRadius:4,fontSize:9,fontWeight:600,
                                               background:row.source==="invoice"?"rgba(255,149,0,0.1)":row.source==="pricing"?"rgba(83,58,253,0.08)":"rgba(134,134,139,0.1)",
@@ -9099,7 +9140,7 @@ function BOMManager({ user }) {
                                       ))}
                                     </tbody>
                                   </table>
-                                  {history.length > 10 && <div style={{ fontSize:10,color:"#8898aa",marginTop:6,textAlign:"center" }}>Showing 10 of {history.length} records</div>}
+                                  {history.length > 10 && <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa",marginTop:6,textAlign:"center" }}>Showing 10 of {history.length} records</div>}
                                   {history.length >= 2 && (
                                     <div style={{ marginTop:14 }}>
                                       <PriceChart data={history} darkMode={darkMode} title={`${part.mpn || part.reference || "Part"} — Price History`} height={180} />
@@ -9112,31 +9153,31 @@ function BOMManager({ user }) {
                             {/* Inline edit */}
                             <div style={{ padding:"14px 16px",background:darkMode?"#0a0c10":"#f6f9fc",borderRadius:12,display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end" }}>
                               <div>
-                                <div style={{ fontSize:10,color:"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Reference</div>
+                                <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Reference</div>
                                 <input type="text" value={part.reference}
                                   onChange={e=>updatePart(part.id,"reference",e.target.value)}
                                   style={{ padding:"7px 10px",border:"1px solid #e3e8ee",borderRadius:8,fontSize:13,fontFamily:"inherit",background:darkMode?"#0f1218":"#fff",color:darkMode?"#e8ebf0":"#061b31",outline:"none",width:100 }} />
                               </div>
                               <div>
-                                <div style={{ fontSize:10,color:"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>MPN</div>
+                                <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>MPN</div>
                                 <input type="text" value={part.mpn}
                                   onChange={e=>updatePart(part.id,"mpn",e.target.value)}
                                   style={{ padding:"7px 10px",border:"1px solid #e3e8ee",borderRadius:8,fontSize:13,fontFamily:"inherit",background:darkMode?"#0f1218":"#fff",color:darkMode?"#e8ebf0":"#061b31",outline:"none",width:160 }} />
                               </div>
                               <div>
-                                <div style={{ fontSize:10,color:"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Qty</div>
+                                <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Qty</div>
                                 <input type="number" value={part.quantity} min="1"
                                   onChange={e=>updatePart(part.id,"quantity",parseInt(e.target.value)||1)}
                                   style={{ padding:"7px 10px",border:"1px solid #e3e8ee",borderRadius:8,fontSize:13,fontFamily:"inherit",background:darkMode?"#0f1218":"#fff",color:darkMode?"#e8ebf0":"#061b31",outline:"none",width:70 }} />
                               </div>
                               <div>
-                                <div style={{ fontSize:10,color:"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Description</div>
+                                <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Description</div>
                                 <input type="text" value={part.description||""}
                                   onChange={e=>updatePart(part.id,"description",e.target.value)}
                                   style={{ padding:"7px 10px",border:"1px solid #e3e8ee",borderRadius:8,fontSize:13,fontFamily:"inherit",background:darkMode?"#0f1218":"#fff",color:darkMode?"#e8ebf0":"#061b31",outline:"none",width:160 }} />
                               </div>
                               <div>
-                                <div style={{ fontSize:10,color:"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Value</div>
+                                <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px" }}>Value</div>
                                 <input type="text" value={part.value||""}
                                   onChange={e=>updatePart(part.id,"value",e.target.value)}
                                   style={{ padding:"7px 10px",border:"1px solid #e3e8ee",borderRadius:8,fontSize:13,fontFamily:"inherit",background:darkMode?"#0f1218":"#fff",color:darkMode?"#e8ebf0":"#061b31",outline:"none",width:80 }} />
@@ -9326,7 +9367,7 @@ function BOMManager({ user }) {
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#ff3b30",color:"#fff",fontSize:12,fontWeight:800 }}>5</span>
                 <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",margin:0 }}>Purchasing</h2>
               </div>
-              <p style={{ fontSize:13,color:"#50617a",lineHeight:"20px",margin:0 }}>
+              <p style={{ fontSize:13,color:darkMode?"#b8bfcc":"#50617a",lineHeight:"20px",margin:0 }}>
                 Your checkout page for parts. The build queue aggregates every part needed across all queued products, deduplicates shared components, subtracts current stock, and groups the remaining demand by supplier. Each line item shows tariff exposure by country of origin — use "Skip Tariffed Parts" to hold back tariffed components and order tariff-free parts first. For Mouser orders, "Check Tariffs" queries their Cart API for actual surcharges before you commit. Parts priced at or above the reel order threshold prompt a reel vs. cut tape decision with burn-time estimates so you only buy full reels when it makes sense. Generate POs, email reps, export CSVs, or push directly to Mouser's cart.
               </p>
             </div>
@@ -9334,7 +9375,7 @@ function BOMManager({ user }) {
             {buildQueue.length === 0 ? (
               <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:16,padding:"60px 30px",textAlign:"center",boxShadow:"0 1px 3px rgba(0,0,0,0.06)" }}>
                 <div style={{ fontSize:16,fontWeight:600,color:darkMode?"#e8ebf0":"#061b31",marginBottom:8 }}>No products in the build queue</div>
-                <div style={{ color:"#64748d",fontSize:13,maxWidth:400,margin:"0 auto 20px" }}>
+                <div style={{ color:darkMode?"#8a93a3":"#64748d",fontSize:13,maxWidth:400,margin:"0 auto 20px" }}>
                   Go to Products and enter a quantity next to any product, then click Order to add it here.
                 </div>
                 <button onClick={()=>setActiveView("projects")}
@@ -9346,7 +9387,7 @@ function BOMManager({ user }) {
               {/* ── Build Queue */}
               <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:16 }}>
                 <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-                  <div style={{ fontSize:10,color:"#64748d",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Build Queue — {buildQueue.length} product{buildQueue.length!==1?"s":""}</div>
+                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Build Queue — {buildQueue.length} product{buildQueue.length!==1?"s":""}</div>
                   <button onClick={async () => {
                       if (!await showConfirm("Clear Build Queue", `Remove all ${buildQueue.length} product${buildQueue.length!==1?"s":""} from the build queue?`, "Clear All", "#ff3b30")) return;
                       setBuildQueue([]);
@@ -9364,13 +9405,13 @@ function BOMManager({ user }) {
                       borderBottom:idx<buildQueue.length-1?"1px solid #f0f0f2":"none",gap:16 }}>
                       <div style={{ flex:1,minWidth:0 }}>
                         <div style={{ fontSize:15,fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>{item.name}</div>
-                        <div style={{ fontSize:12,color:"#64748d",marginTop:1 }}>
+                        <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:1 }}>
                           <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:item.color,marginRight:4,verticalAlign:"middle" }} />
                           ${fmtPrice(unitCost)} per unit
                         </div>
                       </div>
                       <div style={{ flex:"0 0 auto",display:"flex",alignItems:"center",gap:6 }}>
-                        <span style={{ fontSize:10,color:"#64748d",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Qty</span>
+                        <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>Qty</span>
                         <input type="number" min="1" value={item.qty}
                           onChange={(e) => {
                             const val = parseInt(e.target.value) || 1;
@@ -9391,7 +9432,7 @@ function BOMManager({ user }) {
                 })}
                 {/* Queue totals */}
                 <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 22px",background:darkMode?"#161a22":"#fafbfc",borderTop:"1px solid #f0f0f2" }}>
-                  <div style={{ fontSize:12,color:"#64748d" }}>
+                  <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>
                     {buildQueue.reduce((s,q) => s+q.qty, 0).toLocaleString()} total units · {totalParts} unique parts to order
                   </div>
                   <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31" }}>
@@ -9419,7 +9460,7 @@ function BOMManager({ user }) {
                           style={{ width:16,height:16,accentColor:"#ff9500",cursor:"pointer" }} />
                         Skip Tariffed Parts
                       </label>
-                      <div style={{ display:"flex",gap:12,fontSize:11,color:"#64748d",flexWrap:"wrap" }}>
+                      <div style={{ display:"flex",gap:12,fontSize:11,color:darkMode?"#8a93a3":"#64748d",flexWrap:"wrap" }}>
                         {tariffed.length > 0 && (
                           <span style={{ color:"#ff9500",fontWeight:600 }}>
                             {tariffed.length} tariffed ({tariffed.map(d => d.origin).filter((v,i,a)=>a.indexOf(v)===i).join(", ")})
@@ -9444,7 +9485,7 @@ function BOMManager({ user }) {
                   <div style={{ padding:"14px 22px",borderBottom:"1px solid #f0f0f2",background:"rgba(255,149,0,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                     <div>
                       <div style={{ fontSize:12,fontWeight:700,color:"#ff9500",letterSpacing:"0.5px",textTransform:"uppercase" }}>Tariffed Parts — Held Back</div>
-                      <div style={{ fontSize:11,color:"#64748d",marginTop:2 }}>{tariffSkippedItems.length} parts excluded from POs due to tariffs. Order these separately or find tariff-free alternatives.</div>
+                      <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>{tariffSkippedItems.length} parts excluded from POs due to tariffs. Order these separately or find tariff-free alternatives.</div>
                     </div>
                     <div style={{ fontSize:16,fontWeight:700,color:"#ff3b30" }}>
                       {"$"}{fmtDollar(tariffSkippedItems.reduce((s,d) => s + d.landedPrice * d.net, 0))} landed
@@ -9454,17 +9495,17 @@ function BOMManager({ user }) {
                     <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"12px 22px",borderBottom:idx<tariffSkippedItems.length-1?"1px solid #f0f0f2":"none",gap:12 }}>
                       <div style={{ flex:1,minWidth:0 }}>
                         <div style={{ fontSize:14,fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>{d.part.mpn || d.part.reference}</div>
-                        <div style={{ fontSize:11,color:"#64748d" }}>{[d.part.description, d.part.value].filter(Boolean).join(" — ")}</div>
+                        <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>{[d.part.description, d.part.value].filter(Boolean).join(" — ")}</div>
                       </div>
                       <span style={{ fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:4,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
                         {d.origin} +{d.tariffRate}%
                       </span>
                       <div style={{ textAlign:"right",minWidth:80 }}>
                         {d.reelCount
-                          ? <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>{d.reelCount} reel{d.reelCount!==1?"s":""} <span style={{ fontWeight:400,color:"#64748d" }}>({d.net.toLocaleString()} pcs)</span></div>
+                          ? <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>{d.reelCount} reel{d.reelCount!==1?"s":""} <span style={{ fontWeight:400,color:darkMode?"#8a93a3":"#64748d" }}>({d.net.toLocaleString()} pcs)</span></div>
                           : <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>{d.net.toLocaleString()} pcs</div>
                         }
-                        <div style={{ fontSize:10,color:"#64748d" }}>${fmtPrice(d.bestPrice)} + ${fmtPrice(d.landedPrice - d.bestPrice)} tariff</div>
+                        <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>${fmtPrice(d.bestPrice)} + ${fmtPrice(d.landedPrice - d.bestPrice)} tariff</div>
                       </div>
                     </div>
                   ))}
@@ -9476,7 +9517,7 @@ function BOMManager({ user }) {
                 <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:24 }}>
                   <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2" }}>
                     <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-                      <div style={{ fontSize:10,color:"#64748d",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>
+                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase" }}>
                         Parts to Order — {demandList.filter(d => !skipTariffedParts || !d.hasTariff).length} items
                         {skipTariffedParts && tariffSkippedItems.length > 0 ? ` (${tariffSkippedItems.length} tariffed held back)` : ""}
                       </div>
@@ -9527,7 +9568,7 @@ function BOMManager({ user }) {
                           borderBottom:idx<demandList.length-1?"1px solid #f0f0f2":"none",gap:16 }}>
                           <div style={{ flex:"1 1 200px",minWidth:0 }}>
                             <div style={{ fontSize:15,fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>{d.part.mpn || d.part.reference || "—"}</div>
-                            <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>
+                            <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>
                               {[d.part.description, d.part.value].filter(Boolean).join(" — ") || ""}
                               {d.products.length > 0 && (
                                 <span style={{ marginLeft:6 }}>
@@ -9537,7 +9578,7 @@ function BOMManager({ user }) {
                             </div>
                           </div>
                           <div style={{ flex:"0 0 auto",textAlign:"center",minWidth: needsDecision ? 280 : 90 }}>
-                            <div style={{ fontSize:10,color:"#64748d",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase",marginBottom:4 }}>Need</div>
+                            <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:500,letterSpacing:"0.5px",textTransform:"uppercase",marginBottom:4 }}>Need</div>
                             {needsDecision ? (
                               <div style={{ textAlign:"left" }}>
                                 <div style={{ fontSize:11,color:"#ff9500",fontWeight:600,marginBottom:6 }}>
@@ -9562,14 +9603,14 @@ function BOMManager({ user }) {
                                   </button>
                                 </div>
                                 {burnMonths != null && (
-                                  <div style={{ fontSize:10,color:"#64748d",marginTop:4 }}>
+                                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginTop:4 }}>
                                     At current velocity: ~{burnMonths < 1 ? Math.round(burnDays) + " days" : burnMonths.toFixed(1) + " months"} to consume {isReelPkg ? "full reel" : "full pack"}
                                   </div>
                                 )}
                               </div>
                             ) : (isReelPkg && d.reelCount) ? (<>
                               <div style={{ fontSize:15,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31" }}>{d.reelCount} reel{d.reelCount!==1?"s":""}</div>
-                              <div style={{ fontSize:10,color:"#64748d" }}>{d.net.toLocaleString()} pcs</div>
+                              <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>{d.net.toLocaleString()} pcs</div>
                               {d.net > d.rawNet && <div style={{ fontSize:9,color:"#34c759",fontWeight:600 }}>+{(d.net-d.rawNet).toLocaleString()} surplus</div>}
                             </>) : (
                               <div style={{ fontSize:15,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31" }}>{d.net.toLocaleString()}</div>
@@ -9582,7 +9623,7 @@ function BOMManager({ user }) {
                               ? <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
                                   <span style={{ fontSize:9,fontWeight:700,letterSpacing:"0.04em",padding:"2px 6px",borderRadius:4,background:"rgba(52,199,89,0.1)",color:"#34c759" }}>SPLIT ORDER</span>
                                   {d.allocations.map((a, ai) => (
-                                    <div key={ai} style={{ fontSize:9,color:"#50617a",whiteSpace:"nowrap" }}>
+                                    <div key={ai} style={{ fontSize:9,color:darkMode?"#b8bfcc":"#50617a",whiteSpace:"nowrap" }}>
                                       {a.supplierName}: {a.qty.toLocaleString()}
                                       {a.backorderQty > 0 && <span style={{ color:"#ff9500" }}> ({a.backorderQty} backorder)</span>}
                                     </div>
@@ -9594,7 +9635,7 @@ function BOMManager({ user }) {
                                   const hasShortfall = supStock > 0 && supStock < d.net;
                                   return (
                                     <div style={{ display:"flex",flexDirection:"column",gap:2,alignItems:"center" }}>
-                                      {d.bestSupplierName && <span style={{ fontSize:10,color:"#64748d" }}>{d.bestSupplierName}</span>}
+                                      {d.bestSupplierName && <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>{d.bestSupplierName}</span>}
                                       {hasShortfall && (
                                         <span style={{ fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:3,background:"rgba(255,149,0,0.12)",color:"#ff9500" }}>
                                           Only {supStock.toLocaleString()} in stock — {(d.net - supStock).toLocaleString()} backorder
@@ -9617,7 +9658,7 @@ function BOMManager({ user }) {
                             {d.bestPrice > 0
                               ? <>
                                   <div style={{ fontSize:18,fontWeight:600,color:d.hasTariff?"#ff9500":"#061b31" }}>{"$"}{fmtDollar(effectiveLandedPrice * effectiveQty)}</div>
-                                  <div style={{ fontSize:11,color:"#64748d" }}>${fmtPrice(d.bestPrice)} ea{d.hasTariff ? ` + $${fmtPrice(effectiveLandedPrice - d.bestPrice)} tariff` : ""}</div>
+                                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>${fmtPrice(d.bestPrice)} ea{d.hasTariff ? ` + $${fmtPrice(effectiveLandedPrice - d.bestPrice)} tariff` : ""}</div>
                                 </>
                               : <div style={{ fontSize:14,color:"#b8bfcc" }}>—</div>}
                           </div>
@@ -9633,7 +9674,7 @@ function BOMManager({ user }) {
                 <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",overflow:"hidden",marginBottom:16 }}>
                   <div style={{ padding:"16px 22px",borderBottom:"1px solid #f0f0f2",display:"flex",alignItems:"center",gap:10 }}>
                     <span style={{ fontSize:10,fontWeight:700,letterSpacing:"0.04em",padding:"3px 8px",borderRadius:4,background:"rgba(88,86,214,0.1)",color:"#7ab8d4" }}>IN-HOUSE</span>
-                    <span style={{ fontSize:12,color:"#64748d" }}>{internalItems.length} items to produce internally</span>
+                    <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>{internalItems.length} items to produce internally</span>
                   </div>
                   {internalItems.map((d, idx) => (
                     <div key={d.part.id} style={{ display:"flex",alignItems:"center",padding:"12px 22px",borderBottom:idx<internalItems.length-1?"1px solid #f0f0f2":"none" }}>
@@ -9696,7 +9737,7 @@ function BOMManager({ user }) {
                               {modeConf.label}
                             </span>
                           </div>
-                          <div style={{ fontSize:11,color:"#64748d" }}>
+                          <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>
                             {items.length} parts · {totalUnits.toLocaleString()} units · {"$"}{fmtDollar(poTotal)}
                             {items.some(d => d.isSplitOrder) && <span style={{ marginLeft:6,fontSize:9,fontWeight:700,color:"#ff3b30" }}>contains split orders</span>}
                           </div>
@@ -9704,18 +9745,18 @@ function BOMManager({ user }) {
                       </div>
                       <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
                         <button onClick={()=>exportPOasCSV(sup,poLines,poNum)}
-                          style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:"#64748d" }}>
+                          style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:darkMode?"#8a93a3":"#64748d" }}>
                           CSV
                         </button>
                         <button onClick={()=>printPO(sup,poLines,poNum,{name:apiKeys.company_name,address:apiKeys.company_address})}
-                          style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:"#64748d" }}>
+                          style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:darkMode?"#8a93a3":"#64748d" }}>
                           Print PO
                         </button>
                         <button onClick={() => {
                             const draft = buildPOEmailDraft(sup.name, poLines, poNum, {name:apiKeys.company_name,address:apiKeys.company_address}, contactName);
                             window.location.href = `mailto:${repEmail}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
                           }}
-                          style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:"#64748d" }}>
+                          style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:darkMode?"#8a93a3":"#64748d" }}>
                           Email PO
                         </button>
 
@@ -9822,7 +9863,7 @@ function BOMManager({ user }) {
                               const url = SUPPLIER_WEBSITE_URLS[sid] || sup.searchUrl?.(items[0]?.part?.mpn || "") || "#";
                               window.open(url, "_blank");
                             }}
-                            style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:"#64748d" }}>
+                            style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:darkMode?"#8a93a3":"#64748d" }}>
                             Open Supplier Website
                           </button>
                         )}
@@ -9841,13 +9882,13 @@ function BOMManager({ user }) {
                               <span style={{ fontSize:14,fontWeight:800,color:"#ff3b30" }}>+{"$"}{fmtDollar(mouserTariffPreview.totalFees)}</span>
                             </div>
                             {mouserTariffPreview.fees.length > 0 && mouserTariffPreview.fees.map((f, fi) => (
-                              <div key={fi} style={{ display:"flex",justifyContent:"space-between",fontSize:11,color:"#64748d",padding:"2px 0" }}>
+                              <div key={fi} style={{ display:"flex",justifyContent:"space-between",fontSize:11,color:darkMode?"#8a93a3":"#64748d",padding:"2px 0" }}>
                                 <span>{f.mpn} — {f.desc || f.code}</span>
                                 <span style={{ fontWeight:600,color:"#ff9500" }}>+{"$"}{fmtDollar(f.fee)}</span>
                               </div>
                             ))}
                             <div style={{ display:"flex",justifyContent:"space-between",marginTop:8,paddingTop:6,borderTop:"1px solid #f0f0f2",fontSize:12 }}>
-                              <span style={{ color:"#64748d" }}>Parts: {"$"}{fmtDollar(mouserTariffPreview.merchandiseTotal || poTotal)}</span>
+                              <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Parts: {"$"}{fmtDollar(mouserTariffPreview.merchandiseTotal || poTotal)}</span>
                               <span style={{ fontWeight:700,color:darkMode?"#e8ebf0":"#061b31" }}>Actual Total: {"$"}{fmtDollar(mouserTariffPreview.orderTotal || (poTotal + mouserTariffPreview.totalFees))}</span>
                             </div>
                           </div>
@@ -9859,7 +9900,7 @@ function BOMManager({ user }) {
 
                     {/* ── Rep Contact Info (for rep-managed suppliers) */}
                     {orderMode === "rep" && (repEmail || lastOrder) && (
-                      <div style={{ padding:"8px 22px",background:"rgba(83,58,253,0.04)",borderBottom:"1px solid #f0f0f2",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",fontSize:11,color:"#50617a" }}>
+                      <div style={{ padding:"8px 22px",background:"rgba(83,58,253,0.04)",borderBottom:"1px solid #f0f0f2",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",fontSize:11,color:darkMode?"#b8bfcc":"#50617a" }}>
                         {repEmail && (
                           <span>Rep: <strong style={{ color:"#58a6ff" }}>{repName}</strong> &middot; <a href={`mailto:${repEmail}`} style={{ color:"#58a6ff",textDecoration:"none" }}>{repEmail}</a></span>
                         )}
@@ -9899,7 +9940,7 @@ function BOMManager({ user }) {
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize:11,color:"#64748d" }}>
+                          <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>
                             {[d.part.description, d.part.value].filter(Boolean).join(" — ")}
                             {(() => {
                               const supData = d.part.pricing?.[sid];
@@ -9965,12 +10006,12 @@ function BOMManager({ user }) {
                 return (
                   <div style={{ display:"flex",justifyContent:"flex-end",padding:"16px 0",gap:20,alignItems:"center",flexWrap:"wrap" }}>
                     <div style={{ textAlign:"right" }}>
-                      <div style={{ fontSize:12,color:"#64748d" }}>Parts: {"$"}{fmtDollar(partsSubtotal)}</div>
+                      <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>Parts: {"$"}{fmtDollar(partsSubtotal)}</div>
                       {tariffAdded > 0 && <div style={{ fontSize:12,color:"#ff9500",fontWeight:600 }}>Est. Tariffs: +{"$"}{fmtDollar(tariffAdded)}</div>}
-                      {skipTariffedParts && tariffSkippedItems.length > 0 && <div style={{ fontSize:11,color:"#64748d" }}>{tariffSkippedItems.length} tariffed parts held back</div>}
+                      {skipTariffedParts && tariffSkippedItems.length > 0 && <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>{tariffSkippedItems.length} tariffed parts held back</div>}
                     </div>
                     <div style={{ textAlign:"right" }}>
-                      <div style={{ fontSize:11,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.5px",fontWeight:500 }}>Estimated Landed Total</div>
+                      <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.5px",fontWeight:500 }}>Estimated Landed Total</div>
                       <span style={{ fontSize:24,fontWeight:800,color:darkMode?"#e8ebf0":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                         {"$"}{fmtDollar(landedTotal)}
                       </span>
@@ -10030,9 +10071,9 @@ function BOMManager({ user }) {
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12 }}>
               <div>
                 <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:21,fontWeight:800,marginBottom:4 }}>Order Tracker</h2>
-                <p style={{ color:"#64748d",fontSize:13,marginBottom:8 }}>Track orders across all suppliers. Mouser cart orders are logged automatically.</p>
+                <p style={{ color:darkMode?"#8a93a3":"#64748d",fontSize:13,marginBottom:8 }}>Track orders across all suppliers. Mouser cart orders are logged automatically.</p>
                 <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
-                  <span style={{ fontSize:12,color:"#64748d" }}>Mobile Invoice Scanner:</span>
+                  <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>Mobile Invoice Scanner:</span>
                   <code style={{ fontSize:11,color:darkMode?"#f8d377":"#7ab8d4",background:darkMode?"#0f1218":"#f0f0f2",padding:"3px 8px",borderRadius:5,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
                     {window.location.origin + "/invoice"}
                   </code>
@@ -10065,7 +10106,7 @@ function BOMManager({ user }) {
                 <div style={{ padding:"16px 20px" }}>
                   <div style={{ display:"flex",gap:12,flexWrap:"wrap",marginBottom:12 }}>
                     <div>
-                      <div style={{ fontSize:10,color:"#64748d",fontWeight:600,marginBottom:3,textTransform:"uppercase" }}>Supplier</div>
+                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,marginBottom:3,textTransform:"uppercase" }}>Supplier</div>
                       <select value={orderForm.supplier}
                         onChange={e => {
                           const sup = SUPPLIERS.find(s => s.name === e.target.value);
@@ -10077,19 +10118,19 @@ function BOMManager({ user }) {
                       </select>
                     </div>
                     <div>
-                      <div style={{ fontSize:10,color:"#64748d",fontWeight:600,marginBottom:3,textTransform:"uppercase" }}>PO / Order Number</div>
+                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,marginBottom:3,textTransform:"uppercase" }}>PO / Order Number</div>
                       <input type="text" placeholder="PO-2026-001" value={orderForm.poNumber}
                         onChange={e => setOrderForm(f => ({ ...f, poNumber: e.target.value }))}
                         style={{ padding:"7px 10px",borderRadius:8,border:"1px solid #e3e8ee",fontSize:12,fontFamily:"inherit",width:160 }} />
                     </div>
                     <div style={{ flex:1 }}>
-                      <div style={{ fontSize:10,color:"#64748d",fontWeight:600,marginBottom:3,textTransform:"uppercase" }}>Notes</div>
+                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,marginBottom:3,textTransform:"uppercase" }}>Notes</div>
                       <input type="text" placeholder="Optional notes" value={orderForm.notes}
                         onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))}
                         style={{ padding:"7px 10px",borderRadius:8,border:"1px solid #e3e8ee",fontSize:12,fontFamily:"inherit",width:"100%" }} />
                     </div>
                   </div>
-                  <div style={{ fontSize:10,color:"#64748d",fontWeight:600,marginBottom:6,textTransform:"uppercase" }}>Line Items</div>
+                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,marginBottom:6,textTransform:"uppercase" }}>Line Items</div>
                   {orderForm.items.map((item, ii) => (
                     <div key={ii} style={{ display:"flex",gap:8,marginBottom:6,alignItems:"center" }}>
                       <input type="text" placeholder="MPN" value={item.mpn}
@@ -10098,7 +10139,7 @@ function BOMManager({ user }) {
                       <input type="number" placeholder="Qty" value={item.qty} min={1}
                         onChange={e => { const items = [...orderForm.items]; items[ii] = { ...items[ii], qty: parseInt(e.target.value)||1 }; setOrderForm(f => ({ ...f, items })); }}
                         style={{ padding:"6px 10px",borderRadius:6,border:"1px solid #e3e8ee",fontSize:12,fontFamily:"inherit",width:70 }} />
-                      <span style={{ fontSize:11,color:"#8898aa" }}>$</span>
+                      <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#8898aa" }}>$</span>
                       <input type="number" step="0.01" placeholder="Unit price" value={item.unitPrice}
                         onChange={e => { const items = [...orderForm.items]; items[ii] = { ...items[ii], unitPrice: e.target.value }; setOrderForm(f => ({ ...f, items })); }}
                         style={{ padding:"6px 10px",borderRadius:6,border:"1px solid #e3e8ee",fontSize:12,fontFamily:"inherit",width:100 }} />
@@ -10141,7 +10182,7 @@ function BOMManager({ user }) {
               <div className="card" style={{ textAlign:"center",padding:"60px 30px" }}>
                 <div style={{ fontSize:44,marginBottom:14 }}>📋</div>
                 <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:16,marginBottom:8 }}>No Orders Tracked Yet</div>
-                <div style={{ color:"#64748d",fontSize:13,maxWidth:440,margin:"0 auto" }}>
+                <div style={{ color:darkMode?"#8a93a3":"#64748d",fontSize:13,maxWidth:440,margin:"0 auto" }}>
                   Orders are logged automatically when you use "Send to Mouser Cart" from the Purchasing page, or you can log orders from any supplier manually.
                 </div>
               </div>
@@ -10175,11 +10216,11 @@ function BOMManager({ user }) {
                         <div style={{ flex:1,minWidth:0 }}>
                           <div style={{ display:"flex",alignItems:"center",gap:8 }}>
                             <span style={{ fontWeight:700,fontSize:14,color:darkMode?"#e8ebf0":"#061b31" }}>{order.supplier}</span>
-                            {order.poNumber && <span style={{ fontSize:12,color:"#64748d" }}>#{order.poNumber}</span>}
+                            {order.poNumber && <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>#{order.poNumber}</span>}
                             <span style={{ display:"inline-block",padding:"2px 10px",borderRadius:100,fontSize:10,fontWeight:600,
                               background: st.bg, color: st.color }}>{st.label}</span>
                           </div>
-                          <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>
+                          <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>
                             {orderDate} · {itemCount} item{itemCount !== 1 ? "s" : ""}
                             {order.totalEstimate > 0 ? ` · est. $${fmtDollar(order.totalEstimate)}` : ""}
                             {order.trackingNumbers?.length > 0 && ` · ${order.trackingNumbers.length} tracking #`}
@@ -10194,7 +10235,7 @@ function BOMManager({ user }) {
                             Track Package
                           </a>
                         )}
-                        <span style={{ fontSize:12,color:"#64748d",transition:"transform 0.2s",display:"inline-block",
+                        <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",transition:"transform 0.2s",display:"inline-block",
                           transform: isOpen ? "rotate(90deg)" : "none", flexShrink:0 }}>›</span>
                       </div>
 
@@ -10204,7 +10245,7 @@ function BOMManager({ user }) {
                           {/* Status + tracking controls */}
                           <div style={{ display:"flex",gap:16,flexWrap:"wrap",marginTop:16,marginBottom:16 }}>
                             <div>
-                              <div style={{ fontSize:10,color:"#64748d",fontWeight:600,marginBottom:4,textTransform:"uppercase" }}>Status</div>
+                              <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,marginBottom:4,textTransform:"uppercase" }}>Status</div>
                               <select value={order.status}
                                 onChange={e => updateTrackedOrder(order.id, { status: e.target.value, ...(e.target.value === "delivered" ? { receivedAt: new Date().toISOString() } : {}) })}
                                 style={{ padding:"6px 10px",borderRadius:8,border:"1px solid #e3e8ee",fontSize:12,fontFamily:"inherit" }}>
@@ -10216,7 +10257,7 @@ function BOMManager({ user }) {
                               </select>
                             </div>
                             <div>
-                              <div style={{ fontSize:10,color:"#64748d",fontWeight:600,marginBottom:4,textTransform:"uppercase" }}>Carrier</div>
+                              <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,marginBottom:4,textTransform:"uppercase" }}>Carrier</div>
                               <select value={order.carrier || ""}
                                 onChange={e => updateTrackedOrder(order.id, { carrier: e.target.value })}
                                 style={{ padding:"6px 10px",borderRadius:8,border:"1px solid #e3e8ee",fontSize:12,fontFamily:"inherit" }}>
@@ -10229,7 +10270,7 @@ function BOMManager({ user }) {
                               </select>
                             </div>
                             <div style={{ flex:1,minWidth:200 }}>
-                              <div style={{ fontSize:10,color:"#64748d",fontWeight:600,marginBottom:4,textTransform:"uppercase" }}>Tracking Numbers</div>
+                              <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,marginBottom:4,textTransform:"uppercase" }}>Tracking Numbers</div>
                               <div style={{ display:"flex",gap:6,flexWrap:"wrap",alignItems:"center" }}>
                                 {(order.trackingNumbers || []).map((tn, ti) => (
                                   <div key={ti} style={{ display:"flex",alignItems:"center",gap:4,background:"rgba(83,58,253,0.06)",
@@ -10263,7 +10304,7 @@ function BOMManager({ user }) {
 
                           {/* Notes */}
                           {order.notes && (
-                            <div style={{ fontSize:12,color:"#64748d",marginBottom:12,fontStyle:"italic" }}>
+                            <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:12,fontStyle:"italic" }}>
                               {order.notes}
                             </div>
                           )}
@@ -10310,7 +10351,7 @@ function BOMManager({ user }) {
 
                           {/* Received date + delete */}
                           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:14 }}>
-                            <div style={{ fontSize:11,color:"#64748d" }}>
+                            <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>
                               Created {new Date(order.createdAt).toLocaleString()}
                               {order.receivedAt && ` · Received ${new Date(order.receivedAt).toLocaleDateString()}`}
                             </div>
@@ -10845,7 +10886,7 @@ function BOMManager({ user }) {
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#7ab8d4",color:"#fff",fontSize:12,fontWeight:800 }}>2</span>
                 <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",margin:0 }}>Products</h2>
               </div>
-              <p style={{ fontSize:13,color:"#50617a",lineHeight:"20px",margin:0 }}>
+              <p style={{ fontSize:13,color:darkMode?"#b8bfcc":"#50617a",lineHeight:"20px",margin:0 }}>
                 Products are the pedals, amps, and gear you build. Each product has a bill of materials — the parts required for one unit. This is where you manage what you manufacture, queue build orders linked to specific dealer POs or direct orders, and see the true cost of each product including tariffs and shipping. When it's time to order parts, enter a quantity and click Order to send it to the Purchasing tab.
               </p>
             </div>
@@ -10855,7 +10896,7 @@ function BOMManager({ user }) {
                   <input type="text" placeholder="Search products..." value={prodSearch}
                     onChange={e => setProdSearch(e.target.value)}
                     style={{ padding:"8px 14px",paddingRight:prodSearch?28:14,borderRadius:100,fontSize:13,border:"1px solid #e3e8ee",fontFamily:"inherit",outline:"none",width:220,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
-                  {prodSearch && <span onClick={()=>setProdSearch("")} style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#64748d",lineHeight:1 }}>✕</span>}
+                  {prodSearch && <span onClick={()=>setProdSearch("")} style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:darkMode?"#8a93a3":"#64748d",lineHeight:1 }}>✕</span>}
                 </div>
                 <select value={selBrand||"all"} onChange={e=>setSelBrand(e.target.value)}
                   style={{ padding:"7px 10px",borderRadius:100,fontSize:12,border:"1px solid #e3e8ee" }}>
@@ -11045,12 +11086,12 @@ function BOMManager({ user }) {
                   Undo Import
                 </button>
                 <button onClick={() => { setLastProductImport(null); localStorage.removeItem("bom_last_product_import"); }}
-                  style={{ background:"none",border:"none",cursor:"pointer",color:"#64748d",fontSize:14,padding:"2px 6px" }}>✕</button>
+                  style={{ background:"none",border:"none",cursor:"pointer",color:darkMode?"#8a93a3":"#64748d",fontSize:14,padding:"2px 6px" }}>✕</button>
               </div>
             )}
 
             {products.length === 0 && (
-              <div style={{ textAlign:"center",padding:60,color:"#64748d" }}>
+              <div style={{ textAlign:"center",padding:60,color:darkMode?"#8a93a3":"#64748d" }}>
                 <div style={{ fontSize:14,fontFamily:"-apple-system,sans-serif" }}>No products yet — create one above</div>
               </div>
             )}
@@ -11110,7 +11151,7 @@ function BOMManager({ user }) {
                 <div style={{ background:darkMode?"#161a22":"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                   {/* Column headers */}
                   <div style={{ display:"grid",gridTemplateColumns:"30px 24px 1fr 90px 80px 100px 70px 80px 36px",gap:8,padding:"10px 22px",
-                    fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",
+                    fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",
                     borderBottom:"2px solid "+(darkMode?"#1f2530":"#e5e5ea"),background:darkMode?"#0f1218":"#fafbfc" }}>
                     <div style={{ display:"flex",alignItems:"center" }}>
                       <input type="checkbox"
@@ -11173,7 +11214,7 @@ function BOMManager({ user }) {
                               <option value="__new__">+ New Brand...</option>
                             </select>
                           </div>
-                          <div style={{ fontSize:12,color:"#64748d",textAlign:"right" }}>{prod.partCount}</div>
+                          <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",textAlign:"right" }}>{prod.partCount}</div>
                           <div style={{ fontSize:14,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",textAlign:"right" }}>${fmtDollar(prod.total)}</div>
                           <div onClick={e => e.stopPropagation()} style={{ textAlign:"right" }}>
                             {buildQueue.find(q=>q.productId===prod.id) ? (
@@ -11192,7 +11233,7 @@ function BOMManager({ user }) {
                                   const val = parseInt(e.target.value) || 0;
                                   if (val > 0) setBuildQueue(prev => [...prev, { productId: prod.id, name: prod.name, qty: val, color: prod.color }]);
                                 }}
-                                style={{ width:55,padding:"4px 6px",borderRadius:6,border:"1px solid #e3e8ee",fontSize:12,textAlign:"center",color:"#64748d" }} />
+                                style={{ width:55,padding:"4px 6px",borderRadius:6,border:"1px solid #e3e8ee",fontSize:12,textAlign:"center",color:darkMode?"#8a93a3":"#64748d" }} />
                             )}
                           </div>
                           <div>{buildQueue.find(q=>q.productId===prod.id)
@@ -11249,7 +11290,7 @@ function BOMManager({ user }) {
             <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:16,maxWidth:700,width:"100%",maxHeight:"85vh",overflow:"auto",padding:"24px 28px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:4 }}>Import UPC Codes</div>
-              <p style={{ fontSize:13,color:"#64748d",marginBottom:16 }}>
+              <p style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginBottom:16 }}>
                 Paste CSV data with columns: UPC, EAN, SKU (product name). The SKU/product name column is matched against existing products.
               </p>
               {!upcImportResults ? (<>
@@ -11316,16 +11357,16 @@ function BOMManager({ user }) {
                   </button>
                 </div>
               </>) : (<>
-                <div style={{ fontSize:13,color:"#64748d",marginBottom:12 }}>
+                <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginBottom:12 }}>
                   {upcImportResults.filter(r => r.confirmed).length} of {upcImportResults.length} matched. Review and confirm:
                 </div>
                 <div style={{ maxHeight:400,overflowY:"auto",border:"1px solid #e5e5ea",borderRadius:10 }}>
                   <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                     <thead><tr style={{ background:darkMode?"#161a22":"#fafbfc",position:"sticky",top:0 }}>
-                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>UPC</th>
-                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>CSV Name</th>
-                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Matched Product</th>
-                      <th style={{ padding:"8px 10px",textAlign:"center",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>✓</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>UPC</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>CSV Name</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Matched Product</th>
+                      <th style={{ padding:"8px 10px",textAlign:"center",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>✓</th>
                     </tr></thead>
                     <tbody>{upcImportResults.map((r, i) => (
                       <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#1f2530":"#f0f0f2") }}>
@@ -11392,37 +11433,37 @@ function BOMManager({ user }) {
             <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:16,maxWidth:750,width:"100%",maxHeight:"85vh",overflow:"auto",padding:"24px 28px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:4 }}>Generate UPC Codes</div>
-              <p style={{ fontSize:13,color:"#64748d",marginBottom:6 }}>
+              <p style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginBottom:6 }}>
                 Auto-assigns UPC-A codes to products missing them using your GS1 Company Prefixes.
               </p>
               <div style={{ display:"flex",gap:16,marginBottom:14,flexWrap:"wrap" }}>
                 {Object.entries(GS1_PREFIXES).map(([brand, prefix]) => (
-                  <div key={brand} style={{ fontSize:12,color:"#64748d",background:darkMode?"#161a22":"#f6f9fc",padding:"4px 10px",borderRadius:6 }}>
+                  <div key={brand} style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",background:darkMode?"#161a22":"#f6f9fc",padding:"4px 10px",borderRadius:6 }}>
                     <strong style={{ color:darkMode?"#f6f9fc":"#061b31" }}>{brand}</strong>: {prefix}-XXXXX-C
                   </div>
                 ))}
               </div>
               {upcGenerateResults.length === 0 ? (
-                <div style={{ textAlign:"center",padding:20,color:"#64748d" }}>All products already have UPC codes!</div>
+                <div style={{ textAlign:"center",padding:20,color:darkMode?"#8a93a3":"#64748d" }}>All products already have UPC codes!</div>
               ) : (<>
-                <div style={{ fontSize:13,color:"#64748d",marginBottom:10 }}>
+                <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginBottom:10 }}>
                   {upcGenerateResults.filter(r => r.confirmed).length} of {upcGenerateResults.length} products selected for UPC assignment:
                 </div>
                 <div style={{ maxHeight:400,overflowY:"auto",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",borderRadius:10 }}>
                   <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                     <thead><tr style={{ background:darkMode?"#161a22":"#fafbfc",position:"sticky",top:0 }}>
-                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</th>
-                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Brand</th>
-                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Generated UPC</th>
-                      <th style={{ padding:"8px 10px",textAlign:"center",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Prod #</th>
-                      <th style={{ padding:"8px 10px",textAlign:"center",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>✓</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Brand</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Generated UPC</th>
+                      <th style={{ padding:"8px 10px",textAlign:"center",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Prod #</th>
+                      <th style={{ padding:"8px 10px",textAlign:"center",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>✓</th>
                     </tr></thead>
                     <tbody>{upcGenerateResults.map((r, i) => (
                       <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#1f2530":"#f0f0f2") }}>
                         <td style={{ padding:"6px 10px",fontWeight:500,color:darkMode?"#f6f9fc":"#061b31" }}>{r.product.name}</td>
-                        <td style={{ padding:"6px 10px",color:"#64748d",fontSize:11 }}>{r.brand}</td>
+                        <td style={{ padding:"6px 10px",color:darkMode?"#8a93a3":"#64748d",fontSize:11 }}>{r.brand}</td>
                         <td style={{ padding:"6px 10px",fontFamily:"SF Mono,Menlo,monospace",fontSize:11,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{r.upc}</td>
-                        <td style={{ padding:"6px 10px",textAlign:"center",fontFamily:"SF Mono,Menlo,monospace",fontSize:11,color:"#64748d" }}>{String(r.productNum).padStart(5,"0")}</td>
+                        <td style={{ padding:"6px 10px",textAlign:"center",fontFamily:"SF Mono,Menlo,monospace",fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>{String(r.productNum).padStart(5,"0")}</td>
                         <td style={{ padding:"6px 10px",textAlign:"center" }}>
                           <input type="checkbox" checked={r.confirmed} onChange={e => {
                             setUpcGenerateResults(prev => prev.map((x, j) => j === i ? { ...x, confirmed: e.target.checked } : x));
@@ -11433,7 +11474,7 @@ function BOMManager({ user }) {
                   </table>
                 </div>
                 <div style={{ display:"flex",gap:8,marginTop:14,justifyContent:"space-between",alignItems:"center" }}>
-                  <div style={{ fontSize:11,color:"#64748d" }}>
+                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>
                     {products.filter(p => p.upc).length} products already have UPCs
                   </div>
                   <div style={{ display:"flex",gap:8 }}>
@@ -11478,16 +11519,16 @@ function BOMManager({ user }) {
                 <div style={{ width:28,height:28,borderRadius:7,background:"#96bf48",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#fff",fontWeight:700 }}>S</div>
                 <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>Import Products from Shopify</div>
               </div>
-              <p style={{ fontSize:13,color:"#64748d",marginBottom:16 }}>
+              <p style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginBottom:16 }}>
                 Pulls all products and variants from your Shopify store(s). Each color/size variant becomes its own BOM product. Existing products are detected and can be updated with UPC/barcode data.
               </p>
               {shopifyImportData.loading ? (
-                <div style={{ textAlign:"center",padding:40,color:"#64748d" }}>Fetching products from Shopify...</div>
+                <div style={{ textAlign:"center",padding:40,color:darkMode?"#8a93a3":"#64748d" }}>Fetching products from Shopify...</div>
               ) : shopifyImportData.error ? (
                 <div style={{ textAlign:"center",padding:40,color:"#ff3b30" }}>Error: {shopifyImportData.error}</div>
               ) : (<>
                 <div style={{ display:"flex",gap:10,marginBottom:10,alignItems:"center",flexWrap:"wrap" }}>
-                  <div style={{ fontSize:13,color:"#64748d" }}>
+                  <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>
                     {shopifyImportData.products.length} products found
                     {" • "}{shopifyImportData.products.filter(p => p.existing).length} already in BOM Manager
                     {" • "}{shopifyImportData.products.filter(p => p.selected && !p.existing).length} new to import
@@ -11510,12 +11551,12 @@ function BOMManager({ user }) {
                         <input type="checkbox" checked={shopifyImportData.products.every(p => p.selected)}
                           onChange={e => setShopifyImportData(prev => ({ ...prev, products: prev.products.map(p => ({ ...p, selected: e.target.checked })) }))} />
                       </th>
-                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</th>
-                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>SKU</th>
-                      <th style={{ padding:"8px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Price</th>
-                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>UPC/Barcode</th>
-                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Store</th>
-                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Status</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>SKU</th>
+                      <th style={{ padding:"8px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Price</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>UPC/Barcode</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Store</th>
+                      <th style={{ padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Status</th>
                     </tr></thead>
                     <tbody>{shopifyImportData.products.map((p, i) => (
                       <tr key={i} style={{ borderBottom:"1px solid "+(darkMode?"#1f2530":"#f0f0f2"),
@@ -11527,12 +11568,12 @@ function BOMManager({ user }) {
                         </td>
                         <td style={{ padding:"6px 10px" }}>
                           <div style={{ fontWeight:600,color:darkMode?"#f6f9fc":"#061b31",fontSize:12 }}>{p.displayName}</div>
-                          {p.vendor && <div style={{ fontSize:10,color:"#64748d" }}>{p.vendor}{p.productType ? ` • ${p.productType}` : ""}</div>}
+                          {p.vendor && <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>{p.vendor}{p.productType ? ` • ${p.productType}` : ""}</div>}
                         </td>
-                        <td style={{ padding:"6px 10px",fontFamily:"SF Mono,Menlo,monospace",fontSize:10,color:"#64748d" }}>{p.sku || "—"}</td>
+                        <td style={{ padding:"6px 10px",fontFamily:"SF Mono,Menlo,monospace",fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>{p.sku || "—"}</td>
                         <td style={{ padding:"6px 10px",textAlign:"right",fontWeight:500,color:darkMode?"#f6f9fc":"#061b31" }}>{p.price ? `$${p.price}` : "—"}</td>
-                        <td style={{ padding:"6px 10px",fontFamily:"SF Mono,Menlo,monospace",fontSize:10,color:"#64748d" }}>{p.barcode || "—"}</td>
-                        <td style={{ padding:"6px 10px",fontSize:10,color:"#64748d" }}>{p.storeName}</td>
+                        <td style={{ padding:"6px 10px",fontFamily:"SF Mono,Menlo,monospace",fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>{p.barcode || "—"}</td>
+                        <td style={{ padding:"6px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>{p.storeName}</td>
                         <td style={{ padding:"6px 10px",fontSize:10 }}>
                           {p.existing
                             ? <span style={{ color:"#34c759",fontWeight:600 }}>Exists{p.barcode && !p.existing.upc ? " (will add UPC)" : ""}</span>
@@ -11544,7 +11585,7 @@ function BOMManager({ user }) {
                   </table>
                 </div>
                 <div style={{ display:"flex",gap:8,marginTop:14,justifyContent:"space-between",alignItems:"center" }}>
-                  <div style={{ fontSize:11,color:"#64748d" }}>
+                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>
                     Selected: {shopifyImportData.products.filter(p => p.selected).length} products
                     ({shopifyImportData.products.filter(p => p.selected && !p.existing).length} new,
                     {" "}{shopifyImportData.products.filter(p => p.selected && p.existing).length} existing to update)
@@ -11689,7 +11730,7 @@ function BOMManager({ user }) {
                       onChange={e => setBulkRenameSearch(e.target.value)}
                       style={{ width:"100%",padding:"6px 10px",paddingRight:bulkRenameSearch?26:10,borderRadius:8,fontSize:12,border:"1px solid #e3e8ee",
                         background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31",boxSizing:"border-box" }} />
-                    {bulkRenameSearch && <span onClick={()=>setBulkRenameSearch("")} style={{ position:"absolute",right:7,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:13,color:"#64748d",lineHeight:1 }}>✕</span>}
+                    {bulkRenameSearch && <span onClick={()=>setBulkRenameSearch("")} style={{ position:"absolute",right:7,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:13,color:darkMode?"#8a93a3":"#64748d",lineHeight:1 }}>✕</span>}
                   </div>
                   <select value={bulkRenameBrand} onChange={e => setBulkRenameBrand(e.target.value)}
                     style={{ padding:"6px 10px",borderRadius:8,fontSize:11,border:"1px solid #e3e8ee",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
@@ -11702,7 +11743,7 @@ function BOMManager({ user }) {
                     <option value="changed">Changed ({bulkRenameEdits.filter(e => e.changed).length})</option>
                     <option value="unchanged">Unchanged ({bulkRenameEdits.filter(e => !e.changed).length})</option>
                   </select>
-                  <div style={{ fontSize:12,color:"#64748d" }}>
+                  <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>
                     {bulkRenameEdits.filter(e => e.changed).length} of {bulkRenameEdits.length} modified
                   </div>
                 </div>
@@ -11731,10 +11772,10 @@ function BOMManager({ user }) {
                           setBulkRenameEdits(prev => prev.map(e => ids.has(e.id) ? { ...e, selected: ev.target.checked } : e));
                         }} />
                     </th>
-                    <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em",width:90 }}>Brand</th>
-                    <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Current Name</th>
+                    <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em",width:90 }}>Brand</th>
+                    <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>Current Name</th>
                     <th style={{ padding:"10px 0 6px",textAlign:"center",width:30 }}></th>
-                    <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>New Name</th>
+                    <th style={{ padding:"10px 0 6px",textAlign:"left",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>New Name</th>
                   </tr></thead>
                   <tbody>{brFiltered.map((e) => { const i = e._idx; return (
                     <tr key={e.id} style={{ borderBottom:"1px solid "+(darkMode?"#161a22":"#f0f0f2"),
@@ -11743,7 +11784,7 @@ function BOMManager({ user }) {
                         <input type="checkbox" checked={!!e.selected}
                           onChange={ev => setBulkRenameEdits(prev => prev.map((x, j) => j === i ? { ...x, selected: ev.target.checked } : x))} />
                       </td>
-                      <td style={{ padding:"5px 8px 5px 0",fontSize:10,color:"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em" }}>{e.brand}</td>
+                      <td style={{ padding:"5px 8px 5px 0",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em" }}>{e.brand}</td>
                       <td style={{ padding:"5px 4px",fontSize:13,color:e.changed?(darkMode?"#64748d":"#8898aa"):(darkMode?"#f6f9fc":"#061b31"),
                         textDecoration:e.changed?"line-through":"none",fontWeight:e.changed?400:500 }}>
                         {e.original}
@@ -11893,7 +11934,7 @@ function BOMManager({ user }) {
                     );
                   })()}
                   {prod.importName && prod.importName !== prod.name && (
-                    <span style={{ fontSize:10,color:"#64748d",fontStyle:"italic" }} title="Original import name — used for matching Shopify/Zoho orders">
+                    <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontStyle:"italic" }} title="Original import name — used for matching Shopify/Zoho orders">
                       (imported as: {prod.importName})
                     </span>
                   )}
@@ -11924,7 +11965,7 @@ function BOMManager({ user }) {
                       } catch (e) { alert("Duplicate failed: " + e.message); }
                     }}
                     style={{ background:"none",border:"1px solid #e3e8ee",borderRadius:6,cursor:"pointer",padding:"4px 10px",
-                      fontSize:12,color:"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
+                      fontSize:12,color:darkMode?"#8a93a3":"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
                     onMouseOver={e=>e.currentTarget.style.borderColor="#58a6ff"}
                     onMouseOut={e=>e.currentTarget.style.borderColor="#e3e8ee"}>
                     Duplicate
@@ -11944,7 +11985,7 @@ function BOMManager({ user }) {
                       } catch (e) { alert("Delete failed: " + e.message); }
                     }}
                     style={{ background:"none",border:"1px solid #e3e8ee",borderRadius:6,cursor:"pointer",padding:"4px 10px",
-                      fontSize:12,color:"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
+                      fontSize:12,color:darkMode?"#8a93a3":"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
                     onMouseOver={e=>{e.currentTarget.style.borderColor="#ff3b30";e.currentTarget.style.color="#ff3b30"}}
                     onMouseOut={e=>{e.currentTarget.style.borderColor="#e3e8ee";e.currentTarget.style.color="#64748d"}}>
                     Delete
@@ -11958,7 +11999,7 @@ function BOMManager({ user }) {
                       setStickerModalUnits([{ serial_number: sn, product_id: prod.id, id: "preview" }]);
                     }}
                     style={{ background:"none",border:"1px solid #e3e8ee",borderRadius:6,cursor:"pointer",padding:"4px 10px",
-                      fontSize:12,color:"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
+                      fontSize:12,color:darkMode?"#8a93a3":"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
                     onMouseOver={e=>e.currentTarget.style.borderColor="#7ab8d4"}
                     onMouseOut={e=>e.currentTarget.style.borderColor="#e3e8ee"}>
                     Preview Sticker
@@ -11971,20 +12012,20 @@ function BOMManager({ user }) {
                       printBoxLabel({ serial_number: sn, product_id: prod.id, id: "preview" });
                     }}
                     style={{ background:"none",border:"1px solid #e3e8ee",borderRadius:6,cursor:"pointer",padding:"4px 10px",
-                      fontSize:12,color:"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
+                      fontSize:12,color:darkMode?"#8a93a3":"#64748d",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}
                     onMouseOver={e=>e.currentTarget.style.borderColor="#7ab8d4"}
                     onMouseOut={e=>e.currentTarget.style.borderColor="#e3e8ee"}>
                     Preview Box Label
                   </button>
                 </div>
-                <div style={{ display:"flex",gap:20,fontSize:13,color:"#64748d",flexWrap:"wrap",alignItems:"center" }}>
+                <div style={{ display:"flex",gap:20,fontSize:13,color:darkMode?"#8a93a3":"#64748d",flexWrap:"wrap",alignItems:"center" }}>
                   <span><strong style={{ color:darkMode?"#f6f9fc":"#061b31" }}>{"$"}{fmtDollar(prod.total)}</strong> BOM cost/unit</span>
                   {isAdmin && prod.total > 0 && (() => {
                     const mult = parseFloat(apiKeys.bom_multiplier) || 5;
                     const srp = prod.total * mult;
                     return (
                       <span style={{ background:"#34c75918",color:"#1a7a3a",fontWeight:700,padding:"2px 8px",borderRadius:6,fontSize:12 }}>
-                        SRP: ${fmtDollar(srp)} <span style={{ fontWeight:400,fontSize:11,color:"#64748d" }}>(BOM ×{mult})</span>
+                        SRP: ${fmtDollar(srp)} <span style={{ fontWeight:400,fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>(BOM ×{mult})</span>
                       </span>
                     );
                   })()}
@@ -11996,7 +12037,7 @@ function BOMManager({ user }) {
               </div>
               <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
                 <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                  <span style={{ fontSize:10,color:"#64748d" }}>Brand:</span>
+                  <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>Brand:</span>
                   <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#161a22":"#fff",minWidth:120 }}
                     value={prod.brand || "Jackson Audio"}
                     onChange={async (e) => {
@@ -12009,7 +12050,7 @@ function BOMManager({ user }) {
                   </select>
                 </div>
                 <div style={{ display:"flex",alignItems:"center",gap:4 }}>
-                  <span style={{ fontSize:10,color:"#64748d" }}>Build Time:</span>
+                  <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>Build Time:</span>
                   <input type="number" min="1" placeholder="min"
                     value={prod.buildMinutes || ""}
                     onChange={async (e) => {
@@ -12018,12 +12059,12 @@ function BOMManager({ user }) {
                       try { await supabase.from("products").update({ build_minutes: val }).eq("id", prod.id); } catch (err) { console.error("Build time save failed:", err); }
                     }}
                     style={{ width:52,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"inherit",outline:"none",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
-                  <span style={{ fontSize:10,color:"#64748d" }}>
+                  <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>
                     {prod.buildMinutes ? (prod.buildMinutes < 60 ? `${prod.buildMinutes}m` : `${Math.floor(prod.buildMinutes/60)}h ${prod.buildMinutes%60}m`) : "min"}
                   </span>
                 </div>
                 <div style={{ display:"flex",alignItems:"center",gap:4 }}>
-                  <span style={{ fontSize:10,color:"#64748d" }}>S/N Prefix:</span>
+                  <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>S/N Prefix:</span>
                   <input type="text" placeholder={prod.name.replace(/[^A-Z0-9]/gi,"").slice(0,10).toUpperCase()}
                     value={prod.serial_prefix || ""}
                     onChange={async (e) => {
@@ -12034,7 +12075,7 @@ function BOMManager({ user }) {
                     style={{ width:80,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",outline:"none",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31",letterSpacing:"0.05em" }} />
                 </div>
                 <div style={{ display:"flex",alignItems:"center",gap:4 }}>
-                  <span style={{ fontSize:10,color:"#64748d" }}>Start #:</span>
+                  <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>Start #:</span>
                   <input type="number" min="1" placeholder="1"
                     value={prod.serial_start || ""}
                     onChange={async (e) => {
@@ -12043,12 +12084,12 @@ function BOMManager({ user }) {
                       try { await supabase.from("products").update({ serial_start: val }).eq("id", prod.id); } catch (err) { console.error("Serial start save failed:", err); }
                     }}
                     style={{ width:60,padding:"4px 6px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",outline:"none",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
-                  <span style={{ fontSize:10,color:"#64748d",fontFamily:"monospace" }}>
+                  <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontFamily:"monospace" }}>
                     → {(prod.serial_prefix || prod.name.replace(/[^A-Z0-9]/gi,"").slice(0,10).toUpperCase())}-{String(parseInt(prod.serial_start) || 1).padStart(4,"0")}
                   </span>
                 </div>
                 <div style={{ display:"flex",alignItems:"center",gap:4 }}>
-                  <span style={{ fontSize:10,color:"#64748d" }}>UPC:</span>
+                  <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>UPC:</span>
                   <input type="text" placeholder="UPC / EAN"
                     value={prod.upc || ""}
                     onChange={async (e) => {
@@ -12063,7 +12104,7 @@ function BOMManager({ user }) {
                 </div>
                 {shopifyProducts.length > 0 && (
                   <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                    <span style={{ fontSize:10,color:"#64748d" }}>Shopify:</span>
+                    <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>Shopify:</span>
                     <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#161a22":"#fff",minWidth:120 }}
                       value={prod.shopifyProductId || ""}
                       onChange={async (e) => {
@@ -12081,7 +12122,7 @@ function BOMManager({ user }) {
                 )}
                 {zohoDemand?.products?.length > 0 && (
                   <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                    <span style={{ fontSize:10,color:"#64748d" }}>Zoho:</span>
+                    <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>Zoho:</span>
                     <select style={{ fontSize:11,padding:"4px 8px",borderRadius:5,border:"1px solid #e5e5ea",color:darkMode?"#f6f9fc":"#061b31",background:darkMode?"#161a22":"#fff",minWidth:120 }}
                       value={prod.zohoProductId || ""}
                       onChange={async (e) => {
@@ -12110,18 +12151,18 @@ function BOMManager({ user }) {
                   };
                   const dimInput = (label, field, unit) => (
                     <div style={{ display:"flex",alignItems:"center",gap:3 }}>
-                      <span style={{ fontSize:10,color:"#64748d",minWidth:18 }}>{label}</span>
+                      <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",minWidth:18 }}>{label}</span>
                       <input type="number" step="0.25" min="0" placeholder="0"
                         value={pkg[field] || ""}
                         onChange={(e) => { setProductPackaging(prev => prev.map(p => p.product_id === prod.id ? { ...p, [field]: e.target.value } : p)); }}
                         onBlur={(e) => savePkg(field, e.target.value)}
                         style={{ width:52,padding:"3px 5px",borderRadius:5,fontSize:11,fontWeight:600,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",outline:"none",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
-                      <span style={{ fontSize:9,color:"#8898aa" }}>{unit}</span>
+                      <span style={{ fontSize:9,color:darkMode?"#8a93a3":"#8898aa" }}>{unit}</span>
                     </div>
                   );
                   return (
                     <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",padding:"6px 0",borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
-                      <span style={{ fontSize:10,color:"#64748d",fontWeight:600 }}>Box Dims:</span>
+                      <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>Box Dims:</span>
                       {dimInput("L", "length_in", "in")}
                       <span style={{ color:"#e3e8ee",fontSize:10 }}>×</span>
                       {dimInput("W", "width_in", "in")}
@@ -12136,7 +12177,7 @@ function BOMManager({ user }) {
                     </div>
                   );
                 })()}
-                <button style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:"#64748d" }}
+                <button style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:darkMode?"#8a93a3":"#64748d" }}
                   disabled={!prodParts.some(p => p.mpn) || prodParts.some(p => p.pricingStatus === "loading")}
                   onClick={async () => {
                     const toFetch = prodParts.filter(p => p.mpn);
@@ -12144,7 +12185,7 @@ function BOMManager({ user }) {
                   }}>
                   {prodParts.some(p => p.pricingStatus === "loading") ? "Refreshing..." : `Refresh Prices (${prodParts.filter(p=>p.mpn).length})`}
                 </button>
-                <button style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:"#64748d" }}
+                <button style={{ padding:"5px 14px",borderRadius:100,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:darkMode?"#8a93a3":"#64748d" }}
                   onClick={async () => {
                     const prodPartsSnap = prodParts.map(p => ({ id:p.id, mpn:p.mpn, reference:p.reference, value:p.value, description:p.description,
                       quantity:p.quantity, stockQty:p.stockQty, unitCost:p.unitCost, projectId:p.projectId, manufacturer:p.manufacturer }));
@@ -12172,7 +12213,7 @@ function BOMManager({ user }) {
 
             {/* ── Import / Add Parts Section */}
             <div style={{ background:darkMode?"#161a22":"#fff",borderRadius:14,padding:"20px 22px",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-              <div style={{ fontSize:12,color:"#64748d",letterSpacing:"0.5px",fontWeight:600,marginBottom:14,textTransform:"uppercase" }}>
+              <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",letterSpacing:"0.5px",fontWeight:600,marginBottom:14,textTransform:"uppercase" }}>
                 Add Parts to {prod.name}
               </div>
 
@@ -12183,7 +12224,7 @@ function BOMManager({ user }) {
                   <span style={{ fontSize:9,fontWeight:800,color:"#fff",background:"#7ab8d4",padding:"1px 5px",borderRadius:3,letterSpacing:"0.04em" }}>ALT</span>
                   <span style={{ fontSize:12,color:"#7ab8d4",fontWeight:600 }}>Adding alternate for: {qa._altForMpn}</span>
                   <button onClick={() => { setQAField(prod.id, "_altFor", null); setQAField(prod.id, "_altForMpn", null); }}
-                    style={{ marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"#64748d",fontSize:11,fontWeight:600 }}
+                    style={{ marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:darkMode?"#8a93a3":"#64748d",fontSize:11,fontWeight:600 }}
                     onMouseOver={e=>e.currentTarget.style.color="#ff3b30"} onMouseOut={e=>e.currentTarget.style.color="#64748d"}>
                     Cancel
                   </button>
@@ -12218,7 +12259,7 @@ function BOMManager({ user }) {
                       <div style={{ position:"absolute",top:"100%",left:0,right:0,zIndex:100,
                         background:darkMode?"#161a22":"#fff",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",
                         border:"1px solid "+(darkMode?"#48484a":"#e5e5ea"),marginTop:4,maxHeight:240,overflowY:"auto" }}>
-                        <div style={{ padding:"6px 12px",fontSize:9,color:"#8898aa",letterSpacing:"0.1em",fontWeight:700,borderBottom:"1px solid "+(darkMode?"#1f2530":"#f0f0f2") }}>
+                        <div style={{ padding:"6px 12px",fontSize:9,color:darkMode?"#8a93a3":"#8898aa",letterSpacing:"0.1em",fontWeight:700,borderBottom:"1px solid "+(darkMode?"#1f2530":"#f0f0f2") }}>
                           EXISTING PARTS
                         </div>
                         {matches.map(m => (
@@ -12233,11 +12274,11 @@ function BOMManager({ user }) {
                             onMouseOver={e=>e.currentTarget.style.background=darkMode?"#1f2530":"#f6f9fc"}
                             onMouseOut={e=>e.currentTarget.style.background="transparent"}>
                             <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{m.mpn || m.reference}</div>
-                            <div style={{ fontSize:11,color:"#64748d",marginTop:1 }}>
+                            <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:1 }}>
                               {[m.value, m.description, m.manufacturer].filter(Boolean).join(" · ") || "No details"}
                               {m.projectId && (() => {
                                 const p = products.find(x => x.id === m.projectId);
-                                return p ? <span style={{ color:"#8898aa" }}> -- {p.name}</span> : null;
+                                return p ? <span style={{ color:darkMode?"#8a93a3":"#8898aa" }}> -- {p.name}</span> : null;
                               })()}
                             </div>
                           </div>
@@ -12247,7 +12288,7 @@ function BOMManager({ user }) {
                   })()}
                 </div>
                 <div style={{ flex:"0 0 80px" }}>
-                  <div style={{ fontSize:10,color:"#64748d",marginBottom:3 }}>Qty <span style={{ color:"#ff3b30" }}>*</span></div>
+                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:3 }}>Qty <span style={{ color:"#ff3b30" }}>*</span></div>
                   <input type="number" placeholder="1" min="1"
                     value={qa.qty || ""}
                     onChange={(e) => setQAField(prod.id, "qty", e.target.value)}
@@ -12270,19 +12311,19 @@ function BOMManager({ user }) {
               {showOpt && (
                 <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:14 }}>
                   <div style={{ flex:"1 1 160px" }}>
-                    <div style={{ fontSize:10,color:"#64748d",marginBottom:3 }}>Description</div>
+                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:3 }}>Description</div>
                     <input type="text" placeholder="e.g. 24V Power Supply" value={qa.desc || ""}
                       onChange={(e) => setQAField(prod.id, "desc", e.target.value)}
                       style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,background:darkMode?"#1f2530":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
                   </div>
                   <div style={{ flex:"1 1 100px" }}>
-                    <div style={{ fontSize:10,color:"#64748d",marginBottom:3 }}>Value</div>
+                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:3 }}>Value</div>
                     <input type="text" placeholder="e.g. 10k" value={qa.value || ""}
                       onChange={(e) => setQAField(prod.id, "value", e.target.value)}
                       style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,background:darkMode?"#1f2530":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
                   </div>
                   <div style={{ flex:"1 1 140px" }}>
-                    <div style={{ fontSize:10,color:"#64748d",marginBottom:3 }}>Manufacturer</div>
+                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:3 }}>Manufacturer</div>
                     <input type="text" placeholder="e.g. Mean Well" value={qa.mfr || ""}
                       onChange={(e) => setQAField(prod.id, "mfr", e.target.value)}
                       style={{ padding:"7px 10px",borderRadius:6,width:"100%",fontSize:12,background:darkMode?"#1f2530":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
@@ -12298,7 +12339,7 @@ function BOMManager({ user }) {
 
               {/* Import drop zone */}
               <div style={{ borderTop:"1px solid "+(darkMode?"#1f2530":"#f0f0f2"),paddingTop:14,marginTop:4 }}>
-                <div style={{ fontSize:10,color:"#64748d",letterSpacing:"0.5px",fontWeight:600,marginBottom:8,textTransform:"uppercase" }}>
+                <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",letterSpacing:"0.5px",fontWeight:600,marginBottom:8,textTransform:"uppercase" }}>
                   Import BOM into {prod.name}
                 </div>
                 <div className={`drop-zone ${pdDragOver?"drag-over":""}`}
@@ -12308,7 +12349,7 @@ function BOMManager({ user }) {
                   onClick={()=>pdFileRef.current?.click()}
                   style={{ padding:"18px 16px",marginBottom:8,cursor:"pointer" }}>
                   <div style={{ fontWeight:700,fontSize:13,marginBottom:4 }}>Drop BOM file here</div>
-                  <div style={{ color:"#8898aa",fontSize:11 }}>CSV / TSV / TXT -- or click to browse</div>
+                  <div style={{ color:darkMode?"#8a93a3":"#8898aa",fontSize:11 }}>CSV / TSV / TXT -- or click to browse</div>
                   <input ref={pdFileRef} type="file" accept=".csv,.tsv,.txt" style={{ display:"none" }}
                     onChange={(e)=>handleProductFilePick(e, prod.id)} />
                 </div>
@@ -12346,7 +12387,7 @@ function BOMManager({ user }) {
                       <div style={{ background:"rgba(83,58,253,0.07)",padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap" }}>
                         <div style={{ fontSize:12 }}>
                           <span style={{ fontWeight:700,color:"#58a6ff" }}>{selectedCount} of {pdImportPreview.parts.length} parts selected to import</span>
-                          {pdImportPreview.skipped > 0 && <span style={{ color:"#64748d",marginLeft:8 }}>{pdImportPreview.skipped} exact match{pdImportPreview.skipped>1?"es":""} pre-unchecked</span>}
+                          {pdImportPreview.skipped > 0 && <span style={{ color:darkMode?"#8a93a3":"#64748d",marginLeft:8 }}>{pdImportPreview.skipped} exact match{pdImportPreview.skipped>1?"es":""} pre-unchecked</span>}
                           {pdImportPreview.skippedDNI > 0 && <span style={{ color:"#ff9500",marginLeft:8 }}>{pdImportPreview.skippedDNI} DNI skipped</span>}
                           {(() => { const sugg = pdImportPreview.parts.filter(p=>p._matchStatus==="suggested").length; return sugg > 0 ? <span style={{ color:"#7ab8d4",marginLeft:8 }}>{sugg} auto-matched — review below</span> : null; })()}
                           {hasNoMPN && <span style={{ color:"#ff9500",marginLeft:8 }}>⚠ {pdImportPreview.parts.filter(p=>p._matchStatus==="no-mpn").length} still need match</span>}
@@ -12440,14 +12481,14 @@ function BOMManager({ user }) {
                                               {s.footprint && <span><b style={{ color:darkMode?"#8898aa":"#64748d" }}>Pkg:</b> {s.footprint}</span>}
                                               {s.manufacturer && <span><b style={{ color:darkMode?"#8898aa":"#64748d" }}>Mfr:</b> {s.manufacturer}</span>}
                                             </div>
-                                            {s.description && <div style={{ fontSize:9,color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:240 }}>{s.description}</div>}
+                                            {s.description && <div style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:240 }}>{s.description}</div>}
                                             <div style={{ display:"flex",gap:4,marginTop:2 }}>
                                               <button onClick={() => setPdImportPreview(prev => ({ ...prev, parts: prev.parts.map((pp, ii) => ii !== i ? pp : { ...pp, mpn: s.mpn, value: s.value || pp.value, footprint: s.footprint || pp.footprint, voltage_rating: s.voltage_rating || pp.voltage_rating, description: s.description || pp.description, manufacturer: s.manufacturer || pp.manufacturer, _matchStatus: "new-mpn", _suggestedPart: null }) }))}
                                                 style={{ fontSize:9,padding:"3px 10px",borderRadius:100,border:"none",background:conf.color,color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit" }}>
                                                 Accept
                                               </button>
                                               <button onClick={() => setPdImportPreview(prev => ({ ...prev, parts: prev.parts.map((pp, ii) => ii !== i ? pp : { ...pp, _matchStatus: "no-mpn", _suggestedPart: null }) }))}
-                                                style={{ fontSize:9,padding:"3px 9px",borderRadius:100,border:"1px solid #e3e8ee",background:"transparent",color:"#64748d",fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>
+                                                style={{ fontSize:9,padding:"3px 9px",borderRadius:100,border:"1px solid #e3e8ee",background:"transparent",color:darkMode?"#8a93a3":"#64748d",fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>
                                                 Skip
                                               </button>
                                             </div>
@@ -12650,7 +12691,7 @@ function BOMManager({ user }) {
                               {pricing.price > 0 ? (
                                 <>
                                   <span style={{ fontWeight:700 }}>${fmtPrice(pricing.price)}</span>
-                                  <span style={{ color:"#8898aa",fontSize:10,marginLeft:4 }}>@ {pricing.qty}</span>
+                                  <span style={{ color:darkMode?"#8a93a3":"#8898aa",fontSize:10,marginLeft:4 }}>@ {pricing.qty}</span>
                                 </>
                               ) : !part.mpn ? (
                                   <button onClick={(e)=>{ e.stopPropagation(); setNoMpnMatchSearch(part.value || ""); setNoMpnMatchModal({ partId: part.id, part }); }}
@@ -12705,9 +12746,9 @@ function BOMManager({ user }) {
                                 <td colSpan={10} style={{ padding:"16px 24px", background:darkMode?"#0f1218":"#fafbfc", borderBottom:"2px solid #58a6ff" }}>
                                   <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
                                     <button onClick={(e)=>{e.stopPropagation();setQrModalParts([part]);}}
-                                      style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:"1px solid #e3e8ee",background:darkMode?"#0a0c10":"#f6f9fc",cursor:"pointer",color:darkMode?"#e8ebf0":"#061b31" }}
-                                      onMouseEnter={(e)=>e.currentTarget.style.background="#e3e8ee"}
-                                      onMouseLeave={(e)=>e.currentTarget.style.background="#f6f9fc"}>⊞ QR Label</button>
+                                      style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:`1px solid ${darkMode?"#1f2530":"#e3e8ee"}`,background:darkMode?"#161a22":"#f6f9fc",cursor:"pointer",color:darkMode?"#e8ebf0":"#061b31" }}
+                                      onMouseEnter={(e)=>e.currentTarget.style.background=darkMode?"#1f2530":"#e3e8ee"}
+                                      onMouseLeave={(e)=>e.currentTarget.style.background=darkMode?"#161a22":"#f6f9fc"}>⊞ QR Label</button>
                                     {part.url && (
                                       <a href={part.url} target="_blank" rel="noopener noreferrer" onClick={(e)=>e.stopPropagation()}
                                         style={{ padding:"5px 14px",borderRadius:100,fontSize:12,fontWeight:600,border:"1px solid #e3e8ee",background:darkMode?"#0f1218":"#fff",cursor:"pointer",color:"#58a6ff",textDecoration:"none" }}>Open Product URL ↗</a>
@@ -12727,9 +12768,9 @@ function BOMManager({ user }) {
                                   </div>
                                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:20, fontSize:12 }}>
                                     <div>
-                                      <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Description & Identity</div>
+                                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Description & Identity</div>
                                       <div style={{ color:darkMode?"#f6f9fc":"#061b31",lineHeight:1.5 }}>
-                                        <div style={{ marginBottom:4 }}>{part.description || <span style={{color:"#8898aa"}}>—</span>}</div>
+                                        <div style={{ marginBottom:4 }}>{part.description || <span style={{color:darkMode?"#8a93a3":"#8898aa"}}>—</span>}</div>
                                         <div>MPN: <strong style={{ fontFamily:"monospace" }}>{part.mpn || "—"}</strong></div>
                                         <div>Value: {part.value || "—"}</div>
                                         <div>Manufacturer: {part.manufacturer || "—"}</div>
@@ -12739,9 +12780,9 @@ function BOMManager({ user }) {
                                       </div>
                                     </div>
                                     <div>
-                                      <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Pricing & BOM Usage</div>
+                                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Pricing & BOM Usage</div>
                                       <div style={{ color:darkMode?"#f6f9fc":"#061b31",lineHeight:1.5 }}>
-                                        <div>Unit Cost: <strong>{pricing.price > 0 ? `$${fmtPrice(pricing.price)}` : "—"}</strong>{pricing.price>0 && <span style={{ color:"#8898aa",fontSize:11,marginLeft:6 }}>at qty {pricing.qty}</span>}</div>
+                                        <div>Unit Cost: <strong>{pricing.price > 0 ? `$${fmtPrice(pricing.price)}` : "—"}</strong>{pricing.price>0 && <span style={{ color:darkMode?"#8a93a3":"#8898aa",fontSize:11,marginLeft:6 }}>at qty {pricing.qty}</span>}</div>
                                         <div>Qty per Build: <strong>{part.quantity || 1}</strong></div>
                                         <div>Line Cost per Build: <strong style={{ color:"#58a6ff" }}>{lineCost > 0 ? `$${fmtDollar(lineCost)}` : "—"}</strong></div>
                                         <div style={{ marginTop:6, paddingTop:6, borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
@@ -12752,7 +12793,7 @@ function BOMManager({ user }) {
                                       </div>
                                     </div>
                                     <div>
-                                      <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Sourcing & Compliance</div>
+                                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Sourcing & Compliance</div>
                                       <div style={{ color:darkMode?"#f6f9fc":"#061b31",lineHeight:1.5 }}>
                                         {m?.moq != null && <div>MOQ: <strong>{m.moq.toLocaleString()}</strong></div>}
                                         {m?.leadTimeDays != null && <div>Lead Time: <strong>{m.leadTimeDays} days</strong></div>}
@@ -12761,12 +12802,12 @@ function BOMManager({ user }) {
                                         {m?.countryOfOrigin && <div>Origin: <strong>{fmtCountry(m.countryOfOrigin)}</strong></div>}
                                         {part.reelQty && <div>Reel Qty: {part.reelQty}</div>}
                                         {m?.datasheetUrl && <div style={{ marginTop:4 }}><a href={m.datasheetUrl} target="_blank" rel="noopener noreferrer" onClick={(e)=>e.stopPropagation()} style={{ color:"#58a6ff", fontWeight:600, textDecoration:"none" }}>Datasheet ↗</a></div>}
-                                        {!m && !part.reelQty && <div style={{ color:"#8898aa", fontSize:11 }}>No sourcing data yet — run pricing lookup.</div>}
+                                        {!m && !part.reelQty && <div style={{ color:darkMode?"#8a93a3":"#8898aa", fontSize:11 }}>No sourcing data yet — run pricing lookup.</div>}
                                       </div>
                                     </div>
                                   </div>
                                   {hasAlts && (
-                                    <div style={{ marginTop:12, paddingTop:10, borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"), fontSize:11, color:"#64748d" }}>
+                                    <div style={{ marginTop:12, paddingTop:10, borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"), fontSize:11, color:darkMode?"#8a93a3":"#64748d" }}>
                                       {alts.length} alternate{alts.length!==1?"s":""} configured — shown below.
                                     </div>
                                   )}
@@ -12836,7 +12877,7 @@ function BOMManager({ user }) {
                                   {altPricing.price > 0 ? (
                                     <>
                                       <span style={{ fontWeight:700 }}>${fmtPrice(altPricing.price)}</span>
-                                      <span style={{ color:"#8898aa",fontSize:10,marginLeft:4 }}>@ {altPricing.qty}</span>
+                                      <span style={{ color:darkMode?"#8a93a3":"#8898aa",fontSize:10,marginLeft:4 }}>@ {altPricing.qty}</span>
                                     </>
                                   ) : (
                                     <button onClick={(e)=>{ e.stopPropagation(); if(alt.mpn && hasAnyKey) fetchPartPricing(alt.id); }}
@@ -12854,7 +12895,7 @@ function BOMManager({ user }) {
                                 <td style={{ padding:"8px 10px",textAlign:"right",whiteSpace:"nowrap" }}>
                                   <button onClick={()=>updatePart(alt.id,"alternateOf",null)}
                                     title="Unlink — make this a standalone primary part"
-                                    style={{ background:"none",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee"),cursor:"pointer",color:"#64748d",fontSize:10,fontWeight:600,
+                                    style={{ background:"none",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee"),cursor:"pointer",color:darkMode?"#8a93a3":"#64748d",fontSize:10,fontWeight:600,
                                       padding:"2px 7px",borderRadius:4,transition:"all 0.15s",marginRight:4 }}
                                     onMouseOver={e=>{e.currentTarget.style.borderColor="#7ab8d4";e.currentTarget.style.color="#7ab8d4";}}
                                     onMouseOut={e=>{e.currentTarget.style.borderColor=darkMode?"#48484a":"#e3e8ee";e.currentTarget.style.color="#64748d";}}>
@@ -12922,7 +12963,7 @@ function BOMManager({ user }) {
                             <td />
                           </tr>
                           <tr style={{ background:darkMode?"#0f1218":"#f6f9fc" }}>
-                            <td colSpan={10} style={{ padding:"4px 12px 14px",fontSize:11,color:"#64748d",lineHeight:1.5 }}>
+                            <td colSpan={10} style={{ padding:"4px 12px 14px",fontSize:11,color:darkMode?"#8a93a3":"#64748d",lineHeight:1.5 }}>
                               <strong style={{ color:"#58a6ff" }}>Total cost to build 1 unit.</strong>{" "}
                               {pricedCount < primaryParts.length && (() => {
                                 const missing = primaryParts.filter(p => priceAtQty(p) <= 0);
@@ -12945,7 +12986,7 @@ function BOMManager({ user }) {
                                       </button>
                                     )}
                                     {fetchable.length < missing.length && (
-                                      <span style={{ marginLeft:6,fontSize:10,color:"#8898aa" }}>
+                                      <span style={{ marginLeft:6,fontSize:10,color:darkMode?"#8a93a3":"#8898aa" }}>
                                         ({missing.length - fetchable.length} can't be auto-priced — {!hasAnyKey?"no API keys configured":"missing MPN"})
                                       </span>
                                     )}
@@ -12971,7 +13012,7 @@ function BOMManager({ user }) {
                 ))}
               </div>
             ) : (
-              <div style={{ background:darkMode?"#161a22":"#fff",borderRadius:14,padding:"40px 20px",textAlign:"center",color:"#64748d",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ background:darkMode?"#161a22":"#fff",borderRadius:14,padding:"40px 20px",textAlign:"center",color:darkMode?"#8a93a3":"#64748d",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
                 <div style={{ fontSize:14 }}>No parts assigned to this product yet. Use the form above to add parts.</div>
               </div>
             )}
@@ -12979,11 +13020,11 @@ function BOMManager({ user }) {
             {/* ── Production Run Simulator */}
             {prodParts.length > 0 && (
               <div style={{ background:darkMode?"#161a22":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-                <div style={{ fontSize:10,color:"#64748d",letterSpacing:"0.5px",fontWeight:500,marginBottom:10,textTransform:"uppercase" }}>
+                <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",letterSpacing:"0.5px",fontWeight:500,marginBottom:10,textTransform:"uppercase" }}>
                   Production Run Simulator
                 </div>
                 <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:12 }}>
-                  <span style={{ fontSize:12,color:"#64748d" }}>If I build</span>
+                  <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>If I build</span>
                   <input type="number" min="1" placeholder="100"
                     value={bomSim[prod.id]?.qty || ""}
                     onChange={(e) => {
@@ -12994,13 +13035,13 @@ function BOMManager({ user }) {
                       if (parseInt(val) > 0) simTimer.current = setTimeout(() => runBomSimulation(pid), 600);
                     }}
                     style={{ width:100,padding:"6px 10px",borderRadius:5,fontSize:14,fontWeight:700,textAlign:"center",background:darkMode?"#1f2530":"#fff",color:darkMode?"#f6f9fc":"#061b31",border:"1px solid "+(darkMode?"#48484a":"#e3e8ee") }} />
-                  <span style={{ fontSize:12,color:"#64748d" }}>units of <strong style={{ color:darkMode?"#f6f9fc":"#061b31" }}>{prod.name}</strong>...</span>
+                  <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>units of <strong style={{ color:darkMode?"#f6f9fc":"#061b31" }}>{prod.name}</strong>...</span>
                   <button className="btn-primary" style={{ fontSize:12 }}
                     disabled={bomSim[prod.id]?.loading || !parseInt(bomSim[prod.id]?.qty)}
                     onClick={() => runBomSimulation(prod.id)}>
                     {bomSim[prod.id]?.loading ? <><span className="spinner" /> Calculating...</> : "Run Simulation"}
                   </button>
-                  <label style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#64748d",cursor:"pointer",marginLeft:8 }}>
+                  <label style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:darkMode?"#8a93a3":"#64748d",cursor:"pointer",marginLeft:8 }}>
                     <input type="checkbox" checked={simUsOnly} onChange={(e)=>{
                       const v = e.target.checked;
                       setSimUsOnly(v);
@@ -13027,13 +13068,13 @@ function BOMManager({ user }) {
                         <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:8,padding:"12px 16px",minWidth:200,flex:1,border:"1px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                           <div style={{ fontSize:10,color:"#ff9500",fontWeight:700,letterSpacing:"0.06em",marginBottom:4 }}>CHEAPEST PER PART</div>
                           <div style={{ fontSize:22,fontWeight:800,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",color:darkMode?"#f6f9fc":"#061b31" }}>
-                            ${fmtPrice(cheapBase.perUnit)}<span style={{ fontSize:12,color:"#64748d",fontWeight:400 }}> / unit</span>
+                            ${fmtPrice(cheapBase.perUnit)}<span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",fontWeight:400 }}> / unit</span>
                           </div>
-                          <div style={{ fontSize:11,color:"#64748d",marginTop:8 }}>Parts: {"$"}{fmtDollar(cheapBase.partsCost)}</div>
-                          <div style={{ fontSize:11,color:"#64748d" }}>Shipping: {"$"}{fmtDollar(cheapBase.shipping)} ({cheapBase.suppliers.length} vendor{cheapBase.suppliers.length!==1?"s":""})</div>
+                          <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:8 }}>Parts: {"$"}{fmtDollar(cheapBase.partsCost)}</div>
+                          <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>Shipping: {"$"}{fmtDollar(cheapBase.shipping)} ({cheapBase.suppliers.length} vendor{cheapBase.suppliers.length!==1?"s":""})</div>
                           <div style={{ fontSize:11,color:cheapBase.tariffTotal>0?"#ff3b30":"#64748d" }}>Tariffs: {cheapBase.tariffTotal > 0 ? `$${fmtDollar(cheapBase.tariffTotal)}` : "$0.00"}</div>
                           <div style={{ fontSize:12,color:darkMode?"#f6f9fc":"#061b31",fontWeight:700,marginTop:4,borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),paddingTop:4 }}>Total: {"$"}{fmtDollar(cheapBase.total)}</div>
-                          <div style={{ fontSize:10,color:"#8898aa",marginTop:6 }}>{cheapBase.shippingBreakdown.map(sb => <div key={sb.supplierId}>{sb.name}: {"$"}{fmtDollar(sb.cost)} shipping</div>)}</div>
+                          <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa",marginTop:6 }}>{cheapBase.shippingBreakdown.map(sb => <div key={sb.supplierId}>{sb.name}: {"$"}{fmtDollar(sb.cost)} shipping</div>)}</div>
                           {cheapBase.tariffBreakdown?.length > 0 && <div style={{ fontSize:10,color:"#ff3b30",marginTop:4 }}>{cheapBase.tariffBreakdown.map((t,i) => <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{fmtDollar(t.goodsValue)} = {"$"}{fmtDollar(t.cost)}</div>)}</div>}
                         </div>
                         <div style={{ background:smartSavings>0?"rgba(52,199,89,0.06)":(darkMode?"#0f1218":"#fff"),
@@ -13041,13 +13082,13 @@ function BOMManager({ user }) {
                           borderRadius:8,padding:"12px 16px",minWidth:200,flex:1 }}>
                           <div style={{ fontSize:10,color:"#34c759",fontWeight:700,letterSpacing:"0.06em",marginBottom:4 }}>SMART CONSOLIDATED {smartSavings > 0 ? "-- RECOMMENDED" : ""}</div>
                           <div style={{ fontSize:22,fontWeight:800,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",color:"#34c759" }}>
-                            ${fmtPrice(smartBase.perUnit)}<span style={{ fontSize:12,color:"#64748d",fontWeight:400 }}> / unit</span>
+                            ${fmtPrice(smartBase.perUnit)}<span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",fontWeight:400 }}> / unit</span>
                           </div>
-                          <div style={{ fontSize:11,color:"#64748d",marginTop:8 }}>Parts: {"$"}{fmtDollar(smartBase.partsCost)}</div>
-                          <div style={{ fontSize:11,color:"#64748d" }}>Shipping: {"$"}{fmtDollar(smartBase.shipping)} ({smartBase.suppliers.length} vendor{smartBase.suppliers.length!==1?"s":""})</div>
+                          <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:8 }}>Parts: {"$"}{fmtDollar(smartBase.partsCost)}</div>
+                          <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>Shipping: {"$"}{fmtDollar(smartBase.shipping)} ({smartBase.suppliers.length} vendor{smartBase.suppliers.length!==1?"s":""})</div>
                           <div style={{ fontSize:11,color:smartBase.tariffTotal>0?"#ff3b30":"#64748d" }}>Tariffs: {smartBase.tariffTotal > 0 ? `$${fmtDollar(smartBase.tariffTotal)}` : "$0.00"}</div>
                           <div style={{ fontSize:12,color:darkMode?"#f6f9fc":"#061b31",fontWeight:700,marginTop:4,borderTop:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),paddingTop:4 }}>Total: {"$"}{fmtDollar(smartBase.total)}</div>
-                          <div style={{ fontSize:10,color:"#8898aa",marginTop:6 }}>{smartBase.shippingBreakdown.map(sb => <div key={sb.supplierId}>{sb.name}: {"$"}{fmtDollar(sb.cost)} shipping</div>)}</div>
+                          <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa",marginTop:6 }}>{smartBase.shippingBreakdown.map(sb => <div key={sb.supplierId}>{sb.name}: {"$"}{fmtDollar(sb.cost)} shipping</div>)}</div>
                           {smartBase.tariffBreakdown?.length > 0 && <div style={{ fontSize:10,color:"#ff3b30",marginTop:4 }}>{smartBase.tariffBreakdown.map((t,i) => <div key={i}>{t.mpn} (made in {t.origin}): {t.rate}% on {"$"}{fmtDollar(t.goodsValue)} = {"$"}{fmtDollar(t.cost)}</div>)}</div>}
                           {smartSavings > 0 && <div style={{ fontSize:12,color:"#34c759",fontWeight:700,marginTop:6 }}>Saves {"$"}{fmtDollar(smartSavings)} total vs cheapest-per-part</div>}
                         </div>
@@ -13078,12 +13119,12 @@ function BOMManager({ user }) {
                                 <td style={{ padding:"12px 14px",fontWeight:isBase||isBest?700:400,color:isBest?"#34c759":isBase?(darkMode?"#f6f9fc":"#061b31"):"#50617a" }}>
                                   {r.qty.toLocaleString()}{isBest?" (best value)":""}{isBase?" (base)":""}
                                 </td>
-                                <td style={{ padding:"12px 14px",textAlign:"right",color:"#50617a" }}>{"$"}{fmtDollar(s.partsCost)}</td>
-                                <td style={{ padding:"12px 14px",textAlign:"right",color:"#50617a" }}>{"$"}{fmtDollar(s.shipping)}</td>
+                                <td style={{ padding:"12px 14px",textAlign:"right",color:darkMode?"#b8bfcc":"#50617a" }}>{"$"}{fmtDollar(s.partsCost)}</td>
+                                <td style={{ padding:"12px 14px",textAlign:"right",color:darkMode?"#b8bfcc":"#50617a" }}>{"$"}{fmtDollar(s.shipping)}</td>
                                 <td style={{ padding:"12px 14px",textAlign:"right",color:s.tariffTotal>0?"#ff3b30":"#b8bfcc" }}>{s.tariffTotal > 0 ? `$${fmtDollar(s.tariffTotal)}` : "--"}</td>
                                 <td style={{ padding:"12px 14px",textAlign:"right",color:darkMode?"#f6f9fc":"#061b31",fontWeight:600 }}>{"$"}{fmtDollar(s.total)}</td>
                                 <td style={{ padding:"12px 14px",textAlign:"right",fontWeight:700,color:isBest?"#34c759":(darkMode?"#f6f9fc":"#061b31") }}>{"$"}{fmtPrice(s.perUnit)}</td>
-                                <td style={{ padding:"12px 14px",textAlign:"right",color:"#50617a" }}>{s.suppliers.length}</td>
+                                <td style={{ padding:"12px 14px",textAlign:"right",color:darkMode?"#b8bfcc":"#50617a" }}>{s.suppliers.length}</td>
                                 <td style={{ padding:"12px 14px",textAlign:"right",color:diff>0?"#34c759":diff<0?"#ff3b30":"#b8bfcc",fontWeight:diff!==0?600:400 }}>
                                   {isBase ? "--" : diff > 0 ? `-$${fmtPrice(diff)}/ea` : diff < 0 ? `+$${fmtPrice(Math.abs(diff))}/ea` : "same"}
                                 </td>
@@ -13114,7 +13155,7 @@ function BOMManager({ user }) {
                           }}>
                           Order This Run
                         </button>
-                        <span style={{ fontSize:11,color:"#64748d" }}>
+                        <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>
                           Flags all parts for purchase at the base qty ({baseQty.toLocaleString()} units) using Smart Consolidated assignments
                         </span>
                       </div>
@@ -13157,7 +13198,7 @@ function BOMManager({ user }) {
                 <span style={{ display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:"#34c759",color:"#fff",fontSize:12,fontWeight:800 }}>4</span>
                 <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,margin:0 }}>Orders</h2>
               </div>
-              <p style={{ color:"#50617a",fontSize:13,lineHeight:"20px",margin:0 }}>
+              <p style={{ color:darkMode?"#b8bfcc":"#50617a",fontSize:13,lineHeight:"20px",margin:0 }}>
                 Your fulfillment queue — every open customer order from Shopify (direct-to-consumer) and Zoho Books (dealer/wholesale), with due dates, fulfillment progress, and overdue alerts. ShipStation data shows what's already shipped. Build orders are created automatically when shelf stock falls below your minimum threshold — set thresholds on the Shelf tab.
               </p>
             </div>
@@ -13176,7 +13217,7 @@ function BOMManager({ user }) {
                   {shipstationData?.loading ? "Syncing…" : "Sync ShipStation"}
                 </button>
                 {(shopifyDemand?.syncedAt || zohoDemand?.syncedAt || shipstationData?.syncedAt) && (
-                  <span style={{ fontSize:10,color:"#8898aa" }}>
+                  <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa" }}>
                     {shopifyDemand?.syncedAt && <>Shopify {new Date(shopifyDemand.syncedAt).toLocaleTimeString()}</>}
                     {shopifyDemand?.syncedAt && (zohoDemand?.syncedAt || shipstationData?.syncedAt) && " · "}
                     {zohoDemand?.syncedAt && <>Zoho {new Date(zohoDemand.syncedAt).toLocaleTimeString()}</>}
@@ -13224,7 +13265,7 @@ function BOMManager({ user }) {
                 {zohoDemand.error.startsWith("TOKEN_EXPIRED:") ? (
                   <div>
                     <div style={{ fontWeight:700,marginBottom:4 }}>⚠️ Zoho refresh token expired — {zohoDemand.error.replace("TOKEN_EXPIRED:","").trim()}</div>
-                    <div style={{ fontSize:12,color:"#64748d",marginBottom:6 }}>Your Zoho OAuth refresh token is no longer valid. This happens when the token is revoked or the OAuth app credentials change.</div>
+                    <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:6 }}>Your Zoho OAuth refresh token is no longer valid. This happens when the token is revoked or the OAuth app credentials change.</div>
                     <div style={{ fontSize:12,fontWeight:600 }}>To fix: go to <strong>Zoho API Console → Self Client</strong>, generate a new refresh token with scope <code>ZohoBooks.salesorders.READ,ZohoBooks.contacts.READ</code>, then paste it in <button className="btn-ghost" style={{ fontSize:12,padding:"0 4px",display:"inline" }} onClick={() => setActiveView("settings")}>Settings → Zoho</button>.</div>
                   </div>
                 ) : zohoDemand.error.includes("configured") || zohoDemand.error.includes("credentials") ? (
@@ -13237,7 +13278,7 @@ function BOMManager({ user }) {
               <div className="card" style={{ textAlign:"center",padding:60 }}>
                 <div style={{ fontSize:40,marginBottom:12 }}>🛒</div>
                 <div style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontWeight:700,fontSize:15,marginBottom:8 }}>Connect Shopify or Zoho Books to see orders</div>
-                <p style={{ color:"#64748d",fontSize:13,marginBottom:16 }}>Add your Shopify store or Zoho Books credentials in Settings, then sync.</p>
+                <p style={{ color:darkMode?"#8a93a3":"#64748d",fontSize:13,marginBottom:16 }}>Add your Shopify store or Zoho Books credentials in Settings, then sync.</p>
                 <button className="btn-primary" onClick={() => setActiveView("settings")}>⚙ Go to Settings</button>
               </div>
             )}
@@ -13258,7 +13299,7 @@ function BOMManager({ user }) {
                       <div style={{ fontSize:28,fontWeight:800,color:c.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                         {c.value.toLocaleString()}
                       </div>
-                      <div style={{ fontSize:10,color:"#64748d",letterSpacing:"0.08em",marginTop:2 }}>{c.label.toUpperCase()}</div>
+                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",letterSpacing:"0.08em",marginTop:2 }}>{c.label.toUpperCase()}</div>
                     </div>
                   ))}
                 </div>
@@ -13512,7 +13553,7 @@ function BOMManager({ user }) {
                             <span style={{ fontSize:13,fontWeight:700,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                               {title}
                             </span>
-                            <span style={{ fontSize:11,color:"#64748d",fontWeight:500 }}>
+                            <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontWeight:500 }}>
                               ({count} order{count !== 1 ? "s" : ""} · {openCount} open)
                             </span>
                             {overdueCount > 0 && (
@@ -13521,20 +13562,20 @@ function BOMManager({ user }) {
                               </span>
                             )}
                           </div>
-                          <span style={{ fontSize:11,color:"#64748d",transform:isCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
+                          <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",transform:isCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
                         </div>
                         {!isCollapsed && (
                           <div style={{ overflowX:"auto" }}>
                             <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                               <thead>
                                 <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
-                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>CUSTOMER</th>
-                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>ORDER</th>
-                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>DUE</th>
-                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>PRODUCTS</th>
-                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"center" }}>PROGRESS</th>
-                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>STATUS / TRACKING</th>
-                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"center" }}>ACTION</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>CUSTOMER</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>ORDER</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>DUE</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>PRODUCTS</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"center" }}>PROGRESS</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>STATUS / TRACKING</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"center" }}>ACTION</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -13543,21 +13584,21 @@ function BOMManager({ user }) {
                                     background: po.due.urgent && po.pctComplete < 100 ? "#ff3b3005" : "transparent" }}>
                                     <td style={{ padding:"10px 10px" }}>
                                       <div style={{ fontWeight:700,color:darkMode?"#e8ebf0":"#061b31" }}>{po.customer}</div>
-                                      <div style={{ fontSize:10,color:"#64748d" }}>
+                                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>
                                         {po.date ? new Date(po.date).toLocaleDateString() : ""}
                                         {po.storeName && po.channel === "Direct" && <span style={{ marginLeft:4,color:po.accentColor }}>{po.storeName}</span>}
                                       </div>
                                     </td>
                                     <td style={{ padding:"10px 10px" }}>
                                       <div style={{ fontWeight:600,color:po.accentColor }}>{po.orderName}</div>
-                                      {po.dealerPO && <div style={{ fontSize:10,color:"#64748d" }}>PO: {po.dealerPO}</div>}
+                                      {po.dealerPO && <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>PO: {po.dealerPO}</div>}
                                     </td>
                                     <td style={{ padding:"10px 10px",whiteSpace:"nowrap" }}>
                                       <div style={{ fontWeight:700,fontSize:11,color:po.due.color }}>
                                         {po.due.label}
                                       </div>
                                       {po.due.dueDate && (
-                                        <div style={{ fontSize:9,color:"#64748d" }}>
+                                        <div style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d" }}>
                                           {new Date(po.due.dueDate).toLocaleDateString()}
                                           {po.dueDate ? "" : " (goal)"}
                                         </div>
@@ -13607,7 +13648,7 @@ function BOMManager({ user }) {
                                           <div style={{ display:"flex",alignItems:"center",gap:4,marginBottom:2 }}>
                                             <span style={{ fontSize:11,fontWeight:700,color:"#34c759" }}>Shipped</span>
                                             {po.carrier && <span className="badge" style={{ background:"#00c7be22",color:"#00c7be",fontSize:9 }}>{po.carrier}</span>}
-                                            {po.shipDate && <span style={{ fontSize:9,color:"#64748d" }}>{new Date(po.shipDate).toLocaleDateString()}</span>}
+                                            {po.shipDate && <span style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d" }}>{new Date(po.shipDate).toLocaleDateString()}</span>}
                                           </div>
                                           {po.trackingNumbers?.length > 0 && (
                                             <div style={{ fontSize:10,fontFamily:"monospace",color:"#3a3f51" }}>
@@ -13633,10 +13674,10 @@ function BOMManager({ user }) {
                                               {b.partRef || b.mpn} (need {b.deficit})
                                             </span>
                                           ))}
-                                          {po.blockers.length > 3 && <span style={{ fontSize:9,color:"#64748d" }}>+{po.blockers.length - 3} more</span>}
+                                          {po.blockers.length > 3 && <span style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d" }}>+{po.blockers.length - 3} more</span>}
                                         </div>
                                       ) : (
-                                        <span style={{ fontSize:11,color:"#64748d" }}>Awaiting build</span>
+                                        <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>Awaiting build</span>
                                       )}
                                     </td>
                                     <td style={{ padding:"10px 10px",textAlign:"center" }}>
@@ -13694,7 +13735,7 @@ function BOMManager({ user }) {
                                             </button>
                                           )}
                                           {!po.shipped && (
-                                            <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap",color:"#64748d" }}
+                                            <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap",color:darkMode?"#8a93a3":"#64748d" }}
                                               onClick={() => dismissOrder(po.id)} title="Hide this order from the tracker">
                                               Dismiss
                                             </button>
@@ -13782,10 +13823,10 @@ function BOMManager({ user }) {
                             <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                               <div style={{ width:8,height:8,borderRadius:"50%",background:meta.dotColor }} />
                               <span style={{ fontSize:13,fontWeight:700 }}>{brandName} — Dealer POs</span>
-                              <span style={{ fontSize:11,color:"#64748d" }}>({sorted.length} PO{sorted.length!==1?"s":""} · {openCount} open)</span>
+                              <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>({sorted.length} PO{sorted.length!==1?"s":""} · {openCount} open)</span>
                               {overdueCount > 0 && <span style={{ fontSize:10,fontWeight:700,color:"#ff3b30",background:"#ff3b3015",padding:"2px 8px",borderRadius:10 }}>{overdueCount} overdue</span>}
                             </div>
-                            <span style={{ fontSize:11,color:"#64748d",transform:isSectionCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
+                            <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",transform:isSectionCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
                           </div>
                           {!isSectionCollapsed && (
                             <div style={{ padding:"8px 0" }}>
@@ -13798,12 +13839,12 @@ function BOMManager({ user }) {
                                       style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 16px",cursor:"pointer",
                                         background: po.due.urgent && po.pctComplete<100 ? "#ff3b3005" : isExpanded ? "#f6f9fc" : "transparent",
                                         transition:"background 0.15s" }}>
-                                      <span style={{ fontSize:11,color:"#64748d",transform:isExpanded?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s",flexShrink:0 }}>▶</span>
+                                      <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",transform:isExpanded?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s",flexShrink:0 }}>▶</span>
                                       <div style={{ flex:1,minWidth:0 }}>
                                         <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
                                           <span style={{ fontSize:14,fontWeight:800,color:darkMode?"#e8ebf0":"#061b31" }}>{po.dealerPO || po.orderName}</span>
                                           <span style={{ fontSize:13,fontWeight:700,color:meta.color }}>— {po.dealerName || po.contactName || po.companyName || po.customer}</span>
-                                          {po.dealerPO && po.orderName !== po.dealerPO && <span style={{ fontSize:11,color:"#64748d" }}>{po.orderName}</span>}
+                                          {po.dealerPO && po.orderName !== po.dealerPO && <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>{po.orderName}</span>}
                                           <span style={{ fontSize:11,fontWeight:700,color:po.due.color }}>{po.due.label}</span>
                                         </div>
                                         <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginTop:4 }}>
@@ -13833,7 +13874,7 @@ function BOMManager({ user }) {
                                         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16 }}>
                                           {/* Left: Dealer info */}
                                           <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:10,padding:"14px 18px",border:"1px solid #e5e5ea" }}>
-                                            <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#64748d",marginBottom:8 }}>Dealer Info</div>
+                                            <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:darkMode?"#8a93a3":"#64748d",marginBottom:8 }}>Dealer Info</div>
                                             <div style={{ fontSize:15,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",marginBottom:4 }}>{po.dealerName || po.contactName || "—"}</div>
                                             {po.contactName && <div style={{ fontSize:12,color:"#3a3f51" }}>{po.contactName}</div>}
                                             {po.email && <div style={{ fontSize:12 }}><a href={"mailto:"+po.email} style={{ color:"#58a6ff",textDecoration:"none" }}>{po.email}</a></div>}
@@ -13843,9 +13884,9 @@ function BOMManager({ user }) {
                                               if (!shipLines) return null;
                                               return (
                                                 <div style={{ marginTop:8,paddingTop:8,borderTop:"1px solid #f0f0f2" }}>
-                                                  <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#64748d",marginBottom:4 }}>Ship To</div>
+                                                  <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:darkMode?"#8a93a3":"#64748d",marginBottom:4 }}>Ship To</div>
                                                   {shipLines.map((line, i) => <div key={i} style={{ fontSize:12,color:"#3a3f51",lineHeight:"20px" }}>{line}</div>)}
-                                                  {po.shippingAddress?.phone && <div style={{ fontSize:11,color:"#64748d",marginTop:2 }}>{po.shippingAddress.phone}</div>}
+                                                  {po.shippingAddress?.phone && <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>{po.shippingAddress.phone}</div>}
                                                 </div>
                                               );
                                             })()}
@@ -13855,7 +13896,7 @@ function BOMManager({ user }) {
                                               if (addrKey(po.billingAddress) === addrKey(po.shippingAddress)) return null;
                                               return (
                                                 <div style={{ marginTop:8,paddingTop:8,borderTop:"1px solid #f0f0f2" }}>
-                                                  <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#64748d",marginBottom:4 }}>Bill To</div>
+                                                  <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:darkMode?"#8a93a3":"#64748d",marginBottom:4 }}>Bill To</div>
                                                   {billLines.map((line, i) => <div key={i} style={{ fontSize:12,color:"#3a3f51",lineHeight:"20px" }}>{line}</div>)}
                                                 </div>
                                               );
@@ -13863,25 +13904,25 @@ function BOMManager({ user }) {
                                           </div>
                                         {/* Right: Order info */}
                                         <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:10,padding:"14px 18px",border:"1px solid #e5e5ea" }}>
-                                          <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#64748d",marginBottom:8 }}>Order Details</div>
+                                          <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:darkMode?"#8a93a3":"#64748d",marginBottom:8 }}>Order Details</div>
                                           <div style={{ display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",fontSize:12 }}>
-                                            <span style={{ color:"#64748d" }}>PO Number:</span>
+                                            <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>PO Number:</span>
                                             <span style={{ fontWeight:700,color:darkMode?"#e8ebf0":"#061b31" }}>{po.dealerPO || "—"}</span>
-                                            <span style={{ color:"#64748d" }}>Order #:</span>
+                                            <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Order #:</span>
                                             <span style={{ fontWeight:600,color:"#4bc076" }}>{po.orderName}</span>
-                                            <span style={{ color:"#64748d" }}>Date:</span>
+                                            <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Date:</span>
                                             <span>{po.date ? new Date(po.date).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}) : "—"}</span>
-                                            <span style={{ color:"#64748d" }}>Due:</span>
+                                            <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Due:</span>
                                             <span style={{ fontWeight:600,color:po.due.color }}>{po.dueDate ? new Date(po.dueDate).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}) : po.due.label}</span>
-                                            {po.shippingMethod && <><span style={{ color:"#64748d" }}>Shipping:</span><span>{po.shippingMethod}</span></>}
-                                            <span style={{ color:"#64748d" }}>Total:</span>
+                                            {po.shippingMethod && <><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Shipping:</span><span>{po.shippingMethod}</span></>}
+                                            <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Total:</span>
                                             <span style={{ fontWeight:700,color:darkMode?"#e8ebf0":"#061b31" }}>${parseFloat(po.total||0).toLocaleString("en-US",{minimumFractionDigits:2})}</span>
-                                            {po.discount > 0 && <><span style={{ color:"#64748d" }}>Discount:</span><span style={{ color:"#ff3b30" }}>-${parseFloat(po.discount).toFixed(2)}</span></>}
-                                            {po.shippingCharge > 0 && <><span style={{ color:"#64748d" }}>Shipping $:</span><span>${parseFloat(po.shippingCharge).toFixed(2)}</span></>}
+                                            {po.discount > 0 && <><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Discount:</span><span style={{ color:"#ff3b30" }}>-${parseFloat(po.discount).toFixed(2)}</span></>}
+                                            {po.shippingCharge > 0 && <><span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Shipping $:</span><span>${parseFloat(po.shippingCharge).toFixed(2)}</span></>}
                                           </div>
                                           {po.orderNotes && (
                                             <div style={{ marginTop:8,paddingTop:8,borderTop:"1px solid #f0f0f2" }}>
-                                              <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#64748d",marginBottom:4 }}>Notes</div>
+                                              <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:darkMode?"#8a93a3":"#64748d",marginBottom:4 }}>Notes</div>
                                               <div style={{ fontSize:12,color:"#3a3f51",whiteSpace:"pre-wrap" }}>{po.orderNotes}</div>
                                             </div>
                                           )}
@@ -13890,16 +13931,16 @@ function BOMManager({ user }) {
 
                                       {/* Line items table */}
                                       <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:10,padding:"14px 18px",border:"1px solid #e5e5ea",marginBottom:12 }}>
-                                        <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#64748d",marginBottom:10 }}>Products Ordered</div>
+                                        <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:darkMode?"#8a93a3":"#64748d",marginBottom:10 }}>Products Ordered</div>
                                         <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                                           <thead>
                                             <tr style={{ borderBottom:"2px solid #e5e5ea" }}>
-                                              <th style={{ textAlign:"left",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700 }}>PRODUCT</th>
-                                              <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700 }}>QTY</th>
-                                              <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700 }}>SHIPPED</th>
-                                              <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700 }}>REMAINING</th>
-                                              <th style={{ textAlign:"right",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700 }}>UNIT PRICE</th>
-                                              <th style={{ textAlign:"right",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700 }}>LINE TOTAL</th>
+                                              <th style={{ textAlign:"left",padding:"6px 8px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700 }}>PRODUCT</th>
+                                              <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700 }}>QTY</th>
+                                              <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700 }}>SHIPPED</th>
+                                              <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700 }}>REMAINING</th>
+                                              <th style={{ textAlign:"right",padding:"6px 8px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700 }}>UNIT PRICE</th>
+                                              <th style={{ textAlign:"right",padding:"6px 8px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700 }}>LINE TOTAL</th>
                                             </tr>
                                           </thead>
                                           <tbody>
@@ -13911,7 +13952,7 @@ function BOMManager({ user }) {
                                                   <td style={{ textAlign:"center",padding:"8px 8px",fontWeight:700 }}>{li.quantity}</td>
                                                   <td style={{ textAlign:"center",padding:"8px 8px",color:li.fulfilled>0?"#34c759":"#e3e8ee",fontWeight:600 }}>{li.fulfilled}</td>
                                                   <td style={{ textAlign:"center",padding:"8px 8px",color:remaining>0?"#ff9500":"#34c759",fontWeight:700 }}>{remaining}</td>
-                                                  <td style={{ textAlign:"right",padding:"8px 8px",color:"#64748d",fontFamily:"monospace" }}>{li.rate > 0 ? `$${li.rate.toFixed(2)}` : "—"}</td>
+                                                  <td style={{ textAlign:"right",padding:"8px 8px",color:darkMode?"#8a93a3":"#64748d",fontFamily:"monospace" }}>{li.rate > 0 ? `$${li.rate.toFixed(2)}` : "—"}</td>
                                                   <td style={{ textAlign:"right",padding:"8px 8px",fontWeight:600,fontFamily:"monospace" }}>{li.amount > 0 ? `$${li.amount.toFixed(2)}` : "—"}</td>
                                                 </tr>
                                               );
@@ -13923,7 +13964,7 @@ function BOMManager({ user }) {
                                       {/* Actions */}
                                       <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
                                         {po.pctComplete < 100 && (
-                                          <div style={{ fontSize:11,color:"#64748d",fontStyle:"italic",padding:"4px 0" }}>
+                                          <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontStyle:"italic",padding:"4px 0" }}>
                                             Build orders are created automatically when shelf stock falls below your minimum threshold.{" "}
                                             <button className="btn-ghost" style={{ fontSize:11,padding:"2px 8px" }} onClick={() => { setActiveView("shelf"); }}>Set thresholds on Shelf →</button>
                                           </div>
@@ -13969,7 +14010,7 @@ function BOMManager({ user }) {
                                         )}
                                         {po.shipped && <span style={{ fontSize:12,fontWeight:700,color:"#34c759" }}>Shipped</span>}
                                         {!po.shipped && (
-                                          <button className="btn-ghost" style={{ fontSize:11,color:"#64748d",marginLeft:"auto" }}
+                                          <button className="btn-ghost" style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginLeft:"auto" }}
                                             onClick={() => dismissOrder(po.id)}>
                                             Dismiss
                                           </button>
@@ -13995,7 +14036,7 @@ function BOMManager({ user }) {
                     )}
                     {dismissedOrders.size > 0 && (
                       <div style={{ textAlign:"right",marginBottom:12 }}>
-                        <button className="btn-ghost" style={{ fontSize:10,color:"#64748d" }} onClick={undismissAll}>
+                        <button className="btn-ghost" style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }} onClick={undismissAll}>
                           {dismissedOrders.size} dismissed order{dismissedOrders.size !== 1 ? "s" : ""} hidden — Restore all
                         </button>
                       </div>
@@ -14073,7 +14114,7 @@ function BOMManager({ user }) {
                         padding:"6px 0",borderBottom:"1px solid #4bc07622" }}>
                         <span style={{ fontSize:12,color:darkMode?"#e8ebf0":"#061b31" }}>{u.title}</span>
                         <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                          {u.avgRate > 0 && <span style={{ fontSize:10,color:"#64748d" }}>@ ${u.avgRate.toFixed(2)}</span>}
+                          {u.avgRate > 0 && <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>@ ${u.avgRate.toFixed(2)}</span>}
                           <button className="btn-ghost" style={{ fontSize:10,whiteSpace:"nowrap" }}
                             onClick={async (e) => {
                               const btn = e.currentTarget;
@@ -14097,18 +14138,18 @@ function BOMManager({ user }) {
                 {/* ── Parts demand table */}
                 {partsDemand.length > 0 && (
                   <div className="card" style={{ marginBottom:16 }}>
-                    <div style={{ fontSize:10,color:"#8898aa",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>PARTS DEMAND BREAKDOWN (ALL CHANNELS)</div>
+                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>PARTS DEMAND BREAKDOWN (ALL CHANNELS)</div>
                     <div style={{ overflowX:"auto" }}>
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                         <thead>
                           <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>PART</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>MPN</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"right" }}>NEEDED</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"right" }}>IN STOCK</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"right" }}>DEFICIT</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>FOR PRODUCTS</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>ACTION</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>PART</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>MPN</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"right" }}>NEEDED</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"right" }}>IN STOCK</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"right" }}>DEFICIT</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>FOR PRODUCTS</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>ACTION</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -14119,7 +14160,7 @@ function BOMManager({ user }) {
                               <tr key={d.part.id} style={{ borderBottom:"1px solid #f0f0f2" }}>
                                 <td style={{ padding:"10px 10px" }}>
                                   <div style={{ fontWeight:700,color:"#58a6ff" }}>{d.part.reference}</div>
-                                  <div style={{ fontSize:11,color:"#64748d" }}>{d.part.value}</div>
+                                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>{d.part.value}</div>
                                 </td>
                                 <td style={{ padding:"10px 10px",fontSize:11,color:"#3a3f51" }}>{d.part.mpn || "—"}</td>
                                 <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
@@ -14261,11 +14302,11 @@ function BOMManager({ user }) {
                             <span style={{ fontSize:13,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                               {section.channel} Orders — {section.brand}
                             </span>
-                            <span style={{ fontSize:11,color:"#64748d",fontWeight:500 }}>
+                            <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontWeight:500 }}>
                               ({section.orderCount.toLocaleString()} order{section.orderCount !== 1 ? "s" : ""}, {section.totalUnits.toLocaleString()} unit{section.totalUnits !== 1 ? "s" : ""})
                             </span>
                           </div>
-                          <span style={{ fontSize:11,color:"#64748d",transform:isCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
+                          <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",transform:isCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
                         </div>
                         {/* Collapsible body */}
                         {!isCollapsed && (
@@ -14273,10 +14314,10 @@ function BOMManager({ user }) {
                             <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                               <thead>
                                 <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
-                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>PRODUCT</th>
-                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"right" }}>QTY NEEDED</th>
-                                  {section.source === "zoho" && <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"right" }}>AVG RATE</th>}
-                                  <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>BOM PRODUCT</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>PRODUCT</th>
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"right" }}>QTY NEEDED</th>
+                                  {section.source === "zoho" && <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"right" }}>AVG RATE</th>}
+                                  <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>BOM PRODUCT</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -14292,7 +14333,7 @@ function BOMManager({ user }) {
                                         {prod.totalUnfulfilled.toLocaleString()}
                                       </td>
                                       {section.source === "zoho" && (
-                                        <td style={{ padding:"10px 10px",textAlign:"right",color:"#64748d" }}>
+                                        <td style={{ padding:"10px 10px",textAlign:"right",color:darkMode?"#8a93a3":"#64748d" }}>
                                           {prod.avgRate > 0 ? `$${prod.avgRate.toFixed(2)}` : "\u2014"}
                                         </td>
                                       )}
@@ -14369,11 +14410,11 @@ function BOMManager({ user }) {
                             <span style={{ fontSize:13,fontWeight:700,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                               Direct Sales Forecast
                             </span>
-                            <span style={{ fontSize:11,color:"#64748d",fontWeight:500 }}>
+                            <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontWeight:500 }}>
                               ({forecasts.length} product{forecasts.length !== 1 ? "s" : ""} · {shopifyDemand?.orders?.length || 0} orders)
                             </span>
                           </div>
-                          <span style={{ fontSize:11,color:"#64748d",transform:isForecastCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
+                          <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",transform:isForecastCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>&#9660;</span>
                         </div>
                         {!isForecastCollapsed && (
                           <div>
@@ -14381,14 +14422,14 @@ function BOMManager({ user }) {
                               <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                                 <thead>
                                   <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
-                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>PRODUCT</th>
-                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"right" }}>DAILY AVG</th>
-                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"right" }}>WEEKLY</th>
-                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"right" }}>MONTHLY</th>
-                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"center",background:"#f0f7ff",borderRadius:"6px 0 0 0" }}>30 DAY</th>
-                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"center",background:"#fff8f0" }}>60 DAY</th>
-                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"center",background:"#fff2f0",borderRadius:"0 6px 0 0" }}>90 DAY</th>
-                                    <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"right" }}>UNFULFILLED</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>PRODUCT</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"right" }}>DAILY AVG</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"right" }}>WEEKLY</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"right" }}>MONTHLY</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"center",background:"#f0f7ff",borderRadius:"6px 0 0 0" }}>30 DAY</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"center",background:"#fff8f0" }}>60 DAY</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"center",background:"#fff2f0",borderRadius:"0 6px 0 0" }}>90 DAY</th>
+                                    <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"right" }}>UNFULFILLED</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -14396,7 +14437,7 @@ function BOMManager({ user }) {
                                     <tr key={f.title} style={{ borderBottom:"1px solid #f0f0f2" }}>
                                       <td style={{ padding:"10px 10px" }}>
                                         <div style={{ fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>{f.title}</div>
-                                        <div style={{ fontSize:10,color:"#64748d" }}>
+                                        <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>
                                           {f.totalOrdered.toLocaleString()} sold over {f.daySpan} days
                                           {f.storeName && <span style={{ color:"#7ab8d4",fontWeight:600,marginLeft:4 }}>{f.storeName}</span>}
                                         </div>
@@ -14404,7 +14445,7 @@ function BOMManager({ user }) {
                                       <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:600,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                         {f.dailyRate.toFixed(1)}
                                       </td>
-                                      <td style={{ padding:"10px 10px",textAlign:"right",color:"#64748d" }}>
+                                      <td style={{ padding:"10px 10px",textAlign:"right",color:darkMode?"#8a93a3":"#64748d" }}>
                                         {f.weeklyRate.toFixed(1)}
                                       </td>
                                       <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:600 }}>
@@ -14434,7 +14475,7 @@ function BOMManager({ user }) {
                                 </tbody>
                               </table>
                             </div>
-                            <div style={{ padding:"10px 16px",fontSize:10,color:"#8898aa",fontStyle:"italic" }}>
+                            <div style={{ padding:"10px 16px",fontSize:10,color:darkMode?"#8a93a3":"#8898aa",fontStyle:"italic" }}>
                               Forecast based on average daily sell rate across all open orders in the sync window. Rates update each time you sync.
                             </div>
                           </div>
@@ -14466,12 +14507,12 @@ function BOMManager({ user }) {
                     <span style={{ fontSize:13,fontWeight:700,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                       Units Shipped — ShipStation
                     </span>
-                    <span style={{ fontSize:11,color:"#64748d",fontWeight:500 }}>
+                    <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontWeight:500 }}>
                       ({shipstationData.uniqueOrders} orders · {shipstationData.totalUnitsShipped} units · {shipstationData.dateRange?.days || 90}d
                       {shipstationData.avgLeadTimeDays != null && ` · avg ${shipstationData.avgLeadTimeDays}d to ship`})
                     </span>
                   </div>
-                  <span style={{ fontSize:11,color:"#64748d",transform:expandedDemandSections.has("shipstation-shipped")?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s" }}>&#9660;</span>
+                  <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",transform:expandedDemandSections.has("shipstation-shipped")?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s" }}>&#9660;</span>
                 </div>
                 {expandedDemandSections.has("shipstation-shipped") && (() => {
                   // Build monthly lead-time trend data for chart
@@ -14515,7 +14556,7 @@ function BOMManager({ user }) {
                     {/* Year-over-year summary cards */}
                     {yearSummary.length > 0 && (
                       <div style={{ padding:"24px 24px 16px",borderBottom:"1px solid #e5e5ea" }}>
-                        <div style={{ fontSize:12,color:"#50617a",fontWeight:700,letterSpacing:"0.08em",marginBottom:16,textTransform:"uppercase" }}>
+                        <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",fontWeight:700,letterSpacing:"0.08em",marginBottom:16,textTransform:"uppercase" }}>
                           Fulfillment Performance by Year
                         </div>
                         <div style={{ display:"flex",gap:10,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4 }}>
@@ -14528,19 +14569,19 @@ function BOMManager({ user }) {
                                     fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                     {ys.avg.toFixed(1)}d
                                   </div>
-                                  <div style={{ fontSize:11,color:"#64748d",marginTop:3 }}>avg lead time</div>
+                                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:3 }}>avg lead time</div>
                                 </div>
                                 <div>
                                   <div style={{ fontSize:24,fontWeight:800,lineHeight:1,color:"#00c7be",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                     {ys.count.toLocaleString()}
                                   </div>
-                                  <div style={{ fontSize:11,color:"#64748d",marginTop:3 }}>orders</div>
+                                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:3 }}>orders</div>
                                 </div>
                                 <div>
                                   <div style={{ fontSize:24,fontWeight:800,lineHeight:1,color:"#58a6ff",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                     {ys.sameDayPct}%
                                   </div>
-                                  <div style={{ fontSize:11,color:"#64748d",marginTop:3 }}>same-day</div>
+                                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:3 }}>same-day</div>
                                 </div>
                               </div>
                             </div>
@@ -14554,7 +14595,7 @@ function BOMManager({ user }) {
                       <div style={{ padding:"24px 24px 20px",borderBottom:"1px solid #e5e5ea" }}>
                         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:20 }}>
                           <div>
-                            <div style={{ fontSize:12,color:"#50617a",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>
+                            <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase" }}>
                               Order-to-Ship Time — Monthly Average
                             </div>
                             {shipstationData.avgLeadTimeDays != null && (
@@ -14563,7 +14604,7 @@ function BOMManager({ user }) {
                               </div>
                             )}
                           </div>
-                          <div style={{ fontSize:11,color:"#8898aa",fontWeight:500 }}>← scroll for more →</div>
+                          <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#8898aa",fontWeight:500 }}>← scroll for more →</div>
                         </div>
                         <div style={{ overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:8 }}>
                           <div style={{ display:"flex",alignItems:"flex-end",gap:6,height:280,minWidth:chartWidth }}>
@@ -14584,17 +14625,17 @@ function BOMManager({ user }) {
                                     </div>
                                   </div>
                                   <div style={{ fontSize:11,color:"#3a3f51",marginTop:6,fontWeight:600 }}>{monthLabel}</div>
-                                  <div style={{ fontSize:10,color:"#8898aa",fontWeight:600 }}>{yr}</div>
+                                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa",fontWeight:600 }}>{yr}</div>
                                 </div>
                               );
                             })}
                           </div>
                         </div>
-                        <div style={{ display:"flex",justifyContent:"center",gap:24,marginTop:16,fontSize:11,color:"#50617a" }}>
+                        <div style={{ display:"flex",justifyContent:"center",gap:24,marginTop:16,fontSize:11,color:darkMode?"#b8bfcc":"#50617a" }}>
                           <span style={{ display:"flex",alignItems:"center",gap:5 }}><span style={{ display:"inline-block",width:12,height:12,borderRadius:3,background:"#34c759" }} />0–1 day avg</span>
                           <span style={{ display:"flex",alignItems:"center",gap:5 }}><span style={{ display:"inline-block",width:12,height:12,borderRadius:3,background:"#ff9500" }} />2–3 day avg</span>
                           <span style={{ display:"flex",alignItems:"center",gap:5 }}><span style={{ display:"inline-block",width:12,height:12,borderRadius:3,background:"#ff3b30" }} />4+ day avg</span>
-                          <span style={{ fontSize:10,color:"#8898aa" }}>Number inside bar = order count</span>
+                          <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa" }}>Number inside bar = order count</span>
                         </div>
                       </div>
                     )}
@@ -14604,13 +14645,13 @@ function BOMManager({ user }) {
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                         <thead style={{ position:"sticky",top:0,background:darkMode?"#0f1218":"#fff",zIndex:1 }}>
                           <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>ORDER #</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>ORDERED</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>SHIPPED</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"center" }}>LEAD TIME</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"right" }}>ITEMS</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>CARRIER</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>TRACKING</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>ORDER #</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>ORDERED</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>SHIPPED</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"center" }}>LEAD TIME</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"right" }}>ITEMS</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>CARRIER</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>TRACKING</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -14622,10 +14663,10 @@ function BOMManager({ user }) {
                             return (
                               <tr key={order.orderNumber} style={{ borderBottom:"1px solid #f0f0f2" }}>
                                 <td style={{ padding:"10px 10px",fontWeight:700,color:"#00c7be" }}>{order.orderNumber}</td>
-                                <td style={{ padding:"10px 10px",fontSize:11,color:"#64748d" }}>
+                                <td style={{ padding:"10px 10px",fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>
                                   {order.orderDate ? new Date(order.orderDate).toLocaleDateString() : "—"}
                                 </td>
-                                <td style={{ padding:"10px 10px",fontSize:11,color:"#64748d" }}>
+                                <td style={{ padding:"10px 10px",fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>
                                   {order.shipments[0]?.shipDate ? new Date(order.shipments[0].shipDate).toLocaleDateString() : "—"}
                                 </td>
                                 <td style={{ padding:"10px 10px",textAlign:"center" }}>
@@ -14633,12 +14674,12 @@ function BOMManager({ user }) {
                                     <span style={{ fontWeight:700,fontSize:13,color:ltColor,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                       {lt === 0 ? "Same day" : `${lt}d`}
                                     </span>
-                                  ) : <span style={{ color:"#8898aa",fontSize:10 }}>—</span>}
+                                  ) : <span style={{ color:darkMode?"#8a93a3":"#8898aa",fontSize:10 }}>—</span>}
                                 </td>
                                 <td style={{ padding:"10px 10px",textAlign:"right",fontWeight:700,fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                   {order.totalItemsShipped}
                                 </td>
-                                <td style={{ padding:"10px 10px",fontSize:10,color:"#64748d",textTransform:"uppercase" }}>
+                                <td style={{ padding:"10px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase" }}>
                                   {carrier || "—"}
                                 </td>
                                 <td style={{ padding:"10px 10px",fontSize:11 }}>
@@ -14657,7 +14698,7 @@ function BOMManager({ user }) {
                         </tbody>
                       </table>
                     </div>
-                    <div style={{ padding:"8px 16px",fontSize:10,color:"#8898aa",borderTop:"1px solid #f0f0f2" }}>
+                    <div style={{ padding:"8px 16px",fontSize:10,color:darkMode?"#8a93a3":"#8898aa",borderTop:"1px solid #f0f0f2" }}>
                       {shipstationData.shipments.length} orders total · {withLead.length} with lead time data
                       {shipstationData.debug && (
                         <span style={{ marginLeft:8 }}>
@@ -14680,7 +14721,7 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:12 }}>
                 <div>
                   <h3 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:18,fontWeight:800,marginBottom:4 }}>Demand Forecast</h3>
-                  <p style={{ color:"#64748d",fontSize:12,margin:0 }}>
+                  <p style={{ color:darkMode?"#8a93a3":"#64748d",fontSize:12,margin:0 }}>
                     Predictive forecast based on {salesHistory ? `${salesHistory.history?.length || 0} months` : "up to 24 months"} of historical sales data from Shopify + Zoho.
                     {salesHistory?.fetchedAt && <span style={{ marginLeft:8,fontSize:11 }}>Last loaded: {new Date(salesHistory.fetchedAt).toLocaleString()}</span>}
                   </p>
@@ -14702,7 +14743,7 @@ function BOMManager({ user }) {
                 <div className="card" style={{ textAlign:"center",padding:40 }}>
                   <div style={{ fontSize:36,marginBottom:10 }}>&#x1F4CA;</div>
                   <div style={{ fontWeight:700,fontSize:14,marginBottom:6 }}>Load historical sales data to see forecasts</div>
-                  <p style={{ color:"#64748d",fontSize:12,marginBottom:14 }}>
+                  <p style={{ color:darkMode?"#8a93a3":"#64748d",fontSize:12,marginBottom:14 }}>
                     Pulls completed orders from Shopify and Zoho going back 24 months. Cached locally after first load.
                   </p>
                   <button className="btn-primary" style={{ background:"#7ab8d4" }} onClick={fetchSalesHistory} disabled={historyLoading}>
@@ -14821,7 +14862,7 @@ function BOMManager({ user }) {
                   <>
                   {/* Product selector */}
                   <div style={{ display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center" }}>
-                    <span style={{ fontSize:11,color:"#64748d",fontWeight:600 }}>PRODUCT:</span>
+                    <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>PRODUCT:</span>
                     <select value={forecastChartProduct} onChange={e => setForecastChartProduct(e.target.value)}
                       style={{ fontSize:12,padding:"4px 8px",borderRadius:6,border:"1px solid #e3e8ee",background:darkMode?"#0f1218":"#fff",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                       <option value="__all__">All Products (Total)</option>
@@ -14831,7 +14872,7 @@ function BOMManager({ user }) {
 
                   {/* Historical + Forecast Chart */}
                   <div className="card" style={{ marginBottom:16 }}>
-                    <div style={{ fontSize:10,color:"#8898aa",letterSpacing:"0.1em",fontWeight:700,marginBottom:8 }}>
+                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa",letterSpacing:"0.1em",fontWeight:700,marginBottom:8 }}>
                       MONTHLY SALES — {(selectedProduct || chartProduct).title?.toUpperCase()}
                     </div>
                     <div style={{ width:"100%" }}>
@@ -14877,22 +14918,22 @@ function BOMManager({ user }) {
 
                   {/* Forecast Table */}
                   <div className="card" style={{ marginBottom:16 }}>
-                    <div style={{ fontSize:10,color:"#8898aa",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>
+                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>
                       FORECAST — NEXT {forecastData.futureMonths.length} MONTHS
                     </div>
                     <div style={{ overflowX:"auto" }}>
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                         <thead>
                           <tr style={{ borderBottom:"2px solid #e5e5ea",textAlign:"left" }}>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>PRODUCT</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>TREND</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>PRODUCT</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>TREND</th>
                             {forecastData.futureMonths.map(m => {
                               const parts = m.split("-");
                               const mn = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(parts[1]) - 1];
-                              return <th key={m} style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"center" }}>{mn} {parts[0]}</th>;
+                              return <th key={m} style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"center" }}>{mn} {parts[0]}</th>;
                             })}
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600,textAlign:"right" }}>AVG/MO (RECENT)</th>
-                            <th style={{ padding:"8px 10px",fontSize:10,color:"#64748d",fontWeight:600 }}>SEASONALITY</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textAlign:"right" }}>AVG/MO (RECENT)</th>
+                            <th style={{ padding:"8px 10px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>SEASONALITY</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -14900,7 +14941,7 @@ function BOMManager({ user }) {
                             <tr key={p.title} style={{ borderBottom:"1px solid #f0f0f2" }}>
                               <td style={{ padding:"10px 10px" }}>
                                 <div style={{ fontWeight:600,color:darkMode?"#e8ebf0":"#061b31",fontSize:12 }}>{p.title}</div>
-                                <div style={{ fontSize:10,color:"#64748d" }}>{p.channel} &middot; {p.totalHistorical.toLocaleString()} total sold</div>
+                                <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>{p.channel} &middot; {p.totalHistorical.toLocaleString()} total sold</div>
                               </td>
                               <td style={{ padding:"10px 10px" }}>
                                 <span style={{ fontSize:11,fontWeight:700,
@@ -14914,14 +14955,14 @@ function BOMManager({ user }) {
                                   <div style={{ fontWeight:800,fontSize:15,color:"#7ab8d4",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                                     {f.forecast.toLocaleString()}
                                   </div>
-                                  <div style={{ fontSize:9,color:"#64748d" }}>{f.low.toLocaleString()} — {f.high.toLocaleString()}</div>
+                                  <div style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d" }}>{f.low.toLocaleString()} — {f.high.toLocaleString()}</div>
                                   {f.seasonalNote && (
                                     <div style={{ fontSize:9,color: f.seasonalIndex > 1.1 ? "#34c759" : f.seasonalIndex < 0.85 ? "#ff9500" : "#64748d",fontWeight:600,marginTop:2 }}>
                                       {f.seasonalNote}
                                     </div>
                                   )}
                                   {f.sameMonthLastYear != null && (
-                                    <div style={{ fontSize:9,color:"#8898aa",marginTop:1 }}>
+                                    <div style={{ fontSize:9,color:darkMode?"#8a93a3":"#8898aa",marginTop:1 }}>
                                       Last yr: {f.sameMonthLastYear.toLocaleString()}
                                     </div>
                                   )}
@@ -14933,7 +14974,7 @@ function BOMManager({ user }) {
                               </td>
                               <td style={{ padding:"10px 10px",fontSize:11 }}>
                                 <span style={{ color:"#34c759",fontWeight:600 }}>Best: {p.strongestMonth}</span>
-                                <span style={{ color:"#64748d",margin:"0 4px" }}>/</span>
+                                <span style={{ color:darkMode?"#8a93a3":"#64748d",margin:"0 4px" }}>/</span>
                                 <span style={{ color:"#ff9500",fontWeight:600 }}>Slow: {p.weakestMonth}</span>
                               </td>
                             </tr>
@@ -14945,7 +14986,7 @@ function BOMManager({ user }) {
 
                   {/* Seasonal Patterns Bar Chart */}
                   <div className="card" style={{ marginBottom:16 }}>
-                    <div style={{ fontSize:10,color:"#8898aa",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>
+                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa",letterSpacing:"0.1em",fontWeight:700,marginBottom:12 }}>
                       SEASONAL PATTERNS — AVERAGE MONTHLY SALES{selectedProduct ? ` (${selectedProduct.title.toUpperCase()})` : " (ALL PRODUCTS)"}
                     </div>
                     <div style={{ display:"flex",gap:4,alignItems:"flex-end",height:120,padding:"0 8px" }}>
@@ -14955,7 +14996,7 @@ function BOMManager({ user }) {
                         const isWeak = s.index < 0.85;
                         return (
                           <div key={s.month} style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2 }}>
-                            <div style={{ fontSize:9,color:"#64748d",fontWeight:600 }}>{s.avgQty}</div>
+                            <div style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>{s.avgQty}</div>
                             <div style={{
                               width:"100%",maxWidth:40,
                               height: Math.max(barH, 2),
@@ -14964,7 +15005,7 @@ function BOMManager({ user }) {
                               opacity: 0.8,
                               transition: "height 0.3s",
                             }} />
-                            <div style={{ fontSize:9,color:"#64748d",fontWeight:500 }}>{s.label}</div>
+                            <div style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d",fontWeight:500 }}>{s.label}</div>
                             <div style={{ fontSize:8,color: isStrong ? "#34c759" : isWeak ? "#ff9500" : "#8898aa" }}>
                               {s.index}x
                             </div>
@@ -14972,7 +15013,7 @@ function BOMManager({ user }) {
                         );
                       })}
                     </div>
-                    <div style={{ marginTop:10,fontSize:10,color:"#8898aa",display:"flex",gap:16 }}>
+                    <div style={{ marginTop:10,fontSize:10,color:darkMode?"#8a93a3":"#8898aa",display:"flex",gap:16 }}>
                       <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#34c759",marginRight:4 }} />Above average ({">"} 1.15x)</span>
                       <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#58a6ff",marginRight:4 }} />Average</span>
                       <span><span style={{ display:"inline-block",width:8,height:8,borderRadius:2,background:"#ff9500",marginRight:4 }} />Below average ({"<"} 0.85x)</span>
@@ -15327,7 +15368,7 @@ function BOMManager({ user }) {
           return (
           <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:darkMode?"#f6f9fc":"#061b31",marginBottom:4 }}>Production Floor</h2>
-            <p style={{ fontSize:14,color:"#64748d",marginBottom:12 }}>Manage build orders, team assignments, play testing, and boxing.</p>
+            <p style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d",marginBottom:12 }}>Manage build orders, team assignments, play testing, and boxing.</p>
 
             {/* ── Sub-tab navigation ── */}
             <div style={{ display:"flex",gap:6,marginBottom:20 }}>
@@ -15352,7 +15393,7 @@ function BOMManager({ user }) {
             {prodSubTab === "builds" && (<>
             {/* ── Mobile Builder App link ── */}
             <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:24,flexWrap:"wrap" }}>
-              <span style={{ fontSize:13,color:"#64748d" }}>Mobile Builder App:</span>
+              <span style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>Mobile Builder App:</span>
               <code style={{ fontSize:12,color:darkMode?"#f8d377":"#7ab8d4",background:darkMode?"#0f1218":"#f0f0f2",padding:"4px 10px",borderRadius:6,fontFamily:"SF Mono,monospace",userSelect:"all" }}>
                 {window.location.origin + "/build"}
               </code>
@@ -15375,7 +15416,7 @@ function BOMManager({ user }) {
                 { label:"Completed This Week", value:completedWeek, color:"#7ab8d4" },
               ].map(card => (
                 <div key={card.label} style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
-                  <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
+                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
                   <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
                 </div>
               ))}
@@ -15699,20 +15740,20 @@ function BOMManager({ user }) {
               return (
                 <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:20,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                   <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:4 }}>Materials Check</div>
-                  <div style={{ fontSize:12,color:"#64748d",marginBottom:12 }}>Parts shortages for builds due in the next 2 weeks.</div>
+                  <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:12 }}>Parts shortages for builds due in the next 2 weeks.</div>
                   <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
                     {shortages.slice(0,20).map((s, i) => (
                       <div key={i} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderRadius:8,
                         background:darkMode?"#161a22":"#fff5f5",border:"1px solid #ff3b3030",fontSize:12 }}>
                         <div style={{ width:8,height:8,borderRadius:"50%",background:s.productColor,flexShrink:0 }} />
                         <span style={{ fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{s.productName}</span>
-                        <span style={{ color:"#64748d" }}>x{s.needed / (parseInt(parts.find(p => (p.mpn||p.reference) === s.partMPN)?.quantity)||1)}</span>
-                        <span style={{ color:"#64748d" }}>on {new Date(s.dueDate).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
+                        <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>x{s.needed / (parseInt(parts.find(p => (p.mpn||p.reference) === s.partMPN)?.quantity)||1)}</span>
+                        <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>on {new Date(s.dueDate).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
                         <span style={{ color:"#ff3b30",fontWeight:700 }}>MISSING: {s.partMPN}</span>
-                        <span style={{ color:"#64748d" }}>(need {s.needed.toLocaleString()}, have {s.have.toLocaleString()})</span>
+                        <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>(need {s.needed.toLocaleString()}, have {s.have.toLocaleString()})</span>
                       </div>
                     ))}
-                    {shortages.length > 20 && <div style={{ fontSize:11,color:"#64748d",padding:"4px 12px" }}>+{shortages.length - 20} more shortages...</div>}
+                    {shortages.length > 20 && <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",padding:"4px 12px" }}>+{shortages.length - 20} more shortages...</div>}
                   </div>
                 </div>
               );
@@ -15746,7 +15787,7 @@ function BOMManager({ user }) {
                   <thead>
                     <tr style={{ borderBottom:"2px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                       {["#","Name","Role",...(isAdmin?["$/hr"]:[]),"Builds","Units","Scrap","Yield %","Avg Time/Unit","Quality Score",...(isAdmin?["Labor Cost/Unit"]:[])].map(h=>(
-                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#64748d",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
+                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -15755,7 +15796,7 @@ function BOMManager({ user }) {
                       <tr key={m.id} style={{ borderBottom:"1px solid "+(darkMode?"#161a22":"#f0f0f2") }}>
                         <td style={{ padding:"10px 12px",fontWeight:800,fontSize:16,color:i===0?"#ffd700":i===1?"#c0c0c0":i===2?"#cd7f32":"#64748d" }}>{i+1}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{m.name}</td>
-                        <td style={{ padding:"10px 12px",color:"#64748d",textTransform:"capitalize" }}>{m.role}</td>
+                        <td style={{ padding:"10px 12px",color:darkMode?"#8a93a3":"#64748d",textTransform:"capitalize" }}>{m.role}</td>
                         {isAdmin && <td style={{ padding:"10px 12px",color:"#34c759",fontWeight:600 }}>{m.hourly_rate ? `$${m.hourly_rate}` : "—"}</td>}
                         <td style={{ padding:"10px 12px",fontWeight:600 }}>{m.totalBuilds}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600 }}>{m.totalUnits.toLocaleString()}</td>
@@ -15786,19 +15827,19 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setProdTeamCollapsed(!prodTeamCollapsed)}>
                 <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>Team Members ({activeMembers.length} active)</div>
-                <span style={{ fontSize:14,color:"#64748d",transform:prodTeamCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>▼</span>
+                <span style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d",transform:prodTeamCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>▼</span>
               </div>
               {!prodTeamCollapsed && (
                 <div style={{ marginTop:16 }}>
                   <div style={{ display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"flex-end" }}>
                     <div style={{ flex:"1 1 180px" }}>
-                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Name *</label>
+                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Name *</label>
                       <input style={inputStyle} placeholder="Full name" value={newTeamMember.name}
                         onChange={e => setNewTeamMember({...newTeamMember, name:e.target.value})}
                         onKeyDown={e => { if (e.key === "Enter") handleCreateTeamMember(); }} />
                     </div>
                     <div style={{ flex:"0 0 140px" }}>
-                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Role</label>
+                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Role</label>
                       <select style={selectStyle} value={newTeamMember.role} onChange={e => setNewTeamMember({...newTeamMember, role:e.target.value})}>
                         <option value="assembler">Assembler</option>
                         <option value="lead">Lead</option>
@@ -15806,20 +15847,20 @@ function BOMManager({ user }) {
                       </select>
                     </div>
                     <div style={{ flex:"1 1 150px" }}>
-                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Phone</label>
+                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Phone</label>
                       <input style={inputStyle} placeholder="Phone number" value={newTeamMember.phone} onChange={e => setNewTeamMember({...newTeamMember, phone:e.target.value})} />
                     </div>
                     <div style={{ flex:"1 1 180px" }}>
-                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Email</label>
+                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Email</label>
                       <input style={inputStyle} placeholder="Email address" value={newTeamMember.email} onChange={e => setNewTeamMember({...newTeamMember, email:e.target.value})} />
                     </div>
                     {isAdmin && <div style={{ flex:"0 0 80px" }}>
-                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>$/hr</label>
+                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>$/hr</label>
                       <input style={inputStyle} type="number" step="0.50" min="0" placeholder="25" value={newTeamMember.hourly_rate||""}
                         onChange={e => setNewTeamMember({...newTeamMember, hourly_rate:e.target.value})} />
                     </div>}
                     <div style={{ flex:"0 0 80px" }}>
-                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>PIN</label>
+                      <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>PIN</label>
                       <input style={inputStyle} placeholder="4-6 digits" value={newTeamMember.pin_code} maxLength={6}
                         onChange={e => setNewTeamMember({...newTeamMember, pin_code:e.target.value.replace(/\D/g,"")})} />
                     </div>
@@ -15832,9 +15873,9 @@ function BOMManager({ user }) {
                         <div key={member.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 4px",
                           borderBottom:darkMode?"1px solid #161a22":"1px solid #f2f2f7",opacity:member.active===false?0.5:1 }}>
                           <div style={{ flex:1,fontSize:14,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{member.name}</div>
-                          <div style={{ fontSize:12,color:"#64748d",textTransform:"capitalize",minWidth:80 }}>{member.role || "—"}</div>
-                          <div style={{ fontSize:12,color:"#64748d",minWidth:110 }}>{member.phone || "—"}</div>
-                          <div style={{ fontSize:12,color:"#64748d",minWidth:160 }}>{member.email || "—"}</div>
+                          <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",textTransform:"capitalize",minWidth:80 }}>{member.role || "—"}</div>
+                          <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",minWidth:110 }}>{member.phone || "—"}</div>
+                          <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",minWidth:160 }}>{member.email || "—"}</div>
                           {isAdmin && <div style={{ minWidth:70 }}>
                             <input style={{ width:60,padding:"4px 6px",borderRadius:5,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
                               fontSize:11,background:darkMode?"#161a22":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31",textAlign:"center" }}
@@ -15880,7 +15921,7 @@ function BOMManager({ user }) {
             {products.length === 0 && buildOrders.length === 0 && (
               <div style={{ background:darkMode?"#161a22":"#fff8e1",borderRadius:14,padding:"20px 22px",marginBottom:20,border:"2px dashed #ff9500",textAlign:"center" }}>
                 <div style={{ fontSize:15,fontWeight:700,color:"#ff9500",marginBottom:6 }}>No production data yet</div>
-                <p style={{ fontSize:13,color:"#64748d",marginBottom:14 }}>Load demo products and build orders to explore the production workflow.</p>
+                <p style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginBottom:14 }}>Load demo products and build orders to explore the production workflow.</p>
                 <button onClick={async () => {
                   try {
                     const demoProducts = [
@@ -15926,36 +15967,36 @@ function BOMManager({ user }) {
               <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:16 }}>Create Build Order</div>
               <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:12,marginBottom:12 }}>
                 <div>
-                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Product *</label>
+                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Product *</label>
                   <select style={selectStyle} value={newBuildOrder.product_id} onChange={e => setNewBuildOrder({...newBuildOrder, product_id:e.target.value})}>
                     <option value="">Select product…</option>
                     {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Quantity *</label>
+                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Quantity *</label>
                   <input style={inputStyle} type="number" min="1" placeholder="e.g. 50" value={newBuildOrder.quantity} onChange={e => setNewBuildOrder({...newBuildOrder, quantity:e.target.value})} />
                 </div>
                 <div>
-                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Priority</label>
+                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Priority</label>
                   <select style={selectStyle} value={newBuildOrder.priority} onChange={e => setNewBuildOrder({...newBuildOrder, priority:e.target.value})}>
                     <option value="low">Low</option><option value="normal">Normal</option>
                     <option value="high">High</option><option value="urgent">Urgent</option>
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Due Date</label>
+                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Due Date</label>
                   <input style={inputStyle} type="date" value={newBuildOrder.due_date} onChange={e => setNewBuildOrder({...newBuildOrder, due_date:e.target.value})} />
                 </div>
                 <div>
-                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Assign To</label>
+                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Assign To</label>
                   <select style={selectStyle} value={newBuildOrder.team_member_id} onChange={e => setNewBuildOrder({...newBuildOrder, team_member_id:e.target.value})}>
                     <option value="">Unassigned</option>
                     {activeMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
                 </div>
                 <div style={{ position:"relative" }}>
-                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>For Order / PO</label>
+                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>For Order / PO</label>
                   <input style={inputStyle} type="text" placeholder="e.g. #1234 or PO-5678" value={newBuildOrder.for_order}
                     onChange={e => setNewBuildOrder({...newBuildOrder, for_order:e.target.value})}
                     onFocus={e => e.target.closest('div').querySelector('.order-dropdown') && (e.target.closest('div').querySelector('.order-dropdown').style.display='block')}
@@ -15992,7 +16033,7 @@ function BOMManager({ user }) {
                             onMouseEnter={e => e.currentTarget.style.background=darkMode?"#1f2530":"#f6f9fc"}
                             onMouseLeave={e => e.currentTarget.style.background="transparent"}>
                             <div style={{ fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{o.label}</div>
-                            {o.sub && <div style={{ fontSize:11,color:"#64748d" }}>{o.sub}</div>}
+                            {o.sub && <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>{o.sub}</div>}
                           </div>
                         ))}
                       </div>
@@ -16001,7 +16042,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               <div style={{ marginBottom:12 }}>
-                <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Notes</label>
+                <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Notes</label>
                 <textarea style={{ ...inputStyle, minHeight:60,resize:"vertical" }} placeholder="Optional build notes…" value={newBuildOrder.notes}
                   onChange={e => setNewBuildOrder({...newBuildOrder, notes:e.target.value})} />
               </div>
@@ -16017,7 +16058,7 @@ function BOMManager({ user }) {
                 <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"40px 22px",textAlign:"center",
                   boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
                   <div style={{ fontSize:32,marginBottom:8 }}>🏭</div>
-                  <div style={{ fontSize:14,color:"#64748d" }}>No active build orders. Create one above to get started.</div>
+                  <div style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d" }}>No active build orders. Create one above to get started.</div>
                 </div>
               ) : (
                 <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
@@ -16085,7 +16126,7 @@ function BOMManager({ user }) {
                             <div style={{ flex:1,minWidth:200 }}>
                               <div style={{ display:"flex",justifyContent:"space-between",marginBottom:6 }}>
                                 <span style={{ fontSize:24,fontWeight:800,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
-                                  {done} <span style={{ fontSize:14,fontWeight:400,color:"#64748d" }}>of</span> {total}
+                                  {done} <span style={{ fontSize:14,fontWeight:400,color:darkMode?"#8a93a3":"#64748d" }}>of</span> {total}
                                 </span>
                                 <span style={{ fontSize:18,fontWeight:700,color:pct>=100?"#34c759":"#58a6ff" }}>{pct}%</span>
                               </div>
@@ -16110,7 +16151,7 @@ function BOMManager({ user }) {
                           </div>
 
                           {/* Details row */}
-                          <div style={{ display:"flex",gap:16,fontSize:12,color:"#64748d",flexWrap:"wrap" }}>
+                          <div style={{ display:"flex",gap:16,fontSize:12,color:darkMode?"#8a93a3":"#64748d",flexWrap:"wrap" }}>
                             {assignedMember && <span>Builder: <strong style={{ color:darkMode?"#f6f9fc":"#061b31" }}>{assignedMember.name}</strong></span>}
                             {dueDate && <span>Due: {dueDate.toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>}
                             {startedAt && <span>Elapsed: <strong style={{ color:"#ff9500" }}>{fmtHours(elapsed)}</strong></span>}
@@ -16124,13 +16165,13 @@ function BOMManager({ user }) {
                               <div style={{ fontSize:13,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:10 }}>Log Scrap / Waste</div>
                               <div style={{ display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end" }}>
                                 <div style={{ flex:"0 0 80px" }}>
-                                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Qty</label>
+                                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Qty</label>
                                   <input type="number" min="1" value={scrapForm.quantity}
                                     onChange={e => setScrapForm(f=>({...f,quantity:parseInt(e.target.value)||1}))}
                                     style={{ ...inputStyle, background:darkMode?"#0f1218":"#fff" }} />
                                 </div>
                                 <div style={{ flex:"1 1 180px" }}>
-                                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Category</label>
+                                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Category</label>
                                   <select value={scrapForm.category} onChange={e => setScrapForm(f=>({...f,category:e.target.value}))}
                                     style={{ ...selectStyle, background:darkMode?"#0f1218":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}>
                                     <option value="solder defect">Solder Defect</option>
@@ -16142,7 +16183,7 @@ function BOMManager({ user }) {
                                   </select>
                                 </div>
                                 <div style={{ flex:"2 1 200px" }}>
-                                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Notes</label>
+                                  <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Notes</label>
                                   <input value={scrapForm.notes} onChange={e => setScrapForm(f=>({...f,notes:e.target.value}))}
                                     placeholder="Optional details" style={{ ...inputStyle, background:darkMode?"#0f1218":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                                 </div>
@@ -16223,17 +16264,17 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onClick={() => setProdCompletedCollapsed(!prodCompletedCollapsed)}>
                 <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>Completed Orders ({completedOrders.length})</div>
-                <span style={{ fontSize:14,color:"#64748d",transform:prodCompletedCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>▼</span>
+                <span style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d",transform:prodCompletedCollapsed?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.2s" }}>▼</span>
               </div>
               {!prodCompletedCollapsed && (
                 <div style={{ marginTop:16 }}>
                   <div style={{ display:"flex",gap:16,marginBottom:16 }}>
-                    <div style={{ fontSize:13,color:"#64748d" }}>Today: <strong style={{ color:"#34c759" }}>{completedToday}</strong></div>
-                    <div style={{ fontSize:13,color:"#64748d" }}>This week: <strong style={{ color:"#7ab8d4" }}>{completedWeek}</strong></div>
-                    <div style={{ fontSize:13,color:"#64748d" }}>All time: <strong>{completedOrders.length}</strong></div>
+                    <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>Today: <strong style={{ color:"#34c759" }}>{completedToday}</strong></div>
+                    <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>This week: <strong style={{ color:"#7ab8d4" }}>{completedWeek}</strong></div>
+                    <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>All time: <strong>{completedOrders.length}</strong></div>
                   </div>
                   {completedOrders.length === 0 ? (
-                    <div style={{ fontSize:13,color:"#8898aa",textAlign:"center",padding:20 }}>No completed orders yet.</div>
+                    <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#8898aa",textAlign:"center",padding:20 }}>No completed orders yet.</div>
                   ) : (
                     <div>
                       {completedOrders.slice(0, 50).map(bo => {
@@ -16248,12 +16289,12 @@ function BOMManager({ user }) {
                             {prod && <div style={{ width:8,height:8,borderRadius:"50%",background:prod.color||"#58a6ff",flexShrink:0 }} />}
                             <div style={{ flex:1,fontSize:13,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{prod?.name || "—"}</div>
                             <div style={{ fontSize:13,fontWeight:700,color:"#58a6ff",minWidth:50 }}>×{bo.quantity}</div>
-                            <div style={{ fontSize:12,color:"#64748d",minWidth:100 }}>{member?.name || "—"}</div>
+                            <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",minWidth:100 }}>{member?.name || "—"}</div>
                             {duration !== null && <div style={{ fontSize:12,fontWeight:600,color:"#34c759",minWidth:60 }}>{fmtHours(duration)}</div>}
                             {duration !== null && bo.quantity > 0 && (
-                              <div style={{ fontSize:11,color:"#64748d",minWidth:80 }}>{(duration/bo.quantity*60).toFixed(1)} min/unit</div>
+                              <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",minWidth:80 }}>{(duration/bo.quantity*60).toFixed(1)} min/unit</div>
                             )}
-                            <div style={{ fontSize:11,color:"#8898aa",minWidth:80 }}>{bo.updated_at ? new Date(bo.updated_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—"}</div>
+                            <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#8898aa",minWidth:80 }}>{bo.updated_at ? new Date(bo.updated_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—"}</div>
                           </div>
                         );
                       })}
@@ -16339,7 +16380,7 @@ function BOMManager({ user }) {
           return (
           <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Play Testing</h2>
-            <p style={{ fontSize:14,color:"#64748d",marginBottom:20 }}>Assign finished builds to testers and track feedback.</p>
+            <p style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d",marginBottom:20 }}>Assign finished builds to testers and track feedback.</p>
 
             {/* ── Summary cards ── */}
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))",gap:16,marginBottom:28 }}>
@@ -16347,11 +16388,11 @@ function BOMManager({ user }) {
                 { label:"Active Tests", value:activeTests.length, color:activeTests.length>0?"#ff9500":"#34c759" },
                 { label:"Testers", value:activeTesters.length, color:"#58a6ff" },
                 { label:"Awaiting Feedback", value:playTests.filter(t=>t.status==="in_testing").length, color:"#7ab8d4" },
-                { label:"Returned", value:returnedTests.length, color:"#64748d" },
+                { label:"Returned", value:returnedTests.length, color:darkMode?"#8a93a3":"#64748d" },
                 { label:"Avg Rating", value: (() => { const rated = playTests.filter(t=>t.rating); return rated.length ? (rated.reduce((s,t)=>s+t.rating,0)/rated.length).toFixed(1) : "—"; })(), color:"#34c759" },
               ].map(card => (
                 <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:cardBorder }}>
-                  <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
+                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
                   <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
                 </div>
               ))}
@@ -16362,29 +16403,29 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer" }}
                 onClick={() => setPlayTestersPanelOpen(!playTestersPanelOpen)}>
                 <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>Play Testers ({activeTesters.length} active)</div>
-                <span style={{ fontSize:18,color:"#64748d",transform:playTestersPanelOpen?"rotate(180deg)":"none",transition:"transform 0.2s" }}>&#9662;</span>
+                <span style={{ fontSize:18,color:darkMode?"#8a93a3":"#64748d",transform:playTestersPanelOpen?"rotate(180deg)":"none",transition:"transform 0.2s" }}>&#9662;</span>
               </div>
               {playTestersPanelOpen && (
                 <div style={{ marginTop:16 }}>
                   {/* Add new tester form */}
                   <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr auto",gap:8,marginBottom:16,alignItems:"end" }}>
                     <div>
-                      <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Name *</div>
+                      <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Name *</div>
                       <input style={inputStyle} placeholder="Full name" value={newPlayTester.name}
                         onChange={e => setNewPlayTester(f=>({...f,name:e.target.value}))} />
                     </div>
                     <div>
-                      <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Email</div>
+                      <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Email</div>
                       <input style={inputStyle} placeholder="email@example.com" value={newPlayTester.email}
                         onChange={e => setNewPlayTester(f=>({...f,email:e.target.value}))} />
                     </div>
                     <div>
-                      <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Phone</div>
+                      <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Phone</div>
                       <input style={inputStyle} placeholder="(555) 123-4567" value={newPlayTester.phone}
                         onChange={e => setNewPlayTester(f=>({...f,phone:e.target.value}))} />
                     </div>
                     <div>
-                      <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Notes</div>
+                      <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Notes</div>
                       <input style={inputStyle} placeholder="e.g. Genre, location" value={newPlayTester.notes}
                         onChange={e => setNewPlayTester(f=>({...f,notes:e.target.value}))} />
                     </div>
@@ -16394,7 +16435,7 @@ function BOMManager({ user }) {
                     </button>
                   </div>
                   {/* Tester list */}
-                  {playTesters.length === 0 && <div style={{ fontSize:13,color:"#64748d",textAlign:"center",padding:20 }}>No play testers yet. Add one above.</div>}
+                  {playTesters.length === 0 && <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",textAlign:"center",padding:20 }}>No play testers yet. Add one above.</div>}
                   {playTesters.map(tester => (
                     <div key={tester.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderTop:darkMode?"1px solid #161a22":"1px solid #f0f0f2" }}>
                       <div style={{ width:32,height:32,borderRadius:"50%",background:tester.active !== false?"#58a6ff":"#64748d",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:13,fontWeight:700,flexShrink:0 }}>
@@ -16402,12 +16443,12 @@ function BOMManager({ user }) {
                       </div>
                       <div style={{ flex:1,minWidth:0 }}>
                         <div style={{ fontSize:14,fontWeight:600,color:textPrimary }}>{tester.name}</div>
-                        <div style={{ fontSize:11,color:"#64748d" }}>
+                        <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>
                           {[tester.email, tester.phone].filter(Boolean).join(" · ") || "No contact info"}
                           {tester.notes && ` — ${tester.notes}`}
                         </div>
                       </div>
-                      <div style={{ fontSize:11,color:"#64748d" }}>
+                      <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>
                         {playTests.filter(t => t.play_tester_id === tester.id).length} tests
                       </div>
                       <button onClick={async () => {
@@ -16436,21 +16477,21 @@ function BOMManager({ user }) {
               <div style={{ fontSize:16,fontWeight:700,color:textPrimary,marginBottom:14 }}>New Play Test</div>
               <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr auto",gap:8,alignItems:"end" }}>
                 <div>
-                  <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Product *</div>
+                  <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Product *</div>
                   <select style={selectStyle} value={newPlayTest.product_id} onChange={e => setNewPlayTest(f=>({...f,product_id:e.target.value}))}>
                     <option value="">Select product…</option>
                     {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Tester *</div>
+                  <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Tester *</div>
                   <select style={selectStyle} value={newPlayTest.play_tester_id} onChange={e => setNewPlayTest(f=>({...f,play_tester_id:e.target.value}))}>
                     <option value="">Select tester…</option>
                     {activeTesters.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Build Order</div>
+                  <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Build Order</div>
                   <select style={selectStyle} value={newPlayTest.build_order_id} onChange={e => setNewPlayTest(f=>({...f,build_order_id:e.target.value}))}>
                     <option value="">None (optional)</option>
                     {buildOrders.filter(b => !newPlayTest.product_id || b.product_id === newPlayTest.product_id).map(b => {
@@ -16460,12 +16501,12 @@ function BOMManager({ user }) {
                   </select>
                 </div>
                 <div>
-                  <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Serial #</div>
+                  <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Serial #</div>
                   <input style={inputStyle} placeholder="S/N (optional)" value={newPlayTest.serial_number}
                     onChange={e => setNewPlayTest(f=>({...f,serial_number:e.target.value}))} />
                 </div>
                 <div>
-                  <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Due Date</div>
+                  <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Due Date</div>
                   <input type="date" style={inputStyle} value={newPlayTest.due_date}
                     onChange={e => setNewPlayTest(f=>({...f,due_date:e.target.value}))} />
                 </div>
@@ -16500,7 +16541,7 @@ function BOMManager({ user }) {
 
             {/* ── Play Tests List ── */}
             {filteredTests.length === 0 && (
-              <div style={{ textAlign:"center",padding:40,color:"#64748d",fontSize:14 }}>
+              <div style={{ textAlign:"center",padding:40,color:darkMode?"#8a93a3":"#64748d",fontSize:14 }}>
                 {playTestFilter === "active" ? "No active play tests. Create one above." : "No play tests found."}
               </div>
             )}
@@ -16526,14 +16567,14 @@ function BOMManager({ user }) {
                         </span>
                         {isOverdue && <span style={{ fontSize:11,fontWeight:700,padding:"2px 10px",borderRadius:100,background:"#ff3b3018",color:"#ff3b30" }}>Overdue</span>}
                       </div>
-                      <div style={{ fontSize:13,color:"#64748d",display:"flex",gap:16,flexWrap:"wrap" }}>
+                      <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",display:"flex",gap:16,flexWrap:"wrap" }}>
                         <span>Tester: <strong style={{ color:textPrimary }}>{tester?.name || "Unknown"}</strong></span>
                         {test.serial_number && <span>S/N: <strong style={{ color:textPrimary }}>{test.serial_number}</strong></span>}
                         {bo && <span>Build: qty {bo.quantity}</span>}
                         {test.due_date && <span>Due: {new Date(test.due_date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
                         {test.tracking_number && <span>Tracking: {test.tracking_number}</span>}
                       </div>
-                      {test.notes && <div style={{ fontSize:12,color:"#64748d",marginTop:4,fontStyle:"italic" }}>{test.notes}</div>}
+                      {test.notes && <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:4,fontStyle:"italic" }}>{test.notes}</div>}
                       {/* Feedback display */}
                       {(test.rating || test.passed !== null || test.feedback) && (
                         <div style={{ marginTop:8,padding:"8px 12px",borderRadius:8,background:darkMode?"#161a22":"#fafbfc",fontSize:12 }}>
@@ -16590,7 +16631,7 @@ function BOMManager({ user }) {
                       <div style={{ fontSize:13,fontWeight:700,color:textPrimary,marginBottom:10 }}>Record Feedback</div>
                       <div style={{ display:"grid",gridTemplateColumns:"auto auto 1fr",gap:12,alignItems:"center" }}>
                         <div>
-                          <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase" }}>Rating</div>
+                          <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase" }}>Rating</div>
                           <div style={{ display:"flex",gap:2 }}>
                             {[1,2,3,4,5].map(n => (
                               <button key={n} onClick={() => setPlayTestFeedback(f=>({...f,rating:f.rating===n?0:n}))}
@@ -16602,7 +16643,7 @@ function BOMManager({ user }) {
                           </div>
                         </div>
                         <div>
-                          <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase" }}>Result</div>
+                          <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase" }}>Result</div>
                           <div style={{ display:"flex",gap:4 }}>
                             <button onClick={() => setPlayTestFeedback(f=>({...f,passed:f.passed===true?null:true}))}
                               style={{ fontSize:12,padding:"5px 12px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:700,
@@ -16617,7 +16658,7 @@ function BOMManager({ user }) {
                           </div>
                         </div>
                         <div>
-                          <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase" }}>Feedback Notes</div>
+                          <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase" }}>Feedback Notes</div>
                           <textarea style={{ ...inputStyle, minHeight:60,resize:"vertical" }} placeholder="Tester's feedback, observations, issues found…"
                             value={playTestFeedback.feedback} onChange={e => setPlayTestFeedback(f=>({...f,feedback:e.target.value}))} />
                         </div>
@@ -16703,7 +16744,7 @@ function BOMManager({ user }) {
           return (
           <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Boxing</h2>
-            <p style={{ fontSize:14,color:"#64748d",marginBottom:20 }}>Package completed, play-tested units into boxes for shipping. Units must be built and play tested before boxing.</p>
+            <p style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d",marginBottom:20 }}>Package completed, play-tested units into boxes for shipping. Units must be built and play tested before boxing.</p>
 
             {/* ── Summary cards ── */}
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))",gap:16,marginBottom:28 }}>
@@ -16712,10 +16753,10 @@ function BOMManager({ user }) {
                 { label:"In Progress", value:boxingTasks.filter(t=>t.status==="in_progress").length, color:"#58a6ff" },
                 { label:"Boxed Today", value:todayBoxed, color:"#34c759" },
                 { label:"Ready to Box", value:eligibleBuildOrders.length, color:"#7ab8d4" },
-                { label:"Total Completed", value:completedTasks.reduce((s,t)=>s+(t.completed_count||t.quantity||0),0), color:"#64748d" },
+                { label:"Total Completed", value:completedTasks.reduce((s,t)=>s+(t.completed_count||t.quantity||0),0), color:darkMode?"#8a93a3":"#64748d" },
               ].map(card => (
                 <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:cardBorder }}>
-                  <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
+                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
                   <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
                 </div>
               ))}
@@ -16725,14 +16766,14 @@ function BOMManager({ user }) {
             <div style={{ background:cardBg,borderRadius:14,padding:"18px 22px",marginBottom:20,border:cardBorder }}>
               <div style={{ fontSize:16,fontWeight:700,color:textPrimary,marginBottom:14 }}>New Boxing Task</div>
               {eligibleBuildOrders.length === 0 ? (
-                <div style={{ padding:20,textAlign:"center",color:"#64748d",fontSize:13,background:darkMode?"#161a22":"#fafbfc",borderRadius:10 }}>
+                <div style={{ padding:20,textAlign:"center",color:darkMode?"#8a93a3":"#64748d",fontSize:13,background:darkMode?"#161a22":"#fafbfc",borderRadius:10 }}>
                   No build orders are ready for boxing. A build order must be <strong>completed</strong> and its product must have at least one <strong>play test with feedback</strong> before it can be boxed.
                 </div>
               ) : (
                 <>
                   <div style={{ display:"grid",gridTemplateColumns:"1.5fr 1fr 0.5fr 0.8fr 0.8fr auto",gap:8,alignItems:"end" }}>
                     <div>
-                      <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Build Order *</div>
+                      <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Build Order *</div>
                       <select style={selectStyle} value={newBoxingTask.build_order_id} onChange={e => {
                         const bo = buildOrders.find(b => b.id === e.target.value);
                         setNewBoxingTask(f => ({ ...f, build_order_id: e.target.value, quantity: bo ? String(bo.quantity - (boxedQtyByBO[bo.id] || 0)) : "", for_order: bo?.for_order || "" }));
@@ -16746,19 +16787,19 @@ function BOMManager({ user }) {
                       </select>
                     </div>
                     <div>
-                      <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Assign To *</div>
+                      <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Assign To *</div>
                       <select style={selectStyle} value={newBoxingTask.team_member_id} onChange={e => setNewBoxingTask(f=>({...f,team_member_id:e.target.value}))}>
                         <option value="">Select team member…</option>
                         {activeMembers.map(m => <option key={m.id} value={m.id}>{m.name} ({m.role || "assembler"})</option>)}
                       </select>
                     </div>
                     <div>
-                      <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Qty</div>
+                      <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Qty</div>
                       <input type="number" min="1" style={inputStyle} placeholder="qty" value={newBoxingTask.quantity}
                         onChange={e => setNewBoxingTask(f=>({...f,quantity:e.target.value}))} />
                     </div>
                     <div>
-                      <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Priority</div>
+                      <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Priority</div>
                       <select style={selectStyle} value={newBoxingTask.priority} onChange={e => setNewBoxingTask(f=>({...f,priority:e.target.value}))}>
                         <option value="low">Low</option>
                         <option value="normal">Normal</option>
@@ -16767,7 +16808,7 @@ function BOMManager({ user }) {
                       </select>
                     </div>
                     <div>
-                      <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Due Date</div>
+                      <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Due Date</div>
                       <input type="date" style={inputStyle} value={newBoxingTask.due_date}
                         onChange={e => setNewBoxingTask(f=>({...f,due_date:e.target.value}))} />
                     </div>
@@ -16814,7 +16855,7 @@ function BOMManager({ user }) {
                                 onMouseEnter={e => e.currentTarget.style.background=darkMode?"#1f2530":"#f6f9fc"}
                                 onMouseLeave={e => e.currentTarget.style.background="transparent"}>
                                 <div style={{ fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{o.label}</div>
-                                {o.sub && <div style={{ fontSize:11,color:"#64748d" }}>{o.sub}</div>}
+                                {o.sub && <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>{o.sub}</div>}
                               </div>
                             ))}
                           </div>
@@ -16846,7 +16887,7 @@ function BOMManager({ user }) {
 
             {/* ── Boxing Tasks List ── */}
             {filteredTasks.length === 0 && (
-              <div style={{ textAlign:"center",padding:40,color:"#64748d",fontSize:14 }}>
+              <div style={{ textAlign:"center",padding:40,color:darkMode?"#8a93a3":"#64748d",fontSize:14 }}>
                 {boxingFilter === "active" ? "No active boxing tasks." : "No boxing tasks found."}
               </div>
             )}
@@ -16874,13 +16915,13 @@ function BOMManager({ user }) {
                         </span>
                         {isOverdue && <span style={{ fontSize:11,fontWeight:700,padding:"2px 10px",borderRadius:100,background:"#ff3b3018",color:"#ff3b30" }}>Overdue</span>}
                       </div>
-                      <div style={{ fontSize:13,color:"#64748d",display:"flex",gap:16,flexWrap:"wrap" }}>
+                      <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",display:"flex",gap:16,flexWrap:"wrap" }}>
                         <span>Assigned: <strong style={{ color:textPrimary }}>{member?.name || "Unassigned"}</strong></span>
                         <span>Qty: <strong style={{ color:textPrimary }}>{task.completed_count || 0} / {task.quantity}</strong></span>
                         {task.for_order && <span>PO: <strong style={{ color:textPrimary }}>{task.for_order}</strong></span>}
                         {task.due_date && <span>Due: {new Date(task.due_date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
                       </div>
-                      {task.notes && <div style={{ fontSize:12,color:"#64748d",marginTop:4,fontStyle:"italic" }}>{task.notes}</div>}
+                      {task.notes && <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:4,fontStyle:"italic" }}>{task.notes}</div>}
                       {/* Progress bar */}
                       {task.quantity > 0 && (
                         <div style={{ marginTop:10,display:"flex",alignItems:"center",gap:10 }}>
@@ -17099,7 +17140,7 @@ function BOMManager({ user }) {
           return (
           <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Finished Goods Shelf</h2>
-            <p style={{ fontSize:14,color:"#64748d",marginBottom:20 }}>Track completed units on the shelf. Units are added automatically when boxing tasks complete.</p>
+            <p style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d",marginBottom:20 }}>Track completed units on the shelf. Units are added automatically when boxing tasks complete.</p>
 
             {/* ── Restock Needed ── */}
             {(() => {
@@ -17159,7 +17200,7 @@ function BOMManager({ user }) {
                         <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
                           <div style={{ width:10,height:10,borderRadius:"50%",background:prod.color||"#ff9500",flexShrink:0 }} />
                           <div style={{ fontSize:14,fontWeight:700,color:textPrimary }}>{prod.name}</div>
-                          {prod.brand && <div style={{ fontSize:10,color:"#64748d",marginLeft:"auto",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>{prod.brand}</div>}
+                          {prod.brand && <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginLeft:"auto",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>{prod.brand}</div>}
                         </div>
                         {/* Ordering status banners */}
                         {rstStatus && (
@@ -17176,7 +17217,7 @@ function BOMManager({ user }) {
                                     <div style={{ fontSize:12,fontWeight:700,color: rstStatus.status === 'ordered' ? "#166534" : "#bf6800" }}>
                                       {rstStatus.status === 'ordered' ? "Parts ordered — awaiting delivery" : "Parts queued for ordering"}
                                     </div>
-                                    <div style={{ fontSize:10,color:"#64748d" }}>
+                                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>
                                       {rstStatus.qty} units · {new Date(rstStatus.since).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}
                                     </div>
                                   </div>
@@ -17190,7 +17231,7 @@ function BOMManager({ user }) {
                                       return next;
                                     });
                                   }}
-                                  title="Clear" style={{ background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#64748d",padding:"2px 4px",lineHeight:1 }}>✕</button>
+                                  title="Clear" style={{ background:"none",border:"none",cursor:"pointer",fontSize:12,color:darkMode?"#8a93a3":"#64748d",padding:"2px 4px",lineHeight:1 }}>✕</button>
                               </div>
                             )}
                             {/* Internal shop order statuses */}
@@ -17206,7 +17247,7 @@ function BOMManager({ user }) {
                                     <span style={{ fontSize:13 }}>{SHOP_ICONS[key]||"🏭"}</span>
                                     <div>
                                       <div style={{ fontSize:12,fontWeight:700,color:c }}>{io.label} — work order queued</div>
-                                      <div style={{ fontSize:10,color:"#64748d" }}>
+                                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>
                                         {new Date(io.since).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}
                                       </div>
                                     </div>
@@ -17220,7 +17261,7 @@ function BOMManager({ user }) {
                                         return next;
                                       });
                                     }}
-                                    title="Clear" style={{ background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#64748d",padding:"2px 4px",lineHeight:1 }}>✕</button>
+                                    title="Clear" style={{ background:"none",border:"none",cursor:"pointer",fontSize:12,color:darkMode?"#8a93a3":"#64748d",padding:"2px 4px",lineHeight:1 }}>✕</button>
                                 </div>
                               );
                             })}
@@ -17228,17 +17269,17 @@ function BOMManager({ user }) {
                         )}
                         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12,fontSize:12 }}>
                           <div>
-                            <span style={{ color:"#64748d" }}>Current stock: </span>
+                            <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Current stock: </span>
                             <span style={{ fontWeight:700,color:urgencyColor }}>
                               {qty} units{burnDays !== null ? ` (${burnDays < 1 ? "<1d" : burnDays > 999 ? "999d+" : `${burnDays}d`} left)` : ""}
                             </span>
                           </div>
                           <div>
-                            <span style={{ color:"#64748d" }}>Min threshold: </span>
+                            <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Min threshold: </span>
                             <span style={{ fontWeight:700,color:textPrimary }}>{min} units</span>
                           </div>
                           <div style={{ gridColumn:"1/-1" }}>
-                            <span style={{ color:"#64748d" }}>Velocity: </span>
+                            <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Velocity: </span>
                             <span style={{ fontWeight:600,color:textPrimary }}>
                               {vpd > 0 ? `${vpd.toFixed(2)} units/day avg` : unitsSold30d > 0 ? `~${unitsSold30d} units/30d` : "No sales data"}
                             </span>
@@ -17249,12 +17290,12 @@ function BOMManager({ user }) {
                             Suggested build: <span style={{ fontSize:16 }}>{suggested}</span> units
                           </div>
                           {unitsSold30d > 0 && (
-                            <div style={{ fontSize:11,color:"#64748d",marginTop:3 }}>
+                            <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:3 }}>
                               Based on ~{unitsSold30d} units sold in the last 30 days
                             </div>
                           )}
                           {unitsSold30d === 0 && (
-                            <div style={{ fontSize:11,color:"#64748d",marginTop:3 }}>
+                            <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:3 }}>
                               Minimum 50-unit build (no recent sales data)
                             </div>
                           )}
@@ -17273,10 +17314,10 @@ function BOMManager({ user }) {
                                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
                                   <thead>
                                     <tr style={{ background:darkMode?"#0f1218":"#fafbfc",borderBottom:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
-                                      <th style={{ textAlign:"left",padding:"5px 8px",fontWeight:700,color:"#64748d",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Part</th>
-                                      <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#64748d",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Have</th>
-                                      <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#64748d",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Need</th>
-                                      <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:"#64748d",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Short</th>
+                                      <th style={{ textAlign:"left",padding:"5px 8px",fontWeight:700,color:darkMode?"#8a93a3":"#64748d",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Part</th>
+                                      <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:darkMode?"#8a93a3":"#64748d",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Have</th>
+                                      <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:darkMode?"#8a93a3":"#64748d",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Need</th>
+                                      <th style={{ textAlign:"center",padding:"5px 8px",fontWeight:700,color:darkMode?"#8a93a3":"#64748d",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em" }}>Short</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -17286,7 +17327,7 @@ function BOMManager({ user }) {
                                           {p.part.mpn || p.part.description || p.part.reference || "?"}
                                         </td>
                                         <td style={{ padding:"5px 8px",textAlign:"center",color: p.stock >= p.totalNeeded ? "#34c759" : "#ff3b30",fontWeight:600 }}>{p.stock}</td>
-                                        <td style={{ padding:"5px 8px",textAlign:"center",color:"#64748d" }}>{p.totalNeeded}</td>
+                                        <td style={{ padding:"5px 8px",textAlign:"center",color:darkMode?"#8a93a3":"#64748d" }}>{p.totalNeeded}</td>
                                         <td style={{ padding:"5px 8px",textAlign:"center",color: p.shortfall > 0 ? "#ff3b30" : "#34c759",fontWeight:700 }}>
                                           {p.shortfall > 0 ? `-${p.shortfall}` : "✓"}
                                         </td>
@@ -17295,7 +17336,7 @@ function BOMManager({ user }) {
                                   </tbody>
                                 </table>
                               </div>
-                              {partsNeeded.length > 5 && <div style={{ fontSize:10,color:"#64748d",marginTop:4 }}>+{partsNeeded.length - 5} more parts</div>}
+                              {partsNeeded.length > 5 && <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginTop:4 }}>+{partsNeeded.length - 5} more parts</div>}
                             </details>
                           );
                         })()}
@@ -17333,7 +17374,7 @@ function BOMManager({ user }) {
                 { label:"At/Above Target", value:finishedGoods.filter(r=>r.target_stock!=null&&(r.quantity_on_hand||0)>=r.target_stock).length, color:"#34c759" },
               ].map(card => (
                 <div key={card.label} style={{ background:cardBg,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",border:cardBorder }}>
-                  <div style={{ fontSize:10,color:"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
+                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8 }}>{card.label}</div>
                   <div style={{ fontSize:28,fontWeight:800,color:card.color,fontFamily:"'IBM Plex Sans',system-ui,sans-serif",letterSpacing:"-0.5px" }}>{card.value}</div>
                 </div>
               ))}
@@ -17344,7 +17385,7 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:feasibilityResults ? 16 : 0 }}>
                 <div>
                   <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>What Can I Build Today?</div>
-                  <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>Calculates max units buildable per product based on available stock (minus reservations).</div>
+                  <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>Calculates max units buildable per product based on available stock (minus reservations).</div>
                 </div>
                 <button onClick={handleFeasibilityCheck} disabled={feasibilityLoading}
                   style={{ padding:"10px 24px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:"#58a6ff",color:"#fff",fontFamily:"inherit",whiteSpace:"nowrap" }}>
@@ -17352,7 +17393,7 @@ function BOMManager({ user }) {
                 </button>
               </div>
               {feasibilityResults && feasibilityResults.length === 0 && (
-                <div style={{ fontSize:13,color:"#64748d",textAlign:"center",padding:20 }}>No products with BOMs found.</div>
+                <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",textAlign:"center",padding:20 }}>No products with BOMs found.</div>
               )}
               {feasibilityResults && feasibilityResults.length > 0 && (
                 <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14 }}>
@@ -17363,7 +17404,7 @@ function BOMManager({ user }) {
                         <div style={{ fontSize:14,fontWeight:700,color:textPrimary }}>{r.product.name}</div>
                       </div>
                       <div style={{ fontSize:26,fontWeight:800,color:r.maxBuildable>0?"#34c759":"#ff3b30",fontFamily:"'IBM Plex Sans',system-ui,sans-serif",marginBottom:6 }}>
-                        {r.maxBuildable} <span style={{ fontSize:13,fontWeight:400,color:"#64748d" }}>can build</span>
+                        {r.maxBuildable} <span style={{ fontSize:13,fontWeight:400,color:darkMode?"#8a93a3":"#64748d" }}>can build</span>
                       </div>
                       {r.maxBuildable === 0 && r.blockingParts.length > 0 && (
                         <div style={{ fontSize:11,color:"#ff3b30",marginBottom:6 }}>
@@ -17395,7 +17436,7 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom: shelfScanMode ? 16 : 0 }}>
                 <div>
                   <div style={{ fontSize:16,fontWeight:700,color:textPrimary }}>Scan Out — Fulfillment</div>
-                  <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>Remove finished units from shelf when shipping.</div>
+                  <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>Remove finished units from shelf when shipping.</div>
                 </div>
                 <button onClick={() => { setShelfScanMode(!shelfScanMode); setShelfScanBarcode(false); setShelfScanProduct(""); setShelfScanQty("1"); }}
                   style={{ padding:"10px 22px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,background:shelfScanMode?"#ff3b30":"#7ab8d4",color:"#fff",fontFamily:"inherit",minHeight:44 }}>
@@ -17429,11 +17470,11 @@ function BOMManager({ user }) {
                               <div style={{ padding:"12px 16px",borderRadius:10,background:"#34c75915",border:"1px solid #34c75944",marginBottom:12 }}>
                                 <div style={{ fontSize:13,fontWeight:700,color:"#34c759" }}>
                                   ✓ {products.find(p=>p.id===shelfScanProduct)?.name || shelfScanProduct}
-                                  <span style={{ fontSize:12,fontWeight:400,color:"#64748d",marginLeft:8 }}>
+                                  <span style={{ fontSize:12,fontWeight:400,color:darkMode?"#8a93a3":"#64748d",marginLeft:8 }}>
                                     {fgMap[shelfScanProduct]?.quantity_on_hand ?? 0} on shelf
                                   </span>
                                 </div>
-                                <button style={{ fontSize:11,color:"#64748d",background:"none",border:"none",cursor:"pointer",padding:0,marginTop:4 }} onClick={() => setShelfScanProduct("")}>
+                                <button style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",background:"none",border:"none",cursor:"pointer",padding:0,marginTop:4 }} onClick={() => setShelfScanProduct("")}>
                                   Clear — scan a different product
                                 </button>
                               </div>
@@ -17461,7 +17502,7 @@ function BOMManager({ user }) {
                                 else { showToast(`No product found for barcode: ${sku}`, "#ff9500"); }
                               }}
                             />
-                            <div style={{ fontSize:11,color:"#64748d",marginTop:8,textAlign:"center" }}>
+                            <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:8,textAlign:"center" }}>
                               Point the camera at a product barcode/QR to auto-select
                             </div>
                           </div>
@@ -17470,7 +17511,7 @@ function BOMManager({ user }) {
                     </div>
                   ) : (
                     <div style={{ marginBottom:16 }}>
-                      <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</div>
+                      <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Product</div>
                       <select style={{ ...inputStyle2, fontSize:15, padding:"12px 14px" }} value={shelfScanProduct} onChange={e => setShelfScanProduct(e.target.value)}>
                         <option value="">Select product…</option>
                         {products.map(p => {
@@ -17484,7 +17525,7 @@ function BOMManager({ user }) {
                   {shelfScanProduct && (
                     <div style={{ display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap" }}>
                       <div style={{ flex:"0 0 120px" }}>
-                        <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Qty to Remove</div>
+                        <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Qty to Remove</div>
                         <input type="number" min="1" style={{ ...inputStyle2, fontSize:20, fontWeight:800, textAlign:"center", padding:"12px 14px" }}
                           value={shelfScanQty} onChange={e => setShelfScanQty(e.target.value)} placeholder="1" />
                       </div>
@@ -17535,7 +17576,7 @@ function BOMManager({ user }) {
                   background:cardBg,color:textPrimary,outline:"none",boxSizing:"border-box",fontFamily:"inherit" }} />
               {shelfSearch && (
                 <span onClick={() => setShelfSearch("")}
-                  style={{ position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#64748d",lineHeight:1 }}>✕</span>
+                  style={{ position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:darkMode?"#8a93a3":"#64748d",lineHeight:1 }}>✕</span>
               )}
             </div>
 
@@ -17547,12 +17588,12 @@ function BOMManager({ user }) {
               filtered.forEach(p => { const b = p.brand || "Jackson Audio"; (brandGroups[b] = brandGroups[b] || []).push(p); });
               const brands = Object.keys(brandGroups).sort();
               if (filtered.length === 0) return (
-                <div style={{ textAlign:"center",padding:"40px 0",color:"#64748d",fontSize:13 }}>No products match "{shelfSearch}"</div>
+                <div style={{ textAlign:"center",padding:"40px 0",color:darkMode?"#8a93a3":"#64748d",fontSize:13 }}>No products match "{shelfSearch}"</div>
               );
               return brands.map(brand => (
                 <details key={brand} style={{ marginBottom:20 }} open>
                   <summary style={{ listStyle:"none",cursor:"pointer",userSelect:"none",
-                    fontSize:11,fontWeight:700,color:"#64748d",letterSpacing:"0.08em",textTransform:"uppercase",
+                    fontSize:11,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",letterSpacing:"0.08em",textTransform:"uppercase",
                     padding:"8px 14px",background:darkMode?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)",
                     borderRadius:10,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",
                     display:"flex",alignItems:"center",gap:6 }}>
@@ -17564,7 +17605,7 @@ function BOMManager({ user }) {
                       <thead>
                         <tr style={{ borderBottom:`1px solid ${darkMode?"#1f2530":"#e5e5ea"}` }}>
                           {["","Product","On Hand","Target","Min","Status","Actions"].map(h => (
-                            <th key={h} style={{ textAlign:"left",padding:"8px 14px",fontSize:10,fontWeight:700,color:"#64748d",
+                            <th key={h} style={{ textAlign:"left",padding:"8px 14px",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",
                               letterSpacing:"0.06em",textTransform:"uppercase",
                               fontFamily:"'IBM Plex Sans',system-ui,sans-serif",whiteSpace:"nowrap" }}>{h}</th>
                           ))}
@@ -17642,13 +17683,13 @@ function BOMManager({ user }) {
                       {shelfAddModal.action === 'add' ? 'Add to Shelf' : 'Remove from Shelf'} — {prod?.name}
                     </div>
                     <div style={{ marginBottom:14 }}>
-                      <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase" }}>Quantity</div>
+                      <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase" }}>Quantity</div>
                       <input type="number" min="1" autoFocus style={inputStyle2} value={shelfAdjQty}
                         onChange={e => setShelfAdjQty(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') handleShelfAdj(); }} />
                     </div>
                     <div style={{ marginBottom:20 }}>
-                      <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:4,textTransform:"uppercase" }}>Notes (optional)</div>
+                      <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase" }}>Notes (optional)</div>
                       <input style={inputStyle2} value={shelfAdjNotes} onChange={e => setShelfAdjNotes(e.target.value)} placeholder="Reason / order ref…" />
                     </div>
                     <div style={{ display:"flex",gap:10 }}>
@@ -17686,21 +17727,21 @@ function BOMManager({ user }) {
                         <div style={{ fontSize:20,fontWeight:800,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif",marginBottom:4 }}>
                           Parts Pre-Flight — {product.name}
                         </div>
-                        <div style={{ fontSize:13,color:"#64748d" }}>
+                        <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>
                           Build quantity: <strong>{quantity} units</strong>
                           {" · "}{bomRows.length} BOM line{bomRows.length!==1?"s":""}
                           {" · "}Can build right now: <strong style={{ color:maxBuildable>0?"#34c759":"#ff3b30" }}>{maxBuildable}</strong>
                         </div>
                       </div>
                       <button onClick={() => setRestockPreflight(null)}
-                        style={{ padding:"6px 10px",borderRadius:8,border:"1px solid #e3e8ee",background:"transparent",cursor:"pointer",fontSize:16,color:"#64748d",lineHeight:1 }}>✕</button>
+                        style={{ padding:"6px 10px",borderRadius:8,border:"1px solid #e3e8ee",background:"transparent",cursor:"pointer",fontSize:16,color:darkMode?"#8a93a3":"#64748d",lineHeight:1 }}>✕</button>
                     </div>
 
                     {/* Status banner */}
                     {bomRows.length === 0 ? (
                       <div style={{ background:darkMode?"#161a22":"#fafbfc",border:"1px solid #e3e8ee",borderRadius:12,padding:"16px",marginBottom:18,textAlign:"center" }}>
-                        <div style={{ fontSize:14,fontWeight:700,color:"#64748d" }}>⚠ No BOM found for this product</div>
-                        <div style={{ fontSize:12,color:"#64748d",marginTop:4 }}>Add components in the Products tab before creating a build order.</div>
+                        <div style={{ fontSize:14,fontWeight:700,color:darkMode?"#8a93a3":"#64748d" }}>⚠ No BOM found for this product</div>
+                        <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:4 }}>Add components in the Products tab before creating a build order.</div>
                       </div>
                     ) : canBuildNow ? (
                       <div style={{ background:"#f0fdf4",border:"1px solid #34c759",borderRadius:12,padding:"12px 16px",marginBottom:18,display:"flex",alignItems:"center",gap:10 }}>
@@ -17715,7 +17756,7 @@ function BOMManager({ user }) {
                             {totalShort} part{totalShort!==1?"s":""} short — cannot build all {quantity} units today
                           </div>
                         </div>
-                        <div style={{ fontSize:12,color:"#64748d",lineHeight:"18px" }}>
+                        <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",lineHeight:"18px" }}>
                           With current available stock you can build <strong style={{ color:"#ff9500" }}>{maxBuildable}</strong> unit{maxBuildable!==1?"s":""}.
                           {" "}You can create the build order now to lock in a plan and trigger purchasing, or wait until the missing parts arrive.
                         </div>
@@ -17733,7 +17774,7 @@ function BOMManager({ user }) {
                             <thead>
                               <tr style={{ background:"#fff5f5",borderBottom:"1px solid #ffd5d5" }}>
                                 {["Part / MPN","Ref","On Hand","Reserved","Available","Per Unit","Total Need","Short"].map(h => (
-                                  <th key={h} style={{ textAlign:"left",padding:"7px 10px",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap" }}>{h}</th>
+                                  <th key={h} style={{ textAlign:"left",padding:"7px 10px",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap" }}>{h}</th>
                                 ))}
                               </tr>
                             </thead>
@@ -17743,12 +17784,12 @@ function BOMManager({ user }) {
                                   <td style={{ padding:"8px 10px",fontWeight:600,color:darkMode?"#f6f9fc":"#061b31",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
                                     {r.part.mpn || r.part.description || "?"}
                                   </td>
-                                  <td style={{ padding:"8px 10px",color:"#64748d",fontSize:11 }}>{r.part.reference || "—"}</td>
-                                  <td style={{ padding:"8px 10px",color:"#64748d" }}>{r.stock}</td>
+                                  <td style={{ padding:"8px 10px",color:darkMode?"#8a93a3":"#64748d",fontSize:11 }}>{r.part.reference || "—"}</td>
+                                  <td style={{ padding:"8px 10px",color:darkMode?"#8a93a3":"#64748d" }}>{r.stock}</td>
                                   <td style={{ padding:"8px 10px",color:r.reserved>0?"#ff9500":"#64748d" }}>{r.reserved||"—"}</td>
                                   <td style={{ padding:"8px 10px",fontWeight:600,color:r.available>0?"#ff9500":"#ff3b30" }}>{r.available}</td>
-                                  <td style={{ padding:"8px 10px",color:"#64748d" }}>{r.need}</td>
-                                  <td style={{ padding:"8px 10px",color:"#64748d" }}>{r.totalNeeded}</td>
+                                  <td style={{ padding:"8px 10px",color:darkMode?"#8a93a3":"#64748d" }}>{r.need}</td>
+                                  <td style={{ padding:"8px 10px",color:darkMode?"#8a93a3":"#64748d" }}>{r.totalNeeded}</td>
                                   <td style={{ padding:"8px 10px",fontWeight:800,color:"#ff3b30",whiteSpace:"nowrap" }}>−{r.short}</td>
                                 </tr>
                               ))}
@@ -17770,7 +17811,7 @@ function BOMManager({ user }) {
                             <thead>
                               <tr style={{ background:"#f0fdf4",borderBottom:"1px solid #d1fae5" }}>
                                 {["Part / MPN","Available","Need Total"].map(h => (
-                                  <th key={h} style={{ textAlign:"left",padding:"6px 10px",fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>{h}</th>
+                                  <th key={h} style={{ textAlign:"left",padding:"6px 10px",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em" }}>{h}</th>
                                 ))}
                               </tr>
                             </thead>
@@ -17779,7 +17820,7 @@ function BOMManager({ user }) {
                                 <tr key={r.part.id} style={{ borderBottom:i<okRows.length-1?"1px solid #ecfdf5":"none" }}>
                                   <td style={{ padding:"6px 10px",fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{r.part.mpn || r.part.description || r.part.reference || "?"}</td>
                                   <td style={{ padding:"6px 10px",color:"#34c759",fontWeight:600 }}>{r.available}</td>
-                                  <td style={{ padding:"6px 10px",color:"#64748d" }}>{r.totalNeeded}</td>
+                                  <td style={{ padding:"6px 10px",color:darkMode?"#8a93a3":"#64748d" }}>{r.totalNeeded}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -17815,7 +17856,7 @@ function BOMManager({ user }) {
                               <span style={{ fontSize:16 }}>{shop.icon}</span>
                               <div style={{ flex:1 }}>
                                 <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{shop.label}</div>
-                                <div style={{ fontSize:11,color:"#64748d" }}>{shop.desc}</div>
+                                <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>{shop.desc}</div>
                               </div>
                               {alreadyQueued && (
                                 <div style={{ fontSize:10,fontWeight:700,color:shop.color,background:`${shop.color}18`,padding:"2px 8px",borderRadius:100,whiteSpace:"nowrap" }}>
@@ -17970,7 +18011,7 @@ function BOMManager({ user }) {
           return (
           <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:28,fontWeight:700,letterSpacing:"-0.5px",color:textPrimary,marginBottom:4 }}>Pipeline</h2>
-            <p style={{ fontSize:14,color:"#64748d",marginBottom:20 }}>Track every serialized unit from build through play test, boxing, and shipment. Auto-assigned through the pipeline.</p>
+            <p style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d",marginBottom:20 }}>Track every serialized unit from build through play test, boxing, and shipment. Auto-assigned through the pipeline.</p>
 
             {/* ── Pipeline Summary ── */}
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(120px, 1fr))",gap:12,marginBottom:28 }}>
@@ -17990,7 +18031,7 @@ function BOMManager({ user }) {
               <div style={{ position:"relative",flex:1,maxWidth:400 }}>
                 <input style={{ ...inputStyle, width:"100%", paddingRight:pipelineSearch?28:12 }} placeholder="Search by S/N, product, tester, customer, dealer…"
                   value={pipelineSearch} onChange={e => setPipelineSearch(e.target.value)} />
-                {pipelineSearch && <span onClick={()=>setPipelineSearch("")} style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:"#64748d",lineHeight:1 }}>✕</span>}
+                {pipelineSearch && <span onClick={()=>setPipelineSearch("")} style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:14,color:darkMode?"#8a93a3":"#64748d",lineHeight:1 }}>✕</span>}
               </div>
               {pipelineFilter !== "all" && (
                 <button onClick={() => setPipelineFilter("all")}
@@ -17998,7 +18039,7 @@ function BOMManager({ user }) {
                   Clear Filter
                 </button>
               )}
-              <span style={{ fontSize:12,color:"#64748d" }}>{filtered.length} units</span>
+              <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>{filtered.length} units</span>
               <div style={{ display:"flex",gap:6,marginLeft:"auto" }}>
                 <button onClick={() => setSimMode(!simMode)}
                   style={{ fontSize:11,padding:"6px 14px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:600,
@@ -18040,7 +18081,7 @@ function BOMManager({ user }) {
                 <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12 }}>
                   <div>
                     <div style={{ fontSize:15,fontWeight:700,color:"#ff9500" }}>Pipeline Simulator</div>
-                    <div style={{ fontSize:11,color:"#64748d",marginTop:2 }}>Test the full workflow: Build → Play Test → Box → Ship — without affecting real data</div>
+                    <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>Test the full workflow: Build → Play Test → Box → Ship — without affecting real data</div>
                   </div>
                   <button onClick={() => { setSimMode(false); setSimLog([]); }}
                     style={{ fontSize:11,padding:"5px 12px",borderRadius:100,border:"none",cursor:"pointer",fontWeight:600,background:"#ff3b30",color:"#fff" }}>
@@ -18153,10 +18194,10 @@ function BOMManager({ user }) {
                 {/* Simulation log */}
                 {simLog.length > 0 && (
                   <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:10,padding:12,maxHeight:180,overflowY:"auto",border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
-                    <div style={{ fontSize:10,fontWeight:700,color:"#64748d",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em" }}>Simulation Log</div>
+                    <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em" }}>Simulation Log</div>
                     {simLog.map((entry, i) => (
                       <div key={i} style={{ fontSize:11,color:entry.color || textPrimary,marginBottom:3,fontFamily:"SF Mono,Menlo,monospace" }}>
-                        <span style={{ color:"#8898aa",marginRight:8 }}>{entry.time}</span>
+                        <span style={{ color:darkMode?"#8a93a3":"#8898aa",marginRight:8 }}>{entry.time}</span>
                         {entry.msg}
                       </div>
                     ))}
@@ -18169,7 +18210,7 @@ function BOMManager({ user }) {
             {/* ── Unit Cards ── */}
             <div style={{ display:"grid",gap:8,marginBottom:40 }}>
               {filtered.length === 0 && (
-                <div style={{ textAlign:"center",padding:40,color:"#64748d",fontSize:14 }}>
+                <div style={{ textAlign:"center",padding:40,color:darkMode?"#8a93a3":"#64748d",fontSize:14 }}>
                   {pedalUnits.length === 0 ? "No pedal units yet. Units are auto-created when build orders complete." : "No units match the current filter."}
                 </div>
               )}
@@ -18187,14 +18228,14 @@ function BOMManager({ user }) {
                       <div style={{ display:"flex",alignItems:"center",gap:12,flex:1,minWidth:200 }}>
                         <div>
                           <span style={{ fontSize:14,fontWeight:700,color:textPrimary,fontFamily:"SF Mono,monospace" }}>{unit.serial_number || "No S/N"}</span>
-                          <span style={{ marginLeft:10,fontSize:13,color:"#64748d" }}>{prod?.name || "?"}</span>
+                          <span style={{ marginLeft:10,fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>{prod?.name || "?"}</span>
                         </div>
                         <span style={{ fontSize:10,fontWeight:700,padding:"2px 10px",borderRadius:100,
                           background:statusColors[unit.status]+"18", color:statusColors[unit.status] }}>
                           {statusLabels[unit.status] || unit.status}
                         </span>
                       </div>
-                      <div style={{ display:"flex",gap:12,fontSize:11,color:"#64748d",flexWrap:"wrap" }}>
+                      <div style={{ display:"flex",gap:12,fontSize:11,color:darkMode?"#8a93a3":"#64748d",flexWrap:"wrap" }}>
                         {builder && <span>Built: <strong style={{color:textPrimary}}>{builder.name}</strong></span>}
                         {tester && <span>Tester: <strong style={{color:textPrimary}}>{tester.name}</strong></span>}
                         {unit.playtest_passed !== null && <span style={{color:unit.playtest_passed?"#34c759":"#ff3b30",fontWeight:700}}>{unit.playtest_passed?"PASS":"FAIL"}</span>}
@@ -18273,7 +18314,7 @@ function BOMManager({ user }) {
                   </div>
                 );
               })}
-              {filtered.length > 100 && <div style={{ textAlign:"center",fontSize:12,color:"#64748d",padding:10 }}>Showing first 100 of {filtered.length} units. Use search to narrow results.</div>}
+              {filtered.length > 100 && <div style={{ textAlign:"center",fontSize:12,color:darkMode?"#8a93a3":"#64748d",padding:10 }}>Showing first 100 of {filtered.length} units. Use search to narrow results.</div>}
             </div>
 
             {/* ══════════════════════════════════════
@@ -18281,7 +18322,7 @@ function BOMManager({ user }) {
             ══════════════════════════════════════ */}
             <div style={{ borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",paddingTop:28 }}>
               <h3 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:22,fontWeight:700,color:textPrimary,marginBottom:4 }}>Packing List</h3>
-              <p style={{ fontSize:13,color:"#64748d",marginBottom:16 }}>Generate a packing list for an order showing every serial number, who built it, who play tested it, and who boxed it.</p>
+              <p style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginBottom:16 }}>Generate a packing list for an order showing every serial number, who built it, who play tested it, and who boxed it.</p>
 
               <div style={{ display:"flex",gap:10,marginBottom:20,alignItems:"center" }}>
                 <select style={{ ...inputStyle, maxWidth:300 }} value={packingListOrder} onChange={e => setPackingListOrder(e.target.value)}>
@@ -18367,13 +18408,13 @@ function BOMManager({ user }) {
               {packingListOrder && (
                 <div style={{ background:cardBg,borderRadius:14,padding:"18px 22px",border:cardBorder }}>
                   {packingUnits.length === 0 ? (
-                    <div style={{ textAlign:"center",padding:20,color:"#64748d",fontSize:13 }}>No boxed/shipped units found for order "{packingListOrder}". Units must be boxed before they appear on the packing list.</div>
+                    <div style={{ textAlign:"center",padding:20,color:darkMode?"#8a93a3":"#64748d",fontSize:13 }}>No boxed/shipped units found for order "{packingListOrder}". Units must be boxed before they appear on the packing list.</div>
                   ) : (
                     <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                       <thead>
                         <tr>
                           {["Serial Number","Product","Built By","Play Tested By","Boxed By","Customer / Dealer"].map(h => (
-                            <th key={h} style={{ textAlign:"left",padding:"8px 12px",borderBottom:darkMode?"2px solid #1f2530":"2px solid #e3e8ee",fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",color:"#64748d",fontWeight:700 }}>{h}</th>
+                            <th key={h} style={{ textAlign:"left",padding:"8px 12px",borderBottom:darkMode?"2px solid #1f2530":"2px solid #e3e8ee",fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",color:darkMode?"#8a93a3":"#64748d",fontWeight:700 }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -18406,7 +18447,7 @@ function BOMManager({ user }) {
             ══════════════════════════════════════ */}
             <div style={{ borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",paddingTop:28,marginTop:32 }}>
               <h3 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:22,fontWeight:700,color:textPrimary,marginBottom:4 }}>Order → Shipment Tracker</h3>
-              <p style={{ fontSize:13,color:"#64748d",marginBottom:16 }}>
+              <p style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginBottom:16 }}>
                 End-to-end thread from customer order through build, test, boxing, and shipping. See exactly where every order stands.
               </p>
 
@@ -18496,7 +18537,7 @@ function BOMManager({ user }) {
                 if (orders.length === 0) return (
                   <div style={{ background:cardBg,borderRadius:14,padding:"40px 22px",textAlign:"center",border:cardBorder,marginBottom:20 }}>
                     <div style={{ fontSize:32,marginBottom:8 }}>📦</div>
-                    <div style={{ fontSize:14,color:"#64748d" }}>No orders being tracked yet. Set "For Order" when creating build orders manually, or build orders will be auto-created when shelf stock drops below minimum threshold.</div>
+                    <div style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d" }}>No orders being tracked yet. Set "For Order" when creating build orders manually, or build orders will be auto-created when shelf stock drops below minimum threshold.</div>
                   </div>
                 );
 
@@ -18520,9 +18561,9 @@ function BOMManager({ user }) {
                                 <div style={{ display:"flex",alignItems:"center",gap:8 }}>
                                   <span style={{ fontSize:17,fontWeight:800,color:textPrimary }}>{om.ref}</span>
                                   {om.source && <span style={{ fontSize:10,padding:"2px 8px",borderRadius:4,background:om.source==="Shopify"?"#58a6ff18":"#4bc07618",color:om.source==="Shopify"?"#58a6ff":"#4bc076",fontWeight:600 }}>{om.source}</span>}
-                                  {!om.source && <span style={{ fontSize:10,padding:"2px 8px",borderRadius:4,background:"#64748d18",color:"#64748d",fontWeight:600 }}>Manual</span>}
+                                  {!om.source && <span style={{ fontSize:10,padding:"2px 8px",borderRadius:4,background:"#64748d18",color:darkMode?"#8a93a3":"#64748d",fontWeight:600 }}>Manual</span>}
                                 </div>
-                                {om.customerName && <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>{om.customerName}</div>}
+                                {om.customerName && <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>{om.customerName}</div>}
                               </div>
                               <div style={{ display:"flex",alignItems:"center",gap:8 }}>
                                 {om.allShipped && <span style={{ fontSize:12,fontWeight:700,padding:"5px 14px",borderRadius:20,background:"#34c75918",color:"#34c759" }}>Complete — All Shipped</span>}
@@ -18554,14 +18595,14 @@ function BOMManager({ user }) {
                             <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                               <thead>
                                 <tr style={{ borderBottom:darkMode?"2px solid #1f2530":"2px solid #e5e5ea" }}>
-                                  <th style={{ textAlign:"left",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Product</th>
-                                  <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Ordered</th>
+                                  <th style={{ textAlign:"left",padding:"6px 8px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Product</th>
+                                  <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Ordered</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#ff9500",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Building</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#7ab8d4",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Testing</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#34c759",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Passed</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#58a6ff",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Boxing</th>
                                   <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#00c7be",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Boxed</th>
-                                  <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Shipped</th>
+                                  <th style={{ textAlign:"center",padding:"6px 8px",fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Shipped</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -18604,13 +18645,13 @@ function BOMManager({ user }) {
             ══════════════════════════════════════ */}
             <div style={{ borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",paddingTop:28,marginTop:32 }}>
               <h3 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:22,fontWeight:700,color:textPrimary,marginBottom:4 }}>Product Registrations</h3>
-              <p style={{ fontSize:13,color:"#64748d",marginBottom:16 }}>
+              <p style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginBottom:16 }}>
                 Customers who scanned the QR code on their pedal and registered. Auto-synced to Klaviyo.
                 <span style={{ marginLeft:8,fontWeight:600 }}>{productRegistrations.length} total</span>
               </p>
 
               {productRegistrations.length === 0 ? (
-                <div style={{ textAlign:"center",padding:30,color:"#64748d",fontSize:13,background:darkMode?"#0f1218":"#fafbfc",borderRadius:10 }}>
+                <div style={{ textAlign:"center",padding:30,color:darkMode?"#8a93a3":"#64748d",fontSize:13,background:darkMode?"#0f1218":"#fafbfc",borderRadius:10 }}>
                   No registrations yet. Once customers scan QR codes on their pedals, their info will appear here and sync to Klaviyo.
                 </div>
               ) : (
@@ -18619,26 +18660,26 @@ function BOMManager({ user }) {
                     <thead>
                       <tr>
                         {["Date","S/N","Product","Brand","Customer","Email","Phone","Purchased From"].map(h => (
-                          <th key={h} style={{ textAlign:"left",padding:"10px 12px",borderBottom:darkMode?"2px solid #1f2530":"2px solid #e3e8ee",fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",color:"#64748d",fontWeight:700 }}>{h}</th>
+                          <th key={h} style={{ textAlign:"left",padding:"10px 12px",borderBottom:darkMode?"2px solid #1f2530":"2px solid #e3e8ee",fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",color:darkMode?"#8a93a3":"#64748d",fontWeight:700 }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {productRegistrations.slice(0, 50).map(reg => (
                         <tr key={reg.id}>
-                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:"#64748d",fontSize:11,whiteSpace:"nowrap" }}>{new Date(reg.registered_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:darkMode?"#8a93a3":"#64748d",fontSize:11,whiteSpace:"nowrap" }}>{new Date(reg.registered_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                           <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",fontFamily:"SF Mono,monospace",fontWeight:700,color:textPrimary,fontSize:11 }}>{reg.serial_number}</td>
                           <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:textPrimary }}>{reg.product_name}</td>
-                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:"#64748d",fontSize:11 }}>{reg.brand}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:darkMode?"#8a93a3":"#64748d",fontSize:11 }}>{reg.brand}</td>
                           <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:textPrimary,fontWeight:600 }}>{reg.customer_name}</td>
                           <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:textPrimary }}><a href={`mailto:${reg.customer_email}`} style={{ color:"#58a6ff",textDecoration:"none" }}>{reg.customer_email}</a></td>
-                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:"#64748d" }}>{reg.customer_phone || "—"}</td>
-                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:"#64748d" }}>{reg.purchased_from || "—"}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:darkMode?"#8a93a3":"#64748d" }}>{reg.customer_phone || "—"}</td>
+                          <td style={{ padding:"8px 12px",borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2",color:darkMode?"#8a93a3":"#64748d" }}>{reg.purchased_from || "—"}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  {productRegistrations.length > 50 && <div style={{ padding:10,textAlign:"center",fontSize:11,color:"#64748d" }}>Showing first 50 of {productRegistrations.length}</div>}
+                  {productRegistrations.length > 50 && <div style={{ padding:10,textAlign:"center",fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>Showing first 50 of {productRegistrations.length}</div>}
                 </div>
               )}
             </div>
@@ -18729,7 +18770,7 @@ function BOMManager({ user }) {
               <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:24 }}>
                 <div>
                   <h2 style={{ margin:0, fontSize:22, fontWeight:700, color:darkMode?"#e8ebf0":"#061b31" }}>Repair Workflow</h2>
-                  <div style={{ fontSize:13, color:"#64748d", marginTop:3 }}>
+                  <div style={{ fontSize:13, color:darkMode?"#8a93a3":"#64748d", marginTop:3 }}>
                     {openRepairs.length} open · {repairs.filter(r=>r.status==="shipped_back").length} shipped back · {repairs.length} total
                   </div>
                 </div>
@@ -18762,7 +18803,7 @@ function BOMManager({ user }) {
               </div>
                 <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"flex-start" }}>
                   <div style={{ flex:"0 0 220px" }}>
-                    <div style={{ fontSize:11, color:"#64748d", marginBottom:4 }}>Serial Number</div>
+                    <div style={{ fontSize:11, color:darkMode?"#8a93a3":"#64748d", marginBottom:4 }}>Serial Number</div>
                     <input
                       type="text"
                       placeholder="e.g. PRISM-0042"
@@ -18781,7 +18822,7 @@ function BOMManager({ user }) {
                     )}
                   </div>
                   <div style={{ flex:"1 1 300px" }}>
-                    <div style={{ fontSize:11, color:"#64748d", marginBottom:4 }}>Fault Description</div>
+                    <div style={{ fontSize:11, color:darkMode?"#8a93a3":"#64748d", marginBottom:4 }}>Fault Description</div>
                     <input
                       type="text"
                       placeholder="What's wrong with this unit?"
@@ -18818,7 +18859,7 @@ function BOMManager({ user }) {
                     style={{ padding:"5px 30px 5px 12px", borderRadius:8, border:"1px solid #e3e8ee", fontSize:12, width:230 }} />
                   {repairSearch && (
                     <button onClick={() => setRepairSearch("")}
-                      style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:"#64748d", fontSize:14, padding:0, lineHeight:1 }}>×</button>
+                      style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:darkMode?"#8a93a3":"#64748d", fontSize:14, padding:0, lineHeight:1 }}>×</button>
                   )}
                 </div>
                 {/* Select All / Delete */}
@@ -18840,7 +18881,7 @@ function BOMManager({ user }) {
 
               {/* ── Repairs Table */}
               {filteredRepairs.length === 0 ? (
-                <div style={{ textAlign:"center", padding:"48px 0", color:"#8898aa", fontSize:14 }}>
+                <div style={{ textAlign:"center", padding:"48px 0", color:darkMode?"#8a93a3":"#8898aa", fontSize:14 }}>
                   {repairFilter === "open" ? "No open repairs 🎉" : "No repairs found"}
                 </div>
               ) : (
@@ -18849,12 +18890,12 @@ function BOMManager({ user }) {
                     <thead>
                       <tr style={{ background:darkMode?"#161a22":"#fafbfc", borderBottom:"1px solid #f0f0f2" }}>
                         <th style={{ padding:"10px 14px", width:32 }}></th>
-                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#64748d", fontWeight:600 }}>Serial</th>
-                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#64748d", fontWeight:600 }}>Product</th>
-                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#64748d", fontWeight:600 }}>Status</th>
-                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#64748d", fontWeight:600 }}>Fault</th>
-                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#64748d", fontWeight:600 }}>Age</th>
-                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:"#64748d", fontWeight:600 }}>History</th>
+                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:darkMode?"#8a93a3":"#64748d", fontWeight:600 }}>Serial</th>
+                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:darkMode?"#8a93a3":"#64748d", fontWeight:600 }}>Product</th>
+                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:darkMode?"#8a93a3":"#64748d", fontWeight:600 }}>Status</th>
+                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:darkMode?"#8a93a3":"#64748d", fontWeight:600 }}>Fault</th>
+                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:darkMode?"#8a93a3":"#64748d", fontWeight:600 }}>Age</th>
+                        <th style={{ padding:"10px 14px", textAlign:"left", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", color:darkMode?"#8a93a3":"#64748d", fontWeight:600 }}>History</th>
                         <th style={{ padding:"10px 14px" }}></th>
                       </tr>
                     </thead>
@@ -18876,14 +18917,14 @@ function BOMManager({ user }) {
                               <input type="checkbox" checked={repairSelected.has(r.id)} onChange={()=>{}} style={{ cursor:"pointer", width:14, height:14 }} />
                             </td>
                             <td style={{ padding:"10px 14px", fontFamily:"monospace", fontWeight:600, color:darkMode?"#e8ebf0":"#061b31", fontSize:12 }}>{r.serial_number}</td>
-                            <td style={{ padding:"10px 14px", color:darkMode?"#e8ebf0":"#061b31" }}>{prod?.name || <span style={{color:"#8898aa"}}>Unknown</span>}</td>
+                            <td style={{ padding:"10px 14px", color:darkMode?"#e8ebf0":"#061b31" }}>{prod?.name || <span style={{color:darkMode?"#8a93a3":"#8898aa"}}>Unknown</span>}</td>
                             <td style={{ padding:"10px 14px" }}>
                               <span style={{ background:sc.bg, color:sc.color, borderRadius:100, padding:"3px 10px", fontSize:11, fontWeight:600, whiteSpace:"nowrap" }}>{sc.label}</span>
                             </td>
                             <td style={{ padding:"10px 14px", color:"#3c3c43", maxWidth:260, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                              {r.fault_description || <span style={{color:"#8898aa"}}>—</span>}
+                              {r.fault_description || <span style={{color:darkMode?"#8a93a3":"#8898aa"}}>—</span>}
                             </td>
-                            <td style={{ padding:"10px 14px", color:"#64748d", whiteSpace:"nowrap" }}>{ageDays(r.created_at)}</td>
+                            <td style={{ padding:"10px 14px", color:darkMode?"#8a93a3":"#64748d", whiteSpace:"nowrap" }}>{ageDays(r.created_at)}</td>
                             <td style={{ padding:"10px 14px" }}>
                               {historyCount > 0 && (
                                 <span style={{ background:"#ffe5e5", color:"#ff3b30", borderRadius:100, padding:"2px 8px", fontSize:11, fontWeight:600 }}>⚠ {historyCount} prior</span>
@@ -19254,7 +19295,7 @@ function BOMManager({ user }) {
                   <input type="text" placeholder="Search dealers…"
                     value={dealerSearch} onChange={e => setDealerSearch(e.target.value)}
                     style={{ padding:"5px 10px", paddingRight:dealerSearch?24:10, borderRadius:5, width:220, fontSize:12, boxSizing:"border-box" }} />
-                  {dealerSearch && <span onClick={() => setDealerSearch("")} style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", cursor:"pointer", fontSize:14, color:"#64748d", lineHeight:1 }}>✕</span>}
+                  {dealerSearch && <span onClick={() => setDealerSearch("")} style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", cursor:"pointer", fontSize:14, color:darkMode?"#8a93a3":"#64748d", lineHeight:1 }}>✕</span>}
                 </div>
                 <div style={{ display:"flex", gap:4 }}>
                   {[["all","All"],["Jackson Audio","JA"],["Fulltone USA","Fulltone"],["Both","Both"]].map(([val,label]) => (
@@ -19266,7 +19307,7 @@ function BOMManager({ user }) {
                     </button>
                   ))}
                 </div>
-                <span style={{ fontSize:12, color:"#64748d" }}>{visibleDealerCount}/{dealers.length}</span>
+                <span style={{ fontSize:12, color:darkMode?"#8a93a3":"#64748d" }}>{visibleDealerCount}/{dealers.length}</span>
                 <div style={{ marginLeft:"auto", display:"flex", gap:6, alignItems:"center" }}>
                   {lastCsvImport && (
                     <button className="btn-ghost btn-sm" onClick={undoLastImport} style={{ color:"#ff453a", borderColor:"#ff453a44" }}>↩ Undo Import</button>
@@ -19490,7 +19531,7 @@ function BOMManager({ user }) {
                                   ) : (
                                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16, fontSize:12 }}>
                                       <div>
-                                        <div style={{ fontSize:10, color:"#64748d", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Contact</div>
+                                        <div style={{ fontSize:10, color:darkMode?"#8a93a3":"#64748d", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Contact</div>
                                         <div style={{ color:textPrimary, lineHeight:"18px" }}>
                                           {d.contact_name && <div style={{ fontWeight:600 }}>{d.contact_name}</div>}
                                           {d.email && <div><a href={"mailto:"+d.email} style={{ color:"#58a6ff", textDecoration:"none" }}>{d.email}</a></div>}
@@ -19503,7 +19544,7 @@ function BOMManager({ user }) {
                                         </div>
                                       </div>
                                       <div>
-                                        <div style={{ fontSize:10, color:"#64748d", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Ship To</div>
+                                        <div style={{ fontSize:10, color:darkMode?"#8a93a3":"#64748d", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Ship To</div>
                                         {d.shipping_address?.street ? (
                                           <div style={{ color:textPrimary, lineHeight:"18px" }}>
                                             {d.shipping_address.attention && <div>{d.shipping_address.attention}</div>}
@@ -19514,7 +19555,7 @@ function BOMManager({ user }) {
                                         ) : <div style={{ color:textSecondary }}>No address on file</div>}
                                       </div>
                                       <div>
-                                        <div style={{ fontSize:10, color:"#64748d", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Bill To</div>
+                                        <div style={{ fontSize:10, color:darkMode?"#8a93a3":"#64748d", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Bill To</div>
                                         {d.billing_address?.street ? (
                                           <div style={{ color:textPrimary, lineHeight:"18px" }}>
                                             {d.billing_address.attention && <div>{d.billing_address.attention}</div>}
@@ -19810,7 +19851,7 @@ function BOMManager({ user }) {
         {activeView === "settings" && (
           <div style={{ maxWidth:"100%" }}>
             <h2 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:21,fontWeight:800,marginBottom:6,color:darkMode?"#e8ebf0":"#061b31" }}>Settings</h2>
-            <p style={{ color:"#64748d",fontSize:13,marginBottom:16 }}>
+            <p style={{ color:darkMode?"#8a93a3":"#64748d",fontSize:13,marginBottom:16 }}>
               Keys are stored in the shared team database — one set for everyone.
             </p>
             {/* ── Settings Tab Bar ── */}
@@ -19866,7 +19907,7 @@ function BOMManager({ user }) {
                 <label style={{ display:"block",fontSize:13,fontWeight:600,color:"#3a3f51",marginBottom:6 }}>Company Address</label>
                 <textarea style={{ width:"100%",padding:"8px 12px",border:"1px solid #e3e8ee",borderRadius:8,fontSize:14,minHeight:80,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit" }}
                   value={apiKeys.company_address ?? ""} onChange={e => setApiKeys(k => ({ ...k, company_address: e.target.value }))} placeholder="123 Main St&#10;City, ST 12345&#10;USA" />
-                <p style={{ fontSize:12,color:"#64748d",marginTop:8 }}>This address appears as the "Ship To" on purchase orders.</p>
+                <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:8 }}>This address appears as the "Ship To" on purchase orders.</p>
                 <label style={{ display:"block",fontSize:13,fontWeight:600,color:"#3a3f51",marginBottom:6,marginTop:14 }}>Timezone</label>
                 <select style={{ width:"100%",padding:"8px 12px",border:"1px solid #e3e8ee",borderRadius:8,fontSize:14,marginBottom:8,boxSizing:"border-box" }}
                   value={apiKeys.timezone || "America/Chicago"} onChange={e => setApiKeys(k => ({ ...k, timezone: e.target.value }))}>
@@ -19892,7 +19933,7 @@ function BOMManager({ user }) {
                       <span style={{ fontSize:13,color:"#3a3f51" }}>%</span>
                     </div>
                   </div>
-                  <p style={{ fontSize:12,color:"#64748d",marginTop:6 }}>If this supplier's price is within the margin % of the cheapest, they win the order automatically.</p>
+                  <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:6 }}>If this supplier's price is within the margin % of the cheapest, they win the order automatically.</p>
                 </div>
                 <div style={{ borderTop:"1px solid #f0f0f2",marginTop:16,paddingTop:16 }}>
                   <label style={{ display:"block",fontSize:13,fontWeight:600,color:"#3a3f51",marginBottom:6 }}>Reel Order Threshold ($/pc)</label>
@@ -19903,7 +19944,7 @@ function BOMManager({ user }) {
                       onChange={e => setApiKeys(k => ({ ...k, reel_order_threshold: e.target.value }))} />
                     <span style={{ fontSize:13,color:"#3a3f51" }}>per unit</span>
                   </div>
-                  <p style={{ fontSize:12,color:"#64748d",marginTop:6 }}>Parts at or above this price per unit will prompt for reel vs. cut tape in Purchasing. Parts below this threshold always order the full reel automatically.</p>
+                  <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:6 }}>Parts at or above this price per unit will prompt for reel vs. cut tape in Purchasing. Parts below this threshold always order the full reel automatically.</p>
                 </div>
                 {sectionSaveBtn("company", "Company Info")}
               </div>}
@@ -19945,7 +19986,7 @@ function BOMManager({ user }) {
                     </div>
                   </div>
                   {!collapsedSettings.has("distributors") && <div style={{ padding:"12px 20px" }}>
-                    <div style={{ display:"flex",gap:8,marginBottom:6,fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em" }}>
+                    <div style={{ display:"flex",gap:8,marginBottom:6,fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.06em" }}>
                       <div style={{ width:50,textAlign:"center" }}>Pref</div>
                       <div style={{ width:120 }}>Raw Key</div>
                       <div style={{ flex:1 }}>Display Name</div>
@@ -19968,7 +20009,7 @@ function BOMManager({ user }) {
                               }}
                               style={{ width:16,height:16,cursor:"pointer",accentColor:"#34c759" }} />
                           </div>
-                          <div style={{ width:120,fontSize:11,color:"#64748d",fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }} title={key}>{key}</div>
+                          <div style={{ width:120,fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }} title={key}>{key}</div>
                           <input style={{ flex:1,padding:"4px 8px",border:"1px solid #e3e8ee",borderRadius:5,fontSize:12,boxSizing:"border-box" }}
                             value={nameOverrides[key] ?? distMap[key] ?? ""}
                             onChange={e => {
@@ -20011,10 +20052,10 @@ function BOMManager({ user }) {
                         </div>
                       );})}
                     </div>
-                    <p style={{ fontSize:11,color:"#64748d",marginTop:8 }}>
+                    <p style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:8 }}>
                       Order Mode: <strong style={{ color:"#34c759" }}>API</strong> = direct API ordering &middot;
                       <strong style={{ color:"#58a6ff" }}> Rep</strong> = email PO to sales rep &middot;
-                      <strong style={{ color:"#64748d" }}> Manual</strong> = order on supplier website
+                      <strong style={{ color:darkMode?"#8a93a3":"#64748d" }}> Manual</strong> = order on supplier website
                     </p>
                     {sectionSaveBtn("distributors", "Distributors")}
                   </div>}
@@ -20032,7 +20073,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("nexar") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:12 }}>
                   One API covers Mouser, Digi-Key, Arrow, LCSC, Allied + 900 more. Free: 1,000 parts/month.
                   <a href="https://nexar.com" target="_blank" rel="noopener noreferrer"
                     style={{ marginLeft:6,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>nexar.com →</a>
@@ -20064,7 +20105,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("mouser") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:12 }}>
                   Deeper Mouser-specific pricing + Cart/Order API.
                   <a href="https://www.mouser.com/api-hub/" target="_blank" rel="noopener noreferrer"
                     style={{ marginLeft:6,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>mouser.com/api-hub →</a>
@@ -20096,7 +20137,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("digikey") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:12 }}>
                   OAuth2 client credentials.
                   <a href="https://developer.digikey.com" target="_blank" rel="noopener noreferrer"
                     style={{ marginLeft:6,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>developer.digikey.com →</a>
@@ -20128,7 +20169,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("arrow") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:12 }}>
                   Requires login + API key.
                   <a href="https://developers.arrow.com" target="_blank" rel="noopener noreferrer"
                     style={{ marginLeft:6,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>developers.arrow.com →</a>
@@ -20160,7 +20201,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("ti") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:12 }}>
                   Requires both Client ID (API Key) and Client Secret from your myTI dashboard → API Keys &amp; Access.
                   <a href="https://www.ti.com/myti/docs/overview.page" target="_blank" rel="noopener noreferrer"
                     style={{ marginLeft:6,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>ti.com/myti →</a>
@@ -20192,7 +20233,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("lcsc") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:12 }}>
                   Direct pricing and stock from LCSC. Requires formal application — email <strong>support@lcsc.com</strong> with your company info and website. They'll issue a key + secret once approved.
                   <a href="https://www.lcsc.com/docs/index.html" target="_blank" rel="noopener noreferrer"
                     style={{ marginLeft:6,color:"#58a6ff",textDecoration:"none",fontWeight:500 }}>LCSC API Docs →</a>
@@ -20224,7 +20265,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("mcmaster") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:12 }}>
                   Direct pricing and availability from McMaster-Carr via mTLS client certificate. The cert is stored server-side in Vercel — no key to enter here.
                   <br /><br />
                   <strong>Setup:</strong> In Vercel → Project Settings → Environment Variables, add:
@@ -20251,7 +20292,7 @@ function BOMManager({ user }) {
                 {(() => { const s = getShopifyStores(); return s.length > 0 ? <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>{s.length} store{s.length !== 1 ? "s" : ""}</span> : null; })()}
               </div>
               {!collapsedSettings.has("shopify") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:12 }}>
                   Connect one or more Shopify stores. Create an app in the Dev Dashboard with <strong>read_orders</strong> and <strong>read_products</strong> scopes, then copy the Client ID and Secret from Settings.
                 </div>
                 {(() => {
@@ -20317,7 +20358,7 @@ function BOMManager({ user }) {
                 {apiKeys.zoho_client_id && apiKeys.zoho_refresh_token && <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>Configured</span>}
               </div>
               {!collapsedSettings.has("zoho") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:14 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:14 }}>
                   Zoho only allows <strong>one Self Client</strong> per account — one set of credentials works for all your Zoho Books companies.
                   Get credentials from{" "}
                   <a href="https://api-console.zoho.com" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}>api-console.zoho.com</a>
@@ -20329,20 +20370,20 @@ function BOMManager({ user }) {
                   <div style={{ fontSize:12,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",marginBottom:10 }}>Shared API Credentials</div>
                   <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8 }}>
                     <div>
-                      <div style={{ fontSize:10,color:"#64748d",marginBottom:2 }}>Client ID</div>
+                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:2 }}>Client ID</div>
                       <input type="text" placeholder="From API Console → Self Client" value={apiKeys.zoho_client_id||""}
                         onChange={e=>setApiKeys(k=>({...k,zoho_client_id:e.target.value}))}
                         style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #e3e8ee",boxSizing:"border-box" }} />
                     </div>
                     <div>
-                      <div style={{ fontSize:10,color:"#64748d",marginBottom:2 }}>Client Secret</div>
+                      <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:2 }}>Client Secret</div>
                       <input type="password" placeholder="From API Console → Self Client" value={apiKeys.zoho_client_secret||""}
                         onChange={e=>setApiKeys(k=>({...k,zoho_client_secret:e.target.value}))}
                         style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #e3e8ee",boxSizing:"border-box" }} />
                     </div>
                   </div>
                   <div style={{ marginBottom:8 }}>
-                    <div style={{ fontSize:10,color:"#64748d",marginBottom:2 }}>Refresh Token</div>
+                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",marginBottom:2 }}>Refresh Token</div>
                     <input type="password" placeholder="Long-lived refresh token (exchange a grant code below to get this)" value={apiKeys.zoho_refresh_token||""}
                       onChange={e=>setApiKeys(k=>({...k,zoho_refresh_token:e.target.value}))}
                       style={{ width:"100%",padding:"6px 10px",borderRadius:5,fontSize:12,border:"1px solid #e3e8ee",boxSizing:"border-box",fontFamily:"monospace" }} />
@@ -20389,7 +20430,7 @@ function BOMManager({ user }) {
                           }
                         }}>Exchange →</button>
                     </div>
-                    <div style={{ fontSize:10,color:"#64748d" }}>
+                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>
                       API Console → Self Client → Generate Code → scope: <code style={{ background:"#f0f0f2",padding:"1px 4px",borderRadius:3 }}>ZohoBooks.salesorders.READ,ZohoBooks.contacts.READ</code>
                     </div>
                   </div>
@@ -20397,7 +20438,7 @@ function BOMManager({ user }) {
 
                 {/* ── Per-company org IDs */}
                 <div style={{ fontSize:12,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",marginBottom:8 }}>Companies (Org IDs)</div>
-                <div style={{ fontSize:11,color:"#64748d",marginBottom:10 }}>
+                <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginBottom:10 }}>
                   Same credentials above are used for all companies. Just enter each company's Org ID — found in Zoho Books → Settings → Organization Profile.
                 </div>
                 {(() => {
@@ -20451,7 +20492,7 @@ function BOMManager({ user }) {
                 {apiKeys.gmail_refresh_token && <span style={{ fontSize:11,fontWeight:600,color:"#fff" }}>Configured</span>}
               </div>
               {!collapsedSettings.has("gmail") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:12 }}>
                   Connects to <strong>support@jacksonaudio.net</strong> so you can scan incoming emails and create repair tickets directly.<br />
                   Get credentials from{" "}
                   <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}>Google Cloud Console</a>
@@ -20461,19 +20502,19 @@ function BOMManager({ user }) {
                 </div>
                 <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
                   <div>
-                    <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"#64748d",marginBottom:4 }}>Client ID</div>
+                    <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:darkMode?"#8a93a3":"#64748d",marginBottom:4 }}>Client ID</div>
                     <input type="text" placeholder="xxxx.apps.googleusercontent.com" value={apiKeys.gmail_client_id||""}
                       onChange={e => setApiKeys(prev => ({ ...prev, gmail_client_id:e.target.value }))}
                       style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #e3e8ee",fontSize:12,boxSizing:"border-box" }} />
                   </div>
                   <div>
-                    <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"#64748d",marginBottom:4 }}>Client Secret</div>
+                    <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:darkMode?"#8a93a3":"#64748d",marginBottom:4 }}>Client Secret</div>
                     <input type="password" placeholder="GOCSPX-…" value={apiKeys.gmail_client_secret||""}
                       onChange={e => setApiKeys(prev => ({ ...prev, gmail_client_secret:e.target.value }))}
                       style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #e3e8ee",fontSize:12,boxSizing:"border-box" }} />
                   </div>
                   <div>
-                    <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"#64748d",marginBottom:4 }}>Refresh Token</div>
+                    <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:darkMode?"#8a93a3":"#64748d",marginBottom:4 }}>Refresh Token</div>
                     <input type="password" placeholder="1//0g…" value={apiKeys.gmail_refresh_token||""}
                       onChange={e => setApiKeys(prev => ({ ...prev, gmail_refresh_token:e.target.value }))}
                       style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #e3e8ee",fontSize:12,boxSizing:"border-box" }} />
@@ -20493,14 +20534,14 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("shipping") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:12 }}>
                   Used by the simulator to compare consolidation strategies. Adjust to match your actual rates.
                 </div>
                 <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
                   {SUPPLIERS.map((s) => (
                     <div key={s.id} style={{ display:"flex",alignItems:"center",gap:6 }}>
                       <span style={{ fontSize:12,color:"#3a3f51",fontWeight:600,minWidth:70 }}>{s.name}</span>
-                      <span style={{ fontSize:11,color:"#8898aa" }}>$</span>
+                      <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#8898aa" }}>$</span>
                       <input type="number" step="0.01" min="0" value={s.shipping}
                         onChange={(e) => {
                           const v = parseFloat(e.target.value)||0;
@@ -20514,7 +20555,7 @@ function BOMManager({ user }) {
                     </div>
                   ))}
                 </div>
-                <div style={{ fontSize:11,color:"#8898aa",marginTop:8 }}>
+                <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#8898aa",marginTop:8 }}>
                   Default for unlisted distributors: {"$"}{DEFAULT_SHIPPING.toFixed(2)}
                 </div>
                 {sectionSaveBtn("shipping", "Shipping Costs")}
@@ -20531,40 +20572,40 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("shipstation") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:12 }}>
                   Track units shipped via ShipStation. Go to Settings → Account → API Settings in your ShipStation account to find these credentials.
                 </div>
                 <div style={{ display:"flex",gap:12,flexWrap:"wrap",marginBottom:8 }}>
                   <div style={{ flex:1,minWidth:200 }}>
-                    <label style={{ fontSize:11,color:"#50617a",marginBottom:2,display:"block" }}>API Key</label>
+                    <label style={{ fontSize:11,color:darkMode?"#b8bfcc":"#50617a",marginBottom:2,display:"block" }}>API Key</label>
                     <input value={apiKeys.shipstation_api_key||""} onChange={e => setApiKeys(k=>({...k,shipstation_api_key:e.target.value}))}
                       style={{ width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #d1d1d6",fontSize:12,fontFamily:"monospace" }} placeholder="Your ShipStation API Key" />
                   </div>
                   <div style={{ flex:1,minWidth:200 }}>
-                    <label style={{ fontSize:11,color:"#50617a",marginBottom:2,display:"block" }}>API Secret</label>
+                    <label style={{ fontSize:11,color:darkMode?"#b8bfcc":"#50617a",marginBottom:2,display:"block" }}>API Secret</label>
                     <input type="password" value={apiKeys.shipstation_api_secret||""} onChange={e => setApiKeys(k=>({...k,shipstation_api_secret:e.target.value}))}
                       style={{ width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #d1d1d6",fontSize:12,fontFamily:"monospace" }} placeholder="Your ShipStation API Secret" />
                   </div>
                 </div>
                 <div style={{ borderTop:"1px solid #e5e5ea",marginTop:12,paddingTop:12 }}>
-                  <div style={{ fontSize:11,color:"#50617a",fontWeight:600,marginBottom:8 }}>Fulfillment Goals (days to ship)</div>
+                  <div style={{ fontSize:11,color:darkMode?"#b8bfcc":"#50617a",fontWeight:600,marginBottom:8 }}>Fulfillment Goals (days to ship)</div>
                   <div style={{ display:"flex",gap:12,flexWrap:"wrap",marginBottom:8 }}>
                     <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                       <span style={{ fontSize:12,color:"#3a3f51",fontWeight:600,minWidth:100 }}>Direct orders</span>
                       <input type="number" min="0" step="1" value={apiKeys.direct_ship_goal||"1"}
                         onChange={e => setApiKeys(k=>({...k,direct_ship_goal:e.target.value}))}
                         style={{ width:50,padding:"4px 6px",borderRadius:4,fontSize:12,border:"1px solid #d1d1d6",textAlign:"center" }} />
-                      <span style={{ fontSize:11,color:"#64748d" }}>days</span>
+                      <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>days</span>
                     </div>
                     <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                       <span style={{ fontSize:12,color:"#3a3f51",fontWeight:600,minWidth:100 }}>Dealer orders</span>
                       <input type="number" min="0" step="1" value={apiKeys.dealer_ship_goal||"14"}
                         onChange={e => setApiKeys(k=>({...k,dealer_ship_goal:e.target.value}))}
                         style={{ width:50,padding:"4px 6px",borderRadius:4,fontSize:12,border:"1px solid #d1d1d6",textAlign:"center" }} />
-                      <span style={{ fontSize:11,color:"#64748d" }}>days</span>
+                      <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>days</span>
                     </div>
                   </div>
-                  <div style={{ fontSize:10,color:"#8898aa" }}>
+                  <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa" }}>
                     Used when no due date is set on a dealer PO. Direct defaults to same-day (1). Overdue orders are flagged red in the Demand tab.
                   </div>
                 </div>
@@ -20594,7 +20635,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("tariffs") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:12 }}>
                   Applied in the simulator when parts originate from non-US countries. Rates are % of goods value.
                 </div>
               <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
@@ -20613,7 +20654,7 @@ function BOMManager({ user }) {
                           setApiKeys(k => ({ ...k, tariffs_json: JSON.stringify(updated) }));
                         }}
                         style={{ width:52,padding:"4px 6px",borderRadius:4,fontSize:12,textAlign:"right" }} />
-                      <span style={{ fontSize:11,color:"#8898aa" }}>%</span>
+                      <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#8898aa" }}>%</span>
                     </div>
                   ));
                 })()}
@@ -20631,7 +20672,7 @@ function BOMManager({ user }) {
                   }}>
                   + Add Country
                 </button>
-                <span style={{ fontSize:10,color:"#8898aa" }}>Rates saved with your API keys</span>
+                <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa" }}>Rates saved with your API keys</span>
               </div>
               {sectionSaveBtn("tariffs", "Tariff Rates")}
               </div>}
@@ -20647,7 +20688,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("email") && <div style={{ padding:"16px 20px" }}>
-                <div style={{ fontSize:12,color:"#50617a",marginBottom:12 }}>
+                <div style={{ fontSize:12,color:darkMode?"#b8bfcc":"#50617a",marginBottom:12 }}>
                   Get daily low-stock alerts and auto-draft purchase order emails to your distributors.
                 </div>
                 <div className="key-input-row">
@@ -20659,7 +20700,7 @@ function BOMManager({ user }) {
                     onChange={(e)=>setApiKeys((k)=>({...k,notify_email:e.target.value}))}
                     style={{ padding:"8px 12px",borderRadius:6,width:"100%" }} />
                 </div>
-                <p style={{ fontSize:11,color:"#64748d",marginTop:8 }}>Distributor emails are managed in the Distributors section above.</p>
+                <p style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginTop:8 }}>Distributor emails are managed in the Distributors section above.</p>
                 {sectionSaveBtn("notifications", "Email Settings")}
                 {apiKeys.notify_email && (
                   <div style={{ marginTop:14,paddingTop:14,borderTop:"1px solid #e5e5ea" }}>
@@ -20681,7 +20722,7 @@ function BOMManager({ user }) {
                     }} style={{ fontSize:12 }}>
                       Send Test Email
                     </button>
-                    <span style={{ fontSize:11,color:"#64748d",marginLeft:8 }}>Sends a test email to {apiKeys.notify_email}</span>
+                    <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginLeft:8 }}>Sends a test email to {apiKeys.notify_email}</span>
                   </div>
                 )}
               </div>}
@@ -20698,7 +20739,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("ai") && <div style={{ padding:"16px 20px" }}>
-                <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
+                <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:14 }}>
                   Upload PDF invoices from suppliers — Claude AI extracts part numbers, quantities, and costs automatically.
                   Get your API key from <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}>console.anthropic.com</a>
                 </p>
@@ -20720,7 +20761,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("sms") && <div style={{ padding:"16px 20px" }}>
-                <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
+                <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:14 }}>
                   Text builders when they get assigned a build order, when builds complete, or when play tests fail.
                 </p>
 
@@ -20731,7 +20772,7 @@ function BOMManager({ user }) {
                       style={{ padding:"6px 16px",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid",fontFamily:"inherit",
                         ...(apiKeys.sms_provider === val || (!apiKeys.sms_provider && val === "twilio")
                           ? { background:"#58a6ff",color:"#fff",borderColor:"#58a6ff" }
-                          : { background:"none",color:"#64748d",borderColor:"#e3e8ee" }) }}>
+                          : { background:"none",color:darkMode?"#8a93a3":"#64748d",borderColor:"#e3e8ee" }) }}>
                       {label}
                     </button>
                   ))}
@@ -20739,7 +20780,7 @@ function BOMManager({ user }) {
 
                 {/* AWS SNS fields */}
                 {(apiKeys.sms_provider === "aws_sns") && (<>
-                  <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
+                  <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:14 }}>
                     Simple, reliable SMS via Amazon Web Services. No 10DLC registration needed for transactional messages.
                     Create an IAM user with <code style={{ fontSize:11,background:"#f0f0f0",padding:"1px 4px",borderRadius:3 }}>AmazonSNSFullAccess</code> permission in your{" "}
                     <a href="https://console.aws.amazon.com/iam/" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}>AWS Console</a>.
@@ -20766,7 +20807,7 @@ function BOMManager({ user }) {
 
                 {/* Twilio fields */}
                 {(apiKeys.sms_provider !== "aws_sns") && (<>
-                  <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
+                  <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:14 }}>
                     Sign up at <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}>twilio.com</a>. Requires 10DLC campaign registration for US numbers.
                   </p>
                   <div className="key-input-row">
@@ -20841,7 +20882,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("playtest") && <div style={{ padding:"16px 20px" }}>
-                <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
+                <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:14 }}>
                   When a pedal fails play testing, alert this person via email and/or SMS so they can review and fix it.
                 </p>
                 <div className="key-input-row">
@@ -20866,7 +20907,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("klaviyo") && <div style={{ padding:"16px 20px" }}>
-                <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
+                <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:14 }}>
                   When a customer registers a product (via QR code on the pedal), their info is automatically pushed to the correct Klaviyo account based on the brand (Jackson Audio or Fulltone USA).
                   Get your private API keys from <a href="https://www.klaviyo.com/settings/account/api-keys" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}>Klaviyo → Settings → API Keys</a>.
                 </p>
@@ -20892,7 +20933,7 @@ function BOMManager({ user }) {
                 </div>
               </div>
               {!collapsedSettings.has("facebook") && <div style={{ padding:"16px 20px" }}>
-                <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
+                <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:14 }}>
                   Pull actual ad spend per campaign from Facebook. Get your access token from the
                   <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" style={{ color:"#58a6ff" }}> Graph API Explorer</a>.
                   Your Ad Account ID is in Facebook Ads Manager → Settings (format: act_XXXXXXXXX).
@@ -20927,10 +20968,10 @@ function BOMManager({ user }) {
                   <span style={{ display:"inline-block",width:16,fontSize:11,color:"#3a3f51" }}>{collapsedSettings.has("shipping_boxes") ? "▶" : "▼"}</span>
                   Shipping Boxes — Sizes & Dimensions
                 </div>
-                <span style={{ fontSize:11,color:"#64748d" }}>{shippingBoxesConfig.length} box{shippingBoxesConfig.length !== 1 ? "es" : ""}</span>
+                <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>{shippingBoxesConfig.length} box{shippingBoxesConfig.length !== 1 ? "es" : ""}</span>
               </div>
               {!collapsedSettings.has("shipping_boxes") && <div style={{ padding:"16px 20px" }}>
-                <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>Define the shipping boxes you stock. These are used by the packing optimizer to efficiently load orders.</p>
+                <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:14 }}>Define the shipping boxes you stock. These are used by the packing optimizer to efficiently load orders.</p>
                 {shippingBoxesConfig.filter(b => b.active !== false).map(box => (
                   <div key={box.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid "+(darkMode?"#1f2530":"#f0f0f2"),flexWrap:"wrap" }}>
                     {editingShipBox?.id === box.id ? (<>
@@ -20943,13 +20984,13 @@ function BOMManager({ user }) {
                             placeholder={["L","W","H"][i]} style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                         </span>
                       ))}
-                      <span style={{ fontSize:9,color:"#64748d" }}>in</span>
+                      <span style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d" }}>in</span>
                       <input type="number" step="0.5" value={editingShipBox.max_weight_lbs || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, max_weight_lbs: e.target.value }))}
                         placeholder="Max lbs" style={{ width:56,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
-                      <span style={{ fontSize:9,color:"#64748d" }}>lbs max</span>
+                      <span style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d" }}>lbs max</span>
                       <input type="number" step="0.01" value={editingShipBox.cost || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, cost: e.target.value }))}
                         placeholder="$" style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
-                      <span style={{ fontSize:9,color:"#64748d" }}>$/box</span>
+                      <span style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d" }}>$/box</span>
                       <button onClick={async () => {
                         try {
                           const upd = { name: editingShipBox.name, length_in: parseFloat(editingShipBox.length_in)||0, width_in: parseFloat(editingShipBox.width_in)||0, height_in: parseFloat(editingShipBox.height_in)||0, max_weight_lbs: parseFloat(editingShipBox.max_weight_lbs)||0, cost: parseFloat(editingShipBox.cost)||0 };
@@ -20961,10 +21002,10 @@ function BOMManager({ user }) {
                       <button onClick={() => setEditingShipBox(null)} style={{ padding:"4px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:"pointer",border:"none",background:"#e5e5ea",color:darkMode?"#e8ebf0":"#061b31" }}>Cancel</button>
                     </>) : (<>
                       <span style={{ fontSize:13,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",minWidth:80 }}>{box.name || "Unnamed"}</span>
-                      <span style={{ fontSize:11,color:"#64748d",fontFamily:"monospace" }}>{box.length_in}×{box.width_in}×{box.height_in} in</span>
-                      <span style={{ fontSize:10,color:"#8898aa" }}>({(box.length_in * box.width_in * box.height_in).toFixed(0)} cu.in)</span>
-                      {box.max_weight_lbs > 0 && <span style={{ fontSize:10,color:"#64748d" }}>max {box.max_weight_lbs} lbs</span>}
-                      {box.cost > 0 && <span style={{ fontSize:10,color:"#64748d" }}>${parseFloat(box.cost).toFixed(2)}/ea</span>}
+                      <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontFamily:"monospace" }}>{box.length_in}×{box.width_in}×{box.height_in} in</span>
+                      <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa" }}>({(box.length_in * box.width_in * box.height_in).toFixed(0)} cu.in)</span>
+                      {box.max_weight_lbs > 0 && <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>max {box.max_weight_lbs} lbs</span>}
+                      {box.cost > 0 && <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d" }}>${parseFloat(box.cost).toFixed(2)}/ea</span>}
                       <button onClick={() => setEditingShipBox({ ...box })} style={{ padding:"3px 10px",borderRadius:100,fontSize:10,fontWeight:600,cursor:"pointer",border:"1px solid #e3e8ee",background:"transparent",color:"#58a6ff",marginLeft:"auto" }}>Edit</button>
                       <button onClick={async () => {
                         if (!confirm(`Delete "${box.name}"?`)) return;
@@ -20984,13 +21025,13 @@ function BOMManager({ user }) {
                           placeholder={["L","W","H"][i]} style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
                       </span>
                     ))}
-                    <span style={{ fontSize:9,color:"#64748d" }}>in</span>
+                    <span style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d" }}>in</span>
                     <input type="number" step="0.5" value={editingShipBox.max_weight_lbs || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, max_weight_lbs: e.target.value }))}
                       placeholder="Max lbs" style={{ width:56,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
-                    <span style={{ fontSize:9,color:"#64748d" }}>lbs max</span>
+                    <span style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d" }}>lbs max</span>
                     <input type="number" step="0.01" value={editingShipBox.cost || ""} onChange={e => setEditingShipBox(prev => ({ ...prev, cost: e.target.value }))}
                       placeholder="$" style={{ width:48,padding:"4px 6px",borderRadius:5,fontSize:11,textAlign:"center",border:"1px solid #e3e8ee",fontFamily:"monospace",background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
-                    <span style={{ fontSize:9,color:"#64748d" }}>$/box</span>
+                    <span style={{ fontSize:9,color:darkMode?"#8a93a3":"#64748d" }}>$/box</span>
                     <button onClick={async () => {
                       try {
                         const row = { name: editingShipBox.name || "Unnamed", length_in: parseFloat(editingShipBox.length_in)||0, width_in: parseFloat(editingShipBox.width_in)||0, height_in: parseFloat(editingShipBox.height_in)||0, max_weight_lbs: parseFloat(editingShipBox.max_weight_lbs)||0, cost: parseFloat(editingShipBox.cost)||0 };
@@ -21021,7 +21062,7 @@ function BOMManager({ user }) {
               </div>
               {!collapsedSettings.has("admin_access") && <div style={{ padding:"16px 20px" }}>
                 <label style={{ display:"block",fontSize:13,fontWeight:600,color:darkMode?"#f6f9fc":"#3a3f51",marginBottom:6 }}>Admin Email Addresses</label>
-                <p style={{ fontSize:12,color:"#64748d",marginBottom:10 }}>Comma-separated list of email addresses that have admin access (can see the Admin tab, hourly rates, and labor costs).</p>
+                <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:10 }}>Comma-separated list of email addresses that have admin access (can see the Admin tab, hourly rates, and labor costs).</p>
                 <input style={{ width:"100%",padding:"8px 12px",border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",borderRadius:8,fontSize:14,marginBottom:14,boxSizing:"border-box",
                   background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }}
                   value={apiKeys.admin_emails||""} onChange={e=>setApiKeys(k=>({...k,admin_emails:e.target.value}))} placeholder="brad@jacksonaudio.net, admin@example.com" />
@@ -21039,7 +21080,7 @@ function BOMManager({ user }) {
                   <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16 }}>
                     <div>
                       <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>Team Directory</div>
-                      <div style={{ fontSize:13,color:"#64748d",marginTop:2 }}>Contact info, pay rates, and product approvals for each team member.</div>
+                      <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>Contact info, pay rates, and product approvals for each team member.</div>
                     </div>
                     <button style={{ background:"#58a6ff",color:"#fff",border:"none",borderRadius:100,padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer" }}
                       onClick={() => setProfileForm({ id:"", full_name:"", email:"", phone:"", role:"employee", hourly_rate:"", approved_products:[] })}>
@@ -21047,14 +21088,14 @@ function BOMManager({ user }) {
                     </button>
                   </div>
                   {profiles.length === 0 ? (
-                    <div style={{ padding:"40px 0",textAlign:"center",color:"#64748d",fontSize:13 }}>No team members yet — click "+ Add Member" above.</div>
+                    <div style={{ padding:"40px 0",textAlign:"center",color:darkMode?"#8a93a3":"#64748d",fontSize:13 }}>No team members yet — click "+ Add Member" above.</div>
                   ) : (
                     <div style={{ border:darkMode?"1px solid #1f2530":"1px solid #f0f0f2",borderRadius:10,overflow:"hidden" }}>
                       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                         <thead>
                           <tr style={{ background:darkMode?"#161a22":"#fafbfc" }}>
                             {["Name","Email","Phone","Role","$/hr","Approved to Build",""].map((h,i) => (
-                              <th key={i} style={{ padding:"9px 14px",textAlign:"left",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"#64748d",borderBottom:darkMode?"1px solid #1f2530":"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{h}</th>
+                              <th key={i} style={{ padding:"9px 14px",textAlign:"left",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:darkMode?"#8a93a3":"#64748d",borderBottom:darkMode?"1px solid #1f2530":"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{h}</th>
                             ))}
                           </tr>
                         </thead>
@@ -21076,7 +21117,7 @@ function BOMManager({ user }) {
                                 <td style={{ padding:"10px 14px",color:darkMode?"#b8bfcc":"#50617a",whiteSpace:"nowrap" }}>{p.hourly_rate?`$${p.hourly_rate}/hr`:"—"}</td>
                                 <td style={{ padding:"10px 14px" }}>
                                   {approvedNames.length===0
-                                    ? <span style={{ color:"#64748d",fontSize:12 }}>All products</span>
+                                    ? <span style={{ color:darkMode?"#8a93a3":"#64748d",fontSize:12 }}>All products</span>
                                     : <div style={{ display:"flex",flexWrap:"wrap",gap:4 }}>{approvedNames.map(n=><span key={n} style={{ fontSize:11,padding:"2px 7px",borderRadius:5,background:"rgba(83,58,253,0.1)",color:"#58a6ff",fontWeight:600 }}>{n}</span>)}</div>
                                   }
                                 </td>
@@ -21095,9 +21136,9 @@ function BOMManager({ user }) {
                       <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:20,padding:"32px 36px",width:520,maxWidth:"92vw",maxHeight:"88vh",overflowY:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
                         <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:22 }}>
                           <div style={{ fontSize:18,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>{profileForm.id?"Edit Team Member":"Add Team Member"}</div>
-                          <button onClick={()=>setProfileForm(null)} style={{ background:darkMode?"#161a22":"#f6f9fc",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:"#64748d" }}>×</button>
+                          <button onClick={()=>setProfileForm(null)} style={{ background:darkMode?"#161a22":"#f6f9fc",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:darkMode?"#8a93a3":"#64748d" }}>×</button>
                         </div>
-                        <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#64748d",marginBottom:10 }}>Contact Info</div>
+                        <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:darkMode?"#8a93a3":"#64748d",marginBottom:10 }}>Contact Info</div>
                         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16 }}>
                           {[{label:"Full Name",key:"full_name",placeholder:"Jane Smith"},{label:"Email",key:"email",placeholder:"jane@jacksonaudio.com"},{label:"Phone",key:"phone",placeholder:"555-123-4567"},{label:"Hourly Rate ($)",key:"hourly_rate",placeholder:"18.00"}].map(f=>(
                             <div key={f.key}>
@@ -21107,7 +21148,7 @@ function BOMManager({ user }) {
                             </div>
                           ))}
                         </div>
-                        <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#64748d",marginBottom:10 }}>Role & Permissions</div>
+                        <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:darkMode?"#8a93a3":"#64748d",marginBottom:10 }}>Role & Permissions</div>
                         <div style={{ marginBottom:14 }}>
                           <label style={LS}>Role</label>
                           <select value={profileForm.role||"employee"} onChange={e=>setProfileForm(prev=>({...prev,role:e.target.value}))} style={IS}>
@@ -21129,12 +21170,12 @@ function BOMManager({ user }) {
                                 setApiKeys(k=>({...k,admin_emails:upd.join(",")}));
                               }} />
                             <label htmlFor="adminChk" style={{ fontSize:13,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31",cursor:"pointer" }}>
-                              App Admin access <span style={{ fontSize:12,fontWeight:400,color:"#64748d" }}>— delete parts, access Admin tab, change settings</span>
+                              App Admin access <span style={{ fontSize:12,fontWeight:400,color:darkMode?"#8a93a3":"#64748d" }}>— delete parts, access Admin tab, change settings</span>
                             </label>
                           </div>
                         )}
-                        <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#64748d",marginBottom:6 }}>Approved to Build</div>
-                        <p style={{ fontSize:12,color:"#64748d",marginBottom:8,marginTop:0 }}>Leave all unchecked = approved for everything.</p>
+                        <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:darkMode?"#8a93a3":"#64748d",marginBottom:6 }}>Approved to Build</div>
+                        <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:8,marginTop:0 }}>Leave all unchecked = approved for everything.</p>
                         <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:160,overflowY:"auto",padding:"8px 10px",borderRadius:8,border:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),marginBottom:22 }}>
                           {products.map(pr=>{
                             const chk=(profileForm.approved_products||[]).includes(pr.id);
@@ -21244,7 +21285,7 @@ function BOMManager({ user }) {
           const dealerMargin = withMinMargin.length > 0 ? withMinMargin.reduce((s,r) => s + r.marginMin, 0) / withMinMargin.length : null;
           const withMaxMargin = rows.filter(r => r.marginMax != null);
           const directMargin = withMaxMargin.length > 0 ? withMaxMargin.reduce((s,r) => s + r.marginMax, 0) / withMaxMargin.length : null;
-          const thStyle = { padding:"10px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.05em",
+          const thStyle = { padding:"10px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.05em",
             borderBottom:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",background:darkMode?"#161a22":"#fafbfc",whiteSpace:"nowrap" };
           const tdStyle = { padding:"10px 12px",fontSize:13,borderBottom:darkMode?"1px solid #161a22":"1px solid #f0f0f2" };
           const cardStyle = { background:darkMode?"#0f1218":"#fff",borderRadius:12,padding:"16px 20px",flex:1,
@@ -21286,13 +21327,13 @@ function BOMManager({ user }) {
             <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
               <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:14 }}>Team Hourly Rates</div>
               {teamMembers.length === 0 ? (
-                <p style={{ fontSize:13,color:"#64748d" }}>No team members yet. Add team members in the Production tab.</p>
+                <p style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>No team members yet. Add team members in the Production tab.</p>
               ) : (
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                   <thead>
                     <tr style={{ borderBottom:"2px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                       {["Name","Role","Hourly Rate","Avg Time/Unit","Labor Cost/Unit"].map(h=>(
-                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#64748d",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
+                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -21302,10 +21343,10 @@ function BOMManager({ user }) {
                       return (
                         <tr key={member.id} style={{ borderBottom:"1px solid "+(darkMode?"#161a22":"#f0f0f2"),opacity:member.active===false?0.5:1 }}>
                           <td style={{ padding:"10px 12px",fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{member.name}</td>
-                          <td style={{ padding:"10px 12px",color:"#64748d",textTransform:"capitalize" }}>{member.role || "—"}</td>
+                          <td style={{ padding:"10px 12px",color:darkMode?"#8a93a3":"#64748d",textTransform:"capitalize" }}>{member.role || "—"}</td>
                           <td style={{ padding:"10px 12px" }}>
                             <div style={{ display:"flex",alignItems:"center",gap:4 }}>
-                              <span style={{ fontSize:13,color:"#64748d" }}>$</span>
+                              <span style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>$</span>
                               <input style={{ width:70,padding:"4px 8px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
                                 fontSize:13,background:darkMode?"#161a22":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31",textAlign:"center" }}
                                 type="number" step="0.50" min="0" placeholder="25" defaultValue={member.hourly_rate || ""}
@@ -21315,7 +21356,7 @@ function BOMManager({ user }) {
                                     try { await updateTeamMember(member.id, { hourly_rate: val }); setTeamMembers(prev=>prev.map(t=>t.id===member.id?{...t,hourly_rate:val}:t)); } catch {}
                                   }
                                 }} />
-                              <span style={{ fontSize:12,color:"#64748d" }}>/hr</span>
+                              <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>/hr</span>
                             </div>
                           </td>
                           <td style={{ padding:"10px 12px",fontWeight:600,color:"#58a6ff" }}>
@@ -21371,13 +21412,13 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:14 }}>Team Incentives</div>
                 <div style={{ display:"flex",gap:12,marginBottom:16,flexWrap:"wrap",alignItems:"flex-end" }}>
                   <div>
-                    <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Weekly Target (pts)</label>
+                    <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Weekly Target (pts)</label>
                     <input type="number" min="0" value={apiKeys.weekly_target_points||""} placeholder="500"
                       onChange={e => setApiKeys(k=>({...k,weekly_target_points:e.target.value}))}
                       style={{ width:100,padding:"6px 10px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",fontSize:13,background:darkMode?"#161a22":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31" }} />
                   </div>
                   <div>
-                    <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748d",display:"block",marginBottom:4 }}>Bonus $/pt above target</label>
+                    <label style={{ fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:darkMode?"#8a93a3":"#64748d",display:"block",marginBottom:4 }}>Bonus $/pt above target</label>
                     <input type="number" min="0" step="0.01" value={apiKeys.bonus_per_point||""} placeholder="0.50"
                       onChange={e => setApiKeys(k=>({...k,bonus_per_point:e.target.value}))}
                       style={{ width:100,padding:"6px 10px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",fontSize:13,background:darkMode?"#161a22":"#fafbfc",color:darkMode?"#f6f9fc":"#061b31" }} />
@@ -21392,7 +21433,7 @@ function BOMManager({ user }) {
                   <thead>
                     <tr style={{ borderBottom:"2px solid "+(darkMode?"#1f2530":"#e5e5ea") }}>
                       {["Builder","Points This Week","Target","Surplus","Bonus Earned"].map(h=>(
-                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:"#64748d",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
+                        <th key={h} style={{ textAlign:"left",padding:"8px 12px",fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",letterSpacing:"0.06em",textTransform:"uppercase" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -21401,7 +21442,7 @@ function BOMManager({ user }) {
                       <tr key={r.id} style={{ borderBottom:"1px solid "+(darkMode?"#161a22":"#f0f0f2") }}>
                         <td style={{ padding:"10px 12px",fontWeight:600,color:darkMode?"#f6f9fc":"#061b31" }}>{r.name}</td>
                         <td style={{ padding:"10px 12px",fontWeight:700,color:"#58a6ff" }}>{r.pts.toLocaleString()}</td>
-                        <td style={{ padding:"10px 12px",color:"#64748d" }}>{weeklyTarget.toLocaleString()}</td>
+                        <td style={{ padding:"10px 12px",color:darkMode?"#8a93a3":"#64748d" }}>{weeklyTarget.toLocaleString()}</td>
                         <td style={{ padding:"10px 12px",fontWeight:600,color:r.surplus > 0 ? "#34c759" : "#64748d" }}>{r.surplus > 0 ? `+${r.surplus.toLocaleString()}` : "0"}</td>
                         <td style={{ padding:"10px 12px",fontWeight:700,color:r.bonus > 0 ? "#34c759" : "#64748d" }}>{r.bonus > 0 ? `$${r.bonus.toFixed(2)}` : "—"}</td>
                       </tr>
@@ -21409,7 +21450,7 @@ function BOMManager({ user }) {
                   </tbody>
                 </table>
                 <div style={{ marginTop:12,display:"flex",justifyContent:"flex-end",gap:16,fontSize:14 }}>
-                  <span style={{ color:"#64748d" }}>Total Weekly Payout:</span>
+                  <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>Total Weekly Payout:</span>
                   <span style={{ fontWeight:800,color:totalPayout > 0 ? "#34c759" : "#64748d" }}>${totalPayout.toFixed(2)}</span>
                 </div>
               </div>
@@ -21452,17 +21493,17 @@ function BOMManager({ user }) {
                 {/* Summary cards */}
                 <div style={{ display:"flex",gap:16,marginBottom:20,flexWrap:"wrap" }}>
                   <div style={{ background:darkMode?"#161a22":"#f6f9fc",borderRadius:10,padding:"14px 18px",flex:1,minWidth:120 }}>
-                    <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Scrapped (Month)</div>
+                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>Scrapped (Month)</div>
                     <div style={{ fontSize:28,fontWeight:800,color:"#ff3b30" }}>{totalScrapped}</div>
                   </div>
                   <div style={{ background:darkMode?"#161a22":"#f6f9fc",borderRadius:10,padding:"14px 18px",flex:1,minWidth:120 }}>
-                    <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>$ Value Lost</div>
+                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>$ Value Lost</div>
                     <div style={{ fontSize:28,fontWeight:800,color:"#ff9500" }}>${totalCost.toFixed(2)}</div>
                   </div>
                   <div style={{ background:darkMode?"#161a22":"#f6f9fc",borderRadius:10,padding:"14px 18px",flex:1,minWidth:120 }}>
-                    <div style={{ fontSize:10,color:"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>This Week vs Last</div>
+                    <div style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em" }}>This Week vs Last</div>
                     <div style={{ fontSize:28,fontWeight:800,color:thisWeekQty > lastWeekQty ? "#ff3b30" : "#34c759" }}>
-                      {thisWeekQty} <span style={{ fontSize:14,color:"#64748d" }}>vs {lastWeekQty}</span>
+                      {thisWeekQty} <span style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d" }}>vs {lastWeekQty}</span>
                     </div>
                   </div>
                 </div>
@@ -21470,7 +21511,7 @@ function BOMManager({ user }) {
                 <div style={{ display:"flex",gap:20,flexWrap:"wrap" }}>
                   {/* By Category */}
                   <div style={{ flex:"1 1 200px" }}>
-                    <div style={{ fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8 }}>By Category</div>
+                    <div style={{ fontSize:11,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8 }}>By Category</div>
                     {catEntries.map(([cat, qty]) => (
                       <div key={cat} style={{ marginBottom:6 }}>
                         <div style={{ display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2 }}>
@@ -21482,11 +21523,11 @@ function BOMManager({ user }) {
                         </div>
                       </div>
                     ))}
-                    {catEntries.length === 0 && <div style={{ fontSize:12,color:"#8898aa" }}>No scrap data this month.</div>}
+                    {catEntries.length === 0 && <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#8898aa" }}>No scrap data this month.</div>}
                   </div>
                   {/* By Builder */}
                   <div style={{ flex:"1 1 200px" }}>
-                    <div style={{ fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8 }}>By Builder</div>
+                    <div style={{ fontSize:11,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8 }}>By Builder</div>
                     {builderEntries.map(([name, qty]) => (
                       <div key={name} style={{ marginBottom:6 }}>
                         <div style={{ display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2 }}>
@@ -21498,11 +21539,11 @@ function BOMManager({ user }) {
                         </div>
                       </div>
                     ))}
-                    {builderEntries.length === 0 && <div style={{ fontSize:12,color:"#8898aa" }}>No scrap data.</div>}
+                    {builderEntries.length === 0 && <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#8898aa" }}>No scrap data.</div>}
                   </div>
                   {/* By Product */}
                   <div style={{ flex:"1 1 200px" }}>
-                    <div style={{ fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8 }}>By Product</div>
+                    <div style={{ fontSize:11,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8 }}>By Product</div>
                     {prodEntries.map(([name, qty]) => (
                       <div key={name} style={{ marginBottom:6 }}>
                         <div style={{ display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2 }}>
@@ -21514,7 +21555,7 @@ function BOMManager({ user }) {
                         </div>
                       </div>
                     ))}
-                    {prodEntries.length === 0 && <div style={{ fontSize:12,color:"#8898aa" }}>No scrap data.</div>}
+                    {prodEntries.length === 0 && <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#8898aa" }}>No scrap data.</div>}
                   </div>
                 </div>
               </div>
@@ -21523,24 +21564,24 @@ function BOMManager({ user }) {
 
             {/* ── Profit Analysis ── */}
             <h3 style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:20,fontWeight:700,letterSpacing:"-0.3px",marginBottom:4 }}>Profit Analysis</h3>
-            <p style={{ fontSize:14,color:"#64748d",marginBottom:24 }}>Margins, markup, and profitability across all products{hasShopifyPrices ? " — with Shopify actual pricing data" : ""}.</p>
+            <p style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d",marginBottom:24 }}>Margins, markup, and profitability across all products{hasShopifyPrices ? " — with Shopify actual pricing data" : ""}.</p>
 
             {/* Summary Cards */}
             <div style={{ display:"flex",gap:16,marginBottom:24,flexWrap:"wrap" }}>
               <div style={cardStyle}>
-                <div style={{ fontSize:11,color:"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Total Products</div>
+                <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Total Products</div>
                 <div style={{ fontSize:28,fontWeight:700,color:"#58a6ff" }}>{rows.length}</div>
               </div>
               <div style={cardStyle}>
-                <div style={{ fontSize:11,color:"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Avg MSRP Margin</div>
+                <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Avg MSRP Margin</div>
                 <div style={{ fontSize:28,fontWeight:700,color:marginColor(avgMargin) }}>{avgMargin.toFixed(1)}%</div>
               </div>
               <div style={cardStyle}>
-                <div style={{ fontSize:11,color:"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Highest Margin</div>
+                <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Highest Margin</div>
                 <div style={{ fontSize:16,fontWeight:700,color:"#34c759" }}>{highest ? `${highest.name} (${highest.marginPct.toFixed(1)}%)` : "—"}</div>
               </div>
               <div style={cardStyle}>
-                <div style={{ fontSize:11,color:"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Lowest Margin</div>
+                <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Lowest Margin</div>
                 <div style={{ fontSize:16,fontWeight:700,color:"#ff3b30" }}>{lowest ? `${lowest.name} (${lowest.marginPct.toFixed(1)}%)` : "—"}</div>
               </div>
             </div>
@@ -21569,19 +21610,19 @@ function BOMManager({ user }) {
               return (
               <div style={{ display:"flex",gap:16,marginBottom:24,flexWrap:"wrap" }}>
                 {hasShopifyPrices && <div style={{ ...cardStyle,borderColor:"#34c759" }}>
-                  <div style={{ fontSize:11,color:"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Direct (Shopify max price)</div>
+                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Direct (Shopify max price)</div>
                   <div style={{ fontSize:28,fontWeight:700,color:marginColor(directMargin) }}>{directMargin != null ? `${directMargin.toFixed(1)}%` : "—"}</div>
                 </div>}
                 {zohoDealerMargin != null && <div style={{ ...cardStyle,borderColor:"#4bc076" }}>
-                  <div style={{ fontSize:11,color:"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Dealer (Zoho sale price)</div>
+                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Dealer (Zoho sale price)</div>
                   <div style={{ fontSize:28,fontWeight:700,color:marginColor(zohoDealerMargin) }}>{zohoDealerMargin.toFixed(1)}%</div>
                 </div>}
                 {hasShopifyPrices && <div style={{ ...cardStyle,borderColor:"#ff9500" }}>
-                  <div style={{ fontSize:11,color:"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Dealer (Shopify min price)</div>
+                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Dealer (Shopify min price)</div>
                   <div style={{ fontSize:28,fontWeight:700,color:marginColor(dealerMargin) }}>{dealerMargin != null ? `${dealerMargin.toFixed(1)}%` : "—"}</div>
                 </div>}
                 <div style={{ ...cardStyle,borderColor:"#58a6ff" }}>
-                  <div style={{ fontSize:11,color:"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Blended (weighted avg)</div>
+                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Blended (weighted avg)</div>
                   <div style={{ fontSize:28,fontWeight:700,color:marginColor(combinedBlended) }}>{combinedBlended != null ? `${combinedBlended.toFixed(1)}%` : "—"}</div>
                 </div>
               </div>
@@ -21594,13 +21635,13 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",alignItems:"center",gap:12,background:darkMode?"#0f1218":"#fff",
                 border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
                 <label style={{ fontSize:13,fontWeight:600 }}>Labor Rate:</label>
-                <span style={{ fontSize:13,color:"#64748d" }}>$</span>
+                <span style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>$</span>
                 <input type="number" step="0.50" min="0"
                   value={apiKeys.labor_rate_hourly || "25"}
                   onChange={(e) => setApiKeys(k => ({ ...k, labor_rate_hourly: e.target.value }))}
                   style={{ width:70,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
                     fontSize:13,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
-                <span style={{ fontSize:12,color:"#64748d" }}>/hr</span>
+                <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>/hr</span>
                 <button className="btn-primary" style={{ fontSize:11,padding:"5px 14px" }}
                   onClick={async () => {
                     try {
@@ -21617,31 +21658,31 @@ function BOMManager({ user }) {
                   onChange={(e) => setApiKeys(k => ({ ...k, ad_spend_pct: e.target.value }))}
                   style={{ width:60,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
                     fontSize:13,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
-                <span style={{ fontSize:12,color:"#64748d" }}>% of sale</span>
+                <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>% of sale</span>
               </div>
               {/* BOM Multiplier */}
               <div style={{ display:"flex",alignItems:"center",gap:8,background:darkMode?"#0f1218":"#fff",
                 border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
                 <label style={{ fontSize:13,fontWeight:600 }}>SRP Multiplier:</label>
-                <span style={{ fontSize:13,color:"#64748d" }}>BOM ×</span>
+                <span style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>BOM ×</span>
                 <input type="number" step="0.1" min="1"
                   value={apiKeys.bom_multiplier || "5"}
                   onChange={(e) => setApiKeys(k => ({ ...k, bom_multiplier: e.target.value }))}
                   style={{ width:60,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
                     fontSize:13,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
-                <span style={{ fontSize:12,color:"#64748d" }}>= suggested retail</span>
+                <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>= suggested retail</span>
               </div>
               {/* Shipping Cost */}
               <div style={{ display:"flex",alignItems:"center",gap:8,background:darkMode?"#0f1218":"#fff",
                 border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",borderRadius:10,padding:"12px 18px",width:"fit-content" }}>
                 <label style={{ fontSize:13,fontWeight:600 }}>Shipping:</label>
-                <span style={{ fontSize:13,color:"#64748d" }}>$</span>
+                <span style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>$</span>
                 <input type="number" step="0.50" min="0"
                   value={apiKeys.shipping_cost_per_unit || "0"}
                   onChange={(e) => setApiKeys(k => ({ ...k, shipping_cost_per_unit: e.target.value }))}
                   style={{ width:70,padding:"6px 8px",borderRadius:6,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",
                     fontSize:13,background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31" }} />
-                <span style={{ fontSize:12,color:"#64748d" }}>/unit</span>
+                <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>/unit</span>
               </div>
               {/* Fetch Shopify Prices */}
               <button className="btn-primary" style={{ fontSize:12,padding:"10px 18px",display:"flex",alignItems:"center",gap:6 }}
@@ -21650,7 +21691,7 @@ function BOMManager({ user }) {
                 {shopifySalesPrices?.loading ? <><span className="spinner" /> Fetching...</> : "Fetch Shopify Prices"}
               </button>
               {shopifySalesPrices?.syncedAt && (
-                <span style={{ fontSize:11,color:"#64748d" }}>
+                <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>
                   Prices synced {new Date(shopifySalesPrices.syncedAt).toLocaleString()}
                 </span>
               )}
@@ -21704,7 +21745,7 @@ function BOMManager({ user }) {
                             const pp = parts.filter(p => p.projectId === r.id);
                             const partIds = new Set(pp.map(p => p.id));
                             const phForProd = allPriceHistory.filter(h => partIds.has(h.part_id));
-                            if (phForProd.length < 2) return <span style={{ fontSize:10,color:"#8898aa" }}>—</span>;
+                            if (phForProd.length < 2) return <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa" }}>—</span>;
                             // Aggregate by date: sum unit_price per day for this product's parts
                             const byDate = {};
                             for (const h of phForProd) {
@@ -21716,7 +21757,7 @@ function BOMManager({ user }) {
                               }
                             }
                             const dates = Object.keys(byDate).sort();
-                            if (dates.length < 2) return <span style={{ fontSize:10,color:"#8898aa" }}>—</span>;
+                            if (dates.length < 2) return <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#8898aa" }}>—</span>;
                             const sparkData = dates.slice(-12).map(day => {
                               const total = Object.values(byDate[day]).reduce((s, h) => {
                                 const part = pp.find(p => p.id === h.part_id);
@@ -21728,14 +21769,14 @@ function BOMManager({ user }) {
                           })()}
                         </td>
                         <td style={{ ...tdStyle,textAlign:"right" }}>${fmtDollar(r.bomCost)}</td>
-                        <td style={{ ...tdStyle,textAlign:"right",color:"#64748d" }}>{r.buildMins ? `${r.buildMins}m / $${fmtDollar(r.laborCost)}` : "—"}</td>
-                        <td style={{ ...tdStyle,textAlign:"right",color:"#64748d" }}>{shippingPerUnit > 0 ? `$${fmtDollar(shippingPerUnit)}` : "—"}</td>
+                        <td style={{ ...tdStyle,textAlign:"right",color:darkMode?"#8a93a3":"#64748d" }}>{r.buildMins ? `${r.buildMins}m / $${fmtDollar(r.laborCost)}` : "—"}</td>
+                        <td style={{ ...tdStyle,textAlign:"right",color:darkMode?"#8a93a3":"#64748d" }}>{shippingPerUnit > 0 ? `$${fmtDollar(shippingPerUnit)}` : "—"}</td>
                         <td style={{ ...tdStyle,textAlign:"right",color:"#ff9500" }}>{r.salesPrice && adSpendPct > 0 ? `${adSpendPct}% / $${fmtDollar(r.adCostMSRP)}` : adSpendPct > 0 ? `${adSpendPct}%` : "—"}</td>
                         <td style={{ ...tdStyle,textAlign:"right",fontWeight:700 }}>${fmtDollar(r.allInCostMSRP || r.totalCost)}</td>
                         {/* MSRP group */}
                         <td style={{ ...tdStyle,textAlign:"right",...tdGroupBorder }}>
                           <div style={{ display:"flex",alignItems:"center",justifyContent:"flex-end",gap:2 }}>
-                            <span style={{ fontSize:12,color:"#64748d" }}>$</span>
+                            <span style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d" }}>$</span>
                             <input type="number" step="0.01" min="0"
                               defaultValue={r.salesPrice || ""}
                               placeholder="—"
@@ -21792,7 +21833,7 @@ function BOMManager({ user }) {
                       <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none" }}>
                         ${fmtDollar(rows.reduce((s,r)=>s+r.bomCost,0)/rows.length)}
                       </td>
-                      <td style={{ ...tdStyle,textAlign:"right",color:"#64748d",borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none" }}>
+                      <td style={{ ...tdStyle,textAlign:"right",color:darkMode?"#8a93a3":"#64748d",borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none" }}>
                         {rows.filter(r=>r.buildMins).length > 0 ? `${(rows.reduce((s,r)=>s+r.buildMins,0)/rows.filter(r=>r.buildMins).length).toFixed(0)} min` : "—"}
                       </td>
                       <td style={{ ...tdStyle,textAlign:"right",fontWeight:600,borderTop:darkMode?"2px solid #1f2530":"2px solid #e5e5ea",borderBottom:"none" }}>
@@ -21848,7 +21889,7 @@ function BOMManager({ user }) {
             {/* ── Database Backup — Export All Data ── */}
             <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",marginBottom:24,border:darkMode?"1px solid #1f2530":"1px solid #e5e5ea" }}>
               <div style={{ fontSize:16,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",marginBottom:6 }}>Database Backup</div>
-              <p style={{ fontSize:12,color:"#64748d",marginBottom:14 }}>
+              <p style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:14 }}>
                 Download a complete JSON backup of your entire database — parts, products, pricing, orders, build history, API keys (masked), team members, and all settings. Keep this file safe as a disaster recovery backup.
               </p>
               <button className="btn-primary" style={{ fontSize:13 }}
@@ -21902,7 +21943,7 @@ function BOMManager({ user }) {
               <div style={{ fontSize:22,fontWeight:800,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif",marginBottom:12,letterSpacing:"-0.3px" }}>
                 {confirmModal.title}
               </div>
-              <div style={{ fontSize:15,color:"#64748d",lineHeight:"22px",marginBottom:28 }}>
+              <div style={{ fontSize:15,color:darkMode?"#8a93a3":"#64748d",lineHeight:"22px",marginBottom:28 }}>
                 {confirmModal.message}
               </div>
               <div style={{ display:"flex",gap:10,justifyContent:"flex-end" }}>
@@ -21931,7 +21972,7 @@ function BOMManager({ user }) {
           onClick={e => { if (e.target===e.currentTarget) setRepairDeleteConfirm(null); }}>
           <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:20,padding:"32px 36px",width:420,maxWidth:"92vw",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}>
             <div style={{ fontSize:20,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",marginBottom:8 }}>Delete {repairDeleteConfirm.ids.length} Repair Ticket{repairDeleteConfirm.ids.length>1?"s":""}</div>
-            <div style={{ fontSize:14,color:"#64748d",marginBottom:28,lineHeight:"20px" }}>This removes the ticket{repairDeleteConfirm.ids.length>1?"s":""} from BOM Manager only. No emails will be deleted.</div>
+            <div style={{ fontSize:14,color:darkMode?"#8a93a3":"#64748d",marginBottom:28,lineHeight:"20px" }}>This removes the ticket{repairDeleteConfirm.ids.length>1?"s":""} from BOM Manager only. No emails will be deleted.</div>
             <div style={{ display:"flex",gap:10,justifyContent:"flex-end" }}>
               <button onClick={() => setRepairDeleteConfirm(null)}
                 onMouseEnter={e=>e.currentTarget.style.background="#f6f9fc"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}
@@ -21963,7 +22004,7 @@ function BOMManager({ user }) {
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20 }}>
               <div>
                 <h3 style={{ margin:0,fontSize:20,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31" }}>📬 Support Inbox</h3>
-                <div style={{ fontSize:13,color:"#64748d",marginTop:3 }}>support@jacksonaudio.net — last 180 days</div>
+                <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginTop:3 }}>support@jacksonaudio.net — last 180 days</div>
               </div>
               <button onClick={() => setGmailScanModal(null)}
                 onMouseEnter={e=>e.currentTarget.style.background="#e3e8ee"} onMouseLeave={e=>e.currentTarget.style.background="#f6f9fc"}
@@ -21971,7 +22012,7 @@ function BOMManager({ user }) {
             </div>
 
             {gmailScanModal.status === "loading" && (
-              <div style={{ textAlign:"center",padding:"40px 0",color:"#64748d",fontSize:14 }}>Scanning support inbox…</div>
+              <div style={{ textAlign:"center",padding:"40px 0",color:darkMode?"#8a93a3":"#64748d",fontSize:14 }}>Scanning support inbox…</div>
             )}
             {gmailScanModal.status === "error" && (
               <div style={{ background:"#fff2f2",border:"1px solid #ffd0d0",borderRadius:10,padding:"16px 20px",color:"#c0392b",fontSize:13 }}>
@@ -21979,12 +22020,12 @@ function BOMManager({ user }) {
               </div>
             )}
             {gmailScanModal.status === "done" && gmailScanModal.messages.length === 0 && (
-              <div style={{ textAlign:"center",padding:"40px 0",color:"#8898aa",fontSize:14 }}>No support emails found in the last 180 days.</div>
+              <div style={{ textAlign:"center",padding:"40px 0",color:darkMode?"#8a93a3":"#8898aa",fontSize:14 }}>No support emails found in the last 180 days.</div>
             )}
             {gmailScanModal.status === "done" && gmailScanModal.messages.length > 0 && (
               <div>
                 <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,gap:10,flexWrap:"wrap" }}>
-                  <div style={{ fontSize:13,color:"#64748d" }}>
+                  <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d" }}>
                     {gmailScanModal.messages.length} emails · {gmailScanModal.messages.filter(m=>m.isUnread).length} unread · click an email to expand
                   </div>
                   {(() => {
@@ -22053,10 +22094,10 @@ function BOMManager({ user }) {
                             <span style={{ fontSize:13,fontWeight:msg.isUnread?700:500,color:darkMode?"#e8ebf0":"#061b31",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
                               {msg.fromName || msg.fromEmail}
                             </span>
-                            <span style={{ fontSize:11,color:"#8898aa",whiteSpace:"nowrap" }}>{age}</span>
+                            <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#8898aa",whiteSpace:"nowrap" }}>{age}</span>
                           </div>
                           <div style={{ fontSize:12,color:"#3c3c43",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{msg.subject}</div>
-                          {!isExpanded && <div style={{ fontSize:11,color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1 }}>{msg.snippet.replace(/&#(\d+);/g,(_,c)=>String.fromCharCode(c)).replace(/&#39;/g,"'").replace(/&amp;/g,"&")}</div>}
+                          {!isExpanded && <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1 }}>{msg.snippet.replace(/&#(\d+);/g,(_,c)=>String.fromCharCode(c)).replace(/&#39;/g,"'").replace(/&amp;/g,"&")}</div>}
                         </div>
                         {msg.detectedSerials.length > 0 && (
                           <div style={{ display:"flex",gap:4,flexShrink:0 }}>
@@ -22115,11 +22156,11 @@ function BOMManager({ user }) {
                       {isExpanded && (
                         <div style={{ padding:"12px 16px",borderTop:"1px solid #e5e5ea",background:darkMode?"#161a22":"#fafbfc" }}>
                           {gmailScanModal.expandedLoading
-                            ? <div style={{ color:"#64748d",fontSize:13 }}>Loading…</div>
+                            ? <div style={{ color:darkMode?"#8a93a3":"#64748d",fontSize:13 }}>Loading…</div>
                             : <pre style={{ margin:0,fontSize:12,fontFamily:"inherit",whiteSpace:"pre-wrap",wordBreak:"break-word",color:darkMode?"#e8ebf0":"#061b31",lineHeight:"18px",maxHeight:300,overflowY:"auto" }}>{gmailScanModal.expandedBody}</pre>
                           }
                           <div style={{ marginTop:12,display:"flex",gap:8,alignItems:"center" }}>
-                            <span style={{ fontSize:11,color:"#64748d" }}>From: {msg.fromEmail}</span>
+                            <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>From: {msg.fromEmail}</span>
                             {msg.detectedSerials.length > 0 && (
                               <span style={{ fontSize:11,color:"#58a6ff" }}>Serials detected: {msg.detectedSerials.join(", ")}</span>
                             )}
@@ -22211,7 +22252,7 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20 }}>
                 <div>
                   <div style={{ fontSize:20,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",fontFamily:"monospace" }}>{repairModal.serial_number}</div>
-                  <div style={{ fontSize:13,color:"#64748d",marginTop:2 }}>
+                  <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>
                     {prod?.name || "Unknown product"} · Opened {new Date(repairModal.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
                   </div>
                 </div>
@@ -22241,34 +22282,34 @@ function BOMManager({ user }) {
               {/* Form fields */}
               <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16 }}>
                 <div style={{ gridColumn:"1/-1" }}>
-                  <div style={{ fontSize:11,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Fault Description</div>
+                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Fault Description</div>
                   <textarea value={repairModalEdits.fault_description}
                     onChange={e => setRepairModalEdits(prev => ({ ...prev, fault_description: e.target.value }))}
                     style={{ width:"100%",height:"min(500px, 60vw)",padding:"8px 12px",borderRadius:8,border:"1px solid #e3e8ee",fontSize:13,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit" }}
                     placeholder="What was reported / what came in" />
                 </div>
                 <div style={{ gridColumn:"1/-1" }}>
-                  <div style={{ fontSize:11,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Diagnosis</div>
+                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Diagnosis</div>
                   <textarea value={repairModalEdits.diagnosis}
                     onChange={e => setRepairModalEdits(prev => ({ ...prev, diagnosis: e.target.value }))}
                     rows={2} style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #e3e8ee",fontSize:13,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit" }}
                     placeholder="Root cause identified" />
                 </div>
                 <div style={{ gridColumn:"1/-1" }}>
-                  <div style={{ fontSize:11,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Repair Notes</div>
+                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Repair Notes</div>
                   <textarea value={repairModalEdits.repair_notes}
                     onChange={e => setRepairModalEdits(prev => ({ ...prev, repair_notes: e.target.value }))}
                     rows={3} style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #e3e8ee",fontSize:13,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit" }}
                     placeholder="Work performed, parts replaced, etc." />
                 </div>
                 <div>
-                  <div style={{ fontSize:11,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Labor Hours</div>
+                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Labor Hours</div>
                   <input type="number" min="0" step="0.25" value={repairModalEdits.labor_hours}
                     onChange={e => setRepairModalEdits(prev => ({ ...prev, labor_hours: e.target.value }))}
                     style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #e3e8ee",fontSize:13,boxSizing:"border-box" }} />
                 </div>
                 <div>
-                  <div style={{ fontSize:11,color:"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Repair Cost ($)</div>
+                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>Repair Cost ($)</div>
                   <input type="number" min="0" step="0.01" value={repairModalEdits.repair_cost}
                     onChange={e => setRepairModalEdits(prev => ({ ...prev, repair_cost: e.target.value }))}
                     style={{ width:"100%",padding:"8px 12px",borderRadius:8,border:"1px solid #e3e8ee",fontSize:13,boxSizing:"border-box" }} />
@@ -22283,7 +22324,7 @@ function BOMManager({ user }) {
                 {repairModalEdits.gmail_thread_id && (
                   <div style={{ gridColumn:"1/-1",marginTop:20,paddingTop:20,borderTop:"1px solid #f0f0f2" }}>
                     <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#e8ebf0":"#061b31",marginBottom:8 }}>📧 Reply to Customer</div>
-                    <div style={{ fontSize:12,color:"#64748d",marginBottom:6 }}>{repairModalEdits.customer_email}</div>
+                    <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:6 }}>{repairModalEdits.customer_email}</div>
                     <textarea
                       value={repairReplyBody}
                       onChange={e => setRepairReplyBody(e.target.value)}
@@ -22352,7 +22393,7 @@ function BOMManager({ user }) {
                     const sc = STATUS_CFG[r.status] || { label:r.status, color:"#8e8e93" };
                     return (
                       <div key={r.id} style={{ fontSize:12,color:"#3c3c43",marginBottom:4,display:"flex",gap:10,alignItems:"baseline",minWidth:0 }}>
-                        <span style={{ color:"#64748d",whiteSpace:"nowrap",flexShrink:0 }}>{new Date(r.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>
+                        <span style={{ color:darkMode?"#8a93a3":"#64748d",whiteSpace:"nowrap",flexShrink:0 }}>{new Date(r.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>
                         <span style={{ color:sc.color,fontWeight:600,whiteSpace:"nowrap",flexShrink:0 }}>{sc.label}</span>
                         <span style={{ wordBreak:"break-word",overflowWrap:"anywhere",minWidth:0 }}>{r.fault_description || "—"}</span>
                       </div>
@@ -22391,7 +22432,7 @@ function BOMManager({ user }) {
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20 }}>
               <div>
                 <h3 style={{ margin:0,fontSize:20,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31" }}>{reelTestModal.source || "Mouser"} API Test</h3>
-                <div style={{ fontSize:13,color:"#64748d",marginTop:4 }}>Fetching: <code style={{ fontFamily:"monospace",background:darkMode?"#0a0c10":"#f6f9fc",padding:"1px 6px",borderRadius:4 }}>{reelTestModal.mpn}</code></div>
+                <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginTop:4 }}>Fetching: <code style={{ fontFamily:"monospace",background:darkMode?"#0a0c10":"#f6f9fc",padding:"1px 6px",borderRadius:4 }}>{reelTestModal.mpn}</code></div>
               </div>
               <button onClick={()=>setReelTestModal(null)}
                 onMouseEnter={e=>e.currentTarget.style.background="#e3e8ee"} onMouseLeave={e=>e.currentTarget.style.background="#f6f9fc"}
@@ -22406,7 +22447,7 @@ function BOMManager({ user }) {
             )}
 
             {reelTestModal.status === "loading" && (
-              <div style={{ textAlign:"center",padding:"32px 0",color:"#64748d",fontSize:14 }}>
+              <div style={{ textAlign:"center",padding:"32px 0",color:darkMode?"#8a93a3":"#64748d",fontSize:14 }}>
                 Querying Mouser Search API…
               </div>
             )}
@@ -22451,7 +22492,7 @@ function BOMManager({ user }) {
                     <tbody>
                       {rows.map(row => (
                         <tr key={row.label} style={{ borderBottom:"1px solid #f0f0f2" }}>
-                          <td style={{ padding:"7px 10px",color:"#64748d",whiteSpace:"nowrap",width:"40%" }}>{row.label}</td>
+                          <td style={{ padding:"7px 10px",color:darkMode?"#8a93a3":"#64748d",whiteSpace:"nowrap",width:"40%" }}>{row.label}</td>
                           <td style={{ padding:"7px 10px",fontWeight: row.highlight ? 700 : 400, color: row.highlight ? "#1a7a3a" : "#061b31", fontFamily: row.label==="Factory Pack Qty" ? "monospace" : "inherit" }}>{row.value}</td>
                         </tr>
                       ))}
@@ -22459,7 +22500,7 @@ function BOMManager({ user }) {
                   </table>
                   {r.priceBreaks && r.priceBreaks.length > 0 && (
                     <div style={{ marginTop:14 }}>
-                      <div style={{ fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",color:"#64748d",marginBottom:6 }}>Price Breaks</div>
+                      <div style={{ fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",color:darkMode?"#8a93a3":"#64748d",marginBottom:6 }}>Price Breaks</div>
                       <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
                         {r.priceBreaks.map(pb => (
                           <div key={pb.qty} style={{ background:darkMode?"#0a0c10":"#f6f9fc",borderRadius:8,padding:"5px 10px",fontSize:12 }}>
@@ -22486,16 +22527,16 @@ function BOMManager({ user }) {
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
               <div>
                 <h3 style={{ margin:0,fontSize:18,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31" }}>Auto-Fill Reel Quantities</h3>
-                {reelFillModal.phase === "scanning" && <div style={{ fontSize:12,color:"#64748d",marginTop:4 }}>Scanning pricing cache…</div>}
-                {reelFillModal.phase === "fetching" && <div style={{ fontSize:12,color:"#64748d",marginTop:4 }}>Fetching pack quantities from Nexar…</div>}
+                {reelFillModal.phase === "scanning" && <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:4 }}>Scanning pricing cache…</div>}
+                {reelFillModal.phase === "fetching" && <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:4 }}>Fetching pack quantities from Nexar…</div>}
                 {reelFillModal.phase === "preview" && (
-                  <div style={{ fontSize:12,color:"#64748d",marginTop:4 }}>
+                  <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:4 }}>
                     Nexar enriched {reelFillModal.enrichedCount || 0} of {reelFillModal.totalQueried || 0} parts · {reelFillModal.apiCount} reel qtys found
                   </div>
                 )}
               </div>
               <button onClick={() => setReelFillModal(null)}
-                style={{ background:"none",border:"none",fontSize:20,color:"#64748d",cursor:"pointer",lineHeight:1,padding:4 }}>×</button>
+                style={{ background:"none",border:"none",fontSize:20,color:darkMode?"#8a93a3":"#64748d",cursor:"pointer",lineHeight:1,padding:4 }}>×</button>
             </div>
             <div style={{ overflowY:"auto",flex:1,marginBottom:16 }}>
               {reelFillModal.phase === "preview" && reelFillModal.totalQueried > 0 && (
@@ -22510,36 +22551,36 @@ function BOMManager({ user }) {
                   ].map(s => (
                     <div key={s.label} style={{ background:darkMode?"#0a0c10":"#f6f9fc",borderRadius:8,padding:"6px 12px",fontSize:12,display:"flex",flexDirection:"column",alignItems:"center",gap:1,minWidth:70 }}>
                       <span style={{ fontSize:18,fontWeight:700,color:s.color,fontVariantNumeric:"tabular-nums" }}>{s.val.toLocaleString()}</span>
-                      <span style={{ fontSize:10,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.04em" }}>{s.label}</span>
+                      <span style={{ fontSize:10,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.04em" }}>{s.label}</span>
                     </div>
                   ))}
                 </div>
               )}
               {reelFillModal.rows.length === 0 && reelFillModal.phase !== "scanning" && (
-                <div style={{ textAlign:"center",padding:"40px 0",color:"#64748d",fontSize:13 }}>No parts with empty reel quantities found.</div>
+                <div style={{ textAlign:"center",padding:"40px 0",color:darkMode?"#8a93a3":"#64748d",fontSize:13 }}>No parts with empty reel quantities found.</div>
               )}
               {reelFillModal.rows.length > 0 && (
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
                   <thead>
                     <tr style={{ borderBottom:"2px solid #f0f0f2" }}>
-                      <th style={{ textAlign:"left",padding:"6px 8px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>MPN</th>
-                      <th style={{ textAlign:"left",padding:"6px 8px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Description</th>
-                      <th style={{ textAlign:"center",padding:"6px 8px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Current</th>
-                      <th style={{ textAlign:"center",padding:"6px 8px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Detected</th>
-                      <th style={{ textAlign:"left",padding:"6px 8px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Source</th>
-                      <th style={{ textAlign:"center",padding:"6px 8px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Save</th>
+                      <th style={{ textAlign:"left",padding:"6px 8px",color:darkMode?"#8a93a3":"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>MPN</th>
+                      <th style={{ textAlign:"left",padding:"6px 8px",color:darkMode?"#8a93a3":"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Description</th>
+                      <th style={{ textAlign:"center",padding:"6px 8px",color:darkMode?"#8a93a3":"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Current</th>
+                      <th style={{ textAlign:"center",padding:"6px 8px",color:darkMode?"#8a93a3":"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Detected</th>
+                      <th style={{ textAlign:"left",padding:"6px 8px",color:darkMode?"#8a93a3":"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Source</th>
+                      <th style={{ textAlign:"center",padding:"6px 8px",color:darkMode?"#8a93a3":"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em" }}>Save</th>
                     </tr>
                   </thead>
                   <tbody>
                     {reelFillModal.rows.map(row => (
                       <tr key={row.part.id} style={{ borderBottom:"1px solid #f6f9fc",opacity:row.detected ? 1 : 0.45 }}>
                         <td style={{ padding:"6px 8px",fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>{row.part.mpn || "—"}</td>
-                        <td style={{ padding:"6px 8px",color:"#50617a",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{row.part.description || row.part.value || "—"}</td>
-                        <td style={{ padding:"6px 8px",textAlign:"center",color:"#64748d" }}>{row.part.reelQty || "—"}</td>
+                        <td style={{ padding:"6px 8px",color:darkMode?"#b8bfcc":"#50617a",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{row.part.description || row.part.value || "—"}</td>
+                        <td style={{ padding:"6px 8px",textAlign:"center",color:darkMode?"#8a93a3":"#64748d" }}>{row.part.reelQty || "—"}</td>
                         <td style={{ padding:"6px 8px",textAlign:"center",fontWeight:row.detected?700:400,color:row.detected?"#34c759":"#b8bfcc" }}>
                           {row.detected ? row.detected.toLocaleString() : "Not found"}
                         </td>
-                        <td style={{ padding:"6px 8px",color:"#64748d",fontSize:11 }}>{row.source || "—"}</td>
+                        <td style={{ padding:"6px 8px",color:darkMode?"#8a93a3":"#64748d",fontSize:11 }}>{row.source || "—"}</td>
                         <td style={{ padding:"6px 8px",textAlign:"center" }}>
                           {row.detected ? (
                             <input type="checkbox" checked={reelFillModal.checkedIds.has(row.part.id)}
@@ -22560,7 +22601,7 @@ function BOMManager({ user }) {
             {reelFillModal.phase === "preview" && reelFillModal.checkedIds.size > 0 && (
               <div style={{ display:"flex",justifyContent:"flex-end",gap:10 }}>
                 <button onClick={() => setReelFillModal(null)}
-                  style={{ padding:"8px 20px",borderRadius:100,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:"#64748d" }}>
+                  style={{ padding:"8px 20px",borderRadius:100,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:darkMode?"#8a93a3":"#64748d" }}>
                   Cancel
                 </button>
                 <button onClick={async () => {
@@ -22577,7 +22618,7 @@ function BOMManager({ user }) {
               </div>
             )}
             {(reelFillModal.phase === "scanning" || reelFillModal.phase === "fetching") && (
-              <div style={{ textAlign:"center",padding:"8px 0",color:"#64748d",fontSize:12 }}>
+              <div style={{ textAlign:"center",padding:"8px 0",color:darkMode?"#8a93a3":"#64748d",fontSize:12 }}>
                 {reelFillModal.phase === "scanning" ? "Scanning…" : `Fetching API data… (${reelFillModal.apiCount} found so far)`}
               </div>
             )}
@@ -22594,12 +22635,12 @@ function BOMManager({ user }) {
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16 }}>
               <div>
                 <h3 style={{ margin:0,fontSize:20,fontWeight:700,color:darkMode?"#e8ebf0":"#061b31",letterSpacing:"-0.3px" }}>Auto-fill Values from Description</h3>
-                <p style={{ margin:"6px 0 0",fontSize:13,color:"#64748d",lineHeight:"18px" }}>
+                <p style={{ margin:"6px 0 0",fontSize:13,color:darkMode?"#8a93a3":"#64748d",lineHeight:"18px" }}>
                   {valueFillModal.rows.length} part{valueFillModal.rows.length !== 1 ? "s" : ""} detected · {valueFillModal.checkedIds.size} selected
                 </p>
               </div>
               <button onClick={() => setValueFillModal(null)}
-                style={{ background:darkMode?"#0a0c10":"#f6f9fc",border:"none",borderRadius:"50%",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#64748d",cursor:"pointer",flexShrink:0,marginLeft:16,transition:"background 0.15s" }}
+                style={{ background:darkMode?"#0a0c10":"#f6f9fc",border:"none",borderRadius:"50%",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:darkMode?"#8a93a3":"#64748d",cursor:"pointer",flexShrink:0,marginLeft:16,transition:"background 0.15s" }}
                 onMouseEnter={e => e.currentTarget.style.background="#e3e8ee"}
                 onMouseLeave={e => e.currentTarget.style.background="#f6f9fc"}>×</button>
             </div>
@@ -22626,14 +22667,14 @@ function BOMManager({ user }) {
                 </colgroup>
                 <thead style={{ position:"sticky",top:0,background:darkMode?"#161a22":"#fafbfc",zIndex:1 }}>
                   <tr>
-                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>MPN</th>
-                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Description</th>
-                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Cur. Value</th>
+                    <th style={{ textAlign:"left",padding:"10px 12px",color:darkMode?"#8a93a3":"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>MPN</th>
+                    <th style={{ textAlign:"left",padding:"10px 12px",color:darkMode?"#8a93a3":"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Description</th>
+                    <th style={{ textAlign:"left",padding:"10px 12px",color:darkMode?"#8a93a3":"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Cur. Value</th>
                     <th style={{ textAlign:"left",padding:"10px 12px",color:"#7ab8d4",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Det. Value</th>
-                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Cur. Voltage</th>
+                    <th style={{ textAlign:"left",padding:"10px 12px",color:darkMode?"#8a93a3":"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Cur. Voltage</th>
                     <th style={{ textAlign:"left",padding:"10px 12px",color:"#ff9f0a",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Det. Voltage</th>
-                    <th style={{ textAlign:"left",padding:"10px 12px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Manufacturer</th>
-                    <th style={{ textAlign:"center",padding:"10px 12px",color:"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Save</th>
+                    <th style={{ textAlign:"left",padding:"10px 12px",color:darkMode?"#8a93a3":"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Manufacturer</th>
+                    <th style={{ textAlign:"center",padding:"10px 12px",color:darkMode?"#8a93a3":"#64748d",fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e3e8ee" }}>Save</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -22642,12 +22683,12 @@ function BOMManager({ user }) {
                       onMouseEnter={e => e.currentTarget.style.background="#f0f6ff"}
                       onMouseLeave={e => e.currentTarget.style.background=i%2===0?"#fff":"#fafbfc"}>
                       <td style={{ padding:"8px 12px",fontWeight:600,color:darkMode?"#e8ebf0":"#061b31",fontFamily:"monospace",fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2" }} title={row.part.mpn}>{row.part.mpn || "—"}</td>
-                      <td style={{ padding:"8px 12px",color:"#50617a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2",fontSize:11 }} title={row.part.description}>{row.part.description || "—"}</td>
+                      <td style={{ padding:"8px 12px",color:darkMode?"#b8bfcc":"#50617a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2",fontSize:11 }} title={row.part.description}>{row.part.description || "—"}</td>
                       <td style={{ padding:"8px 12px",color:"#b8bfcc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.part.value || <span style={{ fontStyle:"italic",fontSize:10 }}>blank</span>}</td>
                       <td style={{ padding:"8px 12px",fontWeight:row.detectedValue?700:400,color:row.detectedValue?"#7ab8d4":"#b8bfcc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.detectedValue || <span style={{ color:"#e3e8ee",fontSize:10 }}>—</span>}</td>
                       <td style={{ padding:"8px 12px",color:"#b8bfcc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.part.voltage_rating || <span style={{ fontStyle:"italic",fontSize:10 }}>blank</span>}</td>
                       <td style={{ padding:"8px 12px",fontWeight:row.detectedVoltage?700:400,color:row.detectedVoltage?"#ff9f0a":"#b8bfcc",borderBottom:"1px solid #f0f0f2",whiteSpace:"nowrap" }}>{row.detectedVoltage || <span style={{ color:"#e3e8ee",fontSize:10 }}>—</span>}</td>
-                      <td style={{ padding:"8px 12px",color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2",fontSize:11 }} title={row.part.manufacturer}>{row.part.manufacturer || "—"}</td>
+                      <td style={{ padding:"8px 12px",color:darkMode?"#8a93a3":"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:"1px solid #f0f0f2",fontSize:11 }} title={row.part.manufacturer}>{row.part.manufacturer || "—"}</td>
                       <td style={{ padding:"8px 12px",textAlign:"center",borderBottom:"1px solid #f0f0f2" }}>
                         <input type="checkbox" checked={valueFillModal.checkedIds.has(row.part.id)}
                           onChange={() => setValueFillModal(prev => {
@@ -22665,7 +22706,7 @@ function BOMManager({ user }) {
             {/* Footer */}
             <div style={{ display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,paddingTop:4,borderTop:"1px solid #f0f0f2" }}>
               <button onClick={() => setValueFillModal(null)}
-                style={{ padding:"9px 22px",borderRadius:100,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:"#64748d",transition:"all 0.15s" }}
+                style={{ padding:"9px 22px",borderRadius:100,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"1px solid #e3e8ee",background:"transparent",color:darkMode?"#8a93a3":"#64748d",transition:"all 0.15s" }}
                 onMouseEnter={e => { e.currentTarget.style.background="#f6f9fc"; e.currentTarget.style.color="#061b31"; }}
                 onMouseLeave={e => { e.currentTarget.style.background="transparent"; e.currentTarget.style.color="#64748d"; }}>
                 Cancel
@@ -22710,18 +22751,18 @@ function BOMManager({ user }) {
             <div style={{ padding:"20px 24px 12px",borderBottom:"1px solid #e5e5ea",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
               <div>
                 <div style={{ fontSize:16,fontWeight:800,color:darkMode?"#e8ebf0":"#061b31" }}>Email All Purchase Orders</div>
-                <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>
+                <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>
                   {poEmailModal.length} suppliers · {poEmailModal.filter(d => d.sent).length} sent
                 </div>
               </div>
-              <button onClick={() => setPoEmailModal(null)} style={{ background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748d",padding:4 }}>×</button>
+              <button onClick={() => setPoEmailModal(null)} style={{ background:"none",border:"none",fontSize:20,cursor:"pointer",color:darkMode?"#8a93a3":"#64748d",padding:4 }}>×</button>
             </div>
             <div style={{ padding:"12px 24px 24px" }}>
               {poEmailModal.map((d, i) => (
                 <div key={i} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0",borderBottom: i < poEmailModal.length - 1 ? "1px solid #f0f0f2" : "none",gap:12 }}>
                   <div style={{ flex:1 }}>
                     <div style={{ fontWeight:700,fontSize:13,color:darkMode?"#e8ebf0":"#061b31" }}>{d.supplier}</div>
-                    <div style={{ fontSize:11,color:"#64748d" }}>
+                    <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>
                       {d.email ? <span style={{ color:"#58a6ff" }}>{d.email}</span> : <span style={{ color:"#ff9500" }}>No email set</span>}
                       {" · "}{d.itemCount} parts · {d.draft.subject}
                     </div>
@@ -22766,7 +22807,7 @@ function BOMManager({ user }) {
                 {poEmailModal.every(d => d.sent) ? (
                   <div style={{ fontSize:14,fontWeight:700,color:"#34c759" }}>All POs sent!</div>
                 ) : (
-                  <div style={{ fontSize:11,color:"#64748d" }}>Click Send on each supplier to open the email. Click Copy to copy to clipboard instead.</div>
+                  <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>Click Send on each supplier to open the email. Click Copy to copy to clipboard instead.</div>
                 )}
               </div>
             </div>
@@ -22785,16 +22826,16 @@ function BOMManager({ user }) {
                 <div style={{ fontSize:16,fontWeight:800,color:darkMode?"#e8ebf0":"#061b31",fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
                   Ship It
                 </div>
-                <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>
+                <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>
                   {shipModal.order.orderName} — {shipModal.order.customer}
                 </div>
               </div>
-              <button onClick={() => setShipModal(null)} style={{ background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748d",padding:4 }}>×</button>
+              <button onClick={() => setShipModal(null)} style={{ background:"none",border:"none",fontSize:20,cursor:"pointer",color:darkMode?"#8a93a3":"#64748d",padding:4 }}>×</button>
             </div>
 
             <div style={{ padding:"16px 24px 24px" }}>
               {shipModal.step === "loading" && (
-                <div style={{ textAlign:"center",padding:32,color:"#64748d" }}>
+                <div style={{ textAlign:"center",padding:32,color:darkMode?"#8a93a3":"#64748d" }}>
                   <div className="spinner" style={{ margin:"0 auto 12px" }} />
                   Loading carriers from ShipStation...
                 </div>
@@ -22813,7 +22854,7 @@ function BOMManager({ user }) {
                 <>
                   {/* Carrier */}
                   <div style={{ marginBottom:12 }}>
-                    <label style={{ fontSize:11,color:"#50617a",fontWeight:600,display:"block",marginBottom:4 }}>Carrier</label>
+                    <label style={{ fontSize:11,color:darkMode?"#b8bfcc":"#50617a",fontWeight:600,display:"block",marginBottom:4 }}>Carrier</label>
                     <select value={shipModal.form.carrierCode}
                       onChange={(e) => shipModalSelectCarrier(e.target.value)}
                       style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #d1d1d6",fontSize:13 }}>
@@ -22825,7 +22866,7 @@ function BOMManager({ user }) {
 
                   {/* Service */}
                   <div style={{ marginBottom:12 }}>
-                    <label style={{ fontSize:11,color:"#50617a",fontWeight:600,display:"block",marginBottom:4 }}>Service</label>
+                    <label style={{ fontSize:11,color:darkMode?"#b8bfcc":"#50617a",fontWeight:600,display:"block",marginBottom:4 }}>Service</label>
                     <select value={shipModal.form.serviceCode}
                       onChange={(e) => setShipModal(prev => ({ ...prev, form: { ...prev.form, serviceCode: e.target.value } }))}
                       style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #d1d1d6",fontSize:13 }}>
@@ -22837,7 +22878,7 @@ function BOMManager({ user }) {
 
                   {/* Weight */}
                   <div style={{ marginBottom:12 }}>
-                    <label style={{ fontSize:11,color:"#50617a",fontWeight:600,display:"block",marginBottom:4 }}>Package Weight (oz)</label>
+                    <label style={{ fontSize:11,color:darkMode?"#b8bfcc":"#50617a",fontWeight:600,display:"block",marginBottom:4 }}>Package Weight (oz)</label>
                     <input type="number" min="1" value={shipModal.form.weightOz}
                       onChange={(e) => setShipModal(prev => ({ ...prev, form: { ...prev.form, weightOz: e.target.value } }))}
                       style={{ width:100,padding:"8px 10px",borderRadius:8,border:"1px solid #d1d1d6",fontSize:13 }} />
@@ -22845,7 +22886,7 @@ function BOMManager({ user }) {
 
                   {/* Dimensions */}
                   <div style={{ marginBottom:16 }}>
-                    <label style={{ fontSize:11,color:"#50617a",fontWeight:600,display:"block",marginBottom:4 }}>Dimensions (in) — optional</label>
+                    <label style={{ fontSize:11,color:darkMode?"#b8bfcc":"#50617a",fontWeight:600,display:"block",marginBottom:4 }}>Dimensions (in) — optional</label>
                     <div style={{ display:"flex",gap:8 }}>
                       <input type="number" placeholder="L" value={shipModal.form.length}
                         onChange={(e) => setShipModal(prev => ({ ...prev, form: { ...prev.form, length: e.target.value } }))}
@@ -22862,7 +22903,7 @@ function BOMManager({ user }) {
                   {/* Rates */}
                   {shipModal.rates.length > 0 && (
                     <div style={{ background:darkMode?"#0a0c10":"#f6f9fc",borderRadius:8,padding:12,marginBottom:16 }}>
-                      <div style={{ fontSize:10,color:"#50617a",fontWeight:600,marginBottom:6,letterSpacing:"0.05em" }}>ESTIMATED RATES</div>
+                      <div style={{ fontSize:10,color:darkMode?"#b8bfcc":"#50617a",fontWeight:600,marginBottom:6,letterSpacing:"0.05em" }}>ESTIMATED RATES</div>
                       {shipModal.rates.map((r, i) => (
                         <div key={i} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",fontSize:12,
                           cursor:"pointer",fontWeight: r.serviceCode === shipModal.form.serviceCode ? 700 : 400,
@@ -22885,7 +22926,7 @@ function BOMManager({ user }) {
 
                   {/* Items preview */}
                   <div style={{ background:darkMode?"#0a0c10":"#f6f9fc",borderRadius:8,padding:12,marginBottom:16 }}>
-                    <div style={{ fontSize:10,color:"#50617a",fontWeight:600,marginBottom:6,letterSpacing:"0.05em" }}>ORDER ITEMS</div>
+                    <div style={{ fontSize:10,color:darkMode?"#b8bfcc":"#50617a",fontWeight:600,marginBottom:6,letterSpacing:"0.05em" }}>ORDER ITEMS</div>
                     {(shipModal.order.lineItems || []).map((li, i) => (
                       <div key={i} style={{ display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0" }}>
                         <span>{li.title}</span>
@@ -22917,7 +22958,7 @@ function BOMManager({ user }) {
                   <div style={{ fontSize:13,color:"#3a3f51",marginBottom:4 }}>
                     Tracking: <span style={{ fontFamily:"monospace",fontWeight:700 }}>{shipModal.result.trackingNumber}</span>
                   </div>
-                  <div style={{ fontSize:12,color:"#64748d",marginBottom:4 }}>
+                  <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:4 }}>
                     {shipModal.result.carrier} · {shipModal.result.service}
                   </div>
                   {shipModal.result.shipmentCost > 0 && (
@@ -22958,13 +22999,13 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16 }}>
                 <div>
                   <div style={{ fontSize:17,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>Match Part MPN</div>
-                  <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>
+                  <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>
                     {part.reference && <span style={{ fontFamily:"monospace",marginRight:8 }}>{part.reference}</span>}
                     {part.value && <span>{part.value}</span>}
-                    {part.footprint && <span style={{ color:"#64748d",marginLeft:6 }}>· {part.footprint}</span>}
+                    {part.footprint && <span style={{ color:darkMode?"#8a93a3":"#64748d",marginLeft:6 }}>· {part.footprint}</span>}
                   </div>
                 </div>
-                <button onClick={() => setImportMatchModal(null)} style={{ background:darkMode?"#161a22":"#f6f9fc",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:"#64748d" }}>×</button>
+                <button onClick={() => setImportMatchModal(null)} style={{ background:darkMode?"#161a22":"#f6f9fc",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:darkMode?"#8a93a3":"#64748d" }}>×</button>
               </div>
               <input
                 autoFocus
@@ -22973,7 +23014,7 @@ function BOMManager({ user }) {
                 onChange={e => setImportMatchSearch(e.target.value)}
                 style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#1f2530":"#e3e8ee"),background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31",fontSize:13,boxSizing:"border-box",fontFamily:"inherit",marginBottom:12,outline:"none" }} />
               {matchResults.length === 0 && q.length >= 2 && (
-                <div style={{ padding:"16px 0",textAlign:"center",color:"#64748d",fontSize:13 }}>No parts found — this will be imported as a new part.</div>
+                <div style={{ padding:"16px 0",textAlign:"center",color:darkMode?"#8a93a3":"#64748d",fontSize:13 }}>No parts found — this will be imported as a new part.</div>
               )}
               {matchResults.length > 0 && (
                 <div style={{ border:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),borderRadius:10,overflow:"hidden" }}>
@@ -22989,10 +23030,10 @@ function BOMManager({ user }) {
                       <div style={{ flex:1,minWidth:0 }}>
                         <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"monospace" }}>{r.mpn||"—"}</div>
                         <div style={{ display:"flex",flexWrap:"wrap",alignItems:"center",gap:4,marginTop:3 }}>
-                          {r.value && <span style={{ fontSize:11,color:"#64748d" }}>{r.value}</span>}
-                          {r.voltage_rating && <span style={{ fontSize:11,color:"#64748d" }}>· {r.voltage_rating}</span>}
+                          {r.value && <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>{r.value}</span>}
+                          {r.voltage_rating && <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>· {r.voltage_rating}</span>}
                           {r.footprint && <span style={{ fontSize:11,padding:"1px 6px",borderRadius:4,background:darkMode?"rgba(255,149,0,0.15)":"rgba(255,149,0,0.1)",color:"#c86400",fontWeight:600,border:"1px solid rgba(255,149,0,0.25)" }}>{r.footprint}</span>}
-                          {r.description && <span style={{ fontSize:11,color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160 }}>{r.description}</span>}
+                          {r.description && <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160 }}>{r.description}</span>}
                         </div>
                       </div>
                       <span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:"rgba(83,58,253,0.1)",color:"#58a6ff",fontWeight:600,flexShrink:0 }}>Use</span>
@@ -23030,14 +23071,14 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16 }}>
                 <div>
                   <div style={{ fontSize:17,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>Match Part to Library</div>
-                  <div style={{ fontSize:12,color:"#64748d",marginTop:2 }}>
+                  <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:2 }}>
                     {part.reference && <span style={{ fontFamily:"monospace",marginRight:8 }}>{part.reference}</span>}
                     {part.value && <span>{part.value}</span>}
-                    {part.description && <span style={{ color:"#64748d",marginLeft:6 }}>· {part.description}</span>}
-                    {part.footprint && <span style={{ color:"#64748d",marginLeft:6 }}>· {part.footprint}</span>}
+                    {part.description && <span style={{ color:darkMode?"#8a93a3":"#64748d",marginLeft:6 }}>· {part.description}</span>}
+                    {part.footprint && <span style={{ color:darkMode?"#8a93a3":"#64748d",marginLeft:6 }}>· {part.footprint}</span>}
                   </div>
                 </div>
-                <button onClick={() => setPdImportMatchModal(null)} style={{ background:darkMode?"#161a22":"#f6f9fc",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:"#64748d" }}>×</button>
+                <button onClick={() => setPdImportMatchModal(null)} style={{ background:darkMode?"#161a22":"#f6f9fc",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:darkMode?"#8a93a3":"#64748d" }}>×</button>
               </div>
               <input
                 autoFocus
@@ -23046,7 +23087,7 @@ function BOMManager({ user }) {
                 onChange={e => setPdImportMatchSearch(e.target.value)}
                 style={{ width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid "+(darkMode?"#1f2530":"#e3e8ee"),background:darkMode?"#161a22":"#fff",color:darkMode?"#f6f9fc":"#061b31",fontSize:13,boxSizing:"border-box",fontFamily:"inherit",marginBottom:12,outline:"none" }} />
               {matchResults.length === 0 && q.length >= 2 && (
-                <div style={{ padding:"16px 0",textAlign:"center",color:"#64748d",fontSize:13 }}>No matching parts — type an MPN directly into the MPN field in the preview table.</div>
+                <div style={{ padding:"16px 0",textAlign:"center",color:darkMode?"#8a93a3":"#64748d",fontSize:13 }}>No matching parts — type an MPN directly into the MPN field in the preview table.</div>
               )}
               {matchResults.length > 0 && (
                 <div style={{ border:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),borderRadius:10,overflow:"hidden" }}>
@@ -23070,10 +23111,10 @@ function BOMManager({ user }) {
                       <div style={{ flex:1,minWidth:0 }}>
                         <div style={{ fontSize:13,fontWeight:600,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"monospace" }}>{r.mpn||"—"}</div>
                         <div style={{ display:"flex",flexWrap:"wrap",alignItems:"center",gap:4,marginTop:3 }}>
-                          {r.value && <span style={{ fontSize:11,color:"#64748d" }}>{r.value}</span>}
-                          {r.voltage_rating && <span style={{ fontSize:11,color:"#64748d" }}>· {r.voltage_rating}</span>}
+                          {r.value && <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>{r.value}</span>}
+                          {r.voltage_rating && <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>· {r.voltage_rating}</span>}
                           {r.footprint && <span style={{ fontSize:11,padding:"1px 6px",borderRadius:4,background:darkMode?"rgba(255,149,0,0.15)":"rgba(255,149,0,0.1)",color:"#c86400",fontWeight:600,border:"1px solid rgba(255,149,0,0.25)" }}>{r.footprint}</span>}
-                          {r.description && <span style={{ fontSize:11,color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160 }}>{r.description}</span>}
+                          {r.description && <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160 }}>{r.description}</span>}
                         </div>
                       </div>
                       <span style={{ fontSize:11,padding:"2px 8px",borderRadius:5,background:"rgba(83,58,253,0.1)",color:"#58a6ff",fontWeight:600,flexShrink:0 }}>Use</span>
@@ -23126,20 +23167,20 @@ function BOMManager({ user }) {
               <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16 }}>
                 <div>
                   <div style={{ fontSize:17,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31" }}>Assign Part from Library</div>
-                  <div style={{ fontSize:12,color:"#64748d",marginTop:3,display:"flex",flexWrap:"wrap",alignItems:"center",gap:6 }}>
+                  <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginTop:3,display:"flex",flexWrap:"wrap",alignItems:"center",gap:6 }}>
                     {part.value && <span style={{ fontWeight:600,color:darkMode?"#e8ebf0":"#061b31" }}>{part.value}</span>}
                     {part.footprint && <span style={{ padding:"1px 6px",borderRadius:4,background:"rgba(255,149,0,0.1)",color:"#c86400",fontWeight:600,fontSize:11,border:"1px solid rgba(255,149,0,0.25)" }}>{part.footprint}</span>}
-                    {part.description && <span style={{ color:"#64748d" }}>{part.description}</span>}
+                    {part.description && <span style={{ color:darkMode?"#8a93a3":"#64748d" }}>{part.description}</span>}
                   </div>
                 </div>
                 <button onClick={() => setNoMpnMatchModal(null)}
-                  style={{ background:darkMode?"#161a22":"#f5f5f7",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:"#64748d",flexShrink:0 }}
+                  style={{ background:darkMode?"#161a22":"#f5f5f7",border:"none",borderRadius:100,width:28,height:28,cursor:"pointer",fontSize:16,color:darkMode?"#8a93a3":"#64748d",flexShrink:0 }}
                   onMouseEnter={e=>e.currentTarget.style.background=darkMode?"#1f2530":"#e8e8ed"}
                   onMouseLeave={e=>e.currentTarget.style.background=darkMode?"#161a22":"#f5f5f7"}>×</button>
               </div>
 
               {/* ── Search / URL paste input ── */}
-              <div style={{ fontSize:10,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>
+              <div style={{ fontSize:10,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>
                 Search library or paste a supplier URL
               </div>
               <input
@@ -23192,10 +23233,10 @@ function BOMManager({ user }) {
 
               {/* ── Library results ── */}
               {!urlParsedMpn && q.length >= 2 && matchResults.length === 0 && (
-                <div style={{ padding:"16px 0",textAlign:"center",color:"#64748d",fontSize:13 }}>No matching parts in library — try pasting a supplier URL or use Search Mouser above.</div>
+                <div style={{ padding:"16px 0",textAlign:"center",color:darkMode?"#8a93a3":"#64748d",fontSize:13 }}>No matching parts in library — try pasting a supplier URL or use Search Mouser above.</div>
               )}
               {!urlParsedMpn && q.length < 2 && (
-                <div style={{ padding:"12px 0",textAlign:"center",color:"#64748d",fontSize:12 }}>Type at least 2 characters to search the library…</div>
+                <div style={{ padding:"12px 0",textAlign:"center",color:darkMode?"#8a93a3":"#64748d",fontSize:12 }}>Type at least 2 characters to search the library…</div>
               )}
               {!urlParsedMpn && matchResults.length > 0 && (
                 <div style={{ border:"1px solid "+(darkMode?"#1f2530":"#e5e5ea"),borderRadius:10,overflow:"hidden" }}>
@@ -23219,11 +23260,11 @@ function BOMManager({ user }) {
                       <div style={{ flex:1,minWidth:0 }}>
                         <div style={{ fontSize:13,fontWeight:700,color:darkMode?"#f6f9fc":"#061b31",fontFamily:"monospace" }}>{r.mpn}</div>
                         <div style={{ display:"flex",flexWrap:"wrap",alignItems:"center",gap:4,marginTop:3 }}>
-                          {r.value && <span style={{ fontSize:11,fontWeight:600,color:"#50617a" }}>{r.value}</span>}
-                          {r.voltage_rating && <span style={{ fontSize:11,color:"#64748d" }}>· {r.voltage_rating}</span>}
+                          {r.value && <span style={{ fontSize:11,fontWeight:600,color:darkMode?"#b8bfcc":"#50617a" }}>{r.value}</span>}
+                          {r.voltage_rating && <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>· {r.voltage_rating}</span>}
                           {r.footprint && <span style={{ fontSize:11,padding:"1px 6px",borderRadius:4,background:darkMode?"rgba(255,149,0,0.15)":"rgba(255,149,0,0.1)",color:"#c86400",fontWeight:600,border:"1px solid rgba(255,149,0,0.25)" }}>{r.footprint}</span>}
-                          {r.manufacturer && <span style={{ fontSize:11,color:"#64748d" }}>{r.manufacturer}</span>}
-                          {r.description && <span style={{ fontSize:11,color:"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180 }}>{r.description}</span>}
+                          {r.manufacturer && <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d" }}>{r.manufacturer}</span>}
+                          {r.description && <span style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180 }}>{r.description}</span>}
                         </div>
                       </div>
                       <span style={{ fontSize:11,padding:"3px 10px",borderRadius:100,background:"rgba(83,58,253,0.1)",color:"#58a6ff",fontWeight:700,flexShrink:0,border:"1px solid rgba(83,58,253,0.2)" }}>
@@ -23258,12 +23299,12 @@ function BOMManager({ user }) {
             <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:20,padding:"32px 36px",maxWidth:440,width:"90%",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize:20,fontWeight:700,color:"#8B0000",marginBottom:4 }}>☠ Destroy Serial Number</div>
-              <div style={{ fontSize:13,color:"#64748d",marginBottom:20 }}>
+              <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginBottom:20 }}>
                 <strong style={{ color:textPrimary }}>{unit.serial_number}</strong> — {prod?.name || "Unknown product"}<br/>
                 This permanently marks the unit as destroyed. It will not count toward royalties or sales totals.
               </div>
               <div style={{ marginBottom:20 }}>
-                <div style={{ fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Reason for destruction</div>
+                <div style={{ fontSize:11,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>Reason for destruction</div>
                 <textarea value={destroyReason} onChange={e => setDestroyReason(e.target.value)} autoFocus
                   placeholder="e.g. cracked PCB, failed transformer, irreparable board damage…"
                   style={{ width:"100%",padding:"10px 12px",borderRadius:10,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",background:darkMode?"#161a22":"#f6f9fc",color:textPrimary,fontSize:13,fontFamily:"inherit",resize:"vertical",minHeight:80,outline:"none",boxSizing:"border-box" }} />
@@ -23294,12 +23335,12 @@ function BOMManager({ user }) {
             <div style={{ background:darkMode?"#0f1218":"#fff",borderRadius:20,padding:"32px 36px",maxWidth:440,width:"90%",boxShadow:"0 32px 80px rgba(0,0,0,0.22),0 4px 16px rgba(0,0,0,0.10)" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize:20,fontWeight:700,color:"#ff3b30",marginBottom:4 }}>✗ Play Test Fail</div>
-              <div style={{ fontSize:13,color:"#64748d",marginBottom:20 }}>
+              <div style={{ fontSize:13,color:darkMode?"#8a93a3":"#64748d",marginBottom:20 }}>
                 <strong style={{ color:textPrimary }}>{unit.serial_number}</strong> — {prod?.name || "Unknown product"}<br/>
                 Describe what's wrong so it can be tracked and fixed.
               </div>
               <div style={{ marginBottom:20 }}>
-                <div style={{ fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>What's wrong with this pedal?</div>
+                <div style={{ fontSize:11,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6 }}>What's wrong with this pedal?</div>
                 <textarea value={failReason} onChange={e => setFailReason(e.target.value)} autoFocus
                   placeholder="e.g. no output on channel 2, LED not working, noisy pots…"
                   style={{ width:"100%",padding:"10px 12px",borderRadius:10,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",background:darkMode?"#161a22":"#f6f9fc",color:textPrimary,fontSize:13,fontFamily:"inherit",resize:"vertical",minHeight:80,outline:"none",boxSizing:"border-box" }} />
@@ -23351,25 +23392,25 @@ function BOMManager({ user }) {
 
               <div style={{ display:"flex",gap:12,marginBottom:16,flexWrap:"wrap" }}>
                 <div style={{ flex:2,minWidth:160 }}>
-                  <div style={{ fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>Product</div>
+                  <div style={{ fontSize:11,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>Product</div>
                   <select value={batchProductId} onChange={e => setBatchProductId(e.target.value)}
                     style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",background:darkMode?"#161a22":"#fff",color:textPrimary,fontSize:13,fontFamily:"inherit" }}>
                     {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div style={{ flex:1,minWidth:80 }}>
-                  <div style={{ fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>From S/N #</div>
+                  <div style={{ fontSize:11,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>From S/N #</div>
                   <input type="number" min="1" placeholder="e.g. 200" value={batchFromSerial} onChange={e => setBatchFromSerial(e.target.value)}
                     style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",background:darkMode?"#161a22":"#fff",color:textPrimary,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }} />
                 </div>
                 <div style={{ flex:1,minWidth:80 }}>
-                  <div style={{ fontSize:11,fontWeight:700,color:"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>To S/N #</div>
+                  <div style={{ fontSize:11,fontWeight:700,color:darkMode?"#8a93a3":"#64748d",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5 }}>To S/N #</div>
                   <input type="number" min="1" placeholder="e.g. 250" value={batchToSerial} onChange={e => setBatchToSerial(e.target.value)}
                     style={{ width:"100%",padding:"8px 10px",borderRadius:8,border:darkMode?"1px solid #1f2530":"1px solid #e3e8ee",background:darkMode?"#161a22":"#fff",color:textPrimary,fontSize:13,fontFamily:"inherit",boxSizing:"border-box" }} />
                 </div>
               </div>
 
-              <div style={{ fontSize:12,color:"#64748d",marginBottom:16 }}>
+              <div style={{ fontSize:12,color:darkMode?"#8a93a3":"#64748d",marginBottom:16 }}>
                 {batchUnits.length > 0
                   ? <><strong style={{ color:textPrimary }}>{batchUnits.length} units</strong> matched — {batchUnits[0]?.serial_number} through {batchUnits[batchUnits.length-1]?.serial_number}</>
                   : selProd ? "No units found in that range. Check serial numbers in the pipeline." : "Select a product."}
@@ -23390,7 +23431,7 @@ function BOMManager({ user }) {
                 </button>
               </div>
 
-              <div style={{ fontSize:11,color:"#64748d",marginBottom:20 }}>
+              <div style={{ fontSize:11,color:darkMode?"#8a93a3":"#64748d",marginBottom:20 }}>
                 {batchStickerTab==="pedal"
                   ? "Pedal bottom: brand, product name, serial number barcode + S/N — matches your sticker editor template."
                   : "Box label (4\" × 3\"): product name, serial number, registration QR code, UPC barcode."}
@@ -23434,13 +23475,13 @@ function BOMManager({ user }) {
         />
       )}
 
-      <footer style={{ position:"fixed",bottom:0,left:0,right:0,zIndex:999,borderTop:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",padding:"7px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:"#8898aa",
+      <footer style={{ position:"fixed",bottom:0,left:0,right:0,zIndex:999,borderTop:darkMode?"1px solid #1f2530":"1px solid #e5e5ea",padding:"7px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10,color:darkMode?"#8a93a3":"#8898aa",
         background:darkMode?"rgba(28,28,30,0.92)":"rgba(255,255,255,0.92)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)" }}>
         <span style={{ fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>Jackson Audio BOM Manager {APP_VERSION} — deployed {new Date(BUILD_TIME).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
         <span style={{ display:"flex",alignItems:"center",gap:12 }}>
-          <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color:"#8898aa",textDecoration:"none" }} onMouseOver={e=>e.currentTarget.style.color="#58a6ff"} onMouseOut={e=>e.currentTarget.style.color="#8898aa"}>Privacy</a>
-          <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color:"#8898aa",textDecoration:"none" }} onMouseOver={e=>e.currentTarget.style.color="#58a6ff"} onMouseOut={e=>e.currentTarget.style.color="#8898aa"}>Terms</a>
-          <span style={{ color:"#8898aa" }}>{new Date(BUILD_TIME).toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color:darkMode?"#8a93a3":"#8898aa",textDecoration:"none" }} onMouseOver={e=>e.currentTarget.style.color="#58a6ff"} onMouseOut={e=>e.currentTarget.style.color="#8898aa"}>Privacy</a>
+          <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color:darkMode?"#8a93a3":"#8898aa",textDecoration:"none" }} onMouseOver={e=>e.currentTarget.style.color="#58a6ff"} onMouseOut={e=>e.currentTarget.style.color="#8898aa"}>Terms</a>
+          <span style={{ color:darkMode?"#8a93a3":"#8898aa" }}>{new Date(BUILD_TIME).toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</span>
         </span>
       </footer>
 
