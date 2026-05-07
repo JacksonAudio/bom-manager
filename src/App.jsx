@@ -1,5 +1,15 @@
 // ============================================================
-// src/App.jsx — Jackson Audio BOM Manager v10.51
+// src/App.jsx — Jackson Audio BOM Manager v10.52
+//
+// [v10.52] Activity tracking: every sign-in and tab switch fires a
+//   Slack DM to Brad when the user is brady@jacksonaudio.net (silent
+//   for everyone else, server-side filter). Server endpoint:
+//   api/notifications.js?type=track-activity. New trackActivity()
+//   helper above BOMManager + two useEffects inside it (mount +
+//   activeView watcher with ref-guard so the first render doesn't
+//   double-fire). Brad's "is Brady actually using this?" question
+//   now has real-time visibility instead of guessing.
+//
 // Tuesday, May 5, 2026 - 7:08PM
 //
 // Changelog:
@@ -222,8 +232,8 @@
 // ============================================================
 
 // ── Build stamp — update BOTH values on every push ──────────
-const APP_VERSION  = "v10.51";
-const BUILD_TIME   = "2026-05-05T19:08:00";   // local time of last push (Central)
+const APP_VERSION  = "v10.52";
+const BUILD_TIME   = "2026-05-07T00:38:00";   // local time of last push (Central)
 // ────────────────────────────────────────────────────────────
 
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, Component } from "react";
@@ -1902,6 +1912,31 @@ export default function App() {
 const parseLocal = (s) => { if (!s) return null; if (s instanceof Date) return s; const [y,m,d] = String(s).slice(0,10).split("-"); return new Date(parseInt(y),parseInt(m)-1,parseInt(d)); };
 
 // ─────────────────────────────────────────────
+// Activity tracking — best-effort POST to /api/notifications?type=track-activity.
+// The server is silent for any user not in its TRACKED_USERS list, so it's
+// safe to call from every signed-in session. Currently used to fire Slack
+// DMs to Brad whenever Brady touches the BOM Manager (sign-in, tab change),
+// so Brad has real-time visibility into whether Brady is actually using
+// the app. Errors are swallowed — tracking never blocks the UI.
+// ─────────────────────────────────────────────
+async function trackActivity(action, details) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    await fetch("/api/notifications?type=track-activity", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ action, details: details || null }),
+    });
+  } catch {
+    // Silent. Tracking is best-effort.
+  }
+}
+
+// ─────────────────────────────────────────────
 // MAIN BOM MANAGER
 // ─────────────────────────────────────────────
 function BOMManager({ user }) {
@@ -1924,6 +1959,25 @@ function BOMManager({ user }) {
     const path = "/" + (view === "projects" ? "products" : view);
     window.history.pushState(null, "", path);
   };
+
+  // Activity tracking (v10.52) — fires Slack DMs to Brad whenever Brady
+  // uses the BOM Manager. Server filters to TRACKED_USERS so this no-ops
+  // for everyone else. One DM on initial mount (treated as "signed in"),
+  // one DM per tab change. The ref-guard avoids firing on the very first
+  // activeView render (already covered by the sign-in DM).
+  const lastTrackedViewRef = useRef(activeView);
+  useEffect(() => {
+    trackActivity("Signed in to BOM Manager", `Initial tab: ${activeView}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (lastTrackedViewRef.current !== activeView) {
+      if (lastTrackedViewRef.current !== null) {
+        trackActivity(`Opened tab: ${activeView}`);
+      }
+      lastTrackedViewRef.current = activeView;
+    }
+  }, [activeView]);
   // selectedProduct is initialized from URL if path is /products/{id}
   const _initialProductId = (() => {
     const segs = window.location.pathname.replace(/^\//, "").split("/");

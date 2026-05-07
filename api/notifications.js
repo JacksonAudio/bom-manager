@@ -1,18 +1,26 @@
 // Vercel Serverless Function — Notifications Combined
-// Combines: build-complete-notify, send-sms
-// Route via ?type=build-complete|sms
+// Combines: build-complete-notify, send-sms, slack-test, auth-login-alert,
+//           gmail-*, track-activity
+// Route via ?type=build-complete|sms|...|track-activity
+//
+// v10.52: Added track-activity. Validates the caller's Supabase JWT and
+// fires a Slack DM to slack_alert_user_id when the user's email is on
+// TRACKED_USERS (currently brady@jacksonaudio.net only). Silent for
+// every other signed-in user. Used by the BOM Manager UI to give Brad
+// real-time visibility into whether Brady is actually using the app —
+// fires on login + every tab switch. Authorization: Bearer <jwt>.
 
 import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
   const type = req.query.type || (req.body && req.body.type);
-  if (!type) return res.status(400).json({ error: "Missing type param (build-complete|sms)" });
+  if (!type) return res.status(400).json({ error: "Missing type param (build-complete|sms|...|track-activity)" });
 
   switch (type) {
     case "build-complete":
@@ -37,6 +45,8 @@ export default async function handler(req, res) {
       return await handleGmailReply(req, res);
     case "gmail-mark-done":
       return await handleGmailMarkDone(req, res);
+    case "track-activity":
+      return await handleTrackActivity(req, res);
     default:
       return res.status(400).json({ error: `Unknown type: ${type}` });
   }
@@ -437,6 +447,106 @@ async function handleSlackTest(req, res) {
   const slackResp = await slackPostDm(token, userId, text);
   if (!slackResp.ok) return res.status(500).json({ ok: false, step: "post", error: slackResp.error, slack_response: slackResp });
   return res.status(200).json({ ok: true, recipient: slackUserIdOverride ? "(direct ID)" : recipientEmail, slack_user: userId, slack_name: name, ts: slackResp.ts });
+}
+
+// ── Track Activity (v10.52) — Brad's "is Brady using this?" visibility ──────
+// POST /api/notifications?type=track-activity
+//   headers: Authorization: Bearer <supabase_access_token>
+//   body:    { action: string, details?: string|null }
+// Validates the JWT against Supabase, looks up the user's email, and ONLY
+// fires a Slack DM (to slack_alert_user_id) if the user is in TRACKED_USERS.
+// Other users get a silent 200 so the frontend can call this on every
+// session/route change without thinking about who's signed in.
+// Reuses the existing getSlackBotToken / slackPostDm helpers.
+
+const TRACKED_USERS = new Set(["brady@jacksonaudio.net"]);
+
+async function handleTrackActivity(req, res) {
+  const { action, details } = req.body || {};
+  if (!action || typeof action !== "string") {
+    return res.status(400).json({ error: "action (string) required in body" });
+  }
+
+  // Pre-declared. Pull bearer from Authorization header.
+  const auth = req.headers.authorization || "";
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  if (!m) return res.status(401).json({ error: "Authorization: Bearer <token> required" });
+  const userToken = m[1].trim();
+
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const anonKey     = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !anonKey) {
+    console.error("track-activity: missing Supabase URL/anon key in env");
+    return res.status(500).json({ error: "supabase env vars missing" });
+  }
+
+  // Validate the JWT by calling Supabase Auth's user endpoint.
+  let user;
+  try {
+    const r = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${userToken}`, apikey: anonKey },
+    });
+    if (!r.ok) return res.status(401).json({ error: "invalid token" });
+    user = await r.json();
+  } catch (err) {
+    console.error("track-activity: user validation threw:", err);
+    return res.status(500).json({ error: "user validation failed" });
+  }
+  const email = (user?.email || "").toLowerCase();
+  if (!email) return res.status(401).json({ error: "no email in token" });
+
+  // Silent for non-tracked users — frontend fires on every login/tab
+  // change, and we don't want every team member's clicks pinging Brad.
+  if (!TRACKED_USERS.has(email)) {
+    return res.status(200).json({ ok: true, tracked: false });
+  }
+
+  // Tracked — pull the Slack bot token + Brad's slack user id and DM.
+  const { token: slackToken, error: tokenErr } = await getSlackBotToken();
+  if (!slackToken) {
+    console.error("track-activity: getSlackBotToken failed:", tokenErr);
+    return res.status(500).json({ ok: false, step: "slack_token", error: tokenErr });
+  }
+
+  // slack_alert_user_id is already populated in api_keys (per the existing
+  // auth-login-alert flow). Read it via the same service-role pattern.
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseServiceKey) {
+    return res.status(500).json({ error: "service role key missing" });
+  }
+  let slackUserId;
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const sb = createClient(supabaseUrl, supabaseServiceKey);
+    const { data } = await sb.from("api_keys").select("key_value").eq("key_name", "slack_alert_user_id").maybeSingle();
+    slackUserId = data?.key_value;
+  } catch (err) {
+    console.error("track-activity: api_keys read threw:", err);
+    return res.status(500).json({ error: "api_keys read failed" });
+  }
+  if (!slackUserId) {
+    return res.status(500).json({ ok: false, error: "slack_alert_user_id missing in api_keys" });
+  }
+
+  // Compose + send the DM. Central time so the timestamp matches Brad's
+  // mental model. Mrkdwn formatting (Slack default for chat.postMessage).
+  const ts = new Date().toLocaleString("en-US", {
+    timeZone: "America/Chicago",
+    weekday: "short", month: "short", day: "numeric",
+    hour: "numeric", minute: "2-digit",
+  });
+  const text =
+    `:eyes: *Brady — BOM Manager*\n` +
+    `*${action}*` +
+    (details ? `\n${details}` : "") +
+    `\n_${ts} CT · ${email}_`;
+
+  const slackResp = await slackPostDm(slackToken, slackUserId, text);
+  if (!slackResp.ok) {
+    console.error("track-activity: slack post failed:", slackResp.error);
+    return res.status(502).json({ ok: false, step: "slack_post", error: slackResp.error });
+  }
+  return res.status(200).json({ ok: true, tracked: true, slack_ts: slackResp.ts });
 }
 
 // ── Auth Login Alert — fired by Postgres trigger when a watched user logs in
