@@ -3,6 +3,11 @@ import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import Scoreboard from './components/Scoreboard.jsx'
 import RegisterProduct from './components/RegisterProduct.jsx'
+import { installLensAuthBridge } from './lib/lensAuthBridge'
+
+// Bridge our Supabase session to the APP BUILDER parent frame (lens),
+// so login persists across APP BUILDER restarts. No-op in a real browser.
+installLensAuthBridge()
 
 const hash = window.location.hash
 const pathname = window.location.pathname
