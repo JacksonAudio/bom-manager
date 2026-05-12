@@ -24,6 +24,36 @@
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      LENS canvas integration. When this app is loaded inside an iframe
+      (e.g. the LENS Canvas pane), broadcast our current URL to the parent
+      on every route change so the LENS URL bar tracks navigation and the
+      Reload button returns to the current page instead of the iframe src.
+      No-op when not framed.
+    -->
+    <script>
+      (function () {
+        if (window.parent === window) return;
+        function broadcast() {
+          try {
+            window.parent.postMessage(
+              { type: "lens-route", href: location.href },
+              "*",
+            );
+          } catch (e) {}
+        }
+        broadcast();
+        window.addEventListener("popstate", broadcast);
+        ["pushState", "replaceState"].forEach(function (fn) {
+          var orig = history[fn];
+          history[fn] = function () {
+            var r = orig.apply(this, arguments);
+            broadcast();
+            return r;
+          };
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
